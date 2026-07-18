@@ -1,0 +1,117 @@
+{
+  "$defs": {
+    "ExportArtifact": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "content_type": {
+          "title": "Content Type",
+          "type": "string"
+        },
+        "filename": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Filename"
+        },
+        "status": {
+          "enum": [
+            "available",
+            "failed",
+            "skipped"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "warning": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Warning"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "content_type",
+        "status"
+      ],
+      "title": "ExportArtifact",
+      "type": "object"
+    },
+    "ExportKind": {
+      "enum": [
+        "draft",
+        "final"
+      ],
+      "title": "ExportKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "docx": {
+      "$ref": "#/$defs/ExportArtifact"
+    },
+    "draft_id": {
+      "title": "Draft Id",
+      "type": "string"
+    },
+    "export_id": {
+      "title": "Export Id",
+      "type": "string"
+    },
+    "kind": {
+      "$ref": "#/$defs/ExportKind"
+    },
+    "pdf_preview": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ExportArtifact"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "preflight_id": {
+      "title": "Preflight Id",
+      "type": "string"
+    },
+    "session_id": {
+      "title": "Session Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "export_id",
+    "session_id",
+    "draft_id",
+    "kind",
+    "docx",
+    "preflight_id",
+    "created_at"
+  ],
+  "title": "ExportResult",
+  "type": "object"
+}

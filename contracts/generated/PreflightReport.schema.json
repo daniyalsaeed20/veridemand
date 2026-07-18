@@ -1,0 +1,231 @@
+{
+  "$defs": {
+    "DraftRef": {
+      "additionalProperties": false,
+      "properties": {
+        "paragraph_id": {
+          "title": "Paragraph Id",
+          "type": "string"
+        },
+        "sentence_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sentence Index"
+        }
+      },
+      "required": [
+        "paragraph_id"
+      ],
+      "title": "DraftRef",
+      "type": "object"
+    },
+    "FindingSeverity": {
+      "enum": [
+        "info",
+        "warning",
+        "error"
+      ],
+      "title": "FindingSeverity",
+      "type": "string"
+    },
+    "PreflightFinding": {
+      "additionalProperties": false,
+      "properties": {
+        "blocking": {
+          "title": "Blocking",
+          "type": "boolean"
+        },
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "document_ids": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Document Ids"
+        },
+        "draft_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DraftRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "fact_ids": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fact Ids"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
+        "issue_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Issue Id"
+        },
+        "message": {
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        },
+        "semantic_label": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StatementSupportLabel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "severity": {
+          "$ref": "#/$defs/FindingSeverity"
+        },
+        "source_span_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Span Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "code",
+        "severity",
+        "blocking",
+        "message"
+      ],
+      "title": "PreflightFinding",
+      "type": "object"
+    },
+    "StatementSupportLabel": {
+      "enum": [
+        "supported",
+        "partially_supported",
+        "unsupported",
+        "contradicted",
+        "legal_clause",
+        "argument"
+      ],
+      "title": "StatementSupportLabel",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "draft_id": {
+      "title": "Draft Id",
+      "type": "string"
+    },
+    "findings": {
+      "items": {
+        "$ref": "#/$defs/PreflightFinding"
+      },
+      "title": "Findings",
+      "type": "array"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "programmatic_gate": {
+      "enum": [
+        "pass",
+        "blocked"
+      ],
+      "title": "Programmatic Gate",
+      "type": "string"
+    },
+    "semantic_error": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Semantic Error"
+    },
+    "semantic_ran": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Semantic Ran"
+    },
+    "session_id": {
+      "title": "Session Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "session_id",
+    "draft_id",
+    "programmatic_gate",
+    "created_at"
+  ],
+  "title": "PreflightReport",
+  "type": "object"
+}

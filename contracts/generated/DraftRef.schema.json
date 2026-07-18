@@ -1,0 +1,26 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "paragraph_id": {
+      "title": "Paragraph Id",
+      "type": "string"
+    },
+    "sentence_index": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Sentence Index"
+    }
+  },
+  "required": [
+    "paragraph_id"
+  ],
+  "title": "DraftRef",
+  "type": "object"
+}

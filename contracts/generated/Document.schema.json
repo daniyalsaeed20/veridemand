@@ -1,0 +1,196 @@
+{
+  "$defs": {
+    "DocumentClassification": {
+      "enum": [
+        "police_report",
+        "insurer_correspondence",
+        "medical_record",
+        "imaging_report",
+        "bill_ledger",
+        "lien",
+        "wage_loss",
+        "photographs",
+        "existing_demand",
+        "template",
+        "other"
+      ],
+      "title": "DocumentClassification",
+      "type": "string"
+    },
+    "DocumentFileType": {
+      "enum": [
+        "pdf",
+        "docx",
+        "jpg",
+        "png",
+        "tiff"
+      ],
+      "title": "DocumentFileType",
+      "type": "string"
+    },
+    "DocumentStatus": {
+      "enum": [
+        "uploaded",
+        "duplicate",
+        "rejected",
+        "normalized",
+        "ready_for_extraction",
+        "extracting",
+        "extracted",
+        "classified",
+        "excluded"
+      ],
+      "title": "DocumentStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "classification": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DocumentClassification"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "classification_confidence": {
+      "anyOf": [
+        {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Classification Confidence"
+    },
+    "classification_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Classification Reason"
+    },
+    "content_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-fA-F]{64}$",
+      "title": "Content Sha256",
+      "type": "string"
+    },
+    "display_name": {
+      "minLength": 1,
+      "title": "Display Name",
+      "type": "string"
+    },
+    "error_code": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Error Code"
+    },
+    "error_message": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Error Message"
+    },
+    "exclude_from_drafting": {
+      "default": false,
+      "title": "Exclude From Drafting",
+      "type": "boolean"
+    },
+    "file_type": {
+      "$ref": "#/$defs/DocumentFileType"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "page_count": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Page Count"
+    },
+    "page_quality_warning_count": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Page Quality Warning Count"
+    },
+    "sequence_index": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Sequence Index"
+    },
+    "session_id": {
+      "title": "Session Id",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/DocumentStatus"
+    },
+    "treat_as_secondary_evidence": {
+      "default": false,
+      "title": "Treat As Secondary Evidence",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "id",
+    "session_id",
+    "display_name",
+    "file_type",
+    "content_sha256",
+    "status"
+  ],
+  "title": "Document",
+  "type": "object"
+}

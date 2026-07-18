@@ -1,0 +1,44 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "actor": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Actor"
+    },
+    "at": {
+      "format": "date-time",
+      "title": "At",
+      "type": "string"
+    },
+    "note": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Note"
+    },
+    "option": {
+      "title": "Option",
+      "type": "string"
+    }
+  },
+  "required": [
+    "option",
+    "at"
+  ],
+  "title": "IssueResolution",
+  "type": "object"
+}

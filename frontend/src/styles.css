@@ -1,0 +1,77 @@
+:root {
+  color-scheme: light;
+  font-family: "Segoe UI", "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #1c2430;
+  background:
+    radial-gradient(1200px 600px at 10% -10%, #d7e4f5 0%, transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, #f0e6d8 0%, transparent 50%),
+    linear-gradient(180deg, #f7f4ef 0%, #eef2f6 100%);
+  min-height: 100%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.shell {
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 4rem 1.5rem 3rem;
+}
+
+.brand {
+  font-size: clamp(2.4rem, 6vw, 3.4rem);
+  letter-spacing: -0.03em;
+  margin: 0 0 0.5rem;
+  font-weight: 700;
+}
+
+.lede {
+  margin: 0 0 2rem;
+  color: #445064;
+  font-size: 1.05rem;
+}
+
+.meta {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.meta li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid rgba(28, 36, 48, 0.12);
+  padding: 0.55rem 0;
+}
+
+.meta span:first-child {
+  color: #5a6778;
+}
+
+.error-banner {
+  margin-top: 1.5rem;
+  padding: 0.9rem 1rem;
+  border-left: 3px solid #9b2c2c;
+  background: rgba(155, 44, 44, 0.08);
+  color: #7a1f1f;
+}
+
+.muted {
+  color: #6b7788;
+  font-size: 0.95rem;
+}

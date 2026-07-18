@@ -1,0 +1,106 @@
+{
+  "$defs": {
+    "HealthCapabilities": {
+      "additionalProperties": true,
+      "properties": {
+        "llm_semantic_extraction_enabled": {
+          "title": "Llm Semantic Extraction Enabled",
+          "type": "boolean"
+        },
+        "max_files_per_session": {
+          "title": "Max Files Per Session",
+          "type": "integer"
+        },
+        "max_pages_per_session": {
+          "title": "Max Pages Per Session",
+          "type": "integer"
+        },
+        "ocr_enabled": {
+          "title": "Ocr Enabled",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "ocr_enabled",
+        "llm_semantic_extraction_enabled",
+        "max_files_per_session",
+        "max_pages_per_session"
+      ],
+      "title": "HealthCapabilities",
+      "type": "object"
+    },
+    "HealthStatus": {
+      "enum": [
+        "ok",
+        "degraded",
+        "error"
+      ],
+      "title": "HealthStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "api_version": {
+      "default": "v1",
+      "title": "Api Version",
+      "type": "string"
+    },
+    "app_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "App Version"
+    },
+    "capabilities": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HealthCapabilities"
+        },
+        {
+          "additionalProperties": true,
+          "type": "object"
+        }
+      ],
+      "title": "Capabilities"
+    },
+    "contracts_version": {
+      "default": "0.1",
+      "title": "Contracts Version",
+      "type": "string"
+    },
+    "message": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Message"
+    },
+    "status": {
+      "$ref": "#/$defs/HealthStatus"
+    },
+    "time_utc": {
+      "format": "date-time",
+      "title": "Time Utc",
+      "type": "string"
+    }
+  },
+  "required": [
+    "status",
+    "time_utc",
+    "capabilities"
+  ],
+  "title": "HealthResponse",
+  "type": "object"
+}

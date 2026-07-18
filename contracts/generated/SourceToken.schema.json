@@ -1,0 +1,64 @@
+{
+  "$defs": {
+    "ExtractionMethod": {
+      "enum": [
+        "native",
+        "ocr",
+        "manual"
+      ],
+      "title": "ExtractionMethod",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "confidence": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Confidence",
+      "type": "number"
+    },
+    "document_id": {
+      "title": "Document Id",
+      "type": "string"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "method": {
+      "$ref": "#/$defs/ExtractionMethod"
+    },
+    "page_number": {
+      "minimum": 1,
+      "title": "Page Number",
+      "type": "integer"
+    },
+    "polygon": {
+      "items": {
+        "items": {
+          "type": "number"
+        },
+        "type": "array"
+      },
+      "minItems": 3,
+      "title": "Polygon",
+      "type": "array"
+    },
+    "text": {
+      "title": "Text",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "document_id",
+    "page_number",
+    "text",
+    "confidence",
+    "polygon",
+    "method"
+  ],
+  "title": "SourceToken",
+  "type": "object"
+}

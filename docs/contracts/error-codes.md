@@ -132,9 +132,12 @@ User-facing copy for soft failures (readable UI, not always HTTP): *Text could n
 
 | error_code | HTTP | message (template) | Recovery | Module |
 |------------|------|--------------------|----------|--------|
+| `route_not_found` | 404 | The requested API route was not found. | Check the path and API version (`/api/v1/...`). | all |
 | `validation_error` | 422 | Request validation failed. | Fix fields listed in `details`. | all |
 | `internal_error` | 500 | An unexpected error occurred. | Retry; provide `request_id` to a developer. | all |
 | `not_implemented` | 501 | This capability is not enabled in the prototype. | Use supported path (e.g. LLM extraction off). | flags |
+
+`route_not_found` is for **unknown HTTP routes only** (no matching FastAPI path). Do **not** use it for missing domain resources — use `session_not_found`, `fact_not_found`, `issue_not_found`, `draft_not_found`, etc.
 
 ---
 
@@ -156,3 +159,4 @@ User-facing copy for soft failures (readable UI, not always HTTP): *Text could n
 | Version | Date | Change |
 |---------|------|--------|
 | 0.1 | 2026-07-18 | Initial error catalog (Pass 5) |
+| 0.1 | 2026-07-19 | Add `route_not_found` for unknown API routes (Phase 0 closure) |

@@ -1,0 +1,5 @@
+/* AUTO-GENERATED — do not edit by hand. */
+import { z } from "zod"
+
+export const DocumentSchema = z.object({ "classification": z.union([z.any(), z.null()]).default(null), "classification_confidence": z.union([z.number().gte(0).lte(1), z.null()]).default(null), "classification_reason": z.union([z.string(), z.null()]).default(null), "content_sha256": z.string().regex(new RegExp("^[0-9a-fA-F]{64}$")).min(64).max(64), "display_name": z.string().min(1), "error_code": z.union([z.string(), z.null()]).default(null), "error_message": z.union([z.string(), z.null()]).default(null), "exclude_from_drafting": z.boolean().default(false), "file_type": z.any(), "id": z.string(), "page_count": z.union([z.number().int().gte(0), z.null()]).default(null), "page_quality_warning_count": z.union([z.number().int().gte(0), z.null()]).default(null), "sequence_index": z.union([z.number().int().gte(0), z.null()]).default(null), "session_id": z.string(), "status": z.any(), "treat_as_secondary_evidence": z.boolean().default(false) }).strict()
+

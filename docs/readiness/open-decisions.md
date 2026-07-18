@@ -31,6 +31,7 @@
 | **Consequences / risks** | Generator tool choice still needs confirmation (non-blocking if Phase 0 picks one chain). Temporary bootstrap may copy schemas once, then generate. |
 | **Blocks a phase?** | **No** for starting Phase 0. **Yes** for claiming Phase 0 complete without a parity mechanism. |
 | **Resolve by** | Phase 0 (select generator + CI check). |
+| **Status (2026-07-19)** | **Resolved in Phase 0** — chose option **B** with `json-schema-to-zod@2.6.1`; artifacts under `contracts/generated/` and `frontend/src/schemas/generated/`; drift gate via `scripts/check-contracts.mjs` + `scripts/proof-drift-fails.mjs`. |
 
 ---
 
@@ -45,6 +46,7 @@
 | **Consequences / risks** | Low; field is optional. |
 | **Blocks a phase?** | No. |
 | **Resolve by** | Phase 0. |
+| **Status (2026-07-19)** | **Resolved in Phase 0** — option **B**: `APP_VERSION` / package metadata default **`0.0.0-dev`** exposed on `HealthResponse.app_version`. |
 
 ---
 

@@ -1,0 +1,11 @@
+# Normalize text files to LF in the repository; let Git checkout convert on Windows if needed.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.pdf binary
+*.docx binary
+*.ico binary

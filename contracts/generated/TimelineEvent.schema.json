@@ -1,0 +1,115 @@
+{
+  "$defs": {
+    "TimelineEventType": {
+      "enum": [
+        "collision",
+        "treatment",
+        "imaging",
+        "correspondence",
+        "billing",
+        "discharge",
+        "settlement"
+      ],
+      "title": "TimelineEventType",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "date_precision": {
+      "anyOf": [
+        {
+          "enum": [
+            "exact",
+            "approximate",
+            "unknown"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Date Precision"
+    },
+    "event_date": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Event Date"
+    },
+    "event_time": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Event Time"
+    },
+    "event_type": {
+      "$ref": "#/$defs/TimelineEventType"
+    },
+    "fact_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Fact Ids",
+      "type": "array"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "provider_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Provider Name"
+    },
+    "session_id": {
+      "title": "Session Id",
+      "type": "string"
+    },
+    "sort_key": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Sort Key"
+    },
+    "summary": {
+      "title": "Summary",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "session_id",
+    "event_type",
+    "summary"
+  ],
+  "title": "TimelineEvent",
+  "type": "object"
+}

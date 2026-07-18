@@ -1,0 +1,118 @@
+{
+  "$defs": {
+    "DraftParagraph": {
+      "additionalProperties": false,
+      "properties": {
+        "contains_argument": {
+          "default": false,
+          "title": "Contains Argument",
+          "type": "boolean"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "support_label": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StatementSupportLabel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "supporting_fact_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Supporting Fact Ids",
+          "type": "array"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "verification_required": {
+          "default": false,
+          "title": "Verification Required",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "title": "DraftParagraph",
+      "type": "object"
+    },
+    "DraftSectionType": {
+      "enum": [
+        "header_re",
+        "facts",
+        "liability",
+        "treatment_summary",
+        "general_damages",
+        "specials_table",
+        "settlement_proposal",
+        "closing",
+        "exhibit_list",
+        "other"
+      ],
+      "title": "DraftSectionType",
+      "type": "string"
+    },
+    "StatementSupportLabel": {
+      "enum": [
+        "supported",
+        "partially_supported",
+        "unsupported",
+        "contradicted",
+        "legal_clause",
+        "argument"
+      ],
+      "title": "StatementSupportLabel",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "draft_id": {
+      "title": "Draft Id",
+      "type": "string"
+    },
+    "heading": {
+      "title": "Heading",
+      "type": "string"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "order_index": {
+      "minimum": 0,
+      "title": "Order Index",
+      "type": "integer"
+    },
+    "paragraphs": {
+      "items": {
+        "$ref": "#/$defs/DraftParagraph"
+      },
+      "title": "Paragraphs",
+      "type": "array"
+    },
+    "section_type": {
+      "$ref": "#/$defs/DraftSectionType"
+    }
+  },
+  "required": [
+    "id",
+    "draft_id",
+    "section_type",
+    "heading",
+    "order_index"
+  ],
+  "title": "DraftSection",
+  "type": "object"
+}

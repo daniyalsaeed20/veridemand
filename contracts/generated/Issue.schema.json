@@ -1,0 +1,176 @@
+{
+  "$defs": {
+    "IssueResolution": {
+      "additionalProperties": false,
+      "properties": {
+        "actor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Actor"
+        },
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "option": {
+          "title": "Option",
+          "type": "string"
+        }
+      },
+      "required": [
+        "option",
+        "at"
+      ],
+      "title": "IssueResolution",
+      "type": "object"
+    },
+    "IssueSeverity": {
+      "enum": [
+        "green",
+        "amber",
+        "red"
+      ],
+      "title": "IssueSeverity",
+      "type": "string"
+    },
+    "IssueStatus": {
+      "enum": [
+        "open",
+        "resolved",
+        "waived",
+        "deferred"
+      ],
+      "title": "IssueStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "blocking": {
+      "title": "Blocking",
+      "type": "boolean"
+    },
+    "document_ids": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Document Ids"
+    },
+    "explanation": {
+      "title": "Explanation",
+      "type": "string"
+    },
+    "fact_ids": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Fact Ids"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "issue_type": {
+      "title": "Issue Type",
+      "type": "string"
+    },
+    "options": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Options"
+    },
+    "resolution": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/IssueResolution"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "session_id": {
+      "title": "Session Id",
+      "type": "string"
+    },
+    "severity": {
+      "$ref": "#/$defs/IssueSeverity"
+    },
+    "source_span_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Source Span Ids",
+      "type": "array"
+    },
+    "status": {
+      "$ref": "#/$defs/IssueStatus"
+    },
+    "title": {
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "session_id",
+    "issue_type",
+    "severity",
+    "title",
+    "explanation",
+    "blocking",
+    "status"
+  ],
+  "title": "Issue",
+  "type": "object"
+}
