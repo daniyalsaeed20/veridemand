@@ -1,0 +1,10 @@
+spikes/**/out/
+spikes/**/.venv/
+.tools/
+**/__pycache__/
+*.pyc
+.Python
+
+# Local case samples (may contain PII) — keep out of remote
+docs/example/*.pdf
+docs/example/*.docx
