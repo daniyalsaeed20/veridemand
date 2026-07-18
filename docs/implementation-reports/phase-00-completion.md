@@ -8,8 +8,9 @@
 
 | Item | Value |
 |------|-------|
-| Final Phase 0 commit | `7dbcf321fe5ae4d2aed11aa587576421603bb707` (pre-amend; updated after closure evidence amend) |
+| Final Phase 0 commit | Prefer `git rev-parse phase-00-pass^{commit}` (tag tip) |
 | Tag | `phase-00-pass` |
+| Foundation scaffold commit | `bc1f36e1ce3cd6321723e8023962ea80e95c3cf3` |
 
 ## Baseline preservation
 
@@ -63,7 +64,7 @@
 - `contracts/generated/` — exported JSON Schema
 - `scripts/` — generate/check/proof/check-all
 - `fixtures/health-ok.json`, `docs/local-setup.md`, `DEPENDENCY_INVENTORY.md`
-- `.gitignore`, `.nvmrc`
+- `.gitignore`, `.nvmrc`, `.gitattributes`
 - `docs/contracts/error-codes.md` / `README.md` — `route_not_found`
 - `docs/readiness/open-decisions.md` — OD-02/OD-03 status
 - This report
@@ -162,11 +163,11 @@ No silent doctrine changes.
 | Confidential generated docs | PASS — none staged |
 | Machine-specific absolute paths in staged generated/lock JSON | PASS — none found |
 
-Staged file count at inspection: **140**.
+Staged file count at inspection: **140** (scaffold commit).
 
 ## Clean-environment verification
 
-Worktree: `D:\Applications\VeriDemand-phase0-verify` at tag `phase-00-pass` (commit `7dbcf32`).
+Worktree: `D:\Applications\VeriDemand-phase0-verify` at tag `phase-00-pass`.
 
 | Step | Command | Result |
 |------|---------|--------|
@@ -177,13 +178,13 @@ Worktree: `D:\Applications\VeriDemand-phase0-verify` at tag `phase-00-pass` (com
 | Backend mypy | `python -m mypy app` | Success (48 files) |
 | Frontend install | `npm ci` | OK |
 | Frontend tests | `npm test` | **2 passed** |
-| Frontend typecheck | `npm run typecheck` | OK |
+| Frontend typecheck | `npm run typecheck` | OK (via check-all) |
 | Frontend build | `npm run build` | OK |
 | Contract generate | `generate_json_schemas.py` + `generate-zod.mjs` | OK |
 | Contract drift | `check-contracts.mjs` | **OK — no drift** |
-| One-command gate | `node scripts/check-all.mjs` | Failed once on `prettier --check` due to CRLF checkout vs LF-formatted tree |
+| One-command gate | `node scripts/check-all.mjs` | **All Phase 0 checks passed** |
 
-**Remediation included in Phase 0 closure commit:** `frontend/.prettierrc.json` `endOfLine: "auto"`, ignore `package-lock.json` in Prettier, add `.gitattributes` (`eol=lf`). Re-verified after amend/retag.
+First clean run failed `prettier --check` under Windows CRLF checkout; fixed with `endOfLine: "auto"`, Prettier ignore for `package-lock.json`, and `.gitattributes` (`eol=lf`). Re-run after fix: **PASS**.
 
 ## Known limitations (nonblocking)
 
@@ -218,6 +219,6 @@ Phase 1+: sessions, upload, viewer, OCR (with pinned stack), classification, fac
 
 # PASS
 
-_(confirmed after clean-environment verification)_
+Clean lockfile install, contract drift check, repository safety, and `node scripts/check-all.mjs` all green. Phase 1 was not started.
 
-Phase 1 was not started.
+**Note on commit hash:** Self-referential hashes in this file drift by one docs-only amend. The authoritative Phase 0 closure revision is the annotated tag `phase-00-pass`.
