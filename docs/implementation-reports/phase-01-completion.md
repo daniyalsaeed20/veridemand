@@ -10,8 +10,8 @@
 |------|-------|
 | Phase 0 baseline commit | `aad013cb56b3c366583761f8eab51b03876e4a24` (`phase-00-pass`) |
 | Phase 1 branch | `phase-01-session-upload` |
-| Phase 1 commit | Prefer `git rev-parse phase-01-pass^{commit}` (tag tip after tagging) |
-| Tag | `phase-01-pass` (created only on PASS) |
+| Phase 1 commit | `85160a3c` — full: `git rev-parse phase-01-pass` after tagging |
+| Tag | `phase-01-pass` |
 
 ## Scope implemented
 
