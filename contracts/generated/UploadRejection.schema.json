@@ -1,0 +1,25 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "display_name": {
+      "minLength": 1,
+      "title": "Display Name",
+      "type": "string"
+    },
+    "error_code": {
+      "title": "Error Code",
+      "type": "string"
+    },
+    "message": {
+      "title": "Message",
+      "type": "string"
+    }
+  },
+  "required": [
+    "display_name",
+    "error_code",
+    "message"
+  ],
+  "title": "UploadRejection",
+  "type": "object"
+}

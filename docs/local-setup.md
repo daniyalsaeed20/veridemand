@@ -1,4 +1,4 @@
-# Local setup (Phase 0)
+# Local setup (Phase 1)
 
 ## Prerequisites
 
@@ -10,8 +10,7 @@
 
 ```powershell
 # From repo root
-.\.tools\python312\python.exe -m uv venv backend\.venv --python .\.tools\python312\python.exe
-.\.tools\python312\python.exe -m uv pip install -e "backend[dev]" --python backend\.venv\Scripts\python.exe
+.\.tools\python312\Scripts\uv.exe sync --directory backend --extra dev
 
 # Run API
 backend\.venv\Scripts\uvicorn.exe app.main:app --app-dir backend --reload --port 8000
@@ -23,14 +22,23 @@ Optional env (server bootstrap; not part of contracted `AppSettings` entity fiel
 CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 LOG_LEVEL=INFO
 APP_VERSION=0.0.0-dev
+TEMP_ROOT=   # default: <repo>/tmp/sessions
+MAX_ACTIVE_SESSIONS=32
+SESSION_CLEANUP_INTERVAL_SECONDS=60
 ```
 
-Appendix D / `AppSettings` overrides use names like `SESSION_TTL_MINUTES`, `MAX_FILES_PER_SESSION`, `ENABLE_LLM_SEMANTIC_EXTRACTION`, etc.
+Appendix D / `AppSettings` overrides use names like `SESSION_TTL_MINUTES`, `MAX_FILES_PER_SESSION`, `MAX_FILE_SIZE_MB`, `MAX_TOTAL_UPLOAD_MB`, `MAX_PAGES_PER_SESSION`, etc.
 
 Health check:
 
 ```powershell
 curl http://127.0.0.1:8000/api/v1/health
+```
+
+Create a temporary session:
+
+```powershell
+curl -X POST http://127.0.0.1:8000/api/v1/sessions
 ```
 
 ## Frontend
@@ -42,7 +50,7 @@ copy .env.example .env   # sets VITE_API_BASE_URL
 npm run dev
 ```
 
-Open http://localhost:5173 — placeholder shell shows app name, versions, and backend health.
+Open http://localhost:5173 — Temporary Prototype banner, start session, upload supported files, reset case.
 
 ## Contracts
 

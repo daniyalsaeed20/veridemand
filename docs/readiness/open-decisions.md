@@ -61,6 +61,7 @@
 | **Consequences / risks** | Lazy-only cleanup can leave disk until next request. |
 | **Blocks a phase?** | No for Phase 0. Must resolve for Phase 1 exit. |
 | **Resolve by** | Phase 1. |
+| **Status (2026-07-19)** | **Resolved in Phase 1** — option **A**: asyncio lifespan sweeper + `SessionService.cleanup_expired_sessions(now)` (test-callable). Expired sessions also cleaned on `get_session` when TTL has elapsed. |
 
 ---
 
@@ -75,6 +76,7 @@
 | **Consequences / risks** | Without converter, DOCX highlight/viewer path is incomplete for those files. |
 | **Blocks a phase?** | Soft-blocks full FR-UPL-06 demo; does not block Phase 0. |
 | **Resolve by** | Phase 1–2. |
+| **Status (2026-07-19)** | **Soft-deferred in Phase 1** — option **C** for Phase 1 exit: DOCX accepted after ZIP/OOXML validation; no LibreOffice conversion. FR-UPL-06 remains a known soft gap until Phase 2 viewer path. |
 
 ---
 

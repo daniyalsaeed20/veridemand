@@ -1,4 +1,4 @@
-# Dependency Inventory (Phase 0)
+# Dependency Inventory (Phase 1)
 
 **Date:** 2026-07-19  
 **Supported Python:** `>=3.12,<3.13` (lock built with 3.12.8)  
@@ -16,6 +16,9 @@ Licences verified from package metadata at install time. Re-verify on upgrades.
 | uvicorn[standard] | 0.35.0 | ASGI server | BSD-3-Clause | runtime |
 | pydantic | 2.11.7 | Authoritative machine contracts | MIT | runtime |
 | pydantic-settings | 2.10.1 | Settings helpers (available; AppSettings uses custom env load) | MIT | runtime |
+| python-multipart | 0.0.20 | Multipart form parsing for file uploads | Apache-2.0 | runtime |
+| pypdf | 5.9.0 | PDF signature/encryption checks and safe page counts (no text extraction) | BSD-3-Clause | runtime |
+| Pillow | 11.3.0 | Image open/verify and TIFF frame counts | HPND | runtime |
 | starlette | 0.47.3 | (transitive via FastAPI) ASGI toolkit | BSD-3-Clause | runtime |
 | anyio / httpx / … | locked in `backend/uv.lock` | Transitive runtime support | various | runtime |
 

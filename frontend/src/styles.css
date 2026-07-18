@@ -25,9 +25,17 @@ body {
 }
 
 .shell {
-  max-width: 42rem;
+  max-width: 48rem;
   margin: 0 auto;
-  padding: 4rem 1.5rem 3rem;
+  padding: 2rem 1.5rem 3rem;
+}
+
+.proto-banner {
+  margin: 0 0 1.5rem;
+  padding: 0.65rem 0.9rem;
+  background: rgba(28, 36, 48, 0.08);
+  border-left: 3px solid #3d5a80;
+  font-size: 0.9rem;
 }
 
 .brand {
@@ -38,15 +46,137 @@ body {
 }
 
 .lede {
-  margin: 0 0 2rem;
+  margin: 0 0 1.25rem;
   color: #445064;
   font-size: 1.05rem;
+}
+
+.session-warning {
+  margin: 0 0 1.25rem;
+  padding: 0.75rem 0.9rem;
+  background: rgba(180, 120, 40, 0.12);
+  border-left: 3px solid #a06a1a;
+  color: #5c4010;
+}
+
+.actions {
+  margin-bottom: 1.5rem;
+}
+
+.btn {
+  appearance: none;
+  border: none;
+  background: #1c2430;
+  color: #f7f4ef;
+  padding: 0.65rem 1.1rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: #1c2430;
+  border: 1px solid rgba(28, 36, 48, 0.35);
+}
+
+.btn-small {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.85rem;
+}
+
+.workspace-header {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr auto;
+  gap: 1rem;
+  align-items: end;
+  margin-bottom: 1.25rem;
+}
+
+.label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #5a6778;
+}
+
+.mono {
+  font-size: 0.85rem;
+  word-break: break-all;
+}
+
+.dropzone {
+  border: 2px dashed rgba(28, 36, 48, 0.28);
+  padding: 2rem 1.25rem;
+  text-align: center;
+  cursor: pointer;
+  margin-bottom: 1.5rem;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.dropzone-active {
+  border-color: #3d5a80;
+  background: rgba(61, 90, 128, 0.08);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.doc-list,
+.reject-list {
+  margin-bottom: 1.5rem;
+}
+
+.doc-list h2,
+.reject-list h2 {
+  font-size: 1.05rem;
+  margin: 0 0 0.5rem;
+}
+
+.doc-list ul,
+.reject-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.doc-list li,
+.reject-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid rgba(28, 36, 48, 0.12);
+}
+
+.dup-warn {
+  color: #a06a1a;
+}
+
+.expired-panel {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: rgba(155, 44, 44, 0.06);
+  border-left: 3px solid #9b2c2c;
 }
 
 .meta {
   display: grid;
   gap: 0.75rem;
-  margin: 0;
+  margin: 2rem 0 0;
   padding: 0;
   list-style: none;
 }
@@ -74,4 +204,10 @@ body {
 .muted {
   color: #6b7788;
   font-size: 0.95rem;
+}
+
+@media (max-width: 720px) {
+  .workspace-header {
+    grid-template-columns: 1fr;
+  }
 }

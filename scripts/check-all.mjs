@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * One-command Phase 0 quality gate.
+ * One-command Phase 1 quality gate.
  */
 import { execSync } from "node:child_process";
 import path from "node:path";
@@ -27,4 +27,4 @@ run("npm run lint", path.join(root, "frontend"));
 run("npm run typecheck", path.join(root, "frontend"));
 run("npm test", path.join(root, "frontend"));
 run("npm run build", path.join(root, "frontend"));
-console.log("\nAll Phase 0 checks passed.");
+console.log("\nAll Phase 1 checks passed.");

@@ -4,6 +4,7 @@
   "CaseSession": "CaseSession.schema.json",
   "Document": "Document.schema.json",
   "DocumentPage": "DocumentPage.schema.json",
+  "DocumentUploadBatch": "DocumentUploadBatch.schema.json",
   "DraftParagraph": "DraftParagraph.schema.json",
   "DraftRef": "DraftRef.schema.json",
   "DraftSection": "DraftSection.schema.json",
@@ -20,6 +21,7 @@
   "SourceSpan": "SourceSpan.schema.json",
   "SourceToken": "SourceToken.schema.json",
   "TimelineEvent": "TimelineEvent.schema.json",
+  "UploadRejection": "UploadRejection.schema.json",
   "UserDecision": "UserDecision.schema.json",
   "UserOverride": "UserOverride.schema.json"
 }

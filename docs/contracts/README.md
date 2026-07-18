@@ -44,6 +44,7 @@ When implementing Pydantic/Zod models, implement against these Markdown contract
 | [entities/app-settings.md](./entities/app-settings.md) | `AppSettings` |
 | [entities/case-session.md](./entities/case-session.md) | `CaseSession` |
 | [entities/document.md](./entities/document.md) | `Document` |
+| [entities/document-upload-batch.md](./entities/document-upload-batch.md) | `DocumentUploadBatch` / `UploadRejection` |
 | [entities/document-page.md](./entities/document-page.md) | `DocumentPage` |
 | [entities/source-token.md](./entities/source-token.md) | `SourceToken` |
 | [entities/source-span.md](./entities/source-span.md) | `SourceSpan` |

@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "veridemand-backend"
 version = "0.0.0-dev"
-description = "VeriDemand Phase 0 FastAPI backend"
+description = "VeriDemand Phase 1 FastAPI backend"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 license = { text = "Proprietary" }
@@ -15,6 +15,9 @@ dependencies = [
   "uvicorn[standard]==0.35.0",
   "pydantic==2.11.7",
   "pydantic-settings==2.10.1",
+  "pypdf==5.9.0",
+  "pillow==11.3.0",
+  "python-multipart==0.0.20",
 ]
 
 [project.optional-dependencies]
@@ -50,3 +53,7 @@ plugins = ["pydantic.mypy"]
 [[tool.mypy.overrides]]
 module = ["tests.*"]
 disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = ["pypdf.*", "PIL.*"]
+ignore_missing_imports = true

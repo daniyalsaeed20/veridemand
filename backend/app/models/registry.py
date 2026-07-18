@@ -11,6 +11,7 @@ from app.models.billing_entry import BillingEntry
 from app.models.case_session import CaseSession
 from app.models.document import Document
 from app.models.document_page import DocumentPage
+from app.models.document_upload_batch import DocumentUploadBatch, UploadRejection
 from app.models.draft_section import DraftParagraph, DraftSection
 from app.models.error_envelope import ErrorEnvelope
 from app.models.export_result import ExportArtifact, ExportResult
@@ -31,6 +32,8 @@ ENTITY_MODELS: dict[str, type[BaseModel]] = {
     "CaseSession": CaseSession,
     "Document": Document,
     "DocumentPage": DocumentPage,
+    "DocumentUploadBatch": DocumentUploadBatch,
+    "UploadRejection": UploadRejection,
     "SourceToken": SourceToken,
     "SourceSpan": SourceSpan,
     "Fact": Fact,

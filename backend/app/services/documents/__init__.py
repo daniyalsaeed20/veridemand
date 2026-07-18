@@ -1,2 +1,5 @@
-# Phase 0 stub — implemented in a later phase.
+"""Document service package."""
 
+from app.services.documents.service import DocumentService
+
+__all__ = ["DocumentService"]
