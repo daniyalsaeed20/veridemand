@@ -21,7 +21,7 @@ Page-level extraction quality and routing for one page of a document.
 | `height` | float | yes | `> 0` | |
 | `text_coverage` | float | no | `0–1` | Native/OCR coverage heuristic |
 | `route` | PageRoute | yes | enum | native / ocr / manual_review |
-| `ocr_status` | string | no | e.g. `not_needed`, `pending`, `done`, `failed` | |
+| `ocr_status` | OcrStatus | no | `not_needed` \| `pending` \| `done` \| `failed` | Closed vocabulary |
 | `extraction_method` | ExtractionMethod | no | primary method used | |
 | `quality_flags` | string[] | yes | default `[]` | Additive codes e.g. `blank`, `broken_text_layer`, `pathological_tokenization`, `awaiting_ocr`, `low_confidence`, `suspected_handwriting` |
 | `token_count` | int | no | `>= 0` | |
@@ -55,9 +55,12 @@ Page-level extraction quality and routing for one page of a document.
 
 Exact `quality_flags` vocabulary may grow; treat as additive string codes.
 
-Known Phase 2 additive codes:
+Known Phase 2/3 additive codes:
 
 - `blank` — no native words
 - `broken_text_layer` — encoding/geometry/printable failures
 - `pathological_tokenization` — multi-signal unusable native tokenization (suppress tokens/spans; await OCR)
-- `awaiting_ocr` — page routed for Phase 3 OCR (no OCR executed in Phase 2)
+- `awaiting_ocr` — page routed for OCR (cleared after OCR commit)
+- `low_confidence` — OCR usable-with-warning or low mean confidence
+- `duplicate_detections` / `duplicate_page` — overlapping or duplicated OCR detections
+- `suspected_handwriting` — handwriting heuristic (review; not authoritative OCR)

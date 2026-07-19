@@ -1,8 +1,9 @@
-"""Phase 2 process orchestration: normalize + native extraction."""
+"""Phase 3 process orchestration: normalize + native extraction + OCR."""
 
 from __future__ import annotations
 
 import shutil
+import threading
 from pathlib import Path
 
 from app.core.domain_errors import DomainError
@@ -11,7 +12,14 @@ from app.core.server_settings import ServerSettings
 from app.models.app_settings import AppSettings
 from app.models.document import Document
 from app.models.document_page import DocumentPage
-from app.models.enums import DocumentFileType, DocumentStatus, SessionStatus
+from app.models.enums import (
+    DocumentFileType,
+    DocumentStatus,
+    IssueSeverity,
+    IssueStatus,
+    SessionStatus,
+)
+from app.models.issue import Issue
 from app.models.process_event import ProcessEvent
 from app.models.source_span import SourceSpan
 from app.models.source_token import SourceToken
@@ -25,7 +33,11 @@ from app.services.documents.convert_docx import (
 from app.services.documents.image_pdf import images_to_canonical_pdf
 from app.services.documents.thumbnails import ThumbnailError, count_pdf_pages, create_thumbnails
 from app.services.extraction.native import extract_document_native
+from app.services.extraction.ocr_page import extract_ocr_page
+from app.services.extraction.ocr_quality import OcrPageOutcome
+from app.services.ocr import OcrCancelledError, OcrUnavailableError, clear_cancel
 from app.services.session.service import SessionRecord, SessionService
+from app.services.session.workspace import new_opaque_id
 
 logger = get_logger(__name__)
 
@@ -43,6 +55,8 @@ class ProcessService:
         self._settings = app_settings
         self._server = server_settings
         self._docx_converter: DocxConverter = docx_converter or self._default_docx_converter
+        self._threads: dict[str, threading.Thread] = {}
+        self._threads_lock = threading.Lock()
 
     def _default_docx_converter(self, source: Path, output: Path, work: Path) -> Path:
         return convert_docx_with_libreoffice(
@@ -60,6 +74,7 @@ class ProcessService:
         self._docx_converter = converter or self._default_docx_converter
 
     def start_process(self, session_id: str) -> list[ProcessEvent]:
+        """Enqueue background normalize → native → OCR. Returns events so far."""
         record = self._sessions.get_record(session_id, touch=True)
         if record.process_running:
             raise DomainError(ErrorCode.PROCESS_ALREADY_RUNNING, session_id=session_id)
@@ -84,60 +99,146 @@ class ProcessService:
 
         record.process_running = True
         record.process_completed = False
+        record.process_cancel_requested = False
         record.session.status = SessionStatus.PROCESSING
+        clear_cancel()
+        generation = record.generation
         self._emit(
             record,
             "process.started",
             status="running",
-            message="Normalization and native extraction started.",
+            message="Normalization, native extraction, and OCR started.",
             progress=0.0,
         )
+        events_snapshot = [e.model_copy(deep=True) for e in record.events]
+
+        thread = threading.Thread(
+            target=self._run_process_job,
+            args=(session_id, generation),
+            name=f"process-{session_id}",
+            daemon=True,
+        )
+        with self._threads_lock:
+            self._threads[session_id] = thread
+        thread.start()
+        return events_snapshot
+
+    def wait_until_idle(self, session_id: str, *, timeout: float = 300.0) -> None:
+        """Test helper: wait for background process thread to finish."""
+        with self._threads_lock:
+            thread = self._threads.get(session_id)
+        if thread is not None:
+            thread.join(timeout=timeout)
+
+    def _run_process_job(self, session_id: str, generation: int) -> None:
+        try:
+            record = self._sessions.get_record(session_id, touch=False)
+        except DomainError:
+            return
+        if record.generation != generation:
+            return
 
         try:
-            total = len(docs)
+            docs = list(record.documents.values())
+            total = max(len(docs), 1)
             for index, document in enumerate(docs):
-                self._process_document(record, document, index, total)
+                if self._is_cancelled(session_id, generation):
+                    self._emit_cancelled(session_id, generation)
+                    return
+                if document.status not in {
+                    DocumentStatus.UPLOADED,
+                    DocumentStatus.NORMALIZED,
+                    DocumentStatus.READY_FOR_EXTRACTION,
+                    DocumentStatus.EXTRACTED,
+                }:
+                    continue
+                self._process_document(session_id, generation, document, index, total)
+
+            if self._is_cancelled(session_id, generation):
+                self._emit_cancelled(session_id, generation)
+                return
+
+            try:
+                record = self._sessions.get_record(session_id, touch=False)
+            except DomainError:
+                return
+            if record.generation != generation:
+                return
             record.session.status = SessionStatus.REVIEWING
             record.process_completed = True
             self._emit(
                 record,
                 "process.completed",
                 status="completed",
-                message="Phase 2 processing completed.",
+                message="Phase 3 processing completed.",
                 progress=1.0,
             )
         except DomainError as exc:
-            record.session.status = SessionStatus.FAILED
-            self._emit(
-                record,
-                "process.failed",
-                status="failed",
-                message=exc.message,
-                error_code=exc.error_code,
-                progress=None,
-            )
-            raise
-        except Exception as exc:  # noqa: BLE001
+            self._fail_process(session_id, generation, exc.message, exc.error_code)
+        except Exception:  # noqa: BLE001
             logger.exception(
                 "Process stage failed",
                 extra={"extra_fields": {"session_id": session_id}},
             )
-            record.session.status = SessionStatus.FAILED
-            self._emit(
-                record,
-                "process.failed",
-                status="failed",
-                message="Processing failed unexpectedly.",
-                error_code=ErrorCode.PROCESS_STAGE_FAILED,
-            )
-            raise DomainError(
+            self._fail_process(
+                session_id,
+                generation,
+                "Processing failed unexpectedly.",
                 ErrorCode.PROCESS_STAGE_FAILED,
-                session_id=session_id,
-            ) from exc
+            )
         finally:
-            record.process_running = False
+            try:
+                record = self._sessions.get_record(session_id, touch=False)
+                if record.generation == generation:
+                    record.process_running = False
+            except DomainError:
+                pass
+            with self._threads_lock:
+                self._threads.pop(session_id, None)
 
-        return [e.model_copy(deep=True) for e in record.events]
+    def _fail_process(
+        self,
+        session_id: str,
+        generation: int,
+        message: str,
+        error_code: str,
+    ) -> None:
+        try:
+            record = self._sessions.get_record(session_id, touch=False)
+        except DomainError:
+            return
+        if record.generation != generation:
+            return
+        record.session.status = SessionStatus.FAILED
+        self._emit(
+            record,
+            "process.failed",
+            status="failed",
+            message=message,
+            error_code=error_code,
+        )
+
+    def _emit_cancelled(self, session_id: str, generation: int) -> None:
+        try:
+            record = self._sessions.get_record(session_id, touch=False)
+        except DomainError:
+            return
+        if record.generation != generation:
+            return
+        self._emit(
+            record,
+            "process.cancelled",
+            status="cancelled",
+            message="Processing cancelled.",
+            error_code=ErrorCode.PROCESS_CANCELLED,
+        )
+
+    def _is_cancelled(self, session_id: str, generation: int) -> bool:
+        try:
+            record = self._sessions.get_record(session_id, touch=False)
+        except DomainError:
+            return True
+        return record.generation != generation or record.process_cancel_requested
 
     def list_events(self, session_id: str, *, after: int = -1) -> list[ProcessEvent]:
         record = self._sessions.get_record(session_id, touch=True)
@@ -206,14 +307,63 @@ class ProcessService:
         spans = by_page.get(page_number, [])
         return [s.model_copy(deep=True) for s in spans]
 
+    def list_issues(self, session_id: str) -> list[Issue]:
+        record = self._sessions.get_record(session_id, touch=True)
+        return [i.model_copy(deep=True) for i in record.issues]
+
+    def retry_ocr_page(self, session_id: str, document_id: str, page_number: int) -> DocumentPage:
+        """Retry OCR for a failed/review page when the document is extracted."""
+        record = self._require_document(session_id, document_id)
+        if record.process_running:
+            raise DomainError(ErrorCode.PROCESS_ALREADY_RUNNING, session_id=session_id)
+        pages = record.pages.get(document_id, [])
+        page = next((p for p in pages if p.page_number == page_number), None)
+        if page is None:
+            raise DomainError(ErrorCode.ROUTE_NOT_FOUND, "Page not found.", session_id=session_id)
+        if page.ocr_status not in {"failed", "done"} and "low_confidence" not in page.quality_flags:
+            raise DomainError(
+                ErrorCode.PROCESS_NOT_READY,
+                "Page is not eligible for OCR retry.",
+                session_id=session_id,
+            )
+        canonical = record.canonical_paths.get(document_id)
+        if canonical is None:
+            raise DomainError(
+                ErrorCode.ROUTE_NOT_FOUND, "Canonical PDF missing.", session_id=session_id
+            )
+        generation = record.generation
+        rotation = record.page_rotation.get(document_id, {}).get(page_number, 0)
+        # Mutate page to pending for retry
+        page.ocr_status = "pending"
+        page.quality_flags = list(
+            dict.fromkeys([*[f for f in page.quality_flags if f != "awaiting_ocr"], "awaiting_ocr"])
+        )
+        self._run_ocr_for_page(
+            session_id,
+            generation,
+            document_id,
+            page,
+            canonical,
+            rotation,
+            base_progress=0.9,
+        )
+        return self.get_page(session_id, document_id, page_number)
+
     def _process_document(
         self,
-        record: SessionRecord,
+        session_id: str,
+        generation: int,
         document: Document,
         index: int,
         total: int,
     ) -> None:
-        session_id = record.session.id
+        try:
+            record = self._sessions.get_record(session_id, touch=False)
+        except DomainError:
+            return
+        if record.generation != generation:
+            return
+
         doc_id = document.id
         base_progress = index / max(total, 1)
         self._emit(
@@ -232,7 +382,7 @@ class ProcessService:
                 "document.normalize.completed",
                 document_id=doc_id,
                 status="normalized",
-                progress=base_progress + 0.3 / max(total, 1),
+                progress=base_progress + 0.15 / max(total, 1),
             )
         except ConversionError as exc:
             self._fail_document(record, document, exc.error_code, str(exc))
@@ -263,6 +413,9 @@ class ProcessService:
             )
             return
 
+        if self._is_cancelled(session_id, generation):
+            return
+
         try:
             results = extract_document_native(
                 canonical,
@@ -290,6 +443,16 @@ class ProcessService:
             )
             return
 
+        if self._is_cancelled(session_id, generation):
+            return
+
+        try:
+            record = self._sessions.get_record(session_id, touch=False)
+        except DomainError:
+            return
+        if record.generation != generation:
+            return
+
         pages: list[DocumentPage] = []
         tokens_by_page: dict[int, list[SourceToken]] = {}
         spans_by_page: dict[int, list[SourceSpan]] = {}
@@ -302,13 +465,23 @@ class ProcessService:
             rotations[result.page.page_number] = result.rotation
             if result.page.quality_flags:
                 warning_count += 1
+            if result.page.route.value == "manual_review":
+                self._add_issue(
+                    record,
+                    issue_type="extraction.unreadable_page",
+                    severity=IssueSeverity.AMBER,
+                    title="Blank or unreadable page",
+                    explanation="Page produced no usable native text and requires review.",
+                    document_id=doc_id,
+                    blocking=False,
+                )
             self._emit(
                 record,
                 "document.page.processed",
                 document_id=doc_id,
                 page_number=result.page.page_number,
                 status=result.page.route.value,
-                progress=base_progress + 0.9 / max(total, 1),
+                progress=base_progress + 0.4 / max(total, 1),
             )
 
         record.pages[doc_id] = pages
@@ -316,9 +489,47 @@ class ProcessService:
         record.spans_by_page[doc_id] = spans_by_page
         record.page_rotation[doc_id] = rotations
 
+        # OCR stage for pending pages
+        for page in list(pages):
+            if self._is_cancelled(session_id, generation):
+                return
+            needs_ocr = page.ocr_status == "pending" or (
+                self._settings.ocr_force_for_tests and page.route.value == "native"
+            )
+            if not needs_ocr:
+                continue
+            self._emit(
+                record,
+                "document.ocr.queued",
+                document_id=doc_id,
+                page_number=page.page_number,
+                status="queued",
+                progress=base_progress + 0.5 / max(total, 1),
+            )
+            rotation = rotations.get(page.page_number, 0)
+            self._run_ocr_for_page(
+                session_id,
+                generation,
+                doc_id,
+                page,
+                canonical,
+                rotation,
+                base_progress=base_progress + 0.7 / max(total, 1),
+                force=bool(self._settings.ocr_force_for_tests and page.route.value == "native"),
+            )
+
+        try:
+            record = self._sessions.get_record(session_id, touch=False)
+        except DomainError:
+            return
+        if record.generation != generation:
+            return
+
+        live_pages = record.pages.get(doc_id, pages)
+        warning_count = sum(1 for p in live_pages if p.quality_flags)
         live = record.documents[doc_id]
         live.status = DocumentStatus.EXTRACTED
-        live.page_count = len(pages)
+        live.page_count = len(live_pages)
         live.page_quality_warning_count = warning_count
         live.error_code = None
         live.error_message = None
@@ -330,6 +541,252 @@ class ProcessService:
             status="extracted",
             progress=(index + 1) / max(total, 1),
         )
+
+    def _run_ocr_for_page(
+        self,
+        session_id: str,
+        generation: int,
+        document_id: str,
+        page: DocumentPage,
+        canonical: Path,
+        rotation: int,
+        *,
+        base_progress: float,
+        force: bool = False,
+    ) -> None:
+        try:
+            record = self._sessions.get_record(session_id, touch=False)
+        except DomainError:
+            return
+        if record.generation != generation:
+            return
+
+        self._emit(
+            record,
+            "document.ocr.render.started",
+            document_id=document_id,
+            page_number=page.page_number,
+            status="rendering",
+            progress=base_progress,
+        )
+
+        # Capture generation before long OCR (no session lock held)
+        try:
+            self._emit(
+                record,
+                "document.ocr.started",
+                document_id=document_id,
+                page_number=page.page_number,
+                status="running",
+                progress=base_progress,
+            )
+            result = extract_ocr_page(
+                canonical,
+                document_id=document_id,
+                page=page,
+                settings=self._settings,
+                page_rotation=rotation,
+                force_ocr=force,
+            )
+        except OcrCancelledError:
+            self._emit(
+                record,
+                "document.ocr.cancelled",
+                document_id=document_id,
+                page_number=page.page_number,
+                status="cancelled",
+                error_code=ErrorCode.PROCESS_CANCELLED,
+            )
+            return
+        except OcrUnavailableError:
+            logger.exception(
+                "OCR failed",
+                extra={
+                    "extra_fields": {
+                        "session_id": session_id,
+                        "document_id": document_id,
+                        "page_number": page.page_number,
+                    }
+                },
+            )
+            try:
+                record = self._sessions.get_record(session_id, touch=False)
+            except DomainError:
+                return
+            if record.generation != generation:
+                return
+            failed_page = page.model_copy(
+                deep=True,
+                update={
+                    "ocr_status": "failed",
+                    "quality_flags": list(
+                        dict.fromkeys(
+                            [
+                                *[f for f in page.quality_flags if f != "awaiting_ocr"],
+                                "low_confidence",
+                            ]
+                        )
+                    ),
+                    "token_count": 0,
+                    "span_count": 0,
+                },
+            )
+            self._commit_ocr_page(
+                record,
+                generation,
+                document_id,
+                failed_page,
+                tokens=[],
+                spans=[],
+                meta=None,
+            )
+            self._add_issue(
+                record,
+                issue_type="extraction.unreadable_page",
+                severity=IssueSeverity.RED,
+                title="OCR failed for page",
+                explanation="OCR engine failed; page requires manual review.",
+                document_id=document_id,
+                blocking=True,
+            )
+            self._emit(
+                record,
+                "document.ocr.failed",
+                document_id=document_id,
+                page_number=page.page_number,
+                status="failed",
+                error_code=ErrorCode.EXTRACTION_OCR_FAILED,
+                progress=base_progress,
+            )
+            return
+
+        # Re-verify session before commit
+        try:
+            record = self._sessions.get_record(session_id, touch=False)
+        except DomainError:
+            return
+        if record.generation != generation:
+            return
+
+        meta = {
+            "dpi": result.render_meta.dpi,
+            "width": result.render_meta.width,
+            "height": result.render_meta.height,
+            "rotation": result.render_meta.rotation,
+            "preprocess_path": result.render_meta.preprocess_path,
+            "elapsed_render_ms": result.render_meta.elapsed_render_ms,
+            "elapsed_ocr_ms": result.render_meta.elapsed_ocr_ms,
+            "retried": result.retried,
+        }
+        self._commit_ocr_page(
+            record,
+            generation,
+            document_id,
+            result.page,
+            tokens=result.tokens,
+            spans=result.spans,
+            meta=meta,
+        )
+
+        if result.assessment.issue_type and result.assessment.issue_severity:
+            self._add_issue(
+                record,
+                issue_type=result.assessment.issue_type,
+                severity=result.assessment.issue_severity,
+                title=result.assessment.issue_title or "OCR page quality issue",
+                explanation="OCR page quality requires review.",
+                document_id=document_id,
+                blocking=result.assessment.outcome in {OcrPageOutcome.FAILED, OcrPageOutcome.BLANK},
+            )
+
+        event = "document.ocr.completed"
+        status = "done"
+        if result.assessment.outcome in {
+            OcrPageOutcome.LOW_CONFIDENCE,
+            OcrPageOutcome.USABLE_WITH_WARNING,
+        }:
+            event = "document.ocr.review_required"
+            status = "review_required"
+        elif result.assessment.outcome in {OcrPageOutcome.FAILED, OcrPageOutcome.BLANK}:
+            event = "document.ocr.failed"
+            status = "failed"
+
+        if result.retried:
+            self._emit(
+                record,
+                "document.ocr.retry.completed",
+                document_id=document_id,
+                page_number=page.page_number,
+                status="retried",
+                progress=base_progress,
+            )
+
+        self._emit(
+            record,
+            event,
+            document_id=document_id,
+            page_number=page.page_number,
+            status=status,
+            progress=base_progress,
+        )
+
+    def _commit_ocr_page(
+        self,
+        record: SessionRecord,
+        generation: int,
+        document_id: str,
+        page: DocumentPage,
+        *,
+        tokens: list[SourceToken],
+        spans: list[SourceSpan],
+        meta: dict[str, object] | None,
+    ) -> None:
+        if record.generation != generation:
+            return
+        if document_id not in record.documents:
+            return
+        pages = record.pages.get(document_id)
+        if pages is None:
+            return
+        replaced = False
+        for i, existing in enumerate(pages):
+            if existing.page_number == page.page_number:
+                pages[i] = page
+                replaced = True
+                break
+        if not replaced:
+            pages.append(page)
+        tokens_map = record.tokens_by_page.setdefault(document_id, {})
+        spans_map = record.spans_by_page.setdefault(document_id, {})
+        # Atomic replace for this page (no duplicate accumulation)
+        tokens_map[page.page_number] = list(tokens)
+        spans_map[page.page_number] = list(spans)
+        if meta is not None:
+            record.ocr_meta_by_page.setdefault(document_id, {})[page.page_number] = meta
+
+    def _add_issue(
+        self,
+        record: SessionRecord,
+        *,
+        issue_type: str,
+        severity: IssueSeverity,
+        title: str,
+        explanation: str,
+        document_id: str,
+        blocking: bool,
+    ) -> None:
+        issue = Issue(
+            id=new_opaque_id("issue"),
+            session_id=record.session.id,
+            issue_type=issue_type,
+            severity=severity,
+            title=title,
+            explanation=explanation,
+            document_ids=[document_id],
+            blocking=blocking,
+            status=IssueStatus.OPEN,
+        )
+        record.issues.append(issue)
 
     def _normalize_document(self, record: SessionRecord, document: Document) -> Path:
         source = record.stored_paths.get(document.id)
@@ -348,7 +805,6 @@ class ProcessService:
 
         try:
             if document.file_type == DocumentFileType.PDF:
-                # Retain original as the canonical viewing copy (do not alter evidence)
                 canonical = source
             elif document.file_type == DocumentFileType.DOCX:
                 canonical = derived / f"{document.id}.pdf"
@@ -395,7 +851,6 @@ class ProcessService:
             live.error_message = None
             return canonical
         except ThumbnailError as exc:
-            # Cleanup partial derived outputs (never the original upload)
             derived_pdf = derived / f"{document.id}.pdf"
             if derived_pdf.exists() and document.file_type != DocumentFileType.PDF:
                 derived_pdf.unlink(missing_ok=True)
@@ -414,7 +869,6 @@ class ProcessService:
         live.status = DocumentStatus.UPLOADED
         live.error_code = error_code
         live.error_message = message
-        # Remove partial derived artifacts (never the original upload)
         canon = record.canonical_paths.pop(document.id, None)
         if canon is not None and "derived" in canon.parts and canon.exists():
             canon.unlink(missing_ok=True)
@@ -425,6 +879,7 @@ class ProcessService:
         record.tokens_by_page.pop(document.id, None)
         record.spans_by_page.pop(document.id, None)
         record.page_rotation.pop(document.id, None)
+        record.ocr_meta_by_page.pop(document.id, None)
 
     def _require_document(self, session_id: str, document_id: str) -> SessionRecord:
         record = self._sessions.get_record(session_id, touch=True)

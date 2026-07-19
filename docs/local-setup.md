@@ -1,4 +1,4 @@
-# Local setup (Phase 2)
+# Local setup (Phase 3)
 
 ## Prerequisites
 
@@ -29,11 +29,19 @@ SESSION_CLEANUP_INTERVAL_SECONDS=60
 LIBREOFFICE_PATH=soffice
 LIBREOFFICE_TIMEOUT_SECONDS=120
 THUMBNAIL_MAX_WIDTH=240
+VERIDEMAND_OCR_MODEL_DIR=   # optional; default %LOCALAPPDATA%\VeriDemand\paddleocr
 ```
 
-After upload, call `POST /api/v1/sessions/{id}/process` (or use **Process documents** in the UI) to normalize, generate thumbnails, and run native extraction. DOCX files are viewed through their generated PDF copy.
+### OCR models (clean machine)
 
-Appendix D / `AppSettings` overrides use names like `SESSION_TTL_MINUTES`, `MAX_FILES_PER_SESSION`, `MAX_FILE_SIZE_MB`, `MAX_TOTAL_UPLOAD_MB`, `MAX_PAGES_PER_SESSION`, etc.
+1. Sync backend deps (includes `paddleocr==2.7.3` + `paddlepaddle==2.6.2`, CPU).
+2. Ensure write access to the model cache directory (`VERIDEMAND_OCR_MODEL_DIR` or `%LOCALAPPDATA%\VeriDemand\paddleocr`).
+3. Start the API. `/api/v1/health` reports `capabilities.ocr_enabled` when packages import — models are **lazy-loaded** on first OCR page.
+4. First OCR run downloads English det/rec/cls weights into the cache (requires network once). Do not commit weights.
+
+After upload, call `POST /api/v1/sessions/{id}/process` (or use **Process documents** in the UI). Processing runs in a **background thread**; poll `GET .../events` until `process.completed`. OCR runs only for pages routed `ocr` (native-first). DOCX files are viewed through their generated PDF copy.
+
+Appendix D / `AppSettings` overrides use names like `SESSION_TTL_MINUTES`, `OCR_RENDER_DPI`, `NATIVE_MAX_CID_RATIO`, `OCR_FORCE_FOR_TESTS`, etc.
 
 Health check:
 
@@ -56,7 +64,7 @@ copy .env.example .env   # sets VITE_API_BASE_URL
 npm run dev
 ```
 
-Open http://localhost:5173 — Temporary Prototype banner, start session, upload supported files, reset case.
+Open http://localhost:5173 — Temporary Prototype banner, start session, upload supported files, process (polls OCR progress), reset case.
 
 ## Contracts
 
@@ -76,15 +84,14 @@ Runs backend format/lint/types/tests, contract generate+drift proof, and fronten
 
 ## Temporary / ignored paths
 
-Session and temp runtime dirs (`tmp/`, `data/sessions/`), spike `out/`, `.tools/`, venvs, and `node_modules/` are gitignored. Do not commit case binaries.
+Session and temp runtime dirs (`tmp/`, `data/sessions/`), spike `out/`, OCR model cache (outside repo), `.tools/`, venvs, and `node_modules/` are gitignored. Do not commit case binaries or OCR weights.
 
-### Local Amini / reference package (not Phase 1 CI)
+### Local Amini / reference package
 
 Lawyer-provided evidence PDFs/DOCX for the illustrative Amini package must stay **local and gitignored**:
 
 - Expected location: `docs/example/` (see `.gitignore` rules for `docs/example/**/*.pdf` and `**/*.docx`)
 - Safe aliases / gold shape: `docs/example/gold/amini-illustrative.md` (no confidential file bodies)
-- **Required for:** Phase 2 manual viewer/normalization acceptance and Phase 3 OCR evaluation
-- **Not required for:** Phase 1 automated repository tests (use synthetic fixtures under `backend/tests/fixtures/`)
+- **Required for:** Phase 2/3 manual and reference-package acceptance
+- **Not required for:** automated repository tests (use synthetic fixtures under `backend/tests/fixtures/`)
 - Do not put confidential filenames or document contents in normal application logs or committed reports
-

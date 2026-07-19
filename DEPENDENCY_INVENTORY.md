@@ -1,8 +1,8 @@
-# Dependency Inventory (Phase 1)
+# Dependency Inventory (Phase 3)
 
-**Date:** 2026-07-19  
-**Supported Python:** `>=3.12,<3.13` (lock built with 3.12.8)  
-**Supported Node:** `>=22 <25` (`.nvmrc` → 22; CI/dev measured on Node 24.18.0 locally)
+**Date:** 2026-07-20  
+**Supported Python:** `>=3.12,<3.13` (lock built with 3.12.x)  
+**Supported Node:** `>=22 <25` (`.nvmrc` → 22)
 
 Licences verified from package metadata at install time. Re-verify on upgrades.
 
@@ -15,12 +15,30 @@ Licences verified from package metadata at install time. Re-verify on upgrades.
 | fastapi | 0.116.1 | HTTP API framework | MIT | runtime |
 | uvicorn[standard] | 0.35.0 | ASGI server | BSD-3-Clause | runtime |
 | pydantic | 2.11.7 | Authoritative machine contracts | MIT | runtime |
-| pydantic-settings | 2.10.1 | Settings helpers (available; AppSettings uses custom env load) | MIT | runtime |
+| pydantic-settings | 2.10.1 | Settings helpers | MIT | runtime |
 | python-multipart | 0.0.20 | Multipart form parsing for file uploads | Apache-2.0 | runtime |
-| pypdf | 5.9.0 | PDF signature/encryption checks and safe page counts (no text extraction) | BSD-3-Clause | runtime |
-| Pillow | 11.3.0 | Image open/verify and TIFF frame counts | HPND | runtime |
+| pypdf | 5.9.0 | PDF signature/encryption checks and safe page counts | BSD-3-Clause | runtime |
+| Pillow | 11.3.0 | Image open/verify, OCR preprocess, TIFF frames | HPND | runtime |
+| pdfplumber | 0.11.7 | Native PDF text extraction (Phase 2+) | MIT | runtime |
+| pypdfium2 | 4.30.0 | Page render / thumbnails / OCR input (sole boundary) | Apache-2.0 / BSD-3-Clause | runtime |
+| paddleocr | 2.7.3 | Printed English OCR (Phase 3; OD-16 pin A) | Apache-2.0 | runtime |
+| paddlepaddle | 2.6.2 | Paddle runtime for PaddleOCR (CPU) | Apache-2.0 | runtime |
+| opencv-python-headless | 4.9.0.80 | Lightweight OCR preprocess (deskew/threshold) | Apache-2.0 | runtime |
+| numpy | ≥1.23,<2 | Array bridge for OCR/OpenCV (Paddle 2.6 requires `<2`) | BSD-3-Clause | runtime |
+| psutil | 7.x (locked) | Optional resource probes / acceptance metrics | BSD-3-Clause | runtime |
 | starlette | 0.47.3 | (transitive via FastAPI) ASGI toolkit | BSD-3-Clause | runtime |
-| anyio / httpx / … | locked in `backend/uv.lock` | Transitive runtime support | various | runtime |
+
+Lockfile: [`backend/uv.lock`](backend/uv.lock)
+
+### OCR model cache (not a pip package)
+
+- Models are **not** committed to Git.
+- Default cache: `%LOCALAPPDATA%/VeriDemand/paddleocr` (Windows) or `~/.cache/veridemand/paddleocr`.
+- Override with `VERIDEMAND_OCR_MODEL_DIR`.
+- On first OCR, PaddleOCR downloads English det/rec/cls weights into that directory.
+- `/health` reports `capabilities.ocr_enabled=true` when paddle packages import; models may still lazy-load on first use.
+
+---
 
 ## Backend — development / test
 
@@ -32,8 +50,6 @@ Licences verified from package metadata at install time. Re-verify on upgrades.
 | ruff | 0.12.4 | Lint + format | MIT | development |
 | mypy | 1.17.0 | Static type checking | MIT | development |
 
-Lockfile: [`backend/uv.lock`](backend/uv.lock)
-
 ---
 
 ## Frontend — runtime
@@ -44,6 +60,7 @@ Lockfile: [`backend/uv.lock`](backend/uv.lock)
 | react-dom | 19.1.0 | DOM renderer | MIT | runtime |
 | zod | 3.25.76 | API response validation | MIT | runtime |
 | zustand | 5.0.6 | Shell state scaffold | MIT | runtime |
+| pdfjs-dist | (locked) | Canonical PDF viewer | Apache-2.0 | runtime |
 
 ## Frontend — development
 
@@ -61,14 +78,14 @@ Lockfile: [`frontend/package-lock.json`](frontend/package-lock.json)
 
 ---
 
-## Explicitly excluded from the Phase 0 application
+## Explicitly excluded
 
 | Package | Note |
 |---------|------|
-| PaddleOCR | **Not installed** in app. Phase 3 constraint from readiness OCR spike: pin **PaddleOCR 2.7.3** + **PaddlePaddle 2.6.2**. Do not migrate to 3.x during Phase 0. Remains under `spikes/ocr/` only. |
-| PaddlePaddle | Same as above |
-| pdfplumber / pypdfium2 / OpenCV | Later phases; spike-only today |
+| PaddleOCR 3.x | Failed on measured Windows/oneDNN host — do not install |
+| Paid DocAI | Not default extractor |
 | Database drivers | No database in prototype |
+| LLM SDKs for extraction | No LLM-first extraction |
 
 ---
 

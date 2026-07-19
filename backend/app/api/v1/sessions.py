@@ -1,4 +1,4 @@
-"""Session, document, and Phase 2 process/viewer API routes."""
+"""Session, document, and Phase 3 process/viewer API routes."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from app.models.case_session import CaseSession
 from app.models.document import Document
 from app.models.document_page import DocumentPage
 from app.models.document_upload_batch import DocumentUploadBatch
+from app.models.issue import Issue
 from app.models.process_event import ProcessEvent
 from app.models.source_span import SourceSpan
 from app.models.source_token import SourceToken
@@ -65,6 +66,7 @@ def delete_document(session_id: str, document_id: str, request: Request) -> Resp
 
 @router.post("/sessions/{session_id}/process", response_model=list[ProcessEvent])
 def start_process(session_id: str, request: Request) -> list[ProcessEvent]:
+    """Start background processing; poll GET .../events for completion."""
     service: ProcessService = request.app.state.process_service
     return service.start_process(session_id)
 
@@ -77,6 +79,12 @@ def list_events(
 ) -> list[ProcessEvent]:
     service: ProcessService = request.app.state.process_service
     return service.list_events(session_id, after=after)
+
+
+@router.get("/sessions/{session_id}/issues", response_model=list[Issue])
+def list_issues(session_id: str, request: Request) -> list[Issue]:
+    service: ProcessService = request.app.state.process_service
+    return service.list_issues(session_id)
 
 
 @router.get(
@@ -95,6 +103,17 @@ def list_pages(session_id: str, document_id: str, request: Request) -> list[Docu
 def get_page(session_id: str, document_id: str, page_number: int, request: Request) -> DocumentPage:
     service: ProcessService = request.app.state.process_service
     return service.get_page(session_id, document_id, page_number)
+
+
+@router.post(
+    "/sessions/{session_id}/documents/{document_id}/pages/{page_number}/ocr/retry",
+    response_model=DocumentPage,
+)
+def retry_ocr_page(
+    session_id: str, document_id: str, page_number: int, request: Request
+) -> DocumentPage:
+    service: ProcessService = request.app.state.process_service
+    return service.retry_ocr_page(session_id, document_id, page_number)
 
 
 @router.get("/sessions/{session_id}/documents/{document_id}/view")

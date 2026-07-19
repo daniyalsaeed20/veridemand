@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from app.models.enums import ExtractionMethod
 from app.models.source_span import SourceSpan
 from app.models.source_token import SourceToken
 from app.services.session.workspace import new_opaque_id
@@ -19,6 +18,7 @@ def group_tokens_into_spans(
 
     Tokens are assumed roughly reading-ordered. A new span starts when the next
     token jumps to a new line or leaves a large horizontal gap (column break).
+    Span ``method`` follows the tokens (native or OCR).
     """
     if not tokens:
         return []
@@ -63,6 +63,7 @@ def _make_span(tokens: list[SourceToken]) -> SourceSpan:
     polygons = [t.polygon for t in tokens]
     confidences = [t.confidence for t in tokens]
     confidence = sum(confidences) / len(confidences) if confidences else None
+    method = tokens[0].method
     return SourceSpan(
         id=new_opaque_id("span"),
         document_id=tokens[0].document_id,
@@ -70,6 +71,6 @@ def _make_span(tokens: list[SourceToken]) -> SourceSpan:
         text=text,
         token_ids=[t.id for t in tokens],
         polygons=polygons,
-        method=ExtractionMethod.NATIVE,
+        method=method,
         confidence=confidence,
     )

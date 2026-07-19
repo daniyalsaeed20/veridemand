@@ -215,9 +215,10 @@
 | **Why it matters** | Spec says GPU optional; GTX 1060 may or may not speed English PP-OCR. |
 | **Options** | (A) CPU-first for prototype stability. (B) GPU if available. (C) Force GPU. |
 | **Recommended** | **A** with optional GPU experiment documented in OCR spike / Phase 3 bench. |
+| **Decision (Phase 3)** | **A — CPU-first.** Adapter initializes with `use_gpu=False`. |
 | **Consequences / risks** | Long medical stacks remain multi-minute (accepted in spec). |
 | **Blocks a phase?** | No. |
-| **Resolve by** | Phase 3. |
+| **Resolve by** | Phase 3 — **resolved**. |
 
 ---
 
@@ -229,9 +230,10 @@
 | **Why it matters** | PaddleOCR 3.7 + Paddle 3.3.1 crashed on this Windows host (oneDNN/PIR). PaddleOCR 2.7.3 + Paddle 2.6.2 succeeded in `spikes/ocr/.venv`. |
 | **Options** | (A) Pin 2.7.3/2.6.2 for Phase 3. (B) Debug/upgrade 3.x before Phase 3. (C) Swap OCR engine (conflicts with selected stack). |
 | **Recommended** | **A** for initial Phase 3; schedule **B** as a follow-up spike before claiming 3.x. |
+| **Decision (Phase 3)** | **A — pin `paddleocr==2.7.3` + `paddlepaddle==2.6.2`** (with `numpy<2`). Do not install PaddleOCR 3.x. |
 | **Consequences / risks** | Staying on 2.7 may miss 3.x accuracy/features; jumping to 3.x without pin blocks Phase 3. |
-| **Blocks a phase?** | **Yes** for Phase 3 production adapter until a working pin is chosen. Does not block Phase 0. |
-| **Resolve by** | Phase 3 start. |
+| **Blocks a phase?** | Resolved for Phase 3 adapter. |
+| **Resolve by** | Phase 3 start — **resolved**. |
 
 ---
 

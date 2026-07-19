@@ -171,6 +171,34 @@ export async function startProcess(sessionId: string): Promise<ProcessEvent[]> {
   return parseArray(json, ProcessEventSchema, "Process");
 }
 
+export async function waitForProcess(
+  sessionId: string,
+  options?: { timeoutMs?: number; pollMs?: number },
+): Promise<ProcessEvent[]> {
+  const timeoutMs = options?.timeoutMs ?? 600_000;
+  const pollMs = options?.pollMs ?? 400;
+  const started = await startProcess(sessionId);
+  let after = started.length > 0 ? Math.max(...started.map((e) => e.sequence)) : -1;
+  const collected = [...started];
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (
+      collected.some((e) =>
+        ["process.completed", "process.failed", "process.cancelled"].includes(e.event),
+      )
+    ) {
+      return collected;
+    }
+    await new Promise((r) => setTimeout(r, pollMs));
+    const batch = await listEvents(sessionId, after);
+    if (batch.length > 0) {
+      collected.push(...batch);
+      after = batch[batch.length - 1]!.sequence;
+    }
+  }
+  throw new Error("Timed out waiting for document processing");
+}
+
 export async function listEvents(sessionId: string, after = -1): Promise<ProcessEvent[]> {
   const response = await fetch(
     `${baseUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/events?after=${after}`,
@@ -180,6 +208,40 @@ export async function listEvents(sessionId: string, after = -1): Promise<Process
   }
   const json: unknown = await response.json();
   return parseArray(json, ProcessEventSchema, "Events");
+}
+
+export async function listIssues(sessionId: string): Promise<unknown[]> {
+  const response = await fetch(
+    `${baseUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/issues`,
+  );
+  if (!response.ok) {
+    throw await parseError(response);
+  }
+  const json: unknown = await response.json();
+  if (!Array.isArray(json)) {
+    throw new Error("Issues response failed contract validation");
+  }
+  return json;
+}
+
+export async function retryOcrPage(
+  sessionId: string,
+  documentId: string,
+  pageNumber: number,
+): Promise<DocumentPage> {
+  const response = await fetch(
+    `${baseUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/documents/${encodeURIComponent(documentId)}/pages/${pageNumber}/ocr/retry`,
+    { method: "POST" },
+  );
+  if (!response.ok) {
+    throw await parseError(response);
+  }
+  const json: unknown = await response.json();
+  const parsed = DocumentPageSchema.safeParse(json);
+  if (!parsed.success) {
+    throw new Error("Retry OCR response failed contract validation");
+  }
+  return parsed.data;
 }
 
 export async function listPages(sessionId: string, documentId: string): Promise<DocumentPage[]> {

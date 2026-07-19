@@ -62,6 +62,15 @@ class PageRoute(StrEnum):
     MANUAL_REVIEW = "manual_review"
 
 
+class OcrStatus(StrEnum):
+    """Closed ocr_status vocabulary (contracts win over module samples)."""
+
+    NOT_NEEDED = "not_needed"
+    PENDING = "pending"
+    DONE = "done"
+    FAILED = "failed"
+
+
 class FactStatus(StrEnum):
     SUGGESTED = "suggested"
     VERIFIED = "verified"

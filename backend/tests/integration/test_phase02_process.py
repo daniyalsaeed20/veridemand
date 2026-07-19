@@ -7,11 +7,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from app.core.server_settings import ServerSettings
-from app.main import create_app
-from app.models.app_settings import AppSettings
 from app.models.case_session import CaseSession
-from app.models.document import Document
 from app.models.document_page import DocumentPage
 from app.models.process_event import ProcessEvent
 from app.services.documents.convert_docx import (
@@ -26,22 +22,11 @@ from tests.fixtures.upload_builders import (
     write_png,
     write_tiff,
 )
+from tests.helpers_process import make_client, upload_and_process, wait_for_process
 
 
-def _client(tmp_path: Path, **overrides: int) -> TestClient:
-    settings = AppSettings(**overrides) if overrides else AppSettings()
-    app = create_app(
-        app_settings=settings,
-        server_settings=ServerSettings(
-            cors_origins=["http://localhost:5173"],
-            log_level="INFO",
-            app_version="0.0.0-dev",
-            temp_root=tmp_path / "sessions",
-            max_active_sessions=32,
-            session_cleanup_interval_seconds=3600,
-        ),
-    )
-    return TestClient(app)
+def _client(tmp_path: Path, **overrides: object) -> TestClient:
+    return make_client(tmp_path, **overrides)
 
 
 def _upload_and_process(
@@ -49,23 +34,8 @@ def _upload_and_process(
     files: list[tuple[str, bytes, str]],
     *,
     converter=fake_docx_converter_success,
-) -> tuple[str, list[Document]]:
-    client.app.state.process_service.set_docx_converter(converter)
-    session = CaseSession.model_validate(client.post("/api/v1/sessions").json())
-    multipart = [("files", (name, data, mime)) for name, data, mime in files]
-    batch = client.post(f"/api/v1/sessions/{session.id}/documents", files=multipart)
-    assert batch.status_code == 200
-    accepted = [Document.model_validate(d) for d in batch.json()["accepted"]]
-    assert accepted
-    processed = client.post(f"/api/v1/sessions/{session.id}/process")
-    assert processed.status_code == 200
-    events = [ProcessEvent.model_validate(e) for e in processed.json()]
-    assert any(e.event == "process.completed" for e in events)
-    docs = [
-        Document.model_validate(d)
-        for d in client.get(f"/api/v1/sessions/{session.id}/documents").json()
-    ]
-    return session.id, docs
+):
+    return upload_and_process(client, files, converter=converter)
 
 
 def test_pdf_normalize_and_native_extract(tmp_path: Path) -> None:
@@ -85,9 +55,8 @@ def test_pdf_normalize_and_native_extract(tmp_path: Path) -> None:
             for p in client.get(f"/api/v1/sessions/{session_id}/documents/{doc.id}/pages").json()
         ]
         assert len(pages) == 2
-        # Blank pages route to manual_review or ocr — never invoke OCR engine
         assert all(p.route in {"native", "ocr", "manual_review"} for p in pages)
-        assert all(p.ocr_status in {None, "not_needed", "pending"} for p in pages)
+        assert all(p.ocr_status in {None, "not_needed", "pending", "done", "failed"} for p in pages)
 
         view = client.get(f"/api/v1/sessions/{session_id}/documents/{doc.id}/view")
         assert view.status_code == 200
@@ -143,10 +112,10 @@ def test_docx_convert_timeout_cleans_partial(tmp_path: Path) -> None:
         doc_id = batch.json()["accepted"][0]["id"]
         processed = client.post(f"/api/v1/sessions/{session.id}/process")
         assert processed.status_code == 200
+        wait_for_process(client, session.id)
         docs = client.get(f"/api/v1/sessions/{session.id}/documents").json()
         assert docs[0]["error_code"] == "process_stage_failed"
         assert docs[0]["status"] == "uploaded"
-        # Partial derived PDF must not remain
         derived = tmp_path / "w" / "sessions" / session.id / "derived" / f"{doc_id}.pdf"
         assert not derived.exists()
         work = tmp_path / "w" / "sessions" / session.id / "work" / doc_id
@@ -174,6 +143,7 @@ def test_docx_convert_missing_tool(tmp_path: Path) -> None:
         )
         processed = client.post(f"/api/v1/sessions/{session.id}/process")
         assert processed.status_code == 200
+        wait_for_process(client, session.id)
         docs = client.get(f"/api/v1/sessions/{session.id}/documents").json()
         assert docs[0]["error_code"] == "process_stage_failed"
 
@@ -322,6 +292,7 @@ def test_concurrent_process_two_sessions_serialize_pdfium(tmp_path: Path) -> Non
                 ready.wait(timeout=5)
                 resp = client.post(f"/api/v1/sessions/{session_id}/process")
                 results.append(resp.status_code)
+                wait_for_process(client, session_id)
             except BaseException as exc:  # noqa: BLE001
                 errors.append(exc)
 
@@ -329,8 +300,8 @@ def test_concurrent_process_two_sessions_serialize_pdfium(tmp_path: Path) -> Non
         t2 = threading.Thread(target=worker, args=(sb.id,))
         t1.start()
         t2.start()
-        t1.join(timeout=60)
-        t2.join(timeout=60)
+        t1.join(timeout=120)
+        t2.join(timeout=120)
         assert errors == []
         assert results == [200, 200]
         assert pdfium_runtime.get_max_inflight() == 1

@@ -56,6 +56,7 @@ Used by `score_native_text_usability` / `select_page_route`. Env names map to `A
 | `NATIVE_MIN_PRINTABLE_RATIO` | float | `0.90` | Below → unusable native |
 | `NATIVE_MAX_CONTROL_CHAR_RATIO` | float | `0.02` | Above → unusable native |
 | `NATIVE_MAX_OVERSIZED_BOX_RATIO` | float | `0.20` | Fraction of tokens with huge page-relative boxes |
+| `NATIVE_MAX_CID_RATIO` | float | `0.05` | Fraction of words with `(cid:N)` markers (B-02; spike suggested 0.25) |
 
 **Decision sketch**
 
@@ -155,12 +156,17 @@ Record on the **developer machine** after ExtractionService exists. If using `do
 
 | page_class | example source (optional) | median_ms_per_page | p95_ms_per_page | peak_ram_mb | route_mix_native_ocr_manual | status |
 |------------|---------------------------|--------------------|-----------------|-------------|-----------------------------|--------|
-| native_digital | e.g. digital EMR export pages | | | | | `todo_measure` |
-| scanned_typed | e.g. police / insurer scans | | | | | `todo_measure` |
-| mixed_long_scan | e.g. long clinical fax stack | | | | | `todo_measure` |
+| native_digital | eCW medical export (24 pages sampled) | ~150 native | — | — | 24/0/0 | `measured_provisional` (Phase 3 machine) |
+| scanned_typed | eCW billing ledger p1 (OCR) | ~37300 first (incl. model warm) / ~1550 subsequent OCR | — | — | 0/1/0 | `measured_provisional` |
+| mixed_long_scan | Long medical sample (6 pages) | native-first on corpus | — | — | 6/0/0 | `measured_provisional` (native text layer present) |
 | handwriting_exception | rare pages | | | | | `todo_measure` |
 
-Also log: temp disk peak, OCR worker count, DPI used for retries.
+Notes (provisional, developer machine 2026-07-20):
+
+- Model cache: `%LOCALAPPDATA%/VeriDemand/paddleocr` (English det/rec/cls downloaded on first OCR).
+- First OCR page after cold start includes model load (~tens of seconds); warm pages closer to spike ~1.5–11 s depending on density.
+- Spike comparison (~4–11 s/page) remains a rough band, not a pass SLA.
+- Police/insurer reference pages often route **native** under native-first doctrine; OCR exercised on billing + OCR-routed police pages.
 
 ---
 

@@ -94,6 +94,19 @@ From FR-CLS-03. Additive category list.
 
 ---
 
+## OcrStatus
+
+Closed vocabulary for `DocumentPage.ocr_status` (contracts win over module samples that used `completed`).
+
+| Value | Meaning |
+|-------|---------|
+| `not_needed` | Native path; OCR not required |
+| `pending` | Routed for OCR; not yet completed |
+| `done` | OCR finished (may still carry quality warnings) |
+| `failed` | OCR hard-failed or produced no usable text after attempts |
+
+---
+
 ## FactStatus
 
 From prototype §7.5.

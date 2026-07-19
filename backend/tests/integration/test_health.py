@@ -35,9 +35,9 @@ def test_health_endpoint_schema() -> None:
         assert body.app_version == "0.0.0-dev"
         caps = body.capabilities
         if isinstance(caps, dict):
-            assert caps["ocr_enabled"] is False
+            assert caps["ocr_enabled"] is True
         else:
-            assert caps.ocr_enabled is False
+            assert caps.ocr_enabled is True
 
 
 def test_unknown_route_error_envelope() -> None:

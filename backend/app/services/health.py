@@ -8,6 +8,7 @@ from app.models.app_settings import AppSettings, get_safe_config_summary
 from app.models.enums import HealthStatus
 from app.models.health import HealthCapabilities, HealthResponse
 from app.models.taxonomies import CONTRACTS_VERSION
+from app.services.ocr import ocr_capability_enabled
 
 
 class HealthService:
@@ -18,7 +19,7 @@ class HealthService:
     def get_health(self) -> HealthResponse:
         summary = get_safe_config_summary(self._settings)
         capabilities = HealthCapabilities(
-            ocr_enabled=bool(summary["ocr_enabled"]),
+            ocr_enabled=ocr_capability_enabled(),
             llm_semantic_extraction_enabled=bool(summary["llm_semantic_extraction_enabled"]),
             max_files_per_session=int(summary["max_files_per_session"]),
             max_pages_per_session=int(summary["max_pages_per_session"]),

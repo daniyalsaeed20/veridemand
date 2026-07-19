@@ -16,10 +16,12 @@ from app.models.case_session import CaseSession
 from app.models.document import Document
 from app.models.document_page import DocumentPage
 from app.models.enums import DocumentFileType, DocumentStatus, SessionStatus
+from app.models.issue import Issue
 from app.models.process_event import ProcessEvent
 from app.models.source_span import SourceSpan
 from app.models.source_token import SourceToken
 from app.models.taxonomies import ErrorCode
+from app.services.ocr import request_cancel
 from app.services.session.workspace import (
     SESSION_WARNING,
     build_session_workspace,
@@ -51,9 +53,12 @@ class SessionRecord:
     tokens_by_page: dict[str, dict[int, list[SourceToken]]] = field(default_factory=dict)
     spans_by_page: dict[str, dict[int, list[SourceSpan]]] = field(default_factory=dict)
     page_rotation: dict[str, dict[int, int]] = field(default_factory=dict)
+    issues: list[Issue] = field(default_factory=list)
+    ocr_meta_by_page: dict[str, dict[int, dict[str, object]]] = field(default_factory=dict)
     events: list[ProcessEvent] = field(default_factory=list)
     process_running: bool = False
     process_completed: bool = False
+    process_cancel_requested: bool = False
     event_sequence: int = 0
 
 
@@ -337,6 +342,10 @@ class SessionService:
             record.tokens_by_page.pop(document_id, None)
             record.spans_by_page.pop(document_id, None)
             record.page_rotation.pop(document_id, None)
+            record.ocr_meta_by_page.pop(document_id, None)
+            record.issues = [
+                i for i in record.issues if not (i.document_ids and document_id in i.document_ids)
+            ]
 
             if was_owner:
                 record.hash_index.pop(document.content_sha256, None)
@@ -371,6 +380,8 @@ class SessionService:
                         )
                 return
             record.generation += 1
+            record.process_cancel_requested = True
+            request_cancel()
             try:
                 delete_workspace_tree(record.workspace, self._temp_root)
             except Exception as exc:  # noqa: BLE001
@@ -431,6 +442,8 @@ class SessionService:
     def _expire_locked(self, session_id: str, record: SessionRecord) -> None:
         record.session.status = SessionStatus.EXPIRED
         record.generation += 1
+        record.process_cancel_requested = True
+        request_cancel()
         try:
             delete_workspace_tree(record.workspace, self._temp_root)
         except Exception as exc:  # noqa: BLE001

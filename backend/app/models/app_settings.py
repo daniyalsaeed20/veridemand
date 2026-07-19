@@ -44,8 +44,10 @@ class AppSettings(BaseModel):
     native_min_printable_ratio: float = Field(default=0.90, ge=0.0, le=1.0)
     native_max_control_char_ratio: float = Field(default=0.02, ge=0.0, le=1.0)
     native_max_oversized_box_ratio: float = Field(default=0.20, ge=0.0, le=1.0)
+    native_max_cid_ratio: float = Field(default=0.05, ge=0.0, le=1.0)
     ocr_page_mean_conf_low: float = Field(default=0.55, ge=0.0, le=1.0)
     ocr_page_mean_conf_retry_trigger: float = Field(default=0.70, ge=0.0, le=1.0)
+    ocr_force_for_tests: bool = False
     enable_llm_semantic_extraction: bool = False
     llm_extraction_temperature: float = Field(default=0.0, ge=0.0)
     llm_draft_temperature: float = Field(default=0.2, ge=0.0)
@@ -95,6 +97,7 @@ class AppSettings(BaseModel):
             "NATIVE_MIN_PRINTABLE_RATIO": "native_min_printable_ratio",
             "NATIVE_MAX_CONTROL_CHAR_RATIO": "native_max_control_char_ratio",
             "NATIVE_MAX_OVERSIZED_BOX_RATIO": "native_max_oversized_box_ratio",
+            "NATIVE_MAX_CID_RATIO": "native_max_cid_ratio",
             "OCR_PAGE_MEAN_CONF_LOW": "ocr_page_mean_conf_low",
             "OCR_PAGE_MEAN_CONF_RETRY_TRIGGER": "ocr_page_mean_conf_retry_trigger",
             "LLM_EXTRACTION_TEMPERATURE": "llm_extraction_temperature",
@@ -105,6 +108,7 @@ class AppSettings(BaseModel):
             "ALLOW_VISION_CROP_FALLBACK": "allow_vision_crop_fallback",
             "ALLOW_FINAL_EXPORT_WITH_RED_ISSUES": "allow_final_export_with_red_issues",
             "LOG_DOCUMENT_TEXT": "log_document_text",
+            "OCR_FORCE_FOR_TESTS": "ocr_force_for_tests",
         }
 
         try:
@@ -132,7 +136,8 @@ class ConfigurationError(ValueError):
 def get_safe_config_summary(settings: AppSettings) -> dict[str, int | bool]:
     """Non-sensitive subset for health capabilities."""
     return {
-        "ocr_enabled": False,  # OCR runtime not installed in Phase 0
+        # ocr_enabled is filled by HealthService (avoids models→services import)
+        "ocr_enabled": False,
         "llm_semantic_extraction_enabled": settings.enable_llm_semantic_extraction,
         "max_files_per_session": settings.max_files_per_session,
         "max_pages_per_session": settings.max_pages_per_session,

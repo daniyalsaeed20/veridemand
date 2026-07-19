@@ -35,8 +35,10 @@ Validated runtime configuration for the prototype. Loaded from environment; neve
 | `native_min_printable_ratio` | float | yes | `0–1` | Default `0.90` |
 | `native_max_control_char_ratio` | float | yes | `0–1` | Default `0.02` |
 | `native_max_oversized_box_ratio` | float | yes | `0–1` | Default `0.20` |
+| `native_max_cid_ratio` | float | yes | `0–1` | Default `0.05` — Phase 2 hardening B-02 (spike suggested `0.25`; keep `0.05`) |
 | `ocr_page_mean_conf_low` | float | yes | `0–1` | Default `0.55` |
 | `ocr_page_mean_conf_retry_trigger` | float | yes | `0–1` | Default `0.70` |
+| `ocr_force_for_tests` | bool | yes | | Default `false` — forced OCR test mode; does not replace preferred native artifacts unless explicitly enabled |
 | `enable_llm_semantic_extraction` | bool | yes | | Default `false` |
 | `llm_extraction_temperature` | float | yes | `>= 0` | Default `0` |
 | `llm_draft_temperature` | float | yes | `>= 0` | Default `0.2` |
@@ -74,8 +76,10 @@ Validated runtime configuration for the prototype. Loaded from environment; neve
   "native_min_printable_ratio": 0.90,
   "native_max_control_char_ratio": 0.02,
   "native_max_oversized_box_ratio": 0.20,
+  "native_max_cid_ratio": 0.05,
   "ocr_page_mean_conf_low": 0.55,
   "ocr_page_mean_conf_retry_trigger": 0.70,
+  "ocr_force_for_tests": false,
   "enable_llm_semantic_extraction": false,
   "llm_extraction_temperature": 0,
   "llm_draft_temperature": 0.2,

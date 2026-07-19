@@ -108,3 +108,54 @@ def absolute_to_normalized(
     page_height: float,
 ) -> list[tuple[float, float]]:
     return normalize_polygon(points, page_width, page_height)
+
+
+def image_polygon_to_normalized(
+    polygon_px: list[tuple[float, float]],
+    *,
+    image_width: int,
+    image_height: int,
+    page_rotation: int = 0,
+    clamp: bool = True,
+) -> list[list[float]] | None:
+    """Map OCR pixel polygons (top-left image space) to canonical [0,1] page space.
+
+    Rendered images from PDFium already incorporate page rotation into the bitmap.
+    ``page_rotation`` is retained for callers that need additional display alignment;
+    when the bitmap matches the PDF.js viewer orientation, pass ``0``.
+    """
+    if image_width <= 0 or image_height <= 0:
+        return None
+    if len(polygon_px) < 3:
+        return None
+
+    # Reject degenerate (zero-area) boxes
+    xs = [p[0] for p in polygon_px]
+    ys = [p[1] for p in polygon_px]
+    if max(xs) - min(xs) < 0.5 or max(ys) - min(ys) < 0.5:
+        return None
+
+    points: list[tuple[float, float]] = []
+    for x, y in polygon_px:
+        nx = float(x) / float(image_width)
+        ny = float(y) / float(image_height)
+        points.append(_rotate_normalized(nx, ny, page_rotation))
+
+    try:
+        validate_normalized_polygon(points)
+        return [[x, y] for x, y in points]
+    except ValueError:
+        if not clamp:
+            return None
+        clamped = [(_clamp01(px), _clamp01(py)) for px, py in points]
+        try:
+            validate_normalized_polygon(clamped)
+        except ValueError:
+            return None
+        # Large clamp drift → reject rather than mis-highlight
+        if any(
+            abs(a[0] - b[0]) > 0.05 or abs(a[1] - b[1]) > 0.05
+            for a, b in zip(points, clamped, strict=True)
+        ):
+            return None
+        return [[x, y] for x, y in clamped]

@@ -5,6 +5,7 @@ import {
   canonicalViewUrl,
   listPages,
   listSpans,
+  retryOcrPage,
   thumbnailUrl,
   type DocumentPage,
   type SourceSpan,
@@ -172,8 +173,15 @@ export default function DocumentViewer({ sessionId, documentId, displayName }: P
       {currentPage ? (
         <p className="viewer-meta muted">
           Route: {currentPage.route}
-          {currentPage.extraction_method ? ` · method: ${currentPage.extraction_method}` : ""}
-          {currentPage.ocr_status === "pending" ? " · awaiting Phase 3 OCR" : ""}
+          {currentPage.extraction_method
+            ? ` · extraction: ${currentPage.extraction_method === "ocr" ? "OCR" : currentPage.extraction_method === "native" ? "Native" : currentPage.extraction_method}`
+            : ""}
+          {currentPage.ocr_status === "pending" ? " · OCR queued/processing" : ""}
+          {currentPage.ocr_status === "done" ? " · OCR completed" : ""}
+          {currentPage.ocr_status === "failed" ? " · OCR failed — page remains viewable" : ""}
+          {currentPage.quality_flags.includes("low_confidence")
+            ? " · recognition warning (not legal verification)"
+            : ""}
           {currentPage.quality_flags.length > 0
             ? ` · flags: ${currentPage.quality_flags.join(", ")}`
             : ""}
@@ -195,7 +203,11 @@ export default function DocumentViewer({ sessionId, documentId, displayName }: P
                 src={thumbnailUrl(sessionId, documentId, p.page_number)}
                 alt={`Page ${p.page_number}`}
               />
-              <span>{p.page_number}</span>
+              <span>
+                {p.page_number}
+                {p.ocr_status === "pending" ? "…" : ""}
+                {p.quality_flags.includes("low_confidence") ? "!" : ""}
+              </span>
             </button>
           ))}
         </div>
@@ -225,13 +237,22 @@ export default function DocumentViewer({ sessionId, documentId, displayName }: P
 
         <div className="span-panel">
           <h3>Source spans</h3>
-          {currentPage?.route === "ocr" ? (
+          {currentPage?.ocr_status === "pending" ? (
+            <p className="muted">OCR in progress for this page…</p>
+          ) : null}
+          {currentPage?.ocr_status === "failed" ? (
             <p className="muted">
-              This page is routed for Phase 3 OCR. Native spans are unavailable.
+              OCR failed for this page. The page remains viewable for manual review. Recognition
+              confidence is not factual verification.
             </p>
           ) : null}
-          {spans.length === 0 ? (
-            <p className="muted">No native spans on this page.</p>
+          {currentPage?.route === "ocr" &&
+          currentPage.ocr_status === "done" &&
+          spans.length === 0 ? (
+            <p className="muted">OCR completed with no published spans.</p>
+          ) : null}
+          {spans.length === 0 && currentPage?.ocr_status !== "pending" ? (
+            <p className="muted">No source spans on this page.</p>
           ) : (
             <ul>
               {spans.map((span) => (
@@ -241,12 +262,43 @@ export default function DocumentViewer({ sessionId, documentId, displayName }: P
                     className={`span-item${selectedSpanId === span.id ? " span-item-active" : ""}`}
                     onClick={() => setSelectedSpanId(span.id)}
                   >
+                    <span className="muted">
+                      [
+                      {span.method === "ocr"
+                        ? "OCR"
+                        : span.method === "native"
+                          ? "Native"
+                          : span.method}
+                      {span.confidence != null ? ` · conf ${span.confidence.toFixed(2)}` : ""}]
+                    </span>{" "}
                     {span.text.slice(0, 120) || "(empty)"}
                   </button>
                 </li>
               ))}
             </ul>
           )}
+          {currentPage?.ocr_status === "failed" ||
+          currentPage?.quality_flags.includes("low_confidence") ? (
+            <button
+              type="button"
+              className="btn btn-small"
+              onClick={() => {
+                void (async () => {
+                  try {
+                    await retryOcrPage(sessionId, documentId, pageNumber);
+                    const pageList = await listPages(sessionId, documentId);
+                    setPages(pageList);
+                    const pageSpans = await listSpans(sessionId, documentId, pageNumber);
+                    setSpans(pageSpans);
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : "OCR retry failed");
+                  }
+                })();
+              }}
+            >
+              Retry OCR
+            </button>
+          ) : null}
         </div>
       </div>
     </div>

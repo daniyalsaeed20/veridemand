@@ -152,7 +152,10 @@ def _apply_quality_flags(diagnostics: PageDiagnostics, settings: AppSettings) ->
     if diagnostics.oversized_box_ratio > settings.native_max_oversized_box_ratio:
         diagnostics.quality_flags.append("broken_text_layer")
         diagnostics.warnings.append("oversized_token_boxes")
-    if diagnostics.cid_marker_ratio > 0.05 or diagnostics.private_use_ratio > 0.05:
+    if (
+        diagnostics.cid_marker_ratio > settings.native_max_cid_ratio
+        or diagnostics.private_use_ratio > 0.05
+    ):
         diagnostics.quality_flags.append("broken_text_layer")
         diagnostics.warnings.append("cid_or_private_use_glyphs")
     if diagnostics.repeated_glyph_ratio > 0.15:
@@ -195,7 +198,7 @@ def select_page_route(diagnostics: PageDiagnostics, settings: AppSettings) -> Pa
         or diagnostics.printable_ratio < settings.native_min_printable_ratio
         or diagnostics.zero_width_or_overlap_ratio > settings.native_max_zero_width_or_overlap_ratio
         or diagnostics.oversized_box_ratio > settings.native_max_oversized_box_ratio
-        or diagnostics.cid_marker_ratio > 0.05
+        or diagnostics.cid_marker_ratio > settings.native_max_cid_ratio
         or diagnostics.private_use_ratio > 0.05
         or "broken_text_layer" in diagnostics.quality_flags
     ):

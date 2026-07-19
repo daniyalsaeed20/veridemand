@@ -7,7 +7,7 @@ import {
   fetchHealth,
   getSession,
   listDocuments,
-  startProcess,
+  waitForProcess,
   uploadDocuments,
   type Document,
   type HealthResponse,
@@ -175,14 +175,15 @@ export default function App() {
     if (!session) return;
     setBusy(true);
     clearError();
-    setProcessMessage(null);
+    setProcessMessage("Processing queued…");
     try {
-      const events = await startProcess(session.id);
+      const events = await waitForProcess(session.id);
       const failed = events.filter((e) => e.error_code);
       const completed = events.some((e) => e.event === "process.completed");
+      const ocrEvents = events.filter((e) => e.event.startsWith("document.ocr."));
       setProcessMessage(
         completed
-          ? "Normalization and native extraction completed."
+          ? `Normalization, native extraction, and OCR completed${ocrEvents.length ? ` (${ocrEvents.length} OCR events)` : ""}.`
           : "Processing finished with document-level errors.",
       );
       if (failed.length > 0) {
