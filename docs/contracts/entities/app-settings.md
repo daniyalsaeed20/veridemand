@@ -28,6 +28,13 @@ Validated runtime configuration for the prototype. Loaded from environment; neve
 | `native_max_zero_width_or_overlap_ratio` | float | yes | `0–1` | Default `0.15` |
 | `native_min_reading_order_score` | float | yes | `0–1` | Default `0.55` |
 | `native_likely_scan_image_coverage` | float | yes | `0–1` | Default `0.60` |
+| `native_long_token_band` | int | yes | `> 0` | Default `40` — tokens longer than this count toward long-token ratio |
+| `native_max_long_token_ratio` | float | yes | `0–1` | Default `0.20` |
+| `native_max_mean_token_length` | float | yes | `> 0` | Default `24` |
+| `native_max_median_token_length` | float | yes | `> 0` | Default `18` |
+| `native_min_printable_ratio` | float | yes | `0–1` | Default `0.90` |
+| `native_max_control_char_ratio` | float | yes | `0–1` | Default `0.02` |
+| `native_max_oversized_box_ratio` | float | yes | `0–1` | Default `0.20` |
 | `ocr_page_mean_conf_low` | float | yes | `0–1` | Default `0.55` |
 | `ocr_page_mean_conf_retry_trigger` | float | yes | `0–1` | Default `0.70` |
 | `enable_llm_semantic_extraction` | bool | yes | | Default `false` |
@@ -60,6 +67,13 @@ Validated runtime configuration for the prototype. Loaded from environment; neve
   "native_max_zero_width_or_overlap_ratio": 0.15,
   "native_min_reading_order_score": 0.55,
   "native_likely_scan_image_coverage": 0.60,
+  "native_long_token_band": 40,
+  "native_max_long_token_ratio": 0.20,
+  "native_max_mean_token_length": 24,
+  "native_max_median_token_length": 18,
+  "native_min_printable_ratio": 0.90,
+  "native_max_control_char_ratio": 0.02,
+  "native_max_oversized_box_ratio": 0.20,
   "ocr_page_mean_conf_low": 0.55,
   "ocr_page_mean_conf_retry_trigger": 0.70,
   "enable_llm_semantic_extraction": false,
@@ -75,4 +89,5 @@ Validated runtime configuration for the prototype. Loaded from environment; neve
 
 Env var names match Appendix D (`SESSION_TTL_MINUTES`, etc.) plus native/OCR knobs from [03-ocr-thresholds.md](../../modules/03-ocr-thresholds.md) (`NATIVE_MIN_CHARS`, …). Additional feature flags may be added in a later contracts version.
 
-**Changelog:** 2026-07-18 — added provisional native usability and OCR page-confidence settings (Pass 3).
+**Changelog:** 2026-07-18 — added provisional native usability and OCR page-confidence settings (Pass 3).  
+**Changelog:** 2026-07-20 — added pathological tokenization knobs (Phase 2 hardening B-02; still `0.1-provisional`).

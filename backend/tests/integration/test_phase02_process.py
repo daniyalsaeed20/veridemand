@@ -288,3 +288,49 @@ def test_path_traversal_document_id_rejected(tmp_path: Path) -> None:
         )
         evil = client.get(f"/api/v1/sessions/{session_id}/documents/../etc/passwd/view")
         assert evil.status_code in {404, 405, 422}
+
+
+def test_concurrent_process_two_sessions_serialize_pdfium(tmp_path: Path) -> None:
+    """Two sessions /process concurrently — PDFium critical section max inflight == 1."""
+    import threading
+
+    from app.services.documents import pdfium_runtime
+
+    pdf_a = write_minimal_pdf(tmp_path / "a.pdf", pages=2)
+    pdf_b = write_minimal_pdf(tmp_path / "b.pdf", pages=2)
+    with _client(tmp_path / "w") as client:
+        client.app.state.process_service.set_docx_converter(fake_docx_converter_success)
+        sa = CaseSession.model_validate(client.post("/api/v1/sessions").json())
+        sb = CaseSession.model_validate(client.post("/api/v1/sessions").json())
+        for sid, name, data in (
+            (sa.id, "a.pdf", pdf_a.read_bytes()),
+            (sb.id, "b.pdf", pdf_b.read_bytes()),
+        ):
+            batch = client.post(
+                f"/api/v1/sessions/{sid}/documents",
+                files=[("files", (name, data, "application/pdf"))],
+            )
+            assert batch.status_code == 200
+
+        ready = threading.Barrier(2)
+        results: list[int] = []
+        errors: list[BaseException] = []
+        pdfium_runtime.reset_inflight_stats()
+
+        def worker(session_id: str) -> None:
+            try:
+                ready.wait(timeout=5)
+                resp = client.post(f"/api/v1/sessions/{session_id}/process")
+                results.append(resp.status_code)
+            except BaseException as exc:  # noqa: BLE001
+                errors.append(exc)
+
+        t1 = threading.Thread(target=worker, args=(sa.id,))
+        t2 = threading.Thread(target=worker, args=(sb.id,))
+        t1.start()
+        t2.start()
+        t1.join(timeout=60)
+        t2.join(timeout=60)
+        assert errors == []
+        assert results == [200, 200]
+        assert pdfium_runtime.get_max_inflight() == 1

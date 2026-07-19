@@ -177,6 +177,19 @@ Phase 2 sets `PageRoute.ocr` + `ocr_status=pending` (and quality flag `awaiting_
 
 ## 15. Final verdict
 
-**PASS WITH GAPS**
+**PASS WITH GAPS** (implementation completion claim, 2026-07-19)
 
 Phase 2 deliverables (viewer, thumbnails, pdfplumber native tokens/spans, click-to-highlight, FR-UPL-06/07, FR-EXT-01/02/06 native path) are implemented with automated evidence. Gaps are documented (DOCX needs LibreOffice for manual demo; exit gate via spans not facts; provisional thresholds; OCR not executed). Do **not** create `phase-02-audited-pass` until an independent audit. Do **not** begin Phase 3 until that audit and exit review.
+
+---
+
+## 16. Independent audit and hardening (post-completion)
+
+| Item | Result |
+|------|--------|
+| Independent audit | [`phase-02-audit.md`](./phase-02-audit.md) — **FAIL** (B-01 PDFium lock; B-02 eCW billing native mis-route) |
+| Audited tip at FAIL | `f6c675f` |
+| Hardening branch | `phase-02-audit-hardening` |
+| Hardening report | [`phase-02-hardening.md`](./phase-02-hardening.md) — B-01/B-02 closed; **READY FOR RE-AUDIT** |
+
+The original completion verdict above is retained for history. Tag `phase-02-audited-pass` still requires a **fresh independent re-audit** after hardening. Do **not** begin Phase 3.

@@ -36,6 +36,14 @@ class AppSettings(BaseModel):
     native_max_zero_width_or_overlap_ratio: float = Field(default=0.15, ge=0.0, le=1.0)
     native_min_reading_order_score: float = Field(default=0.55, ge=0.0, le=1.0)
     native_likely_scan_image_coverage: float = Field(default=0.60, ge=0.0, le=1.0)
+    # B-02 pathological tokenization knobs (0.1-provisional)
+    native_long_token_band: int = Field(default=40, gt=0)
+    native_max_long_token_ratio: float = Field(default=0.20, ge=0.0, le=1.0)
+    native_max_mean_token_length: float = Field(default=24.0, gt=0.0)
+    native_max_median_token_length: float = Field(default=18.0, gt=0.0)
+    native_min_printable_ratio: float = Field(default=0.90, ge=0.0, le=1.0)
+    native_max_control_char_ratio: float = Field(default=0.02, ge=0.0, le=1.0)
+    native_max_oversized_box_ratio: float = Field(default=0.20, ge=0.0, le=1.0)
     ocr_page_mean_conf_low: float = Field(default=0.55, ge=0.0, le=1.0)
     ocr_page_mean_conf_retry_trigger: float = Field(default=0.70, ge=0.0, le=1.0)
     enable_llm_semantic_extraction: bool = False
@@ -73,6 +81,7 @@ class AppSettings(BaseModel):
             "OCR_RENDER_DPI": "ocr_render_dpi",
             "OCR_RETRY_DPI": "ocr_retry_dpi",
             "NATIVE_MIN_CHARS": "native_min_chars",
+            "NATIVE_LONG_TOKEN_BAND": "native_long_token_band",
         }
         float_keys = {
             "NATIVE_MIN_TEXT_COVERAGE": "native_min_text_coverage",
@@ -80,6 +89,12 @@ class AppSettings(BaseModel):
             "NATIVE_MAX_ZERO_WIDTH_OR_OVERLAP_RATIO": "native_max_zero_width_or_overlap_ratio",
             "NATIVE_MIN_READING_ORDER_SCORE": "native_min_reading_order_score",
             "NATIVE_LIKELY_SCAN_IMAGE_COVERAGE": "native_likely_scan_image_coverage",
+            "NATIVE_MAX_LONG_TOKEN_RATIO": "native_max_long_token_ratio",
+            "NATIVE_MAX_MEAN_TOKEN_LENGTH": "native_max_mean_token_length",
+            "NATIVE_MAX_MEDIAN_TOKEN_LENGTH": "native_max_median_token_length",
+            "NATIVE_MIN_PRINTABLE_RATIO": "native_min_printable_ratio",
+            "NATIVE_MAX_CONTROL_CHAR_RATIO": "native_max_control_char_ratio",
+            "NATIVE_MAX_OVERSIZED_BOX_RATIO": "native_max_oversized_box_ratio",
             "OCR_PAGE_MEAN_CONF_LOW": "ocr_page_mean_conf_low",
             "OCR_PAGE_MEAN_CONF_RETRY_TRIGGER": "ocr_page_mean_conf_retry_trigger",
             "LLM_EXTRACTION_TEMPERATURE": "llm_extraction_temperature",

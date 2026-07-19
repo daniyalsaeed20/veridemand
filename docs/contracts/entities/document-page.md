@@ -23,7 +23,7 @@ Page-level extraction quality and routing for one page of a document.
 | `route` | PageRoute | yes | enum | native / ocr / manual_review |
 | `ocr_status` | string | no | e.g. `not_needed`, `pending`, `done`, `failed` | |
 | `extraction_method` | ExtractionMethod | no | primary method used | |
-| `quality_flags` | string[] | yes | default `[]` | e.g. `blank`, `low_confidence`, `suspected_handwriting` |
+| `quality_flags` | string[] | yes | default `[]` | Additive codes e.g. `blank`, `broken_text_layer`, `pathological_tokenization`, `awaiting_ocr`, `low_confidence`, `suspected_handwriting` |
 | `token_count` | int | no | `>= 0` | |
 | `span_count` | int | no | `>= 0` | |
 
@@ -54,3 +54,10 @@ Page-level extraction quality and routing for one page of a document.
 ## 5. Open / additive notes
 
 Exact `quality_flags` vocabulary may grow; treat as additive string codes.
+
+Known Phase 2 additive codes:
+
+- `blank` — no native words
+- `broken_text_layer` — encoding/geometry/printable failures
+- `pathological_tokenization` — multi-signal unusable native tokenization (suppress tokens/spans; await OCR)
+- `awaiting_ocr` — page routed for Phase 3 OCR (no OCR executed in Phase 2)

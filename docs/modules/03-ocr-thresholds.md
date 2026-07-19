@@ -49,17 +49,30 @@ Used by `score_native_text_usability` / `select_page_route`. Env names map to `A
 | `NATIVE_MAX_ZERO_WIDTH_OR_OVERLAP_RATIO` | float | `0.15` | Bad word geometry → unusable coordinates |
 | `NATIVE_MIN_READING_ORDER_SCORE` | float | `0.55` | Heuristic 0–1; below → OCR or block regroup |
 | `NATIVE_LIKELY_SCAN_IMAGE_COVERAGE` | float | `0.60` | Large image area + low text → likely scan |
+| `NATIVE_LONG_TOKEN_BAND` | int | `40` | Token length above this counts toward long-token ratio |
+| `NATIVE_MAX_LONG_TOKEN_RATIO` | float | `0.20` | With elevated mean/median → pathological tokenization |
+| `NATIVE_MAX_MEAN_TOKEN_LENGTH` | float | `24` | Mean token length ceiling (composite / dual-elevation) |
+| `NATIVE_MAX_MEDIAN_TOKEN_LENGTH` | float | `18` | Median token length ceiling (composite / dual-elevation) |
+| `NATIVE_MIN_PRINTABLE_RATIO` | float | `0.90` | Below → unusable native |
+| `NATIVE_MAX_CONTROL_CHAR_RATIO` | float | `0.02` | Above → unusable native |
+| `NATIVE_MAX_OVERSIZED_BOX_RATIO` | float | `0.20` | Fraction of tokens with huge page-relative boxes |
 
 **Decision sketch**
 
 ```text
 if blank_page → route manual_review (or flag blank)
-else if replacement_ratio > MAX or overlap_ratio > MAX → ocr
+else if pathological_tokenization
+      (long_token_ratio > MAX_LONG AND (mean > MAX_MEAN OR median > MAX_MEDIAN))
+      OR (mean > MAX_MEAN AND median > MAX_MEDIAN)
+      → ocr; flag pathological_tokenization; publish no tokens/spans
+else if replacement/control/printable/geometry/CID hard fails → ocr
 else if char_count < MIN_CHARS or text_coverage < MIN_COVERAGE → ocr
 else if reading_order_score < MIN → ocr
 else if image_coverage >= LIKELY_SCAN and text_coverage < MIN → ocr
 else → native
 ```
+
+A single long URL or identifier alone must **not** trip pathological tokenization (median/mean stay low when other tokens are normal prose).
 
 Known-label absence (expected form labels missing) is a **soft** signal: prefer OCR when other scores are marginal; do not alone force `manual_review`.
 
