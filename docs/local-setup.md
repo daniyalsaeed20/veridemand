@@ -70,4 +70,15 @@ Runs backend format/lint/types/tests, contract generate+drift proof, and fronten
 
 ## Temporary / ignored paths
 
-Session and temp runtime dirs (`tmp/`, `data/sessions/`), `docs/example` PDFs/DOCX, spike `out/`, `.tools/`, venvs, and `node_modules/` are gitignored. Do not commit case binaries.
+Session and temp runtime dirs (`tmp/`, `data/sessions/`), spike `out/`, `.tools/`, venvs, and `node_modules/` are gitignored. Do not commit case binaries.
+
+### Local Amini / reference package (not Phase 1 CI)
+
+Lawyer-provided evidence PDFs/DOCX for the illustrative Amini package must stay **local and gitignored**:
+
+- Expected location: `docs/example/` (see `.gitignore` rules for `docs/example/**/*.pdf` and `**/*.docx`)
+- Safe aliases / gold shape: `docs/example/gold/amini-illustrative.md` (no confidential file bodies)
+- **Required for:** Phase 2 manual viewer/normalization acceptance and Phase 3 OCR evaluation
+- **Not required for:** Phase 1 automated repository tests (use synthetic fixtures under `backend/tests/fixtures/`)
+- Do not put confidential filenames or document contents in normal application logs or committed reports
+

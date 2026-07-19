@@ -256,6 +256,15 @@ export default function App() {
                         · {doc.file_type} · {doc.status}
                         {doc.page_count != null ? ` · ${doc.page_count} page(s)` : ""}
                       </span>
+                      {doc.status === "uploaded" ? (
+                        <span className="muted">
+                          {" "}
+                          · Awaiting normalization
+                          {doc.file_type === "docx"
+                            ? " (viewing PDF/thumbnails in a later phase)"
+                            : ""}
+                        </span>
+                      ) : null}
                       {doc.status === "duplicate" ? (
                         <span className="dup-warn"> Exact duplicate of another upload.</span>
                       ) : null}

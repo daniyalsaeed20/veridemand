@@ -56,8 +56,19 @@ def write_tiff(path: Path, frames: int = 2) -> Path:
     return path
 
 
-def write_minimal_docx(path: Path) -> Path:
-    content_types = (
+def write_exe_disguised_as_pdf(path: Path) -> Path:
+    path.write_bytes(b"MZ\x90\x00fake-exe-content")
+    return path
+
+
+def _docx_skeleton(
+    *,
+    extra_entries: dict[str, bytes] | None = None,
+    content_types: str | None = None,
+    package_rels: str | None = None,
+    document_rels: str | None = None,
+) -> bytes:
+    default_types = (
         '<?xml version="1.0" encoding="UTF-8"?>'
         '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
         '<Default Extension="rels" '
@@ -72,7 +83,7 @@ def write_minimal_docx(path: Path) -> Path:
         '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
         "<w:body><w:p><w:r><w:t>hello</w:t></w:r></w:p></w:body></w:document>"
     )
-    rels = (
+    default_rels = (
         '<?xml version="1.0" encoding="UTF-8"?>'
         '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
         '<Relationship Id="rId1" '
@@ -82,10 +93,94 @@ def write_minimal_docx(path: Path) -> Path:
     )
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("[Content_Types].xml", content_types)
+        zf.writestr("[Content_Types].xml", content_types or default_types)
         zf.writestr("word/document.xml", document_xml)
-        zf.writestr("_rels/.rels", rels)
-    path.write_bytes(buf.getvalue())
+        zf.writestr("_rels/.rels", package_rels or default_rels)
+        if document_rels is not None:
+            zf.writestr("word/_rels/document.xml.rels", document_rels)
+        if extra_entries:
+            for name, payload in extra_entries.items():
+                zf.writestr(name, payload)
+    return buf.getvalue()
+
+
+def write_minimal_docx(path: Path) -> Path:
+    path.write_bytes(_docx_skeleton())
+    return path
+
+
+def write_docx_with_entry(path: Path, entry_name: str, payload: bytes = b"x") -> Path:
+    """Build a DOCX-like ZIP that includes an extra (possibly unsafe) member name."""
+    # Use ZipInfo to preserve unusual names ZipFile might otherwise alter
+    content_types = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        '<Override PartName="/word/document.xml" '
+        'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
+        "</Types>"
+    )
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("[Content_Types].xml", content_types)
+        zf.writestr("word/document.xml", "<w:document/>")
+        info = zipfile.ZipInfo(entry_name)
+        zf.writestr(info, payload)
+    return path
+
+
+def write_docx_with_vbaproject(path: Path) -> Path:
+    path.write_bytes(_docx_skeleton(extra_entries={"word/vbaProject.bin": b"\x00" * 64}))
+    return path
+
+
+def write_docx_with_vba_content_type(path: Path) -> Path:
+    types = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        '<Override PartName="/word/document.xml" '
+        'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
+        '<Override PartName="/word/hiddenVba.bin" '
+        'ContentType="application/vnd.ms-office.vbaProject"/>'
+        "</Types>"
+    )
+    path.write_bytes(
+        _docx_skeleton(content_types=types, extra_entries={"word/hiddenVba.bin": b"\x00"})
+    )
+    return path
+
+
+def write_docx_with_vba_relationship(path: Path) -> Path:
+    doc_rels = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rIdVba" '
+        'Type="http://schemas.microsoft.com/office/2006/relationships/vbaProject" '
+        'Target="hidden.bin"/>'
+        "</Relationships>"
+    )
+    path.write_bytes(
+        _docx_skeleton(
+            document_rels=doc_rels,
+            extra_entries={"word/hidden.bin": b"\x00"},
+        )
+    )
+    return path
+
+
+def write_macro_enabled_as_docx(path: Path) -> Path:
+    """Simulate a .docm package renamed to .docx (macro content types)."""
+    types = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        '<Override PartName="/word/document.xml" '
+        'ContentType="application/vnd.ms-word.document.macroEnabled.main+xml"/>'
+        "</Types>"
+    )
+    path.write_bytes(
+        _docx_skeleton(
+            content_types=types,
+            extra_entries={"word/vbaProject.bin": b"\x00" * 32},
+        )
+    )
     return path
 
 
@@ -98,16 +193,9 @@ def write_malformed_docx(path: Path) -> Path:
 
 def write_zip_bomb_docx(path: Path) -> Path:
     """Highly compressible payload that exceeds decompression limits when inspected."""
-    # Create a zip with one huge sparse-looking repeated entry
     payload = b"0" * (2 * 1024 * 1024)  # 2 MiB zeros compresses tiny
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("[Content_Types].xml", "<Types/>")
-        # Write many copies to blow uncompressed total past limit when using low max
         for i in range(120):
             zf.writestr(f"word/pad_{i}.bin", payload)
-    return path
-
-
-def write_exe_disguised_as_pdf(path: Path) -> Path:
-    path.write_bytes(b"MZ\x90\x00fake-exe-content")
     return path

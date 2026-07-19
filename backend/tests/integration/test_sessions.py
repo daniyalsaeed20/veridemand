@@ -264,6 +264,62 @@ def test_docx_zip_bomb_rejected(tmp_path: Path) -> None:
         assert client.get(f"/api/v1/sessions/{session.id}").status_code == 200
 
 
+def test_macro_docx_rejected_no_residue(tmp_path: Path) -> None:
+    fixtures = tmp_path / "files"
+    fixtures.mkdir()
+    from tests.fixtures.upload_builders import write_docx_with_vbaproject
+
+    macro = write_docx_with_vbaproject(fixtures / "m.docx")
+    with _client(tmp_path) as client:
+        session = CaseSession.model_validate(client.post("/api/v1/sessions").json())
+        resp = client.post(
+            f"/api/v1/sessions/{session.id}/documents",
+            files=[
+                (
+                    "files",
+                    (
+                        "m.docx",
+                        macro.read_bytes(),
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    ),
+                )
+            ],
+        )
+        batch = DocumentUploadBatch.model_validate(resp.json())
+        assert len(batch.accepted) == 0
+        assert any(r.error_code == "upload_macros_not_supported" for r in batch.rejected)
+        assert "vba" not in batch.rejected[0].message.lower()
+        uploads = tmp_path / "sessions" / session.id / "uploads"
+        assert list(uploads.iterdir()) == []
+        assert client.get(f"/api/v1/sessions/{session.id}/documents").json() == []
+
+
+def test_unsafe_zip_entry_docx_rejected(tmp_path: Path) -> None:
+    fixtures = tmp_path / "files"
+    fixtures.mkdir()
+    from tests.fixtures.upload_builders import write_docx_with_entry
+
+    bad = write_docx_with_entry(fixtures / "bad.docx", "../evil.xml")
+    with _client(tmp_path) as client:
+        session = CaseSession.model_validate(client.post("/api/v1/sessions").json())
+        resp = client.post(
+            f"/api/v1/sessions/{session.id}/documents",
+            files=[
+                (
+                    "files",
+                    (
+                        "bad.docx",
+                        bad.read_bytes(),
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    ),
+                )
+            ],
+        )
+        batch = DocumentUploadBatch.model_validate(resp.json())
+        assert any(r.error_code == "upload_corrupt_file" for r in batch.rejected)
+        assert list((tmp_path / "sessions" / session.id / "uploads").iterdir()) == []
+
+
 def test_path_traversal_filename(tmp_path: Path) -> None:
     fixtures = tmp_path / "files"
     fixtures.mkdir()

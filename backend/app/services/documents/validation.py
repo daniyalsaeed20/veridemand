@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import zipfile
 from pathlib import Path
+from xml.etree import ElementTree
 
 from app.core.domain_errors import UploadFileError
 from app.models.enums import DocumentFileType
@@ -37,6 +39,25 @@ ALLOWED_MIME: dict[DocumentFileType, frozenset[str]] = {
     DocumentFileType.PNG: frozenset({"image/png"}),
     DocumentFileType.TIFF: frozenset({"image/tiff", "image/tif"}),
 }
+
+_MACRO_ENTRY_NAMES = frozenset(
+    {
+        "word/vbaproject.bin",
+        "word/vbadata.xml",
+    }
+)
+
+_MACRO_CONTENT_TYPE_MARKERS = (
+    "vbaproject",
+    "macroenabled",
+    "vnd.ms-word.template.macroenabled",
+    "vnd.ms-word.document.macroenabled",
+)
+
+_MACRO_RELATIONSHIP_MARKERS = (
+    "vbaproject",
+    "macrosheet",
+)
 
 
 def sanitize_display_name(filename: str | None) -> str:
@@ -115,11 +136,101 @@ def new_internal_filename(suffix: str) -> str:
     return f"{token}{safe_suffix}"
 
 
+def assert_safe_zip_member_name(name: str) -> str:
+    """Normalize and reject unsafe ZIP member names. Returns slash-normalized relative path."""
+    if not name or "\x00" in name:
+        raise UploadFileError(
+            ErrorCode.UPLOAD_CORRUPT_FILE,
+            "package",
+            message="DOCX contains an invalid entry name.",
+        )
+    # Normalize backslashes before further checks
+    normalized = name.replace("\\", "/")
+    if normalized != name and ("\\" in name):
+        # Already normalized; keep checking normalized form
+        pass
+
+    # Empty after strip
+    if normalized == "" or name.strip() == "":
+        raise UploadFileError(
+            ErrorCode.UPLOAD_CORRUPT_FILE,
+            "package",
+            message="DOCX contains an invalid entry name.",
+        )
+
+    # Absolute POSIX
+    if normalized.startswith("/"):
+        raise UploadFileError(
+            ErrorCode.UPLOAD_CORRUPT_FILE,
+            "package",
+            message="DOCX contains an unsafe entry path.",
+        )
+
+    # UNC //server/share or leading //
+    if normalized.startswith("//"):
+        raise UploadFileError(
+            ErrorCode.UPLOAD_CORRUPT_FILE,
+            "package",
+            message="DOCX contains an unsafe entry path.",
+        )
+
+    # Drive-qualified: C:/..., C:..., etc.
+    if re.match(r"^[A-Za-z]:", normalized):
+        raise UploadFileError(
+            ErrorCode.UPLOAD_CORRUPT_FILE,
+            "package",
+            message="DOCX contains an unsafe entry path.",
+        )
+
+    parts = normalized.split("/")
+    for part in parts:
+        if part == "..":
+            raise UploadFileError(
+                ErrorCode.UPLOAD_CORRUPT_FILE,
+                "package",
+                message="DOCX contains an unsafe entry path.",
+            )
+
+    return normalized
+
+
+def _reject_macros(display: str = "package") -> None:
+    raise UploadFileError(
+        ErrorCode.UPLOAD_MACROS_NOT_SUPPORTED,
+        display,
+        message="Macro-enabled Word documents are not supported.",
+    )
+
+
+def _xml_indicates_macros(payload: bytes) -> bool:
+    text = payload.decode("utf-8", errors="ignore").lower()
+    if any(marker in text for marker in _MACRO_CONTENT_TYPE_MARKERS):
+        return True
+    if any(marker in text for marker in _MACRO_RELATIONSHIP_MARKERS):
+        return True
+    # Also parse attributes when well-formed
+    try:
+        root = ElementTree.fromstring(payload)
+    except ElementTree.ParseError:
+        return any(
+            marker in text
+            for marker in (*_MACRO_CONTENT_TYPE_MARKERS, *_MACRO_RELATIONSHIP_MARKERS)
+        )
+    for elem in root.iter():
+        for attr_val in elem.attrib.values():
+            lower = attr_val.lower()
+            if any(
+                m in lower for m in (*_MACRO_CONTENT_TYPE_MARKERS, *_MACRO_RELATIONSHIP_MARKERS)
+            ):
+                return True
+    return False
+
+
 def inspect_docx_zip(
     path: Path,
     max_uncompressed_bytes: int = DOCX_MAX_UNCOMPRESSED_BYTES,
 ) -> None:
-    """Validate OOXML ZIP structure with decompression bomb limits."""
+    """Validate OOXML ZIP structure with decompression bomb limits (no extract to disk)."""
     try:
         with zipfile.ZipFile(path, "r") as zf:
             names = zf.namelist()
@@ -133,9 +244,12 @@ def inspect_docx_zip(
             has_content_types = False
             has_word = False
             for info in zf.infolist():
-                name = info.filename.replace("\\", "/")
-                if name.endswith(".zip") or "/../" in f"/{name}/":
+                name = assert_safe_zip_member_name(info.filename)
+                if name.endswith(".zip"):
                     raise UploadFileError(ErrorCode.UPLOAD_CORRUPT_FILE, path.name)
+                lower = name.lower()
+                if lower in _MACRO_ENTRY_NAMES:
+                    _reject_macros(path.name)
                 if info.file_size > max_uncompressed_bytes:
                     raise UploadFileError(
                         ErrorCode.UPLOAD_CORRUPT_FILE,
@@ -157,13 +271,26 @@ def inspect_docx_zip(
                         path.name,
                         message="DOCX uncompressed size exceeds limit.",
                     )
-                lower = name.lower()
                 if lower == "[content_types].xml":
                     has_content_types = True
                 if lower.startswith("word/"):
                     has_word = True
+
             if not has_content_types or not has_word:
                 raise UploadFileError(ErrorCode.UPLOAD_CORRUPT_FILE, path.name)
+
+            # Macro markers in package XML (memory read only)
+            for candidate in (
+                "[Content_Types].xml",
+                "_rels/.rels",
+                "word/_rels/document.xml.rels",
+            ):
+                try:
+                    payload = zf.read(candidate)
+                except KeyError:
+                    continue
+                if _xml_indicates_macros(payload):
+                    _reject_macros(path.name)
     except UploadFileError:
         raise
     except zipfile.BadZipFile as exc:

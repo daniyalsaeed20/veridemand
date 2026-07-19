@@ -131,6 +131,7 @@ class ErrorCode(StrEnum):
     UPLOAD_TOTAL_SIZE_EXCEEDED = "upload_total_size_exceeded"
     UPLOAD_FILE_COUNT_EXCEEDED = "upload_file_count_exceeded"
     UPLOAD_DUPLICATE = "upload_duplicate"
+    UPLOAD_MACROS_NOT_SUPPORTED = "upload_macros_not_supported"
     PROCESS_NOT_READY = "process_not_ready"
     PROCESS_ALREADY_RUNNING = "process_already_running"
     PROCESS_CANCELLED = "process_cancelled"

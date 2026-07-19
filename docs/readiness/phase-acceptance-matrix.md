@@ -28,13 +28,13 @@
 |-------|---------|
 | **Deliverable** | Session manager; upload UI; validation; temp lifecycle; document list |
 | **FR IDs** | FR-SES-01..05; FR-UPL-01..05 (UPL-06 soft if converter missing) |
-| **Automated evidence** | Upload valid/invalid types; SHA duplicate; session delete cleans files; TTL cleanup callable |
-| **Manual evidence** | Upload reference PDFs/DOCX; Reset/Delete; refresh warning visible |
-| **Reference fixture** | Amini package under `docs/example/` |
+| **Automated evidence** | Upload valid/invalid types (synthetic fixtures); SHA duplicate; session delete cleans files; TTL cleanup callable; concurrent race tests |
+| **Manual evidence** | Upload supported types; Reset/Delete; refresh warning visible |
+| **Reference fixture** | Synthetic fixtures in `backend/tests/fixtures/` for automated Phase 1. Local Amini package under `docs/example/` (gitignored binaries) is for **Phase 2 manual** and **Phase 3 OCR** — not Phase 1 CI |
 | **Perf/quality** | Enforce size/page limits from AppSettings |
-| **Exit gate** | Reference files upload and cleanup verified; no OCR/AI |
-| **Blocking** | Scheduler choice (OD-04) |
-| **Nonblocking** | DOCX→PDF converter missing → explicit error (OD-05) |
+| **Exit gate** | Supported files upload and cleanup verified; no OCR/AI |
+| **Blocking** | Scheduler choice (OD-04) — resolved |
+| **Nonblocking** | DOCX→PDF / thumbnails deferred to Phase 2 (OD-05). Phase 1 stores valid DOCX as `uploaded` (awaiting normalization); does not reject solely for missing converter |
 
 ---
 

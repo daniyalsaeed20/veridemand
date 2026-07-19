@@ -22,6 +22,7 @@ ERROR_MESSAGES: dict[str, str] = {
     ErrorCode.UPLOAD_TOTAL_SIZE_EXCEEDED: "Total upload size for this session was exceeded.",
     ErrorCode.UPLOAD_FILE_COUNT_EXCEEDED: "Too many files in this session.",
     ErrorCode.UPLOAD_DUPLICATE: "This file is an exact duplicate of another upload.",
+    ErrorCode.UPLOAD_MACROS_NOT_SUPPORTED: "Macro-enabled Word documents are not supported.",
 }
 
 ERROR_HTTP_STATUS: dict[str, int] = {

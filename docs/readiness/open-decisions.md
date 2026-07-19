@@ -72,11 +72,11 @@
 | **Affected** | Module 02 §10; FR-UPL-06 |
 | **Why it matters** | Viewer needs a canonical PDF copy of DOCX uploads; Windows converter choice affects install burden. |
 | **Options** | (A) LibreOffice headless. (B) Microsoft Word COM automation. (C) Defer view-copy and show DOCX-derived text only until LibreOffice is available. |
-| **Recommended** | **A** when available; document missing converter as a **non-blocking** Phase 1 limitation with explicit error (`upload` error code), not silent skip. |
+| **Recommended** | Phase 1: accept valid DOCX after secure ZIP/OOXML validation; leave `uploaded` awaiting Phase 2 normalization. Phase 2: convert to viewing PDF / thumbnails; surface conversion failures as processing errors/issues — do not reject a valid DOCX in Phase 1 solely because conversion is deferred. |
 | **Consequences / risks** | Without converter, DOCX highlight/viewer path is incomplete for those files. |
 | **Blocks a phase?** | Soft-blocks full FR-UPL-06 demo; does not block Phase 0. |
 | **Resolve by** | Phase 1–2. |
-| **Status (2026-07-19)** | **Soft-deferred in Phase 1** — option **C** for Phase 1 exit: DOCX accepted after ZIP/OOXML validation; no LibreOffice conversion. FR-UPL-06 remains a known soft gap until Phase 2 viewer path. |
+| **Status (2026-07-19)** | **Clarified in Phase 1 hardening** — Phase 1 **accepts and securely stores** a valid DOCX after ZIP/OOXML validation (including unsafe-path and macro rejection). Phase 1 does **not** generate a DOCX viewing PDF or thumbnails. DOCX→PDF normalization and thumbnails belong to **Phase 2**. Accepted documents remain `uploaded` (awaiting normalization). A future conversion failure is a **Phase 2** processing error/issue; a valid DOCX is **not** rejected in Phase 1 merely because conversion is deferred. FR-UPL-06 remains owned by Phase 2. |
 
 ---
 

@@ -71,6 +71,7 @@ Aligns with module 02; codes may be used without `upload_` prefix for parity wit
 | `upload_total_size_exceeded` | — | 400 | Total upload size for this session was exceeded. | Remove files; check `MAX_TOTAL_UPLOAD_MB`. | 02 |
 | `upload_file_count_exceeded` | — | 400 | Too many files in this session. | Remove files; check `MAX_FILES_PER_SESSION`. | 02 |
 | `upload_duplicate` | (status `duplicate`) | 200* | This file is an exact duplicate of another upload. | Keep one copy; exclude the duplicate. | 02 |
+| `upload_macros_not_supported` | — | 400 | Macro-enabled Word documents are not supported. | Save as `.docx` without macros and retry. | 02 |
 
 \*Duplicate may be returned as a document with `status: duplicate` rather than a hard error.
 

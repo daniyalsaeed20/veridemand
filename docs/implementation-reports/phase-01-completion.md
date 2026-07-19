@@ -123,10 +123,12 @@ Scripted against `TestClient` + synthetic fixtures (2026-07-19):
 
 | Gap | Severity |
 |-----|----------|
-| FR-UPL-06 DOCX→PDF viewing copy (LibreOffice) deferred (OD-05 soft) | Soft / nonblocking |
+| FR-UPL-06 DOCX→PDF viewing copy deferred to Phase 2 (OD-05 clarified) | Soft / nonblocking |
 | FR-UPL-07 thumbnails not generated | Soft / deferred to Phase 2 viewer |
 | DOCX `page_count` null until normalize | Expected Phase 1 |
 | Generated Zod still loose on some enums (`z.any()`); FE overlays tighten wire paths | Nonblocking |
+
+**Hardening follow-up (2026-07-19):** Concurrent ingest locking, unsafe DOCX ZIP paths, macro-bearing DOCX rejection, and OD-05/reference-fixture documentation were addressed on branch `phase-01-audit-hardening`. See [phase-01-hardening.md](./phase-01-hardening.md) and independent [phase-01-audit.md](./phase-01-audit.md).
 
 ## Deferred work
 
@@ -146,7 +148,7 @@ Phase 2+: page analysis / native extraction / OCR, classification, facts, chrono
 ## Open decisions updated
 
 - **OD-04:** Resolved — asyncio lifespan sweeper + test-callable cleanup
-- **OD-05:** Soft-deferred — no LibreOffice in Phase 1; FR-UPL-06 known gap
+- **OD-05:** Clarified — Phase 1 accepts/stores valid DOCX as `uploaded` (awaiting normalization); DOCX→PDF/thumbnails are Phase 2; do not reject valid DOCX solely for missing converter
 
 ## Repository safety
 
