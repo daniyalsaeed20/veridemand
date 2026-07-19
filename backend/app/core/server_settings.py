@@ -23,6 +23,9 @@ class ServerSettings(BaseModel):
     temp_root: Path = Field(default_factory=_default_temp_root)
     max_active_sessions: int = 32
     session_cleanup_interval_seconds: int = 60
+    libreoffice_path: str = "soffice"
+    libreoffice_timeout_seconds: int = 120
+    thumbnail_max_width: int = 240
 
     @classmethod
     def from_environment(cls, environ: dict[str, str] | None = None) -> ServerSettings:
@@ -33,6 +36,8 @@ class ServerSettings(BaseModel):
         temp_root = Path(temp_raw) if temp_raw else _default_temp_root()
         max_sessions = int(env.get("MAX_ACTIVE_SESSIONS", "32") or "32")
         cleanup_interval = int(env.get("SESSION_CLEANUP_INTERVAL_SECONDS", "60") or "60")
+        lo_timeout = int(env.get("LIBREOFFICE_TIMEOUT_SECONDS", "120") or "120")
+        thumb_w = int(env.get("THUMBNAIL_MAX_WIDTH", "240") or "240")
         return cls(
             cors_origins=origins,
             log_level=env.get("LOG_LEVEL", "INFO").upper(),
@@ -40,6 +45,9 @@ class ServerSettings(BaseModel):
             temp_root=temp_root,
             max_active_sessions=max_sessions,
             session_cleanup_interval_seconds=max(5, cleanup_interval),
+            libreoffice_path=env.get("LIBREOFFICE_PATH", "soffice").strip() or "soffice",
+            libreoffice_timeout_seconds=max(5, lo_timeout),
+            thumbnail_max_width=max(64, thumb_w),
         )
 
 

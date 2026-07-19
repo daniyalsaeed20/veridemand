@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "veridemand-backend"
 version = "0.0.0-dev"
-description = "VeriDemand Phase 1 FastAPI backend"
+description = "VeriDemand Phase 2 FastAPI backend"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 license = { text = "Proprietary" }
@@ -18,6 +18,8 @@ dependencies = [
   "pypdf==5.9.0",
   "pillow==11.3.0",
   "python-multipart==0.0.20",
+  "pdfplumber==0.11.7",
+  "pypdfium2==4.30.0",
 ]
 
 [project.optional-dependencies]
@@ -55,5 +57,5 @@ module = ["tests.*"]
 disallow_untyped_defs = false
 
 [[tool.mypy.overrides]]
-module = ["pypdf.*", "PIL.*"]
+module = ["pypdf.*", "PIL.*", "pdfplumber.*", "pypdfium2.*"]
 ignore_missing_imports = true

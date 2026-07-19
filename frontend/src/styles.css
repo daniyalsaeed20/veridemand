@@ -206,8 +206,182 @@ body {
   font-size: 0.95rem;
 }
 
+.shell-wide {
+  max-width: 72rem;
+}
+
+.process-row {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1.25rem;
+}
+
+.doc-select {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+
+.doc-select:disabled {
+  cursor: default;
+}
+
+.doc-select-active strong {
+  text-decoration: underline;
+}
+
+.doc-error {
+  color: #9b2c2c;
+  font-size: 0.9rem;
+  margin-top: 0.25rem;
+}
+
+.viewer {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid rgba(28, 36, 48, 0.15);
+}
+
+.viewer-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.viewer-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.viewer-meta {
+  margin: 0 0 0.75rem;
+}
+
+.viewer-body {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr) 14rem;
+  gap: 1rem;
+  align-items: start;
+}
+
+.thumb-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 70vh;
+  overflow: auto;
+}
+
+.thumb {
+  appearance: none;
+  border: 1px solid rgba(28, 36, 48, 0.2);
+  background: rgba(255, 255, 255, 0.5);
+  padding: 0.25rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  align-items: center;
+  font: inherit;
+  font-size: 0.75rem;
+}
+
+.thumb img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.thumb-active {
+  border-color: #3d5a80;
+  outline: 2px solid rgba(61, 90, 128, 0.35);
+}
+
+.page-stage {
+  overflow: auto;
+  max-height: 75vh;
+  background: rgba(255, 255, 255, 0.45);
+  padding: 0.75rem;
+}
+
+.page-stack {
+  position: relative;
+  margin: 0 auto;
+}
+
+.pdf-canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.highlight {
+  position: absolute;
+  background: rgba(230, 170, 40, 0.35);
+  border: 1px solid rgba(180, 120, 20, 0.85);
+  pointer-events: none;
+}
+
+.span-panel {
+  max-height: 70vh;
+  overflow: auto;
+}
+
+.span-panel h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+.span-panel ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.span-item {
+  appearance: none;
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.4);
+  padding: 0.45rem 0.5rem;
+  margin-bottom: 0.35rem;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.span-item-active {
+  border-color: #3d5a80;
+  background: rgba(61, 90, 128, 0.12);
+}
+
 @media (max-width: 720px) {
   .workspace-header {
     grid-template-columns: 1fr;
+  }
+
+  .viewer-body {
+    grid-template-columns: 1fr;
+  }
+
+  .thumb-rail {
+    flex-direction: row;
+    max-height: none;
+  }
+
+  .thumb {
+    width: 4.5rem;
   }
 }

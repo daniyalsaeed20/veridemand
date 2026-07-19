@@ -5,19 +5,36 @@ import {
   deleteDocument,
   deleteSession,
   fetchHealth,
+  getSession,
+  listDocuments,
+  startProcess,
   uploadDocuments,
+  type Document,
   type HealthResponse,
 } from "../api/client";
+import DocumentViewer from "../components/DocumentViewer";
 import { useShellStore } from "../store/shellStore";
 
 const FRONTEND_VERSION = "0.0.0-dev";
 const ACCEPT =
   ".pdf,.docx,.jpg,.jpeg,.png,.tif,.tiff,application/pdf,image/jpeg,image/png,image/tiff,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
+function statusLabel(doc: Document): string {
+  if (doc.error_code) {
+    return `${doc.status} · error: ${doc.error_code}`;
+  }
+  if (doc.status === "uploaded") {
+    return "uploaded · awaiting normalization";
+  }
+  return doc.status;
+}
+
 export default function App() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
+  const [processMessage, setProcessMessage] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const error = useShellStore((s) => s.error);
@@ -29,6 +46,7 @@ export default function App() {
   const clearError = useShellStore((s) => s.clearError);
   const setSession = useShellStore((s) => s.setSession);
   const addDocuments = useShellStore((s) => s.addDocuments);
+  const setDocuments = useShellStore((s) => s.setDocuments);
   const setRejections = useShellStore((s) => s.setRejections);
   const setExpired = useShellStore((s) => s.setExpired);
   const removeDocument = useShellStore((s) => s.removeDocument);
@@ -76,6 +94,8 @@ export default function App() {
   const startCase = useCallback(async () => {
     setBusy(true);
     clearError();
+    setSelectedDocId(null);
+    setProcessMessage(null);
     try {
       if (session) {
         await deleteSession(session.id);
@@ -93,6 +113,8 @@ export default function App() {
   const resetCase = useCallback(async () => {
     setBusy(true);
     clearError();
+    setSelectedDocId(null);
+    setProcessMessage(null);
     try {
       if (session) {
         await deleteSession(session.id);
@@ -121,13 +143,15 @@ export default function App() {
         const batch = await uploadDocuments(session.id, files);
         addDocuments(batch.accepted);
         setRejections(batch.rejected);
+        const refreshed = await getSession(session.id);
+        setSession(refreshed);
       } catch (err) {
         handleApiError(err);
       } finally {
         setBusy(false);
       }
     },
-    [addDocuments, clearError, handleApiError, session, setError, setRejections],
+    [addDocuments, clearError, handleApiError, session, setError, setRejections, setSession],
   );
 
   const onRemove = useCallback(
@@ -137,24 +161,63 @@ export default function App() {
       try {
         await deleteDocument(session.id, documentId);
         removeDocument(documentId);
+        if (selectedDocId === documentId) setSelectedDocId(null);
       } catch (err) {
         handleApiError(err);
       } finally {
         setBusy(false);
       }
     },
-    [handleApiError, removeDocument, session],
+    [handleApiError, removeDocument, selectedDocId, session],
+  );
+
+  const onProcess = useCallback(async () => {
+    if (!session) return;
+    setBusy(true);
+    clearError();
+    setProcessMessage(null);
+    try {
+      const events = await startProcess(session.id);
+      const failed = events.filter((e) => e.error_code);
+      const completed = events.some((e) => e.event === "process.completed");
+      setProcessMessage(
+        completed
+          ? "Normalization and native extraction completed."
+          : "Processing finished with document-level errors.",
+      );
+      if (failed.length > 0) {
+        setProcessMessage(
+          `Processing finished. ${failed.length} stage warning(s)/error(s) recorded — see document list.`,
+        );
+      }
+      const docs = await listDocuments(session.id);
+      setDocuments(docs);
+      const refreshed = await getSession(session.id);
+      setSession(refreshed);
+      const viewable = docs.find((d) => d.status === "extracted");
+      if (viewable) setSelectedDocId(viewable.id);
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setBusy(false);
+    }
+  }, [clearError, handleApiError, session, setDocuments, setSession]);
+
+  const selected = documents.find((d) => d.id === selectedDocId) ?? null;
+  const canProcess = documents.some(
+    (d) =>
+      d.status === "uploaded" || d.status === "extracted" || d.status === "ready_for_extraction",
   );
 
   return (
-    <main className="shell">
+    <main className="shell shell-wide">
       <div className="proto-banner" role="status">
         Temporary Prototype — not a substitute for attorney review.
       </div>
 
       <h1 className="brand">VeriDemand</h1>
       <p className="lede">
-        Demand-letter automation prototype — Phase 1 temporary session and secure upload.
+        Demand-letter automation prototype — Phase 2 document viewer and native extraction.
       </p>
 
       {session?.warning ? (
@@ -243,27 +306,40 @@ export default function App() {
             />
           </div>
 
+          <div className="process-row">
+            <button
+              type="button"
+              className="btn"
+              disabled={busy || !canProcess}
+              onClick={() => void onProcess()}
+            >
+              Process documents
+            </button>
+            {processMessage ? <span className="muted">{processMessage}</span> : null}
+          </div>
+
           {documents.length > 0 ? (
             <div className="doc-list">
-              <h2>Accepted documents</h2>
+              <h2>Documents</h2>
               <ul>
                 {documents.map((doc) => (
                   <li key={doc.id}>
                     <div>
-                      <strong>{doc.display_name}</strong>
+                      <button
+                        type="button"
+                        className={`doc-select${selectedDocId === doc.id ? " doc-select-active" : ""}`}
+                        disabled={doc.status !== "extracted"}
+                        onClick={() => setSelectedDocId(doc.id)}
+                      >
+                        <strong>{doc.display_name}</strong>
+                      </button>
                       <span className="muted">
                         {" "}
-                        · {doc.file_type} · {doc.status}
+                        · {doc.file_type} · {statusLabel(doc)}
                         {doc.page_count != null ? ` · ${doc.page_count} page(s)` : ""}
                       </span>
-                      {doc.status === "uploaded" ? (
-                        <span className="muted">
-                          {" "}
-                          · Awaiting normalization
-                          {doc.file_type === "docx"
-                            ? " (viewing PDF/thumbnails in a later phase)"
-                            : ""}
-                        </span>
+                      {doc.error_message ? (
+                        <div className="doc-error">{doc.error_message}</div>
                       ) : null}
                       {doc.status === "duplicate" ? (
                         <span className="dup-warn"> Exact duplicate of another upload.</span>
@@ -298,6 +374,14 @@ export default function App() {
                 ))}
               </ul>
             </div>
+          ) : null}
+
+          {selected && session ? (
+            <DocumentViewer
+              sessionId={session.id}
+              documentId={selected.id}
+              displayName={selected.display_name}
+            />
           ) : null}
         </section>
       ) : null}

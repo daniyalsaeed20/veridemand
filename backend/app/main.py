@@ -19,6 +19,7 @@ from app.core.server_settings import ServerSettings, get_server_settings
 from app.models.app_settings import AppSettings, ConfigurationError
 from app.services.documents import DocumentService
 from app.services.health import HealthService
+from app.services.process import ProcessService
 from app.services.session import SessionService
 
 logger = get_logger(__name__)
@@ -49,10 +50,16 @@ def create_app(
             session_service=session_service,
             app_settings=settings,
         )
+        process_service = ProcessService(
+            session_service=session_service,
+            app_settings=settings,
+            server_settings=server,
+        )
         app.state.app_settings = settings
         app.state.server_settings = server
         app.state.session_service = session_service
         app.state.document_service = document_service
+        app.state.process_service = process_service
         app.state.health_service = HealthService(
             settings=settings,
             app_version=server.app_version or __version__,

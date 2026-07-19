@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -13,7 +14,11 @@ from app.core.logging import get_logger
 from app.models.app_settings import AppSettings
 from app.models.case_session import CaseSession
 from app.models.document import Document
+from app.models.document_page import DocumentPage
 from app.models.enums import DocumentFileType, DocumentStatus, SessionStatus
+from app.models.process_event import ProcessEvent
+from app.models.source_span import SourceSpan
+from app.models.source_token import SourceToken
 from app.models.taxonomies import ErrorCode
 from app.services.session.workspace import (
     SESSION_WARNING,
@@ -39,6 +44,17 @@ class SessionRecord:
     pages_used: int = 0
     # Bumped on delete/expire so in-flight commits detect a lost race
     generation: int = 0
+    # Phase 2 derived artifacts (server-only paths)
+    canonical_paths: dict[str, Path] = field(default_factory=dict)
+    thumbnail_dirs: dict[str, Path] = field(default_factory=dict)
+    pages: dict[str, list[DocumentPage]] = field(default_factory=dict)
+    tokens_by_page: dict[str, dict[int, list[SourceToken]]] = field(default_factory=dict)
+    spans_by_page: dict[str, dict[int, list[SourceSpan]]] = field(default_factory=dict)
+    page_rotation: dict[str, dict[int, int]] = field(default_factory=dict)
+    events: list[ProcessEvent] = field(default_factory=list)
+    process_running: bool = False
+    process_completed: bool = False
+    event_sequence: int = 0
 
 
 @dataclass(frozen=True)
@@ -307,6 +323,20 @@ class SessionService:
 
             path = record.stored_paths.pop(document_id, None)
             was_owner = record.hash_index.get(document.content_sha256) == document_id
+
+            # Drop Phase 2 derived artifacts for this document
+            canon = record.canonical_paths.pop(document_id, None)
+            if canon is not None and canon.exists() and canon != path:
+                # Only delete derived copies, never the shared original upload
+                if "derived" in canon.parts:
+                    canon.unlink(missing_ok=True)
+            thumb_dir = record.thumbnail_dirs.pop(document_id, None)
+            if thumb_dir is not None and thumb_dir.exists():
+                shutil.rmtree(thumb_dir, ignore_errors=True)
+            record.pages.pop(document_id, None)
+            record.tokens_by_page.pop(document_id, None)
+            record.spans_by_page.pop(document_id, None)
+            record.page_rotation.pop(document_id, None)
 
             if was_owner:
                 record.hash_index.pop(document.content_sha256, None)

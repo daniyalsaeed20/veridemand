@@ -18,6 +18,7 @@
   "IssueResolution": "IssueResolution.schema.json",
   "PreflightFinding": "PreflightFinding.schema.json",
   "PreflightReport": "PreflightReport.schema.json",
+  "ProcessEvent": "ProcessEvent.schema.json",
   "SourceSpan": "SourceSpan.schema.json",
   "SourceToken": "SourceToken.schema.json",
   "TimelineEvent": "TimelineEvent.schema.json",

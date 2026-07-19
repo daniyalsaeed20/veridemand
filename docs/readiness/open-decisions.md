@@ -77,6 +77,7 @@
 | **Blocks a phase?** | Soft-blocks full FR-UPL-06 demo; does not block Phase 0. |
 | **Resolve by** | Phase 1–2. |
 | **Status (2026-07-19)** | **Clarified in Phase 1 hardening** — Phase 1 **accepts and securely stores** a valid DOCX after ZIP/OOXML validation (including unsafe-path and macro rejection). Phase 1 does **not** generate a DOCX viewing PDF or thumbnails. DOCX→PDF normalization and thumbnails belong to **Phase 2**. Accepted documents remain `uploaded` (awaiting normalization). A future conversion failure is a **Phase 2** processing error/issue; a valid DOCX is **not** rejected in Phase 1 merely because conversion is deferred. FR-UPL-06 remains owned by Phase 2. |
+| **Status (Phase 2)** | **Resolved — option A (LibreOffice headless).** Phase 2 converts DOCX to a canonical PDF viewing copy via `soffice --headless --convert-to pdf` with app-controlled temp paths, a process-wide conversion lock (one at a time), and a bounded timeout. Missing LibreOffice, timeout, or corrupt output surfaces as a Phase 2 processing error on that document; the original DOCX is preserved and the session continues. Word COM (option B) is not implemented. Automated tests inject a fake converter adapter so CI does not require LibreOffice. |
 
 ---
 
@@ -242,7 +243,7 @@
 | OD-02 | Schema generation | Soft (exit) | Phase 0 |
 | OD-03 | app_version | No | Phase 0 |
 | OD-04 | Session scheduler | No | Phase 1 |
-| OD-05 | DOCX→PDF converter | No | Phase 1–2 |
+| OD-05 | DOCX→PDF converter | No (resolved Phase 2: LibreOffice) | Phase 2 |
 | OD-06 | CLS thresholds | No | Phase 4 |
 | OD-07 | Firm gold | No (blocks 5/6/7/10 honesty) | Before Phase 5 claim |
 | OD-08 | Waiver policy | No | Phase 7 |

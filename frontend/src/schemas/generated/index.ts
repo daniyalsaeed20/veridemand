@@ -18,6 +18,7 @@ export { IssueResolutionSchema } from "./IssueResolution";
 export { IssueSchema } from "./Issue";
 export { PreflightFindingSchema } from "./PreflightFinding";
 export { PreflightReportSchema } from "./PreflightReport";
+export { ProcessEventSchema } from "./ProcessEvent";
 export { SourceSpanSchema } from "./SourceSpan";
 export { SourceTokenSchema } from "./SourceToken";
 export { TimelineEventSchema } from "./TimelineEvent";

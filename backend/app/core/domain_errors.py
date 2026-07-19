@@ -23,6 +23,13 @@ ERROR_MESSAGES: dict[str, str] = {
     ErrorCode.UPLOAD_FILE_COUNT_EXCEEDED: "Too many files in this session.",
     ErrorCode.UPLOAD_DUPLICATE: "This file is an exact duplicate of another upload.",
     ErrorCode.UPLOAD_MACROS_NOT_SUPPORTED: "Macro-enabled Word documents are not supported.",
+    ErrorCode.PROCESS_NOT_READY: "Documents are not ready to process.",
+    ErrorCode.PROCESS_ALREADY_RUNNING: "A processing job is already running for this session.",
+    ErrorCode.PROCESS_CANCELLED: "Processing was cancelled.",
+    ErrorCode.PROCESS_STAGE_FAILED: "Processing failed during a pipeline stage.",
+    ErrorCode.EXTRACTION_NATIVE_FAILED: "Native text extraction failed unexpectedly.",
+    ErrorCode.EXTRACTION_RENDER_FAILED: "A page could not be rendered.",
+    ErrorCode.ROUTE_NOT_FOUND: "The requested resource was not found.",
 }
 
 ERROR_HTTP_STATUS: dict[str, int] = {
@@ -39,6 +46,13 @@ ERROR_HTTP_STATUS: dict[str, int] = {
     ErrorCode.UPLOAD_PAGE_LIMIT_EXCEEDED: 400,
     ErrorCode.UPLOAD_TOTAL_SIZE_EXCEEDED: 400,
     ErrorCode.UPLOAD_FILE_COUNT_EXCEEDED: 400,
+    ErrorCode.PROCESS_NOT_READY: 409,
+    ErrorCode.PROCESS_ALREADY_RUNNING: 409,
+    ErrorCode.PROCESS_CANCELLED: 409,
+    ErrorCode.PROCESS_STAGE_FAILED: 500,
+    ErrorCode.EXTRACTION_NATIVE_FAILED: 500,
+    ErrorCode.EXTRACTION_RENDER_FAILED: 500,
+    ErrorCode.ROUTE_NOT_FOUND: 404,
 }
 
 

@@ -16,6 +16,7 @@
         "upload_total_size_exceeded",
         "upload_file_count_exceeded",
         "upload_duplicate",
+        "upload_macros_not_supported",
         "process_not_ready",
         "process_already_running",
         "process_cancelled",

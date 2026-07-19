@@ -9,6 +9,16 @@ import {
 } from "../schemas/documents";
 import { CaseSessionSchema, type CaseSession } from "../schemas/session";
 import { HealthResponseSchema, type HealthResponse } from "../schemas/health";
+import {
+  DocumentPageSchema,
+  ProcessEventSchema,
+  SourceSpanSchema,
+  SourceTokenSchema,
+  type DocumentPage,
+  type ProcessEvent,
+  type SourceSpan,
+  type SourceToken,
+} from "../schemas/viewer";
 
 const baseUrl =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://127.0.0.1:8000";
@@ -36,6 +46,25 @@ async function parseError(response: Response): Promise<ApiError> {
     /* fall through */
   }
   return new ApiError(response.status, `Request failed (${response.status})`);
+}
+
+function parseArray<T>(
+  json: unknown,
+  schema: { safeParse: (v: unknown) => { success: boolean; data?: T } },
+  label: string,
+): T[] {
+  if (!Array.isArray(json)) {
+    throw new Error(`${label} response failed contract validation`);
+  }
+  const out: T[] = [];
+  for (const item of json) {
+    const parsed = schema.safeParse(item);
+    if (!parsed.success || parsed.data === undefined) {
+      throw new Error(`${label} response failed contract validation`);
+    }
+    out.push(parsed.data);
+  }
+  return out;
 }
 
 export async function fetchHealth(): Promise<HealthResponse> {
@@ -117,18 +146,7 @@ export async function listDocuments(sessionId: string): Promise<Document[]> {
     throw await parseError(response);
   }
   const json: unknown = await response.json();
-  if (!Array.isArray(json)) {
-    throw new Error("Document list response failed contract validation");
-  }
-  const docs: Document[] = [];
-  for (const item of json) {
-    const parsed = DocumentSchema.safeParse(item);
-    if (!parsed.success) {
-      throw new Error("Document list response failed contract validation");
-    }
-    docs.push(parsed.data);
-  }
-  return docs;
+  return parseArray(json, DocumentSchema, "Document list");
 }
 
 export async function deleteDocument(sessionId: string, documentId: string): Promise<void> {
@@ -141,11 +159,87 @@ export async function deleteDocument(sessionId: string, documentId: string): Pro
   }
 }
 
+export async function startProcess(sessionId: string): Promise<ProcessEvent[]> {
+  const response = await fetch(
+    `${baseUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/process`,
+    { method: "POST" },
+  );
+  if (!response.ok) {
+    throw await parseError(response);
+  }
+  const json: unknown = await response.json();
+  return parseArray(json, ProcessEventSchema, "Process");
+}
+
+export async function listEvents(sessionId: string, after = -1): Promise<ProcessEvent[]> {
+  const response = await fetch(
+    `${baseUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/events?after=${after}`,
+  );
+  if (!response.ok) {
+    throw await parseError(response);
+  }
+  const json: unknown = await response.json();
+  return parseArray(json, ProcessEventSchema, "Events");
+}
+
+export async function listPages(sessionId: string, documentId: string): Promise<DocumentPage[]> {
+  const response = await fetch(
+    `${baseUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/documents/${encodeURIComponent(documentId)}/pages`,
+  );
+  if (!response.ok) {
+    throw await parseError(response);
+  }
+  const json: unknown = await response.json();
+  return parseArray(json, DocumentPageSchema, "Pages");
+}
+
+export async function listSpans(
+  sessionId: string,
+  documentId: string,
+  pageNumber: number,
+): Promise<SourceSpan[]> {
+  const response = await fetch(
+    `${baseUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/documents/${encodeURIComponent(documentId)}/pages/${pageNumber}/spans`,
+  );
+  if (!response.ok) {
+    throw await parseError(response);
+  }
+  const json: unknown = await response.json();
+  return parseArray(json, SourceSpanSchema, "Spans");
+}
+
+export async function listTokens(
+  sessionId: string,
+  documentId: string,
+  pageNumber: number,
+): Promise<SourceToken[]> {
+  const response = await fetch(
+    `${baseUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/documents/${encodeURIComponent(documentId)}/pages/${pageNumber}/tokens`,
+  );
+  if (!response.ok) {
+    throw await parseError(response);
+  }
+  const json: unknown = await response.json();
+  return parseArray(json, SourceTokenSchema, "Tokens");
+}
+
+export function canonicalViewUrl(sessionId: string, documentId: string): string {
+  return `${baseUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/documents/${encodeURIComponent(documentId)}/view`;
+}
+
+export function thumbnailUrl(sessionId: string, documentId: string, pageNumber: number): string {
+  return `${baseUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/documents/${encodeURIComponent(documentId)}/thumbnails/${pageNumber}`;
+}
+
 export type {
   CaseSession,
   Document,
+  DocumentPage,
   DocumentUploadBatch,
   ErrorEnvelope,
   HealthResponse,
+  ProcessEvent,
+  SourceSpan,
+  SourceToken,
   UploadRejection,
 };

@@ -1,10 +1,11 @@
-# Local setup (Phase 1)
+# Local setup (Phase 2)
 
 ## Prerequisites
 
 - Python **3.12** (repo ships a local interpreter under `.tools/python312/` when present)
 - Node.js **22+** (see `.nvmrc`)
 - Git
+- **LibreOffice** (headless) for DOCX → PDF viewing copies (OD-05 option A). On Windows, install LibreOffice and ensure `soffice` is on `PATH`, or set `LIBREOFFICE_PATH` to the full path of `soffice.exe`. Automated tests inject a fake converter and do **not** require LibreOffice.
 
 ## Backend
 
@@ -25,7 +26,12 @@ APP_VERSION=0.0.0-dev
 TEMP_ROOT=   # default: <repo>/tmp/sessions
 MAX_ACTIVE_SESSIONS=32
 SESSION_CLEANUP_INTERVAL_SECONDS=60
+LIBREOFFICE_PATH=soffice
+LIBREOFFICE_TIMEOUT_SECONDS=120
+THUMBNAIL_MAX_WIDTH=240
 ```
+
+After upload, call `POST /api/v1/sessions/{id}/process` (or use **Process documents** in the UI) to normalize, generate thumbnails, and run native extraction. DOCX files are viewed through their generated PDF copy.
 
 Appendix D / `AppSettings` overrides use names like `SESSION_TTL_MINUTES`, `MAX_FILES_PER_SESSION`, `MAX_FILE_SIZE_MB`, `MAX_TOTAL_UPLOAD_MB`, `MAX_PAGES_PER_SESSION`, etc.
 

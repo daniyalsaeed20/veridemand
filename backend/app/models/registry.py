@@ -19,6 +19,7 @@ from app.models.fact import Fact, UserOverride
 from app.models.health import HealthCapabilities, HealthResponse
 from app.models.issue import Issue, IssueResolution
 from app.models.preflight import DraftRef, PreflightFinding, PreflightReport
+from app.models.process_event import ProcessEvent
 from app.models.source_span import SourceSpan
 from app.models.source_token import SourceToken
 from app.models.timeline_event import TimelineEvent
@@ -36,6 +37,7 @@ ENTITY_MODELS: dict[str, type[BaseModel]] = {
     "UploadRejection": UploadRejection,
     "SourceToken": SourceToken,
     "SourceSpan": SourceSpan,
+    "ProcessEvent": ProcessEvent,
     "Fact": Fact,
     "UserOverride": UserOverride,
     "Issue": Issue,
