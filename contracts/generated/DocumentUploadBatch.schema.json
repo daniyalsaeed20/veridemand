@@ -1,5 +1,15 @@
 {
   "$defs": {
+    "ClassificationStatus": {
+      "enum": [
+        "proposed",
+        "ambiguous",
+        "needs_confirmation",
+        "user_confirmed"
+      ],
+      "title": "ClassificationStatus",
+      "type": "string"
+    },
     "Document": {
       "additionalProperties": false,
       "properties": {
@@ -28,6 +38,13 @@
           "default": null,
           "title": "Classification Confidence"
         },
+        "classification_conflicts": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Classification Conflicts",
+          "type": "array"
+        },
         "classification_reason": {
           "anyOf": [
             {
@@ -39,6 +56,17 @@
           ],
           "default": null,
           "title": "Classification Reason"
+        },
+        "classification_status": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ClassificationStatus"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "content_sha256": {
           "maxLength": 64,
@@ -113,6 +141,17 @@
           ],
           "default": null,
           "title": "Page Quality Warning Count"
+        },
+        "safety_archetype": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SafetyArchetype"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "sequence_index": {
           "anyOf": [
@@ -192,6 +231,16 @@
         "excluded"
       ],
       "title": "DocumentStatus",
+      "type": "string"
+    },
+    "SafetyArchetype": {
+      "enum": [
+        "none",
+        "existing_demand",
+        "template",
+        "uncertain_derivative"
+      ],
+      "title": "SafetyArchetype",
       "type": "string"
     },
     "UploadRejection": {

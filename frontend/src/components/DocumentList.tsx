@@ -3,9 +3,13 @@ import type { Document } from "../api/client";
 import {
   CLASSIFICATION_OPTIONS,
   classificationLabel,
+  confirmAuthorityReview,
   confirmClassification,
+  isSafetyRestricted,
   isViewable,
+  needsReview,
   reorderDocuments,
+  safetyWarning,
   saveClassification,
   sortDocuments,
   toggleExclude,
@@ -95,15 +99,18 @@ export default function DocumentList({
       {saveNote ? <p className="muted">{saveNote}</p> : null}
       <ul className="doc-sequence-list">
         {ordered.map((doc, index) => {
-          const lowConfidence =
-            doc.classification_confidence != null && doc.classification_confidence < 0.55;
-          const isDemand = doc.classification === "existing_demand";
-          const isTemplate = doc.classification === "template";
-          const confirmed = doc.classification_reason?.startsWith("user-confirmed");
+          const review = needsReview(doc);
+          const safety = isSafetyRestricted(doc);
+          const warning = safetyWarning(doc);
+          const isDemand =
+            doc.classification === "existing_demand" || doc.safety_archetype === "existing_demand";
+          const isTemplate =
+            doc.classification === "template" || doc.safety_archetype === "template";
+          const confirmed = doc.classification_status === "user_confirmed";
           return (
             <li
               key={doc.id}
-              className={`doc-row${dragId === doc.id ? " doc-row-dragging" : ""}${lowConfidence ? " doc-row-ambiguous" : ""}`}
+              className={`doc-row${dragId === doc.id ? " doc-row-dragging" : ""}${review ? " doc-row-ambiguous" : ""}`}
               draggable={!busy}
               onDragStart={() => setDragId(doc.id)}
               onDragEnd={() => setDragId(null)}
@@ -132,6 +139,7 @@ export default function DocumentList({
                   {doc.page_quality_warning_count
                     ? ` · ${doc.page_quality_warning_count} quality warning(s)`
                     : ""}
+                  {doc.classification_status ? ` · ${doc.classification_status}` : ""}
                 </div>
                 <div className="doc-classification">
                   <label className="label-inline">
@@ -164,20 +172,29 @@ export default function DocumentList({
                     </select>
                   </label>
                   {doc.classification_confidence != null ? (
-                    <span className="doc-confidence">
-                      Confidence: {(doc.classification_confidence * 100).toFixed(0)}%
+                    <span
+                      className="doc-confidence"
+                      title="Heuristic rule score, not a probability"
+                    >
+                      Rule score: {(doc.classification_confidence * 100).toFixed(0)}
                     </span>
                   ) : null}
                   {confirmed ? <span className="doc-badge">Confirmed</span> : null}
+                  {review ? <span className="doc-badge">Needs review</span> : null}
                   {isTemplate ? <span className="doc-badge">Template</span> : null}
+                  {safety ? <span className="doc-badge">Non-authoritative</span> : null}
                 </div>
+                {doc.classification_conflicts && doc.classification_conflicts.length > 0 ? (
+                  <p className="doc-reason muted">
+                    Conflicts: {doc.classification_conflicts.join(", ")}
+                  </p>
+                ) : null}
                 {doc.classification_reason ? (
                   <p className="doc-reason muted">{doc.classification_reason}</p>
                 ) : null}
-                {isDemand ? (
+                {warning ? (
                   <p className="doc-warning" role="alert">
-                    Existing demand — not authoritative evidence unless secondary source is enabled
-                    below.
+                    {warning}
                   </p>
                 ) : null}
                 <div className="doc-actions">
@@ -199,6 +216,26 @@ export default function DocumentList({
                   >
                     Confirm type
                   </button>
+                  {safety ? (
+                    <button
+                      type="button"
+                      className="btn btn-small"
+                      disabled={busy || !doc.classification}
+                      onClick={() => {
+                        void (async () => {
+                          try {
+                            const updated = await confirmAuthorityReview(sessionId, doc.id);
+                            patchLocal(updated);
+                            setSaveNote("Authority review acknowledged.");
+                          } catch (err) {
+                            onError(err instanceof Error ? err.message : "Review failed");
+                          }
+                        })();
+                      }}
+                    >
+                      Acknowledge safety review
+                    </button>
+                  ) : null}
                   <label className="label-inline">
                     <input
                       type="checkbox"
@@ -275,7 +312,8 @@ export default function DocumentList({
                 </div>
                 {doc.classification ? (
                   <span className="sr-only">
-                    Proposed type: {classificationLabel(doc.classification)}
+                    Proposed type: {classificationLabel(doc.classification)}. Sequence position does
+                    not imply authority.
                   </span>
                 ) : null}
               </div>

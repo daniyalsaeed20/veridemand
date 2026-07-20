@@ -8,11 +8,20 @@ from app.core.domain_errors import DomainError
 from app.core.logging import get_logger
 from app.models.app_settings import AppSettings
 from app.models.document import Document
-from app.models.enums import DocumentStatus, IssueSeverity, IssueStatus
+from app.models.enums import (
+    ClassificationStatus,
+    DocumentClassification,
+    DocumentStatus,
+    IssueSeverity,
+    IssueStatus,
+    SafetyArchetype,
+)
 from app.models.issue import Issue
 from app.models.taxonomies import ErrorCode
+from app.services.classification.archetype import assess_safety_archetype
 from app.services.classification.authority import (
-    apply_authority_defaults,
+    apply_authority_policy,
+    enforce_authority_invariant,
     validate_authority_patch,
 )
 from app.services.classification.decision import select_rule_decision
@@ -120,11 +129,16 @@ class ClassificationService:
         pages = record.pages.get(document_id, [])
         spans = record.spans_by_page.get(document_id, {})
         features = build_classification_features(doc, pages=pages, spans_by_page=spans)
+
+        self._run_hook("before_stage_a")
+        archetype = assess_safety_archetype(features)
+        self._run_hook("before_stage_b")
         scores = score_rules(features)
         decision = select_rule_decision(
             features,
             scores,
             threshold=self._settings.rule_confidence_threshold,
+            archetype=archetype,
         )
         if decision is None:
             return None
@@ -140,7 +154,6 @@ class ClassificationService:
 
         self._run_hook("before_classification_commit")
 
-        # Re-verify after hook (race tests)
         if record.generation != generation or record.deleting:
             return None
         doc = record.documents.get(document_id)
@@ -160,8 +173,12 @@ class ClassificationService:
         doc.classification = decision.classification
         doc.classification_confidence = decision.confidence
         doc.classification_reason = decision.reason
+        doc.classification_status = decision.classification_status
+        doc.safety_archetype = decision.safety_archetype
+        doc.classification_conflicts = list(decision.conflicts)
         doc.status = DocumentStatus.CLASSIFIED
-        apply_authority_defaults(doc)
+        apply_authority_policy(doc, archetype=decision.safety_archetype)
+        enforce_authority_invariant(doc)
 
         if decision.ambiguous or decision.needs_correction:
             self._upsert_ambiguous_issue(record, doc.id, decision.reason)
@@ -187,7 +204,7 @@ class ClassificationService:
                 issue_type="classification.ambiguous",
                 severity=IssueSeverity.AMBER,
                 title="Document classification needs review",
-                explanation=f"Classification confidence is low or signals conflict. {reason[:200]}",
+                explanation=f"Classification signals conflict or need review. {reason[:200]}",
                 document_ids=[document_id],
                 blocking=False,
                 status=IssueStatus.OPEN,
@@ -198,6 +215,16 @@ class ClassificationService:
         record.event_sequence += 1
         from app.models.process_event import ProcessEvent
 
+        conflicts = (
+            ",".join(doc.classification_conflicts[:6]) if doc.classification_conflicts else ""
+        )
+        safe_msg = (
+            f"category={doc.classification.value if doc.classification else 'none'};"
+            f"score={doc.classification_confidence};"
+            f"status={doc.classification_status.value if doc.classification_status else 'none'};"
+            f"safety={doc.safety_archetype.value if doc.safety_archetype else 'none'};"
+            f"conflicts={conflicts}"
+        )
         record.events.append(
             ProcessEvent(
                 sequence=record.event_sequence,
@@ -205,7 +232,7 @@ class ClassificationService:
                 session_id=record.session.id,
                 document_id=doc.id,
                 status=doc.classification.value if doc.classification else None,
-                message=doc.classification_reason,
+                message=safe_msg[:500],
                 progress=None,
                 error_code=None,
             )
@@ -229,28 +256,70 @@ class ClassificationService:
         if patch.revert_to_proposed:
             if document_id in record.classification_locked:
                 record.classification_locked.discard(document_id)
-            # Re-run rules without OCR
             if doc.status in {DocumentStatus.EXTRACTED, DocumentStatus.CLASSIFIED}:
                 return self.classify_document(session_id, document_id)
 
         if patch.display_name is not None:
             doc.display_name = patch.display_name
 
+        prior_safety = doc.safety_archetype
         if patch.classification is not None:
             doc.classification = patch.classification
             doc.classification_reason = f"user-selected: {patch.classification.value}"
+            doc.classification_status = ClassificationStatus.PROPOSED
             doc.status = DocumentStatus.CLASSIFIED
-            apply_authority_defaults(doc)
+            apply_authority_policy(
+                doc,
+                archetype=doc.safety_archetype or SafetyArchetype.NONE,
+                preserve_user_exclude=True,
+                preserve_secondary=True,
+            )
 
         validate_authority_patch(
             doc,
             treat_as_secondary_evidence=patch.treat_as_secondary_evidence,
+            exclude_from_drafting=patch.exclude_from_drafting,
         )
         if patch.treat_as_secondary_evidence is not None:
             doc.treat_as_secondary_evidence = patch.treat_as_secondary_evidence
-
         if patch.exclude_from_drafting is not None:
+            safety_active = (
+                prior_safety is not None and prior_safety != SafetyArchetype.NONE
+            ) or doc.classification in {
+                DocumentClassification.EXISTING_DEMAND,
+                DocumentClassification.TEMPLATE,
+            }
+            if (
+                patch.exclude_from_drafting is False
+                and safety_active
+                and not patch.confirm_authority_review
+                and not patch.confirm_classification
+            ):
+                if not (
+                    patch.treat_as_secondary_evidence is True
+                    and doc.classification
+                    and doc.classification.value == "existing_demand"
+                ):
+                    raise DomainError(
+                        ErrorCode.DOCUMENT_INVALID_PATCH,
+                        details={
+                            "field": "exclude_from_drafting",
+                            "reason": "safety_confirmation_required",
+                        },
+                        document_id=document_id,
+                        session_id=session_id,
+                    )
             doc.exclude_from_drafting = patch.exclude_from_drafting
+
+        if patch.confirm_authority_review:
+            if doc.classification is None:
+                raise DomainError(
+                    ErrorCode.DOCUMENT_INVALID_PATCH,
+                    details={"field": "confirm_authority_review"},
+                    document_id=document_id,
+                    session_id=session_id,
+                )
+            doc.classification_status = ClassificationStatus.USER_CONFIRMED
 
         if patch.confirm_classification:
             if doc.classification is None:
@@ -261,9 +330,14 @@ class ClassificationService:
                     session_id=session_id,
                 )
             record.classification_locked.add(document_id)
+            doc.classification_status = ClassificationStatus.USER_CONFIRMED
             doc.classification_reason = (
                 f"user-confirmed: {doc.classification.value}; " + (doc.classification_reason or "")
             )[:500]
+            if doc.safety_archetype and doc.safety_archetype != SafetyArchetype.NONE:
+                apply_authority_policy(doc, archetype=doc.safety_archetype)
+
+        enforce_authority_invariant(doc)
 
         if patch.sequence_index is not None:
             self._apply_single_sequence_move(record, document_id, patch.sequence_index)
@@ -329,6 +403,7 @@ class ClassificationService:
         for idx, doc_id in enumerate(proposed):
             doc = record.documents[doc_id]
             doc.sequence_index = idx
+            enforce_authority_invariant(doc)
 
         return [record.documents[did].model_copy(deep=True) for did in proposed]
 

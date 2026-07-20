@@ -94,3 +94,4 @@ Session SoT for the queue remains **`Issue`**. Upstream modules that “emit rev
 | 0.1 | 2026-07-19 | PreflightReport, ExportResult; DecisionAction / FindingSeverity / ExportKind enums (SoT backfill) |
 | 0.1 | 2026-07-19 | Phase 9 labels on preflight/export; ephemeral types; SessionStatus never-emit `active`; FactCandidate deprecated; schema-mirror path |
 | 0.1 | 2026-07-19 | Add `route_not_found` API error code for unknown routes (Phase 0 closure) |
+| 0.1 | 2026-07-20 | Phase 4 hardening: ClassificationStatus, SafetyArchetype; Document safety/conflict fields |

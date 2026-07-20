@@ -2,7 +2,13 @@
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models.enums import DocumentClassification, DocumentFileType, DocumentStatus
+from app.models.enums import (
+    ClassificationStatus,
+    DocumentClassification,
+    DocumentFileType,
+    DocumentStatus,
+    SafetyArchetype,
+)
 
 
 class Document(BaseModel):
@@ -17,6 +23,9 @@ class Document(BaseModel):
     classification: DocumentClassification | None = None
     classification_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     classification_reason: str | None = None
+    classification_status: ClassificationStatus | None = None
+    safety_archetype: SafetyArchetype | None = None
+    classification_conflicts: list[str] = Field(default_factory=list)
     sequence_index: int | None = Field(default=None, ge=0)
     status: DocumentStatus
     exclude_from_drafting: bool = False

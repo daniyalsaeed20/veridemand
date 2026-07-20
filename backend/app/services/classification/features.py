@@ -42,7 +42,7 @@ def _collect_early_text(
     pages: list[DocumentPage],
     spans_by_page: dict[int, list[SourceSpan]],
     *,
-    max_pages: int = 3,
+    max_pages: int = 6,
 ) -> tuple[str, tuple[str, ...], int, int]:
     texts: list[str] = []
     headings: list[str] = []

@@ -156,8 +156,17 @@ Rule classification per synthetic document during process: **sub-second** (domin
 
 ## Final verdict
 
-**PASS WITH GAPS**
+**PASS WITH GAPS** (self-assessment at implementation tip `1556ecc`)
 
-Gaps: local Amini reference-package acceptance not executed (files absent); FR-CLS-04 deferred; manual nontechnical usability not independently measured.
+Gaps at completion time: local Amini reference-package acceptance not executed (files absent); FR-CLS-04 deferred; manual nontechnical usability not independently measured.
 
 Do **not** create `phase-04-audited-pass` tag per instructions.
+
+---
+
+## Post-completion audit trail
+
+| Document | Result |
+|----------|--------|
+| [`phase-04-audit.md`](./phase-04-audit.md) | **FAIL** — B-01/B-02/B-03 (demand authority bypass; high-score review gap) |
+| [`phase-04-hardening.md`](./phase-04-hardening.md) | Hardening closes blockers; **READY FOR RE-AUDIT** |

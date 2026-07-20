@@ -21,12 +21,15 @@ Uploaded original and derived preview metadata for one file in a session.
 | `content_sha256` | string | yes | 64 hex chars | Duplicate detection |
 | `page_count` | int | no | `>= 0` | Set after normalize |
 | `classification` | DocumentClassification | no | enum | Null until classified |
-| `classification_confidence` | float | no | `0–1` | |
-| `classification_reason` | string | no | | Rule/LLM rationale |
-| `sequence_index` | int | no | `>= 0` | User-reorderable |
+| `classification_confidence` | float | no | `0–1` | Normalized **heuristic rule score**, not a calibrated probability |
+| `classification_reason` | string | no | | Rule/LLM rationale (safe labels only) |
+| `classification_status` | ClassificationStatus | no | enum | Review state; null until classified |
+| `safety_archetype` | SafetyArchetype | no | enum | FR-CLS-06 safety layer; independent of winning category |
+| `classification_conflicts` | string[] | no | safe conflict codes | e.g. `archetype_vs_category`, `close_scores` |
+| `sequence_index` | int | no | `>= 0` | User-reorderable; does not imply authority |
 | `status` | DocumentStatus | yes | enum | |
 | `exclude_from_drafting` | bool | yes | default false | |
-| `treat_as_secondary_evidence` | bool | yes | default false | FR-CLS-06 for existing demands |
+| `treat_as_secondary_evidence` | bool | yes | default false | FR-CLS-06 secondary comparison only |
 | `page_quality_warning_count` | int | no | `>= 0` | Aggregate |
 | `error_code` | string | no | | When `rejected` |
 | `error_message` | string | no | user-facing | When `rejected` |
@@ -51,6 +54,9 @@ Uploaded original and derived preview metadata for one file in a session.
   "classification": "police_report",
   "classification_confidence": 0.92,
   "classification_reason": "filename + first-page heading match",
+  "classification_status": "proposed",
+  "safety_archetype": "none",
+  "classification_conflicts": [],
   "sequence_index": 0,
   "status": "classified",
   "exclude_from_drafting": false,
@@ -62,3 +68,5 @@ Uploaded original and derived preview metadata for one file in a session.
 ## 5. Open / additive notes
 
 MIME and signature details may appear on upload error objects, not necessarily on accepted `Document` records.
+
+**Changelog:** 2026-07-20 — Phase 4 hardening: `classification_status`, `safety_archetype`, `classification_conflicts`; clarify `classification_confidence` as heuristic rule score (FR-CLS-06 safety independent of winning category).

@@ -166,6 +166,7 @@ export type DocumentPatch = {
   exclude_from_drafting?: boolean;
   treat_as_secondary_evidence?: boolean;
   confirm_classification?: boolean;
+  confirm_authority_review?: boolean;
   revert_to_proposed?: boolean;
 };
 

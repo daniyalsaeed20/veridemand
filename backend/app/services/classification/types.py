@@ -7,7 +7,12 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.enums import DocumentClassification, DocumentFileType
+from app.models.enums import (
+    ClassificationStatus,
+    DocumentClassification,
+    DocumentFileType,
+    SafetyArchetype,
+)
 
 
 class ClassificationMethod(StrEnum):
@@ -63,6 +68,9 @@ class ClassificationDecision:
     needs_correction: bool
     candidates: tuple[tuple[DocumentClassification, float], ...] = ()
     ambiguous: bool = False
+    classification_status: ClassificationStatus = ClassificationStatus.PROPOSED
+    safety_archetype: SafetyArchetype = SafetyArchetype.NONE
+    conflicts: tuple[str, ...] = ()
 
 
 class DocumentPresentationPatch(BaseModel):
@@ -74,6 +82,7 @@ class DocumentPresentationPatch(BaseModel):
     exclude_from_drafting: bool | None = None
     treat_as_secondary_evidence: bool | None = None
     confirm_classification: bool = False
+    confirm_authority_review: bool = False
     revert_to_proposed: bool = False
 
 

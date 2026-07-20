@@ -50,6 +50,20 @@ class DocumentClassification(StrEnum):
     OTHER = "other"
 
 
+class ClassificationStatus(StrEnum):
+    PROPOSED = "proposed"
+    AMBIGUOUS = "ambiguous"
+    NEEDS_CONFIRMATION = "needs_confirmation"
+    USER_CONFIRMED = "user_confirmed"
+
+
+class SafetyArchetype(StrEnum):
+    NONE = "none"
+    EXISTING_DEMAND = "existing_demand"
+    TEMPLATE = "template"
+    UNCERTAIN_DERIVATIVE = "uncertain_derivative"
+
+
 class ExtractionMethod(StrEnum):
     NATIVE = "native"
     OCR = "ocr"

@@ -74,6 +74,32 @@ From FR-CLS-03. Additive category list.
 
 ---
 
+## ClassificationStatus
+
+Phase 4 review state for a proposed document type (additive).
+
+| Value | Meaning |
+|-------|---------|
+| `proposed` | Automatic rules proposal without material conflicts |
+| `ambiguous` | Conflicting signals or close scores; needs review |
+| `needs_confirmation` | Safety restriction or low evidence; user should confirm |
+| `user_confirmed` | User confirmed the current classification |
+
+---
+
+## SafetyArchetype
+
+Classification-independent FR-CLS-06 safety assessment (additive). Distinct from the winning `DocumentClassification`.
+
+| Value | Meaning |
+|-------|---------|
+| `none` | No demand/template/derivative safety signals |
+| `existing_demand` | Material existing-demand letter structure |
+| `template` | Material firm-template / placeholder structure |
+| `uncertain_derivative` | Possible summary/derivative document; not auto-primary |
+
+---
+
 ## ExtractionMethod
 
 | Value | Meaning |
