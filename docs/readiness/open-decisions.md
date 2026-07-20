@@ -237,6 +237,48 @@
 
 ---
 
+## OD-17 — Extraction acceptance provisional thresholds
+
+| Field | Content |
+|-------|---------|
+| **Affected** | Remediation Part 1; [`docs/remediation/extraction-acceptance-matrix.md`](../remediation/extraction-acceptance-matrix.md) |
+| **Why it matters** | Soft accuracy bands are proposals only; treating them as product promises would invent requirements. |
+| **Options** | (A) Keep provisional until human-approved corpus scores exist. (B) Adopt matrix proposals as firm gates now. (C) Defer all numeric bands until Part 2 engine work. |
+| **Recommended** | **A** — measure against human GT first; user must approve any threshold that becomes a gate. |
+| **Consequences / risks** | Without approval, Part 1 cannot claim numeric acceptance — only corpus/tooling readiness. |
+| **Blocks a phase?** | Soft-blocks Remediation Part 1 **numeric** acceptance; does not block tooling delivery. |
+| **Resolve by** | After human ground-truth review on the private acceptance corpus. |
+
+---
+
+## OD-18 — Character / symbol geometry as a firm capability
+
+| Field | Content |
+|-------|---------|
+| **Affected** | FR-EXT-01 wording vs production SoT; remediation acceptance contract |
+| **Why it matters** | Spec mentions characters; production stores word/line polygons only. Fabricating char boxes would violate hard invariants. |
+| **Options** | (A) Keep character geometry optional / separately approved. (B) Require char boxes before any OCR swap. (C) Remove char language from FR-EXT-01. |
+| **Recommended** | **A** until explicitly approved; CER only when genuine char GT + engine support exist. |
+| **Consequences / risks** | Character-level claims remain out of Part 1 firm requirements. |
+| **Blocks a phase?** | No for Part 1 tooling. Blocks claiming character fidelity accepted. |
+| **Resolve by** | User decision before promoting eval schema fields into production contracts. |
+
+---
+
+## OD-19 — Difficult police badge intake file (9065 / Go6s)
+
+| Field | Content |
+|-------|---------|
+| **Affected** | Remediation Part 1 private corpus; critical-field anchor coverage |
+| **Why it matters** | User-confirmed badge/ID visual value and corrupt-embed candidate cannot be evaluated without the source pages. |
+| **Options** | (A) User places the two-page file in private intake and re-runs corpus tooling. (B) Proceed without this anchor indefinitely. (C) Infer annotations from other police pages (forbidden). |
+| **Recommended** | **A** — do not fabricate annotations from machine text. |
+| **Consequences / risks** | Part 1 remains `CORPUS PREPARED — HUMAN GROUND-TRUTH REVIEW PENDING` / gap on badge layer-selection proof. |
+| **Blocks a phase?** | Soft-blocks final Part 1 acceptance for corrupt-hidden-OCR critical-field proof. |
+| **Resolve by** | When the intake PDF is provided under `tmp/extraction-remediation/intake/`. |
+
+---
+
 ## Summary table
 
 | ID | Topic | Blocks Phase 0? | Resolve-by |
@@ -257,3 +299,6 @@
 | OD-14 | Billing layouts | No | Phase 6 |
 | OD-15 | OCR CPU/GPU | No | Phase 3 |
 | OD-16 | PaddleOCR version pin | No (blocks Phase 3 adapter) | Phase 3 start |
+| OD-17 | Extraction acceptance thresholds | No (soft-blocks numeric accept) | Post human GT review |
+| OD-18 | Character geometry capability | No | Before production contract promotion |
+| OD-19 | Difficult police badge intake | No (soft-blocks Part 1 final) | Intake file provided |

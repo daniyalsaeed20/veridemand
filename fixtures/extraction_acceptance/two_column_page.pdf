@@ -1,0 +1,28 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [3 0 R] /Count 1 >>endobj
+3 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 500 400] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>endobj
+4 0 obj<< /Length 252 >>stream
+BT /F1 11 Tf
+1 0 0 1 40 350 Tm (Column A line 1) Tj
+1 0 0 1 40 330 Tm (Column A line 2) Tj
+1 0 0 1 40 310 Tm (Column A line 3) Tj
+1 0 0 1 280 350 Tm (Column B line 1) Tj
+1 0 0 1 280 330 Tm (Column B line 2) Tj
+1 0 0 1 280 310 Tm (Column B line 3) Tj
+ET
+endstream
+endobj
+5 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000111 00000 n 
+0000000235 00000 n 
+0000000536 00000 n 
+trailer<< /Size 6 /Root 1 0 R >>
+startxref
+604
+%%EOF

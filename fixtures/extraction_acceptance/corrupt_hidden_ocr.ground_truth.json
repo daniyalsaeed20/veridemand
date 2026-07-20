@@ -1,0 +1,111 @@
+{
+  "fixture_id": "corrupt_hidden_ocr",
+  "annotation_status": "human_approved",
+  "page_number": 1,
+  "expected_transcript": "Badge ID A1234",
+  "expected_lines": [
+    "Badge ID A1234"
+  ],
+  "expected_line_ids": [
+    "L0"
+  ],
+  "expected_word_ids": [
+    "W0",
+    "W1",
+    "W2"
+  ],
+  "expected_words": [
+    {
+      "word_id": "W0",
+      "text": "Badge",
+      "reading_order": 0,
+      "polygon": [
+        [
+          0.1,
+          0.1
+        ],
+        [
+          0.25,
+          0.1
+        ],
+        [
+          0.25,
+          0.2
+        ],
+        [
+          0.1,
+          0.2
+        ]
+      ]
+    },
+    {
+      "word_id": "W1",
+      "text": "ID",
+      "reading_order": 1,
+      "polygon": [
+        [
+          0.26,
+          0.1
+        ],
+        [
+          0.35,
+          0.1
+        ],
+        [
+          0.35,
+          0.2
+        ],
+        [
+          0.26,
+          0.2
+        ]
+      ]
+    },
+    {
+      "word_id": "W2",
+      "text": "A1234",
+      "reading_order": 2,
+      "polygon": [
+        [
+          0.36,
+          0.1
+        ],
+        [
+          0.55,
+          0.1
+        ],
+        [
+          0.55,
+          0.2
+        ],
+        [
+          0.36,
+          0.2
+        ]
+      ]
+    }
+  ],
+  "expected_layer": "fresh_ocr",
+  "expected_outcome": "unreadable_review_required",
+  "expected_rotation": 0,
+  "native_trustworthy": false,
+  "corrupt_embedded": true,
+  "must_reject_corrupt": true,
+  "ocr_required": true,
+  "silent_mix": false,
+  "critical_fields": [
+    {
+      "field_id": "badge",
+      "field_type": "badge_id",
+      "expected": "A1234",
+      "hypothesized": "Go1s",
+      "uncertain": true,
+      "accepted": false,
+      "review_required": true,
+      "layer_used": "embedded_ocr"
+    }
+  ],
+  "notes": "Synthetic fixture \u2014 no private case data",
+  "embedded_candidate": "Go1s",
+  "visible_expected": "A1234"
+}

@@ -1,0 +1,377 @@
+{
+  "fixture_id": "label_value_form",
+  "annotation_status": "human_approved",
+  "page_number": 1,
+  "expected_transcript": "Person Name: Jordan Lee\nFile ID: ID-10042\nEvent Date: 2024-01-15",
+  "expected_lines": [
+    "Person Name: Jordan Lee",
+    "File ID: ID-10042",
+    "Event Date: 2024-01-15"
+  ],
+  "expected_line_ids": [
+    "L0",
+    "L1",
+    "L2"
+  ],
+  "expected_word_ids": [
+    "W0",
+    "W1",
+    "W2",
+    "W3",
+    "W4",
+    "W5",
+    "W6",
+    "W7",
+    "W8",
+    "W9",
+    "W10",
+    "W11",
+    "W12"
+  ],
+  "expected_words": [
+    {
+      "word_id": "W0",
+      "text": "Person",
+      "reading_order": 0,
+      "polygon": [
+        [
+          0.1,
+          0.1
+        ],
+        [
+          0.8,
+          0.1
+        ],
+        [
+          0.8,
+          0.14
+        ],
+        [
+          0.1,
+          0.14
+        ]
+      ]
+    },
+    {
+      "word_id": "W1",
+      "text": "Name",
+      "reading_order": 1,
+      "polygon": [
+        [
+          0.1,
+          0.12000000000000001
+        ],
+        [
+          0.8,
+          0.12000000000000001
+        ],
+        [
+          0.8,
+          0.16
+        ],
+        [
+          0.1,
+          0.16
+        ]
+      ]
+    },
+    {
+      "word_id": "W2",
+      "text": ":",
+      "reading_order": 2,
+      "polygon": [
+        [
+          0.1,
+          0.14
+        ],
+        [
+          0.8,
+          0.14
+        ],
+        [
+          0.8,
+          0.18000000000000002
+        ],
+        [
+          0.1,
+          0.18000000000000002
+        ]
+      ]
+    },
+    {
+      "word_id": "W3",
+      "text": "Jordan",
+      "reading_order": 3,
+      "polygon": [
+        [
+          0.1,
+          0.16
+        ],
+        [
+          0.8,
+          0.16
+        ],
+        [
+          0.8,
+          0.2
+        ],
+        [
+          0.1,
+          0.2
+        ]
+      ]
+    },
+    {
+      "word_id": "W4",
+      "text": "Lee",
+      "reading_order": 4,
+      "polygon": [
+        [
+          0.1,
+          0.18
+        ],
+        [
+          0.8,
+          0.18
+        ],
+        [
+          0.8,
+          0.22000000000000003
+        ],
+        [
+          0.1,
+          0.22000000000000003
+        ]
+      ]
+    },
+    {
+      "word_id": "W5",
+      "text": "File",
+      "reading_order": 5,
+      "polygon": [
+        [
+          0.1,
+          0.2
+        ],
+        [
+          0.8,
+          0.2
+        ],
+        [
+          0.8,
+          0.24000000000000002
+        ],
+        [
+          0.1,
+          0.24000000000000002
+        ]
+      ]
+    },
+    {
+      "word_id": "W6",
+      "text": "ID",
+      "reading_order": 6,
+      "polygon": [
+        [
+          0.1,
+          0.22
+        ],
+        [
+          0.8,
+          0.22
+        ],
+        [
+          0.8,
+          0.26
+        ],
+        [
+          0.1,
+          0.26
+        ]
+      ]
+    },
+    {
+      "word_id": "W7",
+      "text": ":",
+      "reading_order": 7,
+      "polygon": [
+        [
+          0.1,
+          0.24000000000000002
+        ],
+        [
+          0.8,
+          0.24000000000000002
+        ],
+        [
+          0.8,
+          0.28
+        ],
+        [
+          0.1,
+          0.28
+        ]
+      ]
+    },
+    {
+      "word_id": "W8",
+      "text": "ID-10042",
+      "reading_order": 8,
+      "polygon": [
+        [
+          0.1,
+          0.26
+        ],
+        [
+          0.8,
+          0.26
+        ],
+        [
+          0.8,
+          0.30000000000000004
+        ],
+        [
+          0.1,
+          0.30000000000000004
+        ]
+      ]
+    },
+    {
+      "word_id": "W9",
+      "text": "Event",
+      "reading_order": 9,
+      "polygon": [
+        [
+          0.1,
+          0.28
+        ],
+        [
+          0.8,
+          0.28
+        ],
+        [
+          0.8,
+          0.32
+        ],
+        [
+          0.1,
+          0.32
+        ]
+      ]
+    },
+    {
+      "word_id": "W10",
+      "text": "Date",
+      "reading_order": 10,
+      "polygon": [
+        [
+          0.1,
+          0.30000000000000004
+        ],
+        [
+          0.8,
+          0.30000000000000004
+        ],
+        [
+          0.8,
+          0.34
+        ],
+        [
+          0.1,
+          0.34
+        ]
+      ]
+    },
+    {
+      "word_id": "W11",
+      "text": ":",
+      "reading_order": 11,
+      "polygon": [
+        [
+          0.1,
+          0.32
+        ],
+        [
+          0.8,
+          0.32
+        ],
+        [
+          0.8,
+          0.36
+        ],
+        [
+          0.1,
+          0.36
+        ]
+      ]
+    },
+    {
+      "word_id": "W12",
+      "text": "2024-01-15",
+      "reading_order": 12,
+      "polygon": [
+        [
+          0.1,
+          0.33999999999999997
+        ],
+        [
+          0.8,
+          0.33999999999999997
+        ],
+        [
+          0.8,
+          0.38
+        ],
+        [
+          0.1,
+          0.38
+        ]
+      ]
+    }
+  ],
+  "expected_layer": "native_pdf_text",
+  "expected_outcome": "faithful_canonical",
+  "expected_rotation": 0,
+  "native_trustworthy": true,
+  "corrupt_embedded": false,
+  "must_reject_corrupt": false,
+  "ocr_required": false,
+  "silent_mix": false,
+  "critical_fields": [
+    {
+      "field_id": "person_name",
+      "field_type": "person_name",
+      "expected": "Jordan Lee",
+      "hypothesized": "Jordan Lee",
+      "uncertain": false,
+      "accepted": true,
+      "review_required": false,
+      "layer_used": "native_pdf_text"
+    },
+    {
+      "field_id": "file_id",
+      "field_type": "id",
+      "expected": "ID-10042",
+      "hypothesized": "ID-10042",
+      "uncertain": false,
+      "accepted": true,
+      "review_required": false,
+      "layer_used": "native_pdf_text"
+    }
+  ],
+  "notes": "Synthetic fixture \u2014 no private case data",
+  "expected_label_values": [
+    [
+      "Person Name",
+      "Jordan Lee"
+    ],
+    [
+      "File ID",
+      "ID-10042"
+    ],
+    [
+      "Event Date",
+      "2024-01-15"
+    ]
+  ]
+}

@@ -1,0 +1,195 @@
+{
+  "fixture_id": "two_column_page",
+  "annotation_status": "human_approved",
+  "page_number": 1,
+  "expected_transcript": "Column A line 1\nColumn A line 2\nColumn A line 3\nColumn B line 1\nColumn B line 2\nColumn B line 3",
+  "expected_lines": [
+    "Column A line 1",
+    "Column A line 2",
+    "Column A line 3",
+    "Column B line 1",
+    "Column B line 2",
+    "Column B line 3"
+  ],
+  "expected_line_ids": [
+    "L0",
+    "L1",
+    "L2",
+    "L3",
+    "L4",
+    "L5"
+  ],
+  "expected_word_ids": [
+    "W0",
+    "W1",
+    "W2",
+    "W3",
+    "W4",
+    "W5"
+  ],
+  "expected_words": [
+    {
+      "word_id": "W0",
+      "text": "Column A line 1",
+      "reading_order": 0,
+      "polygon": [
+        [
+          0.05,
+          0.1
+        ],
+        [
+          0.45,
+          0.1
+        ],
+        [
+          0.45,
+          0.16
+        ],
+        [
+          0.05,
+          0.16
+        ]
+      ],
+      "column": 0
+    },
+    {
+      "word_id": "W1",
+      "text": "Column A line 2",
+      "reading_order": 1,
+      "polygon": [
+        [
+          0.05,
+          0.18
+        ],
+        [
+          0.45,
+          0.18
+        ],
+        [
+          0.45,
+          0.24
+        ],
+        [
+          0.05,
+          0.24
+        ]
+      ],
+      "column": 0
+    },
+    {
+      "word_id": "W2",
+      "text": "Column A line 3",
+      "reading_order": 2,
+      "polygon": [
+        [
+          0.05,
+          0.26
+        ],
+        [
+          0.45,
+          0.26
+        ],
+        [
+          0.45,
+          0.32
+        ],
+        [
+          0.05,
+          0.32
+        ]
+      ],
+      "column": 0
+    },
+    {
+      "word_id": "W3",
+      "text": "Column B line 1",
+      "reading_order": 3,
+      "polygon": [
+        [
+          0.55,
+          0.1
+        ],
+        [
+          0.95,
+          0.1
+        ],
+        [
+          0.95,
+          0.16
+        ],
+        [
+          0.55,
+          0.16
+        ]
+      ],
+      "column": 1
+    },
+    {
+      "word_id": "W4",
+      "text": "Column B line 2",
+      "reading_order": 4,
+      "polygon": [
+        [
+          0.55,
+          0.18
+        ],
+        [
+          0.95,
+          0.18
+        ],
+        [
+          0.95,
+          0.24
+        ],
+        [
+          0.55,
+          0.24
+        ]
+      ],
+      "column": 1
+    },
+    {
+      "word_id": "W5",
+      "text": "Column B line 3",
+      "reading_order": 5,
+      "polygon": [
+        [
+          0.55,
+          0.26
+        ],
+        [
+          0.95,
+          0.26
+        ],
+        [
+          0.95,
+          0.32
+        ],
+        [
+          0.55,
+          0.32
+        ]
+      ],
+      "column": 1
+    }
+  ],
+  "expected_layer": "native_pdf_text",
+  "expected_outcome": "faithful_canonical",
+  "expected_rotation": 0,
+  "native_trustworthy": true,
+  "corrupt_embedded": false,
+  "must_reject_corrupt": false,
+  "ocr_required": false,
+  "silent_mix": false,
+  "critical_fields": [],
+  "notes": "Synthetic fixture \u2014 no private case data",
+  "layout": "two_column",
+  "expected_column_order": [
+    0,
+    0,
+    0,
+    1,
+    1,
+    1
+  ]
+}

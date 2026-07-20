@@ -1,0 +1,258 @@
+{
+  "fixture_id": "table_page",
+  "annotation_status": "human_approved",
+  "page_number": 1,
+  "expected_transcript": "Item Qty Amount\nAlpha 1 10.00\nBeta 2 20.00",
+  "expected_lines": [
+    "Item Qty Amount",
+    "Alpha 1 10.00",
+    "Beta 2 20.00"
+  ],
+  "expected_line_ids": [
+    "L0",
+    "L1",
+    "L2"
+  ],
+  "expected_word_ids": [
+    "W0",
+    "W1",
+    "W2",
+    "W3",
+    "W4",
+    "W5",
+    "W6",
+    "W7",
+    "W8"
+  ],
+  "expected_words": [
+    {
+      "word_id": "W0",
+      "text": "Item",
+      "reading_order": 0,
+      "polygon": [
+        [
+          0.1,
+          0.1
+        ],
+        [
+          0.3,
+          0.1
+        ],
+        [
+          0.3,
+          0.18
+        ],
+        [
+          0.1,
+          0.18
+        ]
+      ]
+    },
+    {
+      "word_id": "W1",
+      "text": "Qty",
+      "reading_order": 1,
+      "polygon": [
+        [
+          0.35,
+          0.1
+        ],
+        [
+          0.55,
+          0.1
+        ],
+        [
+          0.55,
+          0.18
+        ],
+        [
+          0.35,
+          0.18
+        ]
+      ]
+    },
+    {
+      "word_id": "W2",
+      "text": "Amount",
+      "reading_order": 2,
+      "polygon": [
+        [
+          0.6,
+          0.1
+        ],
+        [
+          0.8,
+          0.1
+        ],
+        [
+          0.8,
+          0.18
+        ],
+        [
+          0.6,
+          0.18
+        ]
+      ]
+    },
+    {
+      "word_id": "W3",
+      "text": "Alpha",
+      "reading_order": 3,
+      "polygon": [
+        [
+          0.1,
+          0.2
+        ],
+        [
+          0.3,
+          0.2
+        ],
+        [
+          0.3,
+          0.28
+        ],
+        [
+          0.1,
+          0.28
+        ]
+      ]
+    },
+    {
+      "word_id": "W4",
+      "text": "1",
+      "reading_order": 4,
+      "polygon": [
+        [
+          0.35,
+          0.2
+        ],
+        [
+          0.55,
+          0.2
+        ],
+        [
+          0.55,
+          0.28
+        ],
+        [
+          0.35,
+          0.28
+        ]
+      ]
+    },
+    {
+      "word_id": "W5",
+      "text": "10.00",
+      "reading_order": 5,
+      "polygon": [
+        [
+          0.6,
+          0.2
+        ],
+        [
+          0.8,
+          0.2
+        ],
+        [
+          0.8,
+          0.28
+        ],
+        [
+          0.6,
+          0.28
+        ]
+      ]
+    },
+    {
+      "word_id": "W6",
+      "text": "Beta",
+      "reading_order": 6,
+      "polygon": [
+        [
+          0.1,
+          0.30000000000000004
+        ],
+        [
+          0.3,
+          0.30000000000000004
+        ],
+        [
+          0.3,
+          0.38
+        ],
+        [
+          0.1,
+          0.38
+        ]
+      ]
+    },
+    {
+      "word_id": "W7",
+      "text": "2",
+      "reading_order": 7,
+      "polygon": [
+        [
+          0.35,
+          0.30000000000000004
+        ],
+        [
+          0.55,
+          0.30000000000000004
+        ],
+        [
+          0.55,
+          0.38
+        ],
+        [
+          0.35,
+          0.38
+        ]
+      ]
+    },
+    {
+      "word_id": "W8",
+      "text": "20.00",
+      "reading_order": 8,
+      "polygon": [
+        [
+          0.6,
+          0.30000000000000004
+        ],
+        [
+          0.8,
+          0.30000000000000004
+        ],
+        [
+          0.8,
+          0.38
+        ],
+        [
+          0.6,
+          0.38
+        ]
+      ]
+    }
+  ],
+  "expected_layer": "native_pdf_text",
+  "expected_outcome": "faithful_canonical",
+  "expected_rotation": 0,
+  "native_trustworthy": true,
+  "corrupt_embedded": false,
+  "must_reject_corrupt": false,
+  "ocr_required": false,
+  "silent_mix": false,
+  "critical_fields": [],
+  "notes": "Synthetic fixture \u2014 no private case data",
+  "expected_table_cells": [
+    "Item",
+    "Qty",
+    "Amount",
+    "Alpha",
+    "1",
+    "10.00",
+    "Beta",
+    "2",
+    "20.00"
+  ],
+  "layout": "table"
+}

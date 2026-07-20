@@ -1,0 +1,451 @@
+{
+  "fixture_id": "header_footer_page",
+  "annotation_status": "human_approved",
+  "page_number": 1,
+  "expected_transcript": "HEADER North Harbor Legal Group, PLLC\nBody paragraph one.\nBody paragraph two.\nFOOTER Page 1 of 1",
+  "expected_lines": [
+    "HEADER North Harbor Legal Group, PLLC",
+    "Body paragraph one.",
+    "Body paragraph two.",
+    "FOOTER Page 1 of 1"
+  ],
+  "expected_line_ids": [
+    "L0",
+    "L1",
+    "L2",
+    "L3"
+  ],
+  "expected_word_ids": [
+    "W0",
+    "W1",
+    "W2",
+    "W3",
+    "W4",
+    "W5",
+    "W6",
+    "W7",
+    "W8",
+    "W9",
+    "W10",
+    "W11",
+    "W12",
+    "W13",
+    "W14",
+    "W15",
+    "W16"
+  ],
+  "expected_words": [
+    {
+      "word_id": "W0",
+      "text": "HEADER",
+      "reading_order": 0,
+      "polygon": [
+        [
+          0.1,
+          0.05
+        ],
+        [
+          0.9,
+          0.05
+        ],
+        [
+          0.9,
+          0.09
+        ],
+        [
+          0.1,
+          0.09
+        ]
+      ]
+    },
+    {
+      "word_id": "W1",
+      "text": "North",
+      "reading_order": 1,
+      "polygon": [
+        [
+          0.1,
+          0.1
+        ],
+        [
+          0.9,
+          0.1
+        ],
+        [
+          0.9,
+          0.14
+        ],
+        [
+          0.1,
+          0.14
+        ]
+      ]
+    },
+    {
+      "word_id": "W2",
+      "text": "Harbor",
+      "reading_order": 2,
+      "polygon": [
+        [
+          0.1,
+          0.15000000000000002
+        ],
+        [
+          0.9,
+          0.15000000000000002
+        ],
+        [
+          0.9,
+          0.19
+        ],
+        [
+          0.1,
+          0.19
+        ]
+      ]
+    },
+    {
+      "word_id": "W3",
+      "text": "Legal",
+      "reading_order": 3,
+      "polygon": [
+        [
+          0.1,
+          0.2
+        ],
+        [
+          0.9,
+          0.2
+        ],
+        [
+          0.9,
+          0.24000000000000002
+        ],
+        [
+          0.1,
+          0.24000000000000002
+        ]
+      ]
+    },
+    {
+      "word_id": "W4",
+      "text": "Group,",
+      "reading_order": 4,
+      "polygon": [
+        [
+          0.1,
+          0.25
+        ],
+        [
+          0.9,
+          0.25
+        ],
+        [
+          0.9,
+          0.29000000000000004
+        ],
+        [
+          0.1,
+          0.29000000000000004
+        ]
+      ]
+    },
+    {
+      "word_id": "W5",
+      "text": "PLLC",
+      "reading_order": 5,
+      "polygon": [
+        [
+          0.1,
+          0.3
+        ],
+        [
+          0.9,
+          0.3
+        ],
+        [
+          0.9,
+          0.33999999999999997
+        ],
+        [
+          0.1,
+          0.33999999999999997
+        ]
+      ]
+    },
+    {
+      "word_id": "W6",
+      "text": "Body",
+      "reading_order": 6,
+      "polygon": [
+        [
+          0.1,
+          0.35000000000000003
+        ],
+        [
+          0.9,
+          0.35000000000000003
+        ],
+        [
+          0.9,
+          0.39
+        ],
+        [
+          0.1,
+          0.39
+        ]
+      ]
+    },
+    {
+      "word_id": "W7",
+      "text": "paragraph",
+      "reading_order": 7,
+      "polygon": [
+        [
+          0.1,
+          0.4
+        ],
+        [
+          0.9,
+          0.4
+        ],
+        [
+          0.9,
+          0.44000000000000006
+        ],
+        [
+          0.1,
+          0.44000000000000006
+        ]
+      ]
+    },
+    {
+      "word_id": "W8",
+      "text": "one.",
+      "reading_order": 8,
+      "polygon": [
+        [
+          0.1,
+          0.45
+        ],
+        [
+          0.9,
+          0.45
+        ],
+        [
+          0.9,
+          0.49
+        ],
+        [
+          0.1,
+          0.49
+        ]
+      ]
+    },
+    {
+      "word_id": "W9",
+      "text": "Body",
+      "reading_order": 9,
+      "polygon": [
+        [
+          0.1,
+          0.5
+        ],
+        [
+          0.9,
+          0.5
+        ],
+        [
+          0.9,
+          0.54
+        ],
+        [
+          0.1,
+          0.54
+        ]
+      ]
+    },
+    {
+      "word_id": "W10",
+      "text": "paragraph",
+      "reading_order": 10,
+      "polygon": [
+        [
+          0.1,
+          0.55
+        ],
+        [
+          0.9,
+          0.55
+        ],
+        [
+          0.9,
+          0.59
+        ],
+        [
+          0.1,
+          0.59
+        ]
+      ]
+    },
+    {
+      "word_id": "W11",
+      "text": "two.",
+      "reading_order": 11,
+      "polygon": [
+        [
+          0.1,
+          0.6000000000000001
+        ],
+        [
+          0.9,
+          0.6000000000000001
+        ],
+        [
+          0.9,
+          0.64
+        ],
+        [
+          0.1,
+          0.64
+        ]
+      ]
+    },
+    {
+      "word_id": "W12",
+      "text": "FOOTER",
+      "reading_order": 12,
+      "polygon": [
+        [
+          0.1,
+          0.6500000000000001
+        ],
+        [
+          0.9,
+          0.6500000000000001
+        ],
+        [
+          0.9,
+          0.6900000000000001
+        ],
+        [
+          0.1,
+          0.6900000000000001
+        ]
+      ]
+    },
+    {
+      "word_id": "W13",
+      "text": "Page",
+      "reading_order": 13,
+      "polygon": [
+        [
+          0.1,
+          0.7000000000000001
+        ],
+        [
+          0.9,
+          0.7000000000000001
+        ],
+        [
+          0.9,
+          0.74
+        ],
+        [
+          0.1,
+          0.74
+        ]
+      ]
+    },
+    {
+      "word_id": "W14",
+      "text": "1",
+      "reading_order": 14,
+      "polygon": [
+        [
+          0.1,
+          0.7500000000000001
+        ],
+        [
+          0.9,
+          0.7500000000000001
+        ],
+        [
+          0.9,
+          0.79
+        ],
+        [
+          0.1,
+          0.79
+        ]
+      ]
+    },
+    {
+      "word_id": "W15",
+      "text": "of",
+      "reading_order": 15,
+      "polygon": [
+        [
+          0.1,
+          0.8
+        ],
+        [
+          0.9,
+          0.8
+        ],
+        [
+          0.9,
+          0.84
+        ],
+        [
+          0.1,
+          0.84
+        ]
+      ]
+    },
+    {
+      "word_id": "W16",
+      "text": "1",
+      "reading_order": 16,
+      "polygon": [
+        [
+          0.1,
+          0.8500000000000001
+        ],
+        [
+          0.9,
+          0.8500000000000001
+        ],
+        [
+          0.9,
+          0.89
+        ],
+        [
+          0.1,
+          0.89
+        ]
+      ]
+    }
+  ],
+  "expected_layer": "native_pdf_text",
+  "expected_outcome": "faithful_canonical",
+  "expected_rotation": 0,
+  "native_trustworthy": true,
+  "corrupt_embedded": false,
+  "must_reject_corrupt": false,
+  "ocr_required": false,
+  "silent_mix": false,
+  "critical_fields": [
+    {
+      "field_id": "law_firm",
+      "field_type": "law_firm_name",
+      "expected": "North Harbor Legal Group, PLLC",
+      "hypothesized": "North Harbor Legal Group, PLLC",
+      "uncertain": false,
+      "accepted": true,
+      "review_required": false,
+      "layer_used": "native_pdf_text"
+    }
+  ],
+  "notes": "Synthetic fixture \u2014 no private case data"
+}

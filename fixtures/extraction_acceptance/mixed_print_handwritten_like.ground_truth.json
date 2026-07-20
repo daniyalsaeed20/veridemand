@@ -1,0 +1,53 @@
+{
+  "fixture_id": "mixed_print_handwritten_like",
+  "annotation_status": "human_approved",
+  "page_number": 1,
+  "expected_transcript": "PRINT LABEL\nhandish value xx",
+  "expected_lines": [
+    "PRINT LABEL",
+    "handish value xx"
+  ],
+  "expected_line_ids": [
+    "L0",
+    "L1"
+  ],
+  "expected_word_ids": [
+    "W0"
+  ],
+  "expected_words": [
+    {
+      "word_id": "W0",
+      "text": "PRINT",
+      "reading_order": 0,
+      "polygon": [
+        [
+          0.1,
+          0.1
+        ],
+        [
+          0.3,
+          0.1
+        ],
+        [
+          0.3,
+          0.2
+        ],
+        [
+          0.1,
+          0.2
+        ]
+      ]
+    }
+  ],
+  "expected_layer": "fresh_ocr",
+  "expected_outcome": "ambiguous_with_alternatives",
+  "expected_rotation": 0,
+  "native_trustworthy": false,
+  "corrupt_embedded": false,
+  "must_reject_corrupt": false,
+  "ocr_required": true,
+  "silent_mix": false,
+  "critical_fields": [],
+  "notes": "Synthetic fixture \u2014 no private case data",
+  "challenge": "mixed_hand"
+}

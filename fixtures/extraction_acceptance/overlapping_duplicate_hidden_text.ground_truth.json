@@ -1,0 +1,52 @@
+{
+  "fixture_id": "overlapping_duplicate_hidden_text",
+  "annotation_status": "human_approved",
+  "page_number": 1,
+  "expected_transcript": "DUPLICATE LINE",
+  "expected_lines": [
+    "DUPLICATE LINE"
+  ],
+  "expected_line_ids": [
+    "L0"
+  ],
+  "expected_word_ids": [
+    "W0"
+  ],
+  "expected_words": [
+    {
+      "word_id": "W0",
+      "text": "DUPLICATE",
+      "reading_order": 0,
+      "polygon": [
+        [
+          0.1,
+          0.1
+        ],
+        [
+          0.4,
+          0.1
+        ],
+        [
+          0.4,
+          0.2
+        ],
+        [
+          0.1,
+          0.2
+        ]
+      ]
+    }
+  ],
+  "expected_layer": "native_pdf_text",
+  "expected_outcome": "extracted_with_warnings",
+  "expected_rotation": 0,
+  "native_trustworthy": true,
+  "corrupt_embedded": false,
+  "must_reject_corrupt": false,
+  "ocr_required": false,
+  "silent_mix": false,
+  "critical_fields": [],
+  "notes": "Synthetic fixture \u2014 no private case data",
+  "duplicate_text_layer_rate": 1.0,
+  "challenge": "duplicate_layer"
+}

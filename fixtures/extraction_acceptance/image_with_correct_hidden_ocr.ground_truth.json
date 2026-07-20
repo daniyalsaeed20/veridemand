@@ -1,0 +1,50 @@
+{
+  "fixture_id": "image_with_correct_hidden_ocr",
+  "annotation_status": "human_approved",
+  "page_number": 1,
+  "expected_transcript": "HIDDEN OCR CORRECT",
+  "expected_lines": [
+    "HIDDEN OCR CORRECT"
+  ],
+  "expected_line_ids": [
+    "L0"
+  ],
+  "expected_word_ids": [
+    "W0"
+  ],
+  "expected_words": [
+    {
+      "word_id": "W0",
+      "text": "HIDDEN",
+      "reading_order": 0,
+      "polygon": [
+        [
+          0.1,
+          0.1
+        ],
+        [
+          0.3,
+          0.1
+        ],
+        [
+          0.3,
+          0.2
+        ],
+        [
+          0.1,
+          0.2
+        ]
+      ]
+    }
+  ],
+  "expected_layer": "embedded_ocr",
+  "expected_outcome": "faithful_canonical",
+  "expected_rotation": 0,
+  "native_trustworthy": true,
+  "corrupt_embedded": false,
+  "must_reject_corrupt": false,
+  "ocr_required": false,
+  "silent_mix": false,
+  "critical_fields": [],
+  "notes": "Synthetic fixture \u2014 no private case data"
+}

@@ -1,0 +1,85 @@
+{
+  "fixture_id": "person_name_field",
+  "annotation_status": "human_approved",
+  "page_number": 1,
+  "expected_transcript": "Client: Jordan Lee",
+  "expected_lines": [
+    "Client: Jordan Lee"
+  ],
+  "expected_line_ids": [
+    "L0"
+  ],
+  "expected_word_ids": [
+    "W0",
+    "W1"
+  ],
+  "expected_words": [
+    {
+      "word_id": "W0",
+      "text": "Jordan",
+      "reading_order": 0,
+      "polygon": [
+        [
+          0.3,
+          0.1
+        ],
+        [
+          0.5,
+          0.1
+        ],
+        [
+          0.5,
+          0.2
+        ],
+        [
+          0.3,
+          0.2
+        ]
+      ]
+    },
+    {
+      "word_id": "W1",
+      "text": "Lee",
+      "reading_order": 1,
+      "polygon": [
+        [
+          0.51,
+          0.1
+        ],
+        [
+          0.65,
+          0.1
+        ],
+        [
+          0.65,
+          0.2
+        ],
+        [
+          0.51,
+          0.2
+        ]
+      ]
+    }
+  ],
+  "expected_layer": "native_pdf_text",
+  "expected_outcome": "faithful_canonical",
+  "expected_rotation": 0,
+  "native_trustworthy": true,
+  "corrupt_embedded": false,
+  "must_reject_corrupt": false,
+  "ocr_required": false,
+  "silent_mix": false,
+  "critical_fields": [
+    {
+      "field_id": "person",
+      "field_type": "person_name",
+      "expected": "Jordan Lee",
+      "hypothesized": "Jordan Lee",
+      "uncertain": false,
+      "accepted": true,
+      "review_required": false,
+      "layer_used": "native_pdf_text"
+    }
+  ],
+  "notes": "Synthetic fixture \u2014 no private case data"
+}
