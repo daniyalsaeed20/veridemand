@@ -81,6 +81,7 @@ ISSUE_TYPES: Final[frozenset[str]] = frozenset(
         "extraction.truncated_text",
         "extraction.suspected_handwriting",
         "extraction.insufficient_ocr_coverage",
+        "classification.ambiguous",
         "identity.name_conflict",
         "identity.dob_conflict",
         "identity.pronoun_conflict",
@@ -140,6 +141,9 @@ class ErrorCode(StrEnum):
     EXTRACTION_RENDER_FAILED = "extraction_render_failed"
     EXTRACTION_OCR_FAILED = "extraction_ocr_failed"
     EXTRACTION_NATIVE_FAILED = "extraction_native_failed"
+    CLASSIFICATION_LOCKED = "classification_locked"
+    DOCUMENT_INVALID_PATCH = "document_invalid_patch"
+    SEQUENCE_INVALID = "sequence_invalid"
     FACT_NOT_FOUND = "fact_not_found"
     FACT_LOCKED = "fact_locked"
     FACT_INVALID_PATCH = "fact_invalid_patch"

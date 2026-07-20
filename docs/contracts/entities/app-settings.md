@@ -46,6 +46,8 @@ Validated runtime configuration for the prototype. Loaded from environment; neve
 | `ocr_ink_binarize_threshold` | int | yes | `0–255` | Default `200` |
 | `ocr_under_detection_triggers_retry` | bool | yes | | Default `true` |
 | `ocr_force_for_tests` | bool | yes | | Default `false` — forced OCR test mode; does not replace preferred native artifacts unless explicitly enabled |
+| `rule_confidence_threshold` | float | yes | `0–1` | Default `0.55` — provisional; see [04-classification-thresholds](../../readiness/04-classification-thresholds.md) |
+| `enable_llm_classification` | bool | yes | | Default `false` — optional FR-CLS-02 fallback |
 | `enable_llm_semantic_extraction` | bool | yes | | Default `false` |
 | `llm_extraction_temperature` | float | yes | `>= 0` | Default `0` |
 | `llm_draft_temperature` | float | yes | `>= 0` | Default `0.2` |

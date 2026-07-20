@@ -29,6 +29,11 @@ ERROR_MESSAGES: dict[str, str] = {
     ErrorCode.PROCESS_STAGE_FAILED: "Processing failed during a pipeline stage.",
     ErrorCode.EXTRACTION_NATIVE_FAILED: "Native text extraction failed unexpectedly.",
     ErrorCode.EXTRACTION_RENDER_FAILED: "A page could not be rendered.",
+    ErrorCode.CLASSIFICATION_LOCKED: (
+        "This document classification is locked and cannot be changed automatically."
+    ),
+    ErrorCode.DOCUMENT_INVALID_PATCH: "The document update is invalid.",
+    ErrorCode.SEQUENCE_INVALID: "The document sequence update is invalid.",
     ErrorCode.ROUTE_NOT_FOUND: "The requested resource was not found.",
 }
 
@@ -52,6 +57,9 @@ ERROR_HTTP_STATUS: dict[str, int] = {
     ErrorCode.PROCESS_STAGE_FAILED: 500,
     ErrorCode.EXTRACTION_NATIVE_FAILED: 500,
     ErrorCode.EXTRACTION_RENDER_FAILED: 500,
+    ErrorCode.CLASSIFICATION_LOCKED: 409,
+    ErrorCode.DOCUMENT_INVALID_PATCH: 400,
+    ErrorCode.SEQUENCE_INVALID: 400,
     ErrorCode.ROUTE_NOT_FOUND: 404,
 }
 

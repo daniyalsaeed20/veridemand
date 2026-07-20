@@ -15,6 +15,8 @@ from app.models.issue import Issue
 from app.models.process_event import ProcessEvent
 from app.models.source_span import SourceSpan
 from app.models.source_token import SourceToken
+from app.services.classification import ClassificationService
+from app.services.classification.types import DocumentPresentationPatch, DocumentSequenceUpdate
 from app.services.documents import DocumentService
 from app.services.process import ProcessService
 from app.services.session import SessionService
@@ -62,6 +64,33 @@ def delete_document(session_id: str, document_id: str, request: Request) -> Resp
     service: DocumentService = request.app.state.document_service
     service.delete_document(session_id, document_id)
     return Response(status_code=204)
+
+
+@router.patch(
+    "/sessions/{session_id}/documents/{document_id}",
+    response_model=Document,
+)
+def patch_document(
+    session_id: str,
+    document_id: str,
+    patch: DocumentPresentationPatch,
+    request: Request,
+) -> Document:
+    service: ClassificationService = request.app.state.classification_service
+    return service.update_document_presentation(session_id, document_id, patch)
+
+
+@router.put(
+    "/sessions/{session_id}/documents/sequence",
+    response_model=list[Document],
+)
+def update_document_sequence(
+    session_id: str,
+    body: DocumentSequenceUpdate,
+    request: Request,
+) -> list[Document]:
+    service: ClassificationService = request.app.state.classification_service
+    return service.update_document_sequence(session_id, body)
 
 
 @router.post("/sessions/{session_id}/process", response_model=list[ProcessEvent])

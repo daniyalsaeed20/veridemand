@@ -104,6 +104,16 @@ User-facing copy for soft failures (readable UI, not always HTTP): *Text could n
 
 ---
 
+## Classification
+
+| error_code | HTTP | message (template) | Recovery | Module |
+|------------|------|--------------------|----------|--------|
+| `classification_locked` | 409 | This document classification is locked and cannot be changed automatically. | Unlock via user correction flow if supported. | 04 |
+| `document_invalid_patch` | 400 | The document update is invalid. | Fix fields listed in `details`. | 04 |
+| `sequence_invalid` | 400 | The document sequence update is invalid. | Provide a complete, unique list of session document IDs. | 04 |
+
+---
+
 ## Facts / review
 
 | error_code | HTTP | message (template) | Recovery | Module |

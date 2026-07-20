@@ -47,7 +47,7 @@ def test_pdf_normalize_and_native_extract(tmp_path: Path) -> None:
             [("a.pdf", pdf.read_bytes(), "application/pdf")],
         )
         doc = docs[0]
-        assert doc.status == "extracted"
+        assert doc.status in {"extracted", "classified"}
         assert doc.page_count == 2
 
         pages = [
@@ -83,7 +83,7 @@ def test_docx_convert_success_fake_adapter(tmp_path: Path) -> None:
             converter=fake_docx_converter_success,
         )
         doc = docs[0]
-        assert doc.status == "extracted"
+        assert doc.status in {"extracted", "classified"}
         assert doc.page_count == 1
         view = client.get(f"/api/v1/sessions/{session_id}/documents/{doc.id}/view")
         assert view.status_code == 200
@@ -169,7 +169,7 @@ def test_image_and_tiff_normalize(tmp_path: Path) -> None:
         assert by_name["b.jpg"].page_count == 1
         assert by_name["c.tiff"].page_count == 3
         for doc in docs:
-            assert doc.status == "extracted"
+            assert doc.status in {"extracted", "classified"}
             thumb = client.get(f"/api/v1/sessions/{session_id}/documents/{doc.id}/thumbnails/1")
             assert thumb.status_code == 200
 

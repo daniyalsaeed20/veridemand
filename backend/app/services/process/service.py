@@ -25,6 +25,7 @@ from app.models.process_event import ProcessEvent
 from app.models.source_span import SourceSpan
 from app.models.source_token import SourceToken
 from app.models.taxonomies import ErrorCode
+from app.services.classification import ClassificationService
 from app.services.documents.convert_docx import (
     ConversionError,
     DocxConverter,
@@ -51,11 +52,13 @@ class ProcessService:
         app_settings: AppSettings,
         server_settings: ServerSettings,
         docx_converter: DocxConverter | None = None,
+        classification_service: ClassificationService | None = None,
     ) -> None:
         self._sessions = session_service
         self._settings = app_settings
         self._server = server_settings
         self._docx_converter: DocxConverter = docx_converter or self._default_docx_converter
+        self._classification = classification_service
         self._threads: dict[str, threading.Thread] = {}
         self._threads_lock = threading.Lock()
         self._test_hooks: dict[str, Callable[[], None]] = {}
@@ -102,6 +105,7 @@ class ProcessService:
                 DocumentStatus.NORMALIZED,
                 DocumentStatus.READY_FOR_EXTRACTION,
                 DocumentStatus.EXTRACTED,
+                DocumentStatus.CLASSIFIED,
             }
         ]
         if not docs:
@@ -164,6 +168,7 @@ class ProcessService:
                     DocumentStatus.NORMALIZED,
                     DocumentStatus.READY_FOR_EXTRACTION,
                     DocumentStatus.EXTRACTED,
+                    DocumentStatus.CLASSIFIED,
                 }:
                     continue
                 self._process_document(session_id, generation, document, index, total)
@@ -179,12 +184,23 @@ class ProcessService:
             if record.generation != generation:
                 return
             record.session.status = SessionStatus.REVIEWING
+
+            # Phase 4: classification + sequencing (no OCR rerun)
+            if self._classification is not None:
+                self._classification.classify_session(session_id, generation)
+
+            try:
+                record = self._sessions.get_record(session_id, touch=False)
+            except DomainError:
+                return
+            if record.generation != generation:
+                return
             record.process_completed = True
             self._emit(
                 record,
                 "process.completed",
                 status="completed",
-                message="Phase 3 processing completed.",
+                message="Phase 4 processing completed.",
                 progress=1.0,
             )
         except DomainError as exc:

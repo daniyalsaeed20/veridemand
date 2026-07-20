@@ -56,6 +56,8 @@ class AppSettings(BaseModel):
     ocr_ink_binarize_threshold: int = Field(default=200, ge=0, le=255)
     ocr_under_detection_triggers_retry: bool = True
     ocr_force_for_tests: bool = False
+    rule_confidence_threshold: float = Field(default=0.55, ge=0.0, le=1.0)
+    enable_llm_classification: bool = False
     enable_llm_semantic_extraction: bool = False
     llm_extraction_temperature: float = Field(default=0.0, ge=0.0)
     llm_draft_temperature: float = Field(default=0.2, ge=0.0)
@@ -97,6 +99,7 @@ class AppSettings(BaseModel):
             "NATIVE_LONG_TOKEN_BAND": "native_long_token_band",
         }
         float_keys = {
+            "RULE_CONFIDENCE_THRESHOLD": "rule_confidence_threshold",
             "NATIVE_MIN_TEXT_COVERAGE": "native_min_text_coverage",
             "NATIVE_MAX_REPLACEMENT_RATIO": "native_max_replacement_ratio",
             "NATIVE_MAX_ZERO_WIDTH_OR_OVERLAP_RATIO": "native_max_zero_width_or_overlap_ratio",
@@ -118,6 +121,7 @@ class AppSettings(BaseModel):
             "LLM_DRAFT_TEMPERATURE": "llm_draft_temperature",
         }
         bool_keys = {
+            "ENABLE_LLM_CLASSIFICATION": "enable_llm_classification",
             "ENABLE_LLM_SEMANTIC_EXTRACTION": "enable_llm_semantic_extraction",
             "ALLOW_VISION_CROP_FALLBACK": "allow_vision_crop_fallback",
             "ALLOW_FINAL_EXPORT_WITH_RED_ISSUES": "allow_final_export_with_red_issues",
@@ -148,12 +152,14 @@ class ConfigurationError(ValueError):
     """Raised when AppSettings cannot be loaded from the environment."""
 
 
-def get_safe_config_summary(settings: AppSettings) -> dict[str, int | bool]:
+def get_safe_config_summary(settings: AppSettings) -> dict[str, int | bool | float]:
     """Non-sensitive subset for health capabilities."""
     return {
         # ocr_enabled is filled by HealthService (avoids models→services import)
         "ocr_enabled": False,
+        "llm_classification_enabled": settings.enable_llm_classification,
         "llm_semantic_extraction_enabled": settings.enable_llm_semantic_extraction,
+        "rule_confidence_threshold": settings.rule_confidence_threshold,
         "max_files_per_session": settings.max_files_per_session,
         "max_pages_per_session": settings.max_pages_per_session,
     }

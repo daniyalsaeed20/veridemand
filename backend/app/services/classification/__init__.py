@@ -1,2 +1,5 @@
-# Phase 0 stub — implemented in a later phase.
+"""Document classification and sequencing (Phase 4)."""
 
+from app.services.classification.service import ClassificationService
+
+__all__ = ["ClassificationService"]

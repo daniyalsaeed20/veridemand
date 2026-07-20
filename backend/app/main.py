@@ -17,6 +17,7 @@ from app.core.logging import configure_logging, get_logger
 from app.core.middleware import RequestIdMiddleware
 from app.core.server_settings import ServerSettings, get_server_settings
 from app.models.app_settings import AppSettings, ConfigurationError
+from app.services.classification import ClassificationService
 from app.services.documents import DocumentService
 from app.services.health import HealthService
 from app.services.ocr import configure_init_cooldown_ms, shutdown_adapter
@@ -51,16 +52,22 @@ def create_app(
             session_service=session_service,
             app_settings=settings,
         )
+        classification_service = ClassificationService(
+            session_service=session_service,
+            app_settings=settings,
+        )
         process_service = ProcessService(
             session_service=session_service,
             app_settings=settings,
             server_settings=server,
+            classification_service=classification_service,
         )
         session_service.set_process_drain(process_service.wait_until_idle)
         app.state.app_settings = settings
         app.state.server_settings = server
         app.state.session_service = session_service
         app.state.document_service = document_service
+        app.state.classification_service = classification_service
         app.state.process_service = process_service
         app.state.health_service = HealthService(
             settings=settings,

@@ -62,6 +62,10 @@ class SessionRecord:
     # Per-session OCR/process cancel (B-02); set on delete/expire
     cancel_event: Event = field(default_factory=Event)
     deleting: bool = False
+    # Phase 4: user-confirmed classifications protected from automatic overwrite
+    classification_locked: set[str] = field(default_factory=set)
+    # Original upload order for stable tie-breaking (doc_id -> ordinal)
+    upload_order: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -275,6 +279,7 @@ class SessionService:
                 )
                 record.documents[doc_id] = document
                 record.stored_paths[doc_id] = owner_path
+                record.upload_order.setdefault(doc_id, len(record.upload_order))
                 self._touch_locked(record)
                 return document.model_copy(deep=True)
 
@@ -300,6 +305,7 @@ class SessionService:
             record.documents[doc_id] = document
             record.stored_paths[doc_id] = dest
             record.hash_index[validated.content_sha256] = doc_id
+            record.upload_order.setdefault(doc_id, len(record.upload_order))
             record.bytes_used += validated.size_bytes
             if validated.page_count is not None:
                 record.pages_used += validated.page_count

@@ -9,25 +9,16 @@ import {
   listDocuments,
   waitForProcess,
   uploadDocuments,
-  type Document,
   type HealthResponse,
 } from "../api/client";
 import DocumentViewer from "../components/DocumentViewer";
+import DocumentList from "../components/DocumentList";
+import { isViewable } from "../components/documentClassification";
 import { useShellStore } from "../store/shellStore";
 
 const FRONTEND_VERSION = "0.0.0-dev";
 const ACCEPT =
   ".pdf,.docx,.jpg,.jpeg,.png,.tif,.tiff,application/pdf,image/jpeg,image/png,image/tiff,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-
-function statusLabel(doc: Document): string {
-  if (doc.error_code) {
-    return `${doc.status} · error: ${doc.error_code}`;
-  }
-  if (doc.status === "uploaded") {
-    return "uploaded · awaiting normalization";
-  }
-  return doc.status;
-}
 
 export default function App() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
@@ -183,7 +174,7 @@ export default function App() {
       const ocrEvents = events.filter((e) => e.event.startsWith("document.ocr."));
       setProcessMessage(
         completed
-          ? `Normalization, native extraction, and OCR completed${ocrEvents.length ? ` (${ocrEvents.length} OCR events)` : ""}.`
+          ? `Processing completed — documents classified and sequenced${ocrEvents.length ? ` (${ocrEvents.length} OCR events)` : ""}.`
           : "Processing finished with document-level errors.",
       );
       if (failed.length > 0) {
@@ -195,7 +186,7 @@ export default function App() {
       setDocuments(docs);
       const refreshed = await getSession(session.id);
       setSession(refreshed);
-      const viewable = docs.find((d) => d.status === "extracted");
+      const viewable = docs.find((d) => isViewable(d));
       if (viewable) setSelectedDocId(viewable.id);
     } catch (err) {
       handleApiError(err);
@@ -207,7 +198,10 @@ export default function App() {
   const selected = documents.find((d) => d.id === selectedDocId) ?? null;
   const canProcess = documents.some(
     (d) =>
-      d.status === "uploaded" || d.status === "extracted" || d.status === "ready_for_extraction",
+      d.status === "uploaded" ||
+      d.status === "extracted" ||
+      d.status === "classified" ||
+      d.status === "ready_for_extraction",
   );
 
   return (
@@ -218,7 +212,7 @@ export default function App() {
 
       <h1 className="brand">VeriDemand</h1>
       <p className="lede">
-        Demand-letter automation prototype — Phase 2 document viewer and native extraction.
+        Demand-letter automation prototype — Phase 4 document classification and sequencing.
       </p>
 
       {session?.warning ? (
@@ -320,44 +314,16 @@ export default function App() {
           </div>
 
           {documents.length > 0 ? (
-            <div className="doc-list">
-              <h2>Documents</h2>
-              <ul>
-                {documents.map((doc) => (
-                  <li key={doc.id}>
-                    <div>
-                      <button
-                        type="button"
-                        className={`doc-select${selectedDocId === doc.id ? " doc-select-active" : ""}`}
-                        disabled={doc.status !== "extracted"}
-                        onClick={() => setSelectedDocId(doc.id)}
-                      >
-                        <strong>{doc.display_name}</strong>
-                      </button>
-                      <span className="muted">
-                        {" "}
-                        · {doc.file_type} · {statusLabel(doc)}
-                        {doc.page_count != null ? ` · ${doc.page_count} page(s)` : ""}
-                      </span>
-                      {doc.error_message ? (
-                        <div className="doc-error">{doc.error_message}</div>
-                      ) : null}
-                      {doc.status === "duplicate" ? (
-                        <span className="dup-warn"> Exact duplicate of another upload.</span>
-                      ) : null}
-                    </div>
-                    <button
-                      type="button"
-                      className="btn btn-small"
-                      disabled={busy}
-                      onClick={() => void onRemove(doc.id)}
-                    >
-                      Remove
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <DocumentList
+              sessionId={session.id}
+              documents={documents}
+              busy={busy}
+              selectedDocId={selectedDocId}
+              onSelect={setSelectedDocId}
+              onDocumentsChange={setDocuments}
+              onError={(msg) => setError(msg)}
+              onRemove={(id) => void onRemove(id)}
+            />
           ) : null}
 
           {rejections.length > 0 ? (

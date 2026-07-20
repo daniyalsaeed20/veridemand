@@ -8,9 +8,7 @@
 | Downstream | [05 Deterministic Fact Extraction](./05-deterministic-fact-extraction.md); [06 Chronology and Billing](./06-chronology-and-billing.md); [07 Issue Engine](./07-issue-and-contradiction-engine.md) |
 | Exit gate | All sample files are correctly classified or surfaced for quick correction, and users can reorder without reprocessing. |
 | Status | design |
-| Contracts | [`document.md`](../contracts/entities/document.md); [`DocumentClassification`](../contracts/enums.md); metadata facts via [`fact.md`](../contracts/entities/fact.md) |
-
-## 1. Purpose
+| Contracts | [`document.md`](../contracts/entities/document.md); [`DocumentClassification`](../contracts/enums.md) |
 Classify each extracted document with deterministic evidence, capture limited metadata, and propose a review order. Rules are authoritative for the normal path; a low-cost LLM can only break low-confidence classification ties and never promotes an existing demand to evidence authority.
 
 ## 2. Responsibilities
@@ -168,6 +166,8 @@ The Documents screen shows type, confidence/reason, page traits, warning count, 
 - Exit: every sample document is classified or quickly correctable, and reordering is instant and preserved in session state.
 
 ## 10. Open questions / non-goals
-- Thresholds and rule dictionaries require corpus measurement; they are not asserted by this design.
-- LLM fallback uses only compact classification features, never complete documents, and is optional.
-- This module does not infer facts, extract semantic medical findings, or determine evidentiary/legal authority beyond the FR-CLS-06 guard.
+
+- Thresholds and rule dictionaries require corpus measurement; provisional values live in [`04-classification-thresholds.md`](../readiness/04-classification-thresholds.md).
+- LLM fallback uses only compact classification features, never complete documents, and is **disabled by default** (provider-neutral stub only).
+- FR-CLS-04 metadata `Fact` extraction is deferred to Phase 5; classification uses spans for rule features only.
+- This module does not infer case facts, extract semantic medical findings, or determine evidentiary/legal authority beyond the FR-CLS-06 guard.

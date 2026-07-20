@@ -159,6 +159,59 @@ export async function deleteDocument(sessionId: string, documentId: string): Pro
   }
 }
 
+export type DocumentPatch = {
+  classification?: string;
+  display_name?: string;
+  sequence_index?: number;
+  exclude_from_drafting?: boolean;
+  treat_as_secondary_evidence?: boolean;
+  confirm_classification?: boolean;
+  revert_to_proposed?: boolean;
+};
+
+export async function patchDocument(
+  sessionId: string,
+  documentId: string,
+  patch: DocumentPatch,
+): Promise<Document> {
+  const response = await fetch(
+    `${baseUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/documents/${encodeURIComponent(documentId)}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    },
+  );
+  if (!response.ok) {
+    throw await parseError(response);
+  }
+  const json: unknown = await response.json();
+  const parsed = DocumentSchema.safeParse(json);
+  if (!parsed.success) {
+    throw new Error("Document patch response failed contract validation");
+  }
+  return parsed.data;
+}
+
+export async function updateDocumentSequence(
+  sessionId: string,
+  documentIds: string[],
+): Promise<Document[]> {
+  const response = await fetch(
+    `${baseUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/documents/sequence`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ document_ids: documentIds }),
+    },
+  );
+  if (!response.ok) {
+    throw await parseError(response);
+  }
+  const json: unknown = await response.json();
+  return parseArray(json, DocumentSchema, "Document sequence");
+}
+
 export async function startProcess(sessionId: string): Promise<ProcessEvent[]> {
   const response = await fetch(
     `${baseUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/process`,
