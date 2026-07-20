@@ -11,7 +11,7 @@
 | Phase 4 audited tag | `phase-04-audited-pass` |
 | Phase 4 audited commit | `62e1828a7a32ad0a1909c36dcfc34ebf3b40625d` |
 | Pre-implementation tip | `deed472` (docs: Phase 4 hardening audit) |
-| Phase 5 implementation commit | *(this commit)* |
+| Phase 5 implementation commit | `cab86da303ae4340729d56a68194b92c90c4dab1` |
 
 Prior Phase 4 audit / hardening / hardening-audit reports are preserved and not erased.
 
