@@ -11,6 +11,7 @@ from app.models.case_session import CaseSession
 from app.models.document import Document
 from app.models.document_page import DocumentPage
 from app.models.document_upload_batch import DocumentUploadBatch
+from app.models.fact import Fact
 from app.models.issue import Issue
 from app.models.process_event import ProcessEvent
 from app.models.source_span import SourceSpan
@@ -18,6 +19,7 @@ from app.models.source_token import SourceToken
 from app.services.classification import ClassificationService
 from app.services.classification.types import DocumentPresentationPatch, DocumentSequenceUpdate
 from app.services.documents import DocumentService
+from app.services.facts import FactListResponse, FactPatch, FactService
 from app.services.process import ProcessService
 from app.services.session import SessionService
 
@@ -186,3 +188,30 @@ def list_spans(
 ) -> list[SourceSpan]:
     service: ProcessService = request.app.state.process_service
     return service.list_spans(session_id, document_id, page_number)
+
+
+@router.get("/sessions/{session_id}/facts", response_model=FactListResponse)
+def list_facts(session_id: str, request: Request) -> FactListResponse:
+    service: FactService = request.app.state.fact_service
+    return service.list_facts(session_id)
+
+
+@router.post("/sessions/{session_id}/facts/extract", response_model=FactListResponse)
+def extract_facts(session_id: str, request: Request) -> FactListResponse:
+    """Re-run deterministic fact extraction over published spans (no OCR rerun)."""
+    service: FactService = request.app.state.fact_service
+    sessions: SessionService = request.app.state.session_service
+    record = sessions.get_record(session_id, touch=True)
+    service.extract_session_facts(session_id, record.generation)
+    return service.list_facts(session_id)
+
+
+@router.patch("/sessions/{session_id}/facts/{fact_id}", response_model=Fact)
+def patch_fact(
+    session_id: str,
+    fact_id: str,
+    patch: FactPatch,
+    request: Request,
+) -> Fact:
+    service: FactService = request.app.state.fact_service
+    return service.apply_fact_review(session_id, fact_id, patch)

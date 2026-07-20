@@ -13,6 +13,7 @@ import {
 } from "../api/client";
 import DocumentViewer from "../components/DocumentViewer";
 import DocumentList from "../components/DocumentList";
+import FactsPanel, { type FactFocusTarget } from "../components/FactsPanel";
 import { isViewable } from "../components/documentClassification";
 import { useShellStore } from "../store/shellStore";
 
@@ -26,6 +27,8 @@ export default function App() {
   const [dragOver, setDragOver] = useState(false);
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [processMessage, setProcessMessage] = useState<string | null>(null);
+  const [factsRefresh, setFactsRefresh] = useState(0);
+  const [factFocus, setFactFocus] = useState<FactFocusTarget | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const error = useShellStore((s) => s.error);
@@ -174,7 +177,7 @@ export default function App() {
       const ocrEvents = events.filter((e) => e.event.startsWith("document.ocr."));
       setProcessMessage(
         completed
-          ? `Processing completed — documents classified and sequenced${ocrEvents.length ? ` (${ocrEvents.length} OCR events)` : ""}.`
+          ? `Processing completed — classification, sequencing, and deterministic facts${ocrEvents.length ? ` (${ocrEvents.length} OCR events)` : ""}.`
           : "Processing finished with document-level errors.",
       );
       if (failed.length > 0) {
@@ -186,6 +189,7 @@ export default function App() {
       setDocuments(docs);
       const refreshed = await getSession(session.id);
       setSession(refreshed);
+      setFactsRefresh((n) => n + 1);
       const viewable = docs.find((d) => isViewable(d));
       if (viewable) setSelectedDocId(viewable.id);
     } catch (err) {
@@ -212,7 +216,7 @@ export default function App() {
 
       <h1 className="brand">VeriDemand</h1>
       <p className="lede">
-        Demand-letter automation prototype — Phase 4 document classification and sequencing.
+        Demand-letter automation prototype — Phase 5 deterministic fact extraction.
       </p>
 
       {session?.warning ? (
@@ -326,6 +330,15 @@ export default function App() {
             />
           ) : null}
 
+          <FactsPanel
+            sessionId={session.id}
+            refreshKey={factsRefresh}
+            onFocusFact={(target) => {
+              setFactFocus(target);
+              setSelectedDocId(target.documentId);
+            }}
+          />
+
           {rejections.length > 0 ? (
             <div className="reject-list">
               <h2>Rejected files</h2>
@@ -348,6 +361,8 @@ export default function App() {
               sessionId={session.id}
               documentId={selected.id}
               displayName={selected.display_name}
+              focusPage={factFocus?.documentId === selected.id ? factFocus.pageNumber : null}
+              focusSpanIds={factFocus?.documentId === selected.id ? factFocus.spanIds : null}
             />
           ) : null}
         </section>

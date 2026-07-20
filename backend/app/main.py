@@ -19,6 +19,7 @@ from app.core.server_settings import ServerSettings, get_server_settings
 from app.models.app_settings import AppSettings, ConfigurationError
 from app.services.classification import ClassificationService
 from app.services.documents import DocumentService
+from app.services.facts import FactService
 from app.services.health import HealthService
 from app.services.ocr import configure_init_cooldown_ms, shutdown_adapter
 from app.services.process import ProcessService
@@ -56,11 +57,16 @@ def create_app(
             session_service=session_service,
             app_settings=settings,
         )
+        fact_service = FactService(
+            session_service=session_service,
+            app_settings=settings,
+        )
         process_service = ProcessService(
             session_service=session_service,
             app_settings=settings,
             server_settings=server,
             classification_service=classification_service,
+            fact_service=fact_service,
         )
         session_service.set_process_drain(process_service.wait_until_idle)
         app.state.app_settings = settings
@@ -68,6 +74,7 @@ def create_app(
         app.state.session_service = session_service
         app.state.document_service = document_service
         app.state.classification_service = classification_service
+        app.state.fact_service = fact_service
         app.state.process_service = process_service
         app.state.health_service = HealthService(
             settings=settings,

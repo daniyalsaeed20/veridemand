@@ -37,6 +37,7 @@ from app.services.documents.thumbnails import ThumbnailError, count_pdf_pages, c
 from app.services.extraction.native import extract_document_native
 from app.services.extraction.ocr_page import extract_ocr_page
 from app.services.extraction.ocr_quality import OcrPageOutcome
+from app.services.facts import FactService
 from app.services.ocr import OcrCancelledError, OcrUnavailableError
 from app.services.session.service import SessionRecord, SessionService
 from app.services.session.workspace import new_opaque_id
@@ -53,12 +54,14 @@ class ProcessService:
         server_settings: ServerSettings,
         docx_converter: DocxConverter | None = None,
         classification_service: ClassificationService | None = None,
+        fact_service: FactService | None = None,
     ) -> None:
         self._sessions = session_service
         self._settings = app_settings
         self._server = server_settings
         self._docx_converter: DocxConverter = docx_converter or self._default_docx_converter
         self._classification = classification_service
+        self._facts = fact_service
         self._threads: dict[str, threading.Thread] = {}
         self._threads_lock = threading.Lock()
         self._test_hooks: dict[str, Callable[[], None]] = {}
@@ -189,6 +192,44 @@ class ProcessService:
             if self._classification is not None:
                 self._classification.classify_session(session_id, generation)
 
+            if self._is_cancelled(session_id, generation):
+                self._emit_cancelled(session_id, generation)
+                return
+
+            try:
+                record = self._sessions.get_record(session_id, touch=False)
+            except DomainError:
+                return
+            if record.generation != generation:
+                return
+
+            # Phase 5: deterministic facts from published spans (no OCR/PDF rerun)
+            if self._facts is not None:
+                self._emit(
+                    record,
+                    "fact.extracting",
+                    status="running",
+                    message="Extracting deterministic facts.",
+                    progress=0.92,
+                )
+                fact_result = self._facts.extract_session_facts(session_id, generation)
+                try:
+                    record = self._sessions.get_record(session_id, touch=False)
+                except DomainError:
+                    return
+                if record.generation != generation:
+                    return
+                self._emit(
+                    record,
+                    "fact.extracted",
+                    status="completed",
+                    message=(
+                        f"Deterministic facts: {len(fact_result.facts)} facts, "
+                        f"{len(fact_result.issues)} review items."
+                    ),
+                    progress=0.98,
+                )
+
             try:
                 record = self._sessions.get_record(session_id, touch=False)
             except DomainError:
@@ -200,7 +241,7 @@ class ProcessService:
                 record,
                 "process.completed",
                 status="completed",
-                message="Phase 4 processing completed.",
+                message="Phase 5 processing completed.",
                 progress=1.0,
             )
         except DomainError as exc:

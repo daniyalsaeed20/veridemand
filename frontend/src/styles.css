@@ -448,6 +448,111 @@ body {
   background: rgba(61, 90, 128, 0.12);
 }
 
+.facts-panel {
+  margin: 1.25rem 0;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.35);
+  border: 1px solid rgba(40, 50, 60, 0.12);
+}
+
+.facts-header h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.15rem;
+}
+
+.facts-counts {
+  margin: 0.35rem 0 0;
+}
+
+.facts-issues {
+  margin: 0.75rem 0;
+  padding: 0.65rem;
+  background: rgba(180, 60, 40, 0.06);
+}
+
+.facts-issues ul,
+.fact-group ul {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0;
+}
+
+.fact-group {
+  margin-top: 0.85rem;
+}
+
+.fact-group h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+  text-transform: capitalize;
+}
+
+.fact-item {
+  appearance: none;
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.5);
+  padding: 0.55rem 0.65rem;
+  margin-bottom: 0.4rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.fact-item-active {
+  border-color: #3d5a80;
+  background: rgba(61, 90, 128, 0.1);
+}
+
+.fact-item-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+
+.fact-value {
+  margin-top: 0.25rem;
+  font-weight: 600;
+}
+
+.fact-meta {
+  margin-top: 0.2rem;
+  font-size: 0.8rem;
+}
+
+.fact-status {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.fact-status-verified {
+  color: #1f6b3a;
+}
+.fact-status-review {
+  color: #8a5a00;
+}
+.fact-status-conflict {
+  color: #8b1e1e;
+}
+.fact-status-rejected {
+  color: #555;
+}
+.fact-status-locked {
+  color: #3d5a80;
+}
+.fact-status-suggested {
+  color: #445566;
+}
+
+.issue-sev-red {
+  color: #8b1e1e;
+}
+.issue-sev-amber {
+  color: #8a5a00;
+}
+
 @media (max-width: 720px) {
   .workspace-header {
     grid-template-columns: 1fr;

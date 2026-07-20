@@ -16,6 +16,7 @@ from app.models.case_session import CaseSession
 from app.models.document import Document
 from app.models.document_page import DocumentPage
 from app.models.enums import DocumentFileType, DocumentStatus, SessionStatus
+from app.models.fact import Fact
 from app.models.issue import Issue
 from app.models.process_event import ProcessEvent
 from app.models.source_span import SourceSpan
@@ -53,6 +54,8 @@ class SessionRecord:
     spans_by_page: dict[str, dict[int, list[SourceSpan]]] = field(default_factory=dict)
     page_rotation: dict[str, dict[int, int]] = field(default_factory=dict)
     issues: list[Issue] = field(default_factory=list)
+    facts: list[Fact] = field(default_factory=list)
+    fact_generation: int = 0
     ocr_meta_by_page: dict[str, dict[int, dict[str, object]]] = field(default_factory=dict)
     events: list[ProcessEvent] = field(default_factory=list)
     process_running: bool = False
@@ -359,6 +362,9 @@ class SessionService:
             record.ocr_meta_by_page.pop(document_id, None)
             record.issues = [
                 i for i in record.issues if not (i.document_ids and document_id in i.document_ids)
+            ]
+            record.facts = [
+                f for f in record.facts if not (f.document_ids and document_id in f.document_ids)
             ]
 
             if was_owner:

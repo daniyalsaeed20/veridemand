@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   DocumentSchema,
   DocumentUploadBatchSchema,
@@ -19,6 +20,19 @@ import {
   type SourceSpan,
   type SourceToken,
 } from "../schemas/viewer";
+import { FactSchema } from "../schemas/generated/Fact";
+
+export type Fact = z.infer<typeof FactSchema>;
+
+const FactListResponseSchema = z
+  .object({
+    facts: z.array(FactSchema),
+    groups: z.record(z.array(z.string())).default({}),
+    counts_by_status: z.record(z.number()).default({}),
+  })
+  .strict();
+
+export type FactListResponse = z.infer<typeof FactListResponseSchema>;
 
 const baseUrl =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://127.0.0.1:8000";
@@ -276,6 +290,35 @@ export async function listIssues(sessionId: string): Promise<unknown[]> {
     throw new Error("Issues response failed contract validation");
   }
   return json;
+}
+
+export async function listFacts(sessionId: string): Promise<FactListResponse> {
+  const response = await fetch(`${baseUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/facts`);
+  if (!response.ok) {
+    throw await parseError(response);
+  }
+  const json: unknown = await response.json();
+  const parsed = FactListResponseSchema.safeParse(json);
+  if (!parsed.success) {
+    throw new Error("Facts response failed contract validation");
+  }
+  return parsed.data;
+}
+
+export async function extractFacts(sessionId: string): Promise<FactListResponse> {
+  const response = await fetch(
+    `${baseUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/facts/extract`,
+    { method: "POST" },
+  );
+  if (!response.ok) {
+    throw await parseError(response);
+  }
+  const json: unknown = await response.json();
+  const parsed = FactListResponseSchema.safeParse(json);
+  if (!parsed.success) {
+    throw new Error("Facts extract response failed contract validation");
+  }
+  return parsed.data;
 }
 
 export async function retryOcrPage(

@@ -13,9 +13,13 @@ Use these values in `Fact.fact_type`. Criticality hints guide Amber/Red policy (
 |-----------|--------|------------------|-------|
 | `client.name` | Identity | critical | |
 | `client.dob` | Identity | critical | |
+| `client.phone` | Identity | normal | Additive Phase 5 (FR-DET-01) |
+| `client.email` | Identity | normal | Additive Phase 5 (FR-DET-01) |
 | `client.address` | Identity | normal | |
 | `client.pronouns` | Identity | critical | Draft hygiene |
 | `attorney.name` | Identity | normal | |
+| `attorney.phone` | Identity | normal | Additive Phase 5 (FR-DET-01) |
+| `attorney.email` | Identity | normal | Additive Phase 5 (FR-DET-01) |
 | `insurer.name` | Claim | critical | |
 | `insured.name` | Claim | critical | Defendant / insured driver |
 | `adjuster.name` | Claim | normal | |
@@ -23,6 +27,7 @@ Use these values in `Fact.fact_type`. Criticality hints guide Amber/Red policy (
 | `policy.number` | Claim | critical | |
 | `collision.date` | Collision | critical | DOL |
 | `collision.time` | Collision | normal | |
+| `collision.report_number` | Collision | critical | Additive Phase 5; police/case/incident No |
 | `collision.location` | Collision | critical | |
 | `collision.vehicles` | Collision | normal | |
 | `collision.impact_type` | Collision | normal | |
@@ -35,6 +40,7 @@ Use these values in `Fact.fact_type`. Criticality hints guide Amber/Red policy (
 | `liability.witness` | Liability | normal | |
 | `liability.comparative_fault_allegation` | Liability | normal | |
 | `medical.provider` | Medical encounter | normal | |
+| `medical.provider_phone` | Medical encounter | normal | Additive Phase 5 (FR-DET-01) |
 | `medical.visit_date` | Medical encounter | normal | |
 | `medical.complaint` | Medical encounter | normal | |
 | `medical.pain_score` | Medical encounter | normal | |
@@ -68,6 +74,10 @@ Use these values in `Fact.fact_type`. Criticality hints guide Amber/Red policy (
 | `damages.wage_loss` | Damages | normal | |
 | `damages.out_of_pocket` | Damages | normal | |
 | `damages.specials_claimed` | Damages | critical | User-confirmed when ambiguous |
+| `billing.cpt` | Damages | normal | Additive Phase 5; CPT procedure code |
+| `calc.visit_count` | Calculated | normal | Additive Phase 5; FR-DET-05 |
+| `calc.service_date_range` | Calculated | normal | Additive Phase 5; FR-DET-05 |
+| `calc.charges_sum` | Calculated | normal | Additive Phase 5; FR-DET-05 |
 | `correspondence.requested_items` | Correspondence | normal | |
 | `correspondence.response_deadline` | Correspondence | normal | |
 | `correspondence.offer_deadline` | Correspondence | critical | |
@@ -83,3 +93,4 @@ Use these values in `Fact.fact_type`. Criticality hints guide Amber/Red policy (
 |---------|--------|
 | 0.1 | Initial catalog from Appendix A |
 | 0.1 | Link to module 05 fact parser catalog (Pass 4) |
+| 0.1 | Additive Phase 5: contact phones/emails, `collision.report_number`, `medical.provider_phone`, `billing.cpt`, `calc.*` |

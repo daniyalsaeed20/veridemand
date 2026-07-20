@@ -15,6 +15,7 @@ Use these values in `Issue.issue_type`.
 | `extraction.truncated_text` | Extraction | amber | |
 | `extraction.suspected_handwriting` | Extraction | red | Manual completion |
 | `extraction.insufficient_ocr_coverage` | Extraction | amber | Under-detection on ink-rich page; tokens suppressed |
+| `extraction.missing_critical_fact` | Extraction | red | Additive Phase 5; required critical field not extracted |
 | `classification.ambiguous` | Classification | amber | Low rule confidence or conflicting type signals |
 | `identity.name_conflict` | Identity | red | |
 | `identity.dob_conflict` | Identity | red | |
@@ -54,3 +55,4 @@ Use these values in `Issue.issue_type`.
 | Version | Change |
 |---------|--------|
 | 0.1 | Initial catalog from Appendix B (dotted form) |
+| 0.1 | Additive Phase 5: `extraction.missing_critical_fact` |

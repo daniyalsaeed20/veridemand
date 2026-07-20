@@ -34,6 +34,9 @@ ERROR_MESSAGES: dict[str, str] = {
     ),
     ErrorCode.DOCUMENT_INVALID_PATCH: "The document update is invalid.",
     ErrorCode.SEQUENCE_INVALID: "The document sequence update is invalid.",
+    ErrorCode.FACT_NOT_FOUND: "Fact not found.",
+    ErrorCode.FACT_LOCKED: "This fact is locked and cannot be changed automatically.",
+    ErrorCode.FACT_INVALID_PATCH: "The fact update is invalid.",
     ErrorCode.ROUTE_NOT_FOUND: "The requested resource was not found.",
 }
 
@@ -60,6 +63,9 @@ ERROR_HTTP_STATUS: dict[str, int] = {
     ErrorCode.CLASSIFICATION_LOCKED: 409,
     ErrorCode.DOCUMENT_INVALID_PATCH: 400,
     ErrorCode.SEQUENCE_INVALID: 400,
+    ErrorCode.FACT_NOT_FOUND: 404,
+    ErrorCode.FACT_LOCKED: 409,
+    ErrorCode.FACT_INVALID_PATCH: 400,
     ErrorCode.ROUTE_NOT_FOUND: 404,
 }
 

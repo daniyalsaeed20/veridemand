@@ -20,6 +20,8 @@ type Props = {
   sessionId: string;
   documentId: string;
   displayName: string;
+  focusPage?: number | null;
+  focusSpanIds?: string[] | null;
 };
 
 function polygonToScreen(
@@ -36,16 +38,33 @@ function polygonToScreen(
   return { left, top, width: right - left, height: bottom - top };
 }
 
-export default function DocumentViewer({ sessionId, documentId, displayName }: Props) {
+export default function DocumentViewer({
+  sessionId,
+  documentId,
+  displayName,
+  focusPage = null,
+  focusSpanIds = null,
+}: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [pages, setPages] = useState<DocumentPage[]>([]);
   const [spans, setSpans] = useState<SourceSpan[]>([]);
   const [pageNumber, setPageNumber] = useState(1);
   const [zoom, setZoom] = useState(1.25);
   const [selectedSpanId, setSelectedSpanId] = useState<string | null>(null);
+  const [highlightIds, setHighlightIds] = useState<string[]>([]);
   const [renderSize, setRenderSize] = useState({ width: 0, height: 0 });
   const [error, setError] = useState<string | null>(null);
   const [pdfDoc, setPdfDoc] = useState<PDFDocumentProxy | null>(null);
+
+  useEffect(() => {
+    if (focusPage != null && focusPage >= 1) {
+      setPageNumber(focusPage);
+    }
+    if (focusSpanIds && focusSpanIds.length > 0) {
+      setHighlightIds(focusSpanIds);
+      setSelectedSpanId(focusSpanIds[0] ?? null);
+    }
+  }, [focusPage, focusSpanIds]);
 
   useEffect(() => {
     let cancelled = false;
@@ -125,7 +144,9 @@ export default function DocumentViewer({ sessionId, documentId, displayName }: P
   }, [pdfDoc, pageNumber, zoom]);
 
   const currentPage = pages.find((p) => p.page_number === pageNumber) ?? null;
-  const selected = spans.find((s) => s.id === selectedSpanId) ?? null;
+  const highlightSpans = spans.filter(
+    (s) => highlightIds.includes(s.id) || s.id === selectedSpanId,
+  );
   const pageCount = pages.length || pdfDoc?.numPages || 0;
 
   return (
@@ -215,23 +236,23 @@ export default function DocumentViewer({ sessionId, documentId, displayName }: P
         <div className="page-stage">
           <div className="page-stack" style={{ width: renderSize.width || undefined }}>
             <canvas ref={canvasRef} className="pdf-canvas" />
-            {selected
-              ? selected.polygons.map((poly, i) => {
-                  const box = polygonToScreen(poly, renderSize.width, renderSize.height);
-                  return (
-                    <div
-                      key={`${selected.id}-${i}`}
-                      className="highlight"
-                      style={{
-                        left: box.left,
-                        top: box.top,
-                        width: box.width,
-                        height: box.height,
-                      }}
-                    />
-                  );
-                })
-              : null}
+            {highlightSpans.map((span) =>
+              span.polygons.map((poly, i) => {
+                const box = polygonToScreen(poly, renderSize.width, renderSize.height);
+                return (
+                  <div
+                    key={`${span.id}-${i}`}
+                    className="highlight"
+                    style={{
+                      left: box.left,
+                      top: box.top,
+                      width: box.width,
+                      height: box.height,
+                    }}
+                  />
+                );
+              }),
+            )}
           </div>
         </div>
 
