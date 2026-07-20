@@ -47,6 +47,14 @@ class AppSettings(BaseModel):
     native_max_cid_ratio: float = Field(default=0.05, ge=0.0, le=1.0)
     ocr_page_mean_conf_low: float = Field(default=0.55, ge=0.0, le=1.0)
     ocr_page_mean_conf_retry_trigger: float = Field(default=0.70, ge=0.0, le=1.0)
+    ocr_init_retry_cooldown_ms: int = Field(default=2000, ge=0)
+    # B-03 under-detection knobs (0.1-provisional)
+    ocr_min_ink_for_coverage_check: float = Field(default=0.08, ge=0.0, le=1.0)
+    ocr_min_token_coverage: float = Field(default=0.05, ge=0.0, le=1.0)
+    ocr_min_coverage_to_ink_ratio: float = Field(default=0.15, ge=0.0, le=1.0)
+    ocr_min_tokens_ink_rich: int = Field(default=25, gt=0)
+    ocr_ink_binarize_threshold: int = Field(default=200, ge=0, le=255)
+    ocr_under_detection_triggers_retry: bool = True
     ocr_force_for_tests: bool = False
     enable_llm_semantic_extraction: bool = False
     llm_extraction_temperature: float = Field(default=0.0, ge=0.0)
@@ -82,6 +90,9 @@ class AppSettings(BaseModel):
             "OCR_WORKERS": "ocr_workers",
             "OCR_RENDER_DPI": "ocr_render_dpi",
             "OCR_RETRY_DPI": "ocr_retry_dpi",
+            "OCR_INIT_RETRY_COOLDOWN_MS": "ocr_init_retry_cooldown_ms",
+            "OCR_MIN_TOKENS_INK_RICH": "ocr_min_tokens_ink_rich",
+            "OCR_INK_BINARIZE_THRESHOLD": "ocr_ink_binarize_threshold",
             "NATIVE_MIN_CHARS": "native_min_chars",
             "NATIVE_LONG_TOKEN_BAND": "native_long_token_band",
         }
@@ -100,6 +111,9 @@ class AppSettings(BaseModel):
             "NATIVE_MAX_CID_RATIO": "native_max_cid_ratio",
             "OCR_PAGE_MEAN_CONF_LOW": "ocr_page_mean_conf_low",
             "OCR_PAGE_MEAN_CONF_RETRY_TRIGGER": "ocr_page_mean_conf_retry_trigger",
+            "OCR_MIN_INK_FOR_COVERAGE_CHECK": "ocr_min_ink_for_coverage_check",
+            "OCR_MIN_TOKEN_COVERAGE": "ocr_min_token_coverage",
+            "OCR_MIN_COVERAGE_TO_INK_RATIO": "ocr_min_coverage_to_ink_ratio",
             "LLM_EXTRACTION_TEMPERATURE": "llm_extraction_temperature",
             "LLM_DRAFT_TEMPERATURE": "llm_draft_temperature",
         }
@@ -109,6 +123,7 @@ class AppSettings(BaseModel):
             "ALLOW_FINAL_EXPORT_WITH_RED_ISSUES": "allow_final_export_with_red_issues",
             "LOG_DOCUMENT_TEXT": "log_document_text",
             "OCR_FORCE_FOR_TESTS": "ocr_force_for_tests",
+            "OCR_UNDER_DETECTION_TRIGGERS_RETRY": "ocr_under_detection_triggers_retry",
         }
 
         try:

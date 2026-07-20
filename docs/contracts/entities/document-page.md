@@ -23,7 +23,7 @@ Page-level extraction quality and routing for one page of a document.
 | `route` | PageRoute | yes | enum | native / ocr / manual_review |
 | `ocr_status` | OcrStatus | no | `not_needed` \| `pending` \| `done` \| `failed` | Closed vocabulary |
 | `extraction_method` | ExtractionMethod | no | primary method used | |
-| `quality_flags` | string[] | yes | default `[]` | Additive codes e.g. `blank`, `broken_text_layer`, `pathological_tokenization`, `awaiting_ocr`, `low_confidence`, `suspected_handwriting` |
+| `quality_flags` | string[] | yes | default `[]` | Additive codes e.g. `blank`, `broken_text_layer`, `pathological_tokenization`, `awaiting_ocr`, `low_confidence`, `insufficient_coverage`, `suspected_handwriting` |
 | `token_count` | int | no | `>= 0` | |
 | `span_count` | int | no | `>= 0` | |
 
@@ -62,5 +62,6 @@ Known Phase 2/3 additive codes:
 - `pathological_tokenization` — multi-signal unusable native tokenization (suppress tokens/spans; await OCR)
 - `awaiting_ocr` — page routed for OCR (cleared after OCR commit)
 - `low_confidence` — OCR usable-with-warning or low mean confidence
+- `insufficient_coverage` — OCR under-detection on an ink-rich page (tokens suppressed; review required)
 - `duplicate_detections` / `duplicate_page` — overlapping or duplicated OCR detections
 - `suspected_handwriting` — handwriting heuristic (review; not authoritative OCR)

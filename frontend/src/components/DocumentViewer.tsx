@@ -242,8 +242,19 @@ export default function DocumentViewer({ sessionId, documentId, displayName }: P
           ) : null}
           {currentPage?.ocr_status === "failed" ? (
             <p className="muted">
-              OCR failed for this page. The page remains viewable for manual review. Recognition
-              confidence is not factual verification.
+              OCR failed for this page
+              {currentPage.quality_flags.includes("insufficient_coverage")
+                ? " (insufficient coverage — review required)"
+                : ""}
+              . The page remains viewable for manual review. Recognition confidence is not factual
+              verification.
+            </p>
+          ) : null}
+          {currentPage?.quality_flags.includes("insufficient_coverage") &&
+          currentPage.ocr_status !== "failed" ? (
+            <p className="muted">
+              OCR under-detection: coverage is incomplete for this page. Not treated as fully usable
+              evidence.
             </p>
           ) : null}
           {currentPage?.route === "ocr" &&
@@ -278,7 +289,8 @@ export default function DocumentViewer({ sessionId, documentId, displayName }: P
             </ul>
           )}
           {currentPage?.ocr_status === "failed" ||
-          currentPage?.quality_flags.includes("low_confidence") ? (
+          currentPage?.quality_flags.includes("low_confidence") ||
+          currentPage?.quality_flags.includes("insufficient_coverage") ? (
             <button
               type="button"
               className="btn btn-small"

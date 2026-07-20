@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 import threading
+from collections.abc import Callable
 from pathlib import Path
 
 from app.core.domain_errors import DomainError
@@ -35,7 +36,7 @@ from app.services.documents.thumbnails import ThumbnailError, count_pdf_pages, c
 from app.services.extraction.native import extract_document_native
 from app.services.extraction.ocr_page import extract_ocr_page
 from app.services.extraction.ocr_quality import OcrPageOutcome
-from app.services.ocr import OcrCancelledError, OcrUnavailableError, clear_cancel
+from app.services.ocr import OcrCancelledError, OcrUnavailableError
 from app.services.session.service import SessionRecord, SessionService
 from app.services.session.workspace import new_opaque_id
 
@@ -57,6 +58,19 @@ class ProcessService:
         self._docx_converter: DocxConverter = docx_converter or self._default_docx_converter
         self._threads: dict[str, threading.Thread] = {}
         self._threads_lock = threading.Lock()
+        self._test_hooks: dict[str, Callable[[], None]] = {}
+
+    def set_test_hook(self, name: str, fn: Callable[[], None] | None) -> None:
+        """Install or clear a deterministic race barrier hook (tests only)."""
+        if fn is None:
+            self._test_hooks.pop(name, None)
+        else:
+            self._test_hooks[name] = fn
+
+    def _run_hook(self, name: str) -> None:
+        hook = self._test_hooks.get(name)
+        if hook is not None:
+            hook()
 
     def _default_docx_converter(self, source: Path, output: Path, work: Path) -> Path:
         return convert_docx_with_libreoffice(
@@ -100,8 +114,8 @@ class ProcessService:
         record.process_running = True
         record.process_completed = False
         record.process_cancel_requested = False
+        record.cancel_event.clear()
         record.session.status = SessionStatus.PROCESSING
-        clear_cancel()
         generation = record.generation
         self._emit(
             record,
@@ -238,7 +252,13 @@ class ProcessService:
             record = self._sessions.get_record(session_id, touch=False)
         except DomainError:
             return True
-        return record.generation != generation or record.process_cancel_requested
+        return (
+            record.generation != generation
+            or record.process_cancel_requested
+            or record.deleting
+            or record.cancel_event.is_set()
+            or record.session.status == SessionStatus.DELETED
+        )
 
     def list_events(self, session_id: str, *, after: int = -1) -> list[ProcessEvent]:
         record = self._sessions.get_record(session_id, touch=True)
@@ -376,7 +396,9 @@ class ProcessService:
         )
 
         try:
-            canonical = self._normalize_document(record, document)
+            canonical = self._normalize_document(
+                record, document, session_id=session_id, generation=generation
+            )
             self._emit(
                 record,
                 "document.normalize.completed",
@@ -587,6 +609,7 @@ class ProcessService:
                 settings=self._settings,
                 page_rotation=rotation,
                 force_ocr=force,
+                cancel_event=record.cancel_event,
             )
         except OcrCancelledError:
             self._emit(
@@ -741,7 +764,11 @@ class ProcessService:
         spans: list[SourceSpan],
         meta: dict[str, object] | None,
     ) -> None:
-        if record.generation != generation:
+        # Hook outside exclusive delete lock so DELETE can progress (Phase 1 pattern).
+        self._run_hook("before_ocr_commit")
+        if record.generation != generation or record.deleting:
+            return
+        if record.session.status == SessionStatus.DELETED:
             return
         if document_id not in record.documents:
             return
@@ -788,12 +815,32 @@ class ProcessService:
         )
         record.issues.append(issue)
 
-    def _normalize_document(self, record: SessionRecord, document: Document) -> Path:
+    def _normalize_document(
+        self,
+        record: SessionRecord,
+        document: Document,
+        *,
+        session_id: str,
+        generation: int,
+    ) -> Path:
+        if self._is_cancelled(session_id, generation):
+            raise DomainError(
+                ErrorCode.PROCESS_CANCELLED,
+                "Processing cancelled.",
+                session_id=session_id,
+            )
+        self._run_hook("before_workspace_write")
         source = record.stored_paths.get(document.id)
         if source is None or not source.is_file():
             raise ConversionError("Original upload is missing.", error_code="process_stage_failed")
 
         derived = record.workspace / "derived"
+        if not self._may_write(session_id, generation):
+            raise DomainError(
+                ErrorCode.PROCESS_CANCELLED,
+                "Processing cancelled.",
+                session_id=session_id,
+            )
         derived.mkdir(parents=True, exist_ok=True)
         work = record.workspace / "work" / document.id
         if work.exists():
@@ -839,6 +886,13 @@ class ProcessService:
             thumb_dir = record.workspace / "thumbnails" / document.id
             if thumb_dir.exists():
                 shutil.rmtree(thumb_dir, ignore_errors=True)
+            self._run_hook("before_thumbnail_save")
+            if not self._may_write(session_id, generation):
+                raise DomainError(
+                    ErrorCode.PROCESS_CANCELLED,
+                    "Processing cancelled.",
+                    session_id=session_id,
+                )
             create_thumbnails(
                 canonical,
                 thumb_dir,
@@ -857,6 +911,19 @@ class ProcessService:
             raise ConversionError(str(exc), error_code="extraction_render_failed") from exc
         finally:
             shutil.rmtree(work, ignore_errors=True)
+
+    def _may_write(self, session_id: str, generation: int) -> bool:
+        try:
+            record = self._sessions.get_record(session_id, touch=False)
+        except DomainError:
+            return False
+        if record.generation != generation or record.deleting:
+            return False
+        if record.session.status == SessionStatus.DELETED:
+            return False
+        if record.process_cancel_requested or record.cancel_event.is_set():
+            return False
+        return True
 
     def _fail_document(
         self,

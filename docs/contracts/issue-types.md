@@ -14,6 +14,7 @@ Use these values in `Issue.issue_type`.
 | `extraction.broken_text_layer` | Extraction | amber | |
 | `extraction.truncated_text` | Extraction | amber | |
 | `extraction.suspected_handwriting` | Extraction | red | Manual completion |
+| `extraction.insufficient_ocr_coverage` | Extraction | amber | Under-detection on ink-rich page; tokens suppressed |
 | `identity.name_conflict` | Identity | red | |
 | `identity.dob_conflict` | Identity | red | |
 | `identity.pronoun_conflict` | Identity | amber/red | |

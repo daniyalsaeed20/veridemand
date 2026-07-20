@@ -80,6 +80,7 @@ ISSUE_TYPES: Final[frozenset[str]] = frozenset(
         "extraction.broken_text_layer",
         "extraction.truncated_text",
         "extraction.suspected_handwriting",
+        "extraction.insufficient_ocr_coverage",
         "identity.name_conflict",
         "identity.dob_conflict",
         "identity.pronoun_conflict",

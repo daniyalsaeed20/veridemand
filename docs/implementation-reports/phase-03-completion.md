@@ -1,9 +1,12 @@
 # Phase 3 Completion Report — OCR and Page Quality
 
 **Date:** 2026-07-20  
-**Branch:** `phase-03-ocr-page-quality`  
+**Branch:** `phase-03-ocr-page-quality` (implementation); hardening on `phase-03-audit-hardening`  
 **Starting Phase 2 audited baseline:** tag `phase-02-audited-pass` @ `8930b3259cc076e1c308eefb24cb69f8a79bd08e` (docs tip included `bf25cda`)  
-**Verdict:** **PASS WITH GAPS**
+**Implementation tip audited:** `982651a7237ae3b1b2ec76a7d41269adf42c24a4`  
+**Independent audit:** [`phase-03-audit.md`](./phase-03-audit.md) — **FAIL** (B-01 sticky OCR init; B-02 DELETE race 500; B-03 police under-detection marked usable)  
+**Hardening:** [`phase-03-hardening.md`](./phase-03-hardening.md) — **READY FOR RE-AUDIT** (do not treat as audited pass)  
+**Verdict:** **PASS WITH GAPS** (pre-audit self-assessment); **not** an audited pass until re-audit closes B-01/B-02/B-03
 
 ---
 
@@ -178,4 +181,5 @@ See plan resolutions: ocr_status vocabulary (contracts win); Issue vs ReviewQueu
 
 ## 16. Stop condition
 
-Phase 3 implementation complete. Tag `phase-03-audited-pass` **not** created. Phase 4 **not** started.
+Independent audit **FAIL** recorded; hardening on `phase-03-audit-hardening` addresses B-01/B-02/B-03 — see [`phase-03-hardening.md`](./phase-03-hardening.md).  
+**Do not** create `phase-03-audited-pass` until a fresh independent re-audit passes. **Do not** start Phase 4.

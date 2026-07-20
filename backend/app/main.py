@@ -19,6 +19,7 @@ from app.core.server_settings import ServerSettings, get_server_settings
 from app.models.app_settings import AppSettings, ConfigurationError
 from app.services.documents import DocumentService
 from app.services.health import HealthService
+from app.services.ocr import configure_init_cooldown_ms, shutdown_adapter
 from app.services.process import ProcessService
 from app.services.session import SessionService
 
@@ -55,6 +56,7 @@ def create_app(
             app_settings=settings,
             server_settings=server,
         )
+        session_service.set_process_drain(process_service.wait_until_idle)
         app.state.app_settings = settings
         app.state.server_settings = server
         app.state.session_service = session_service
@@ -64,6 +66,7 @@ def create_app(
             settings=settings,
             app_version=server.app_version or __version__,
         )
+        configure_init_cooldown_ms(float(settings.ocr_init_retry_cooldown_ms))
 
         stop_event = asyncio.Event()
 
@@ -107,6 +110,10 @@ def create_app(
                         "Shutdown session cleanup failed",
                         extra={"extra_fields": {"session_id": sid}},
                     )
+            try:
+                shutdown_adapter()
+            except Exception:  # noqa: BLE001
+                logger.exception("OCR adapter shutdown failed")
 
     app = FastAPI(
         title="VeriDemand API",

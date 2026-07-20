@@ -38,6 +38,13 @@ Validated runtime configuration for the prototype. Loaded from environment; neve
 | `native_max_cid_ratio` | float | yes | `0–1` | Default `0.05` — Phase 2 hardening B-02 (spike suggested `0.25`; keep `0.05`) |
 | `ocr_page_mean_conf_low` | float | yes | `0–1` | Default `0.55` |
 | `ocr_page_mean_conf_retry_trigger` | float | yes | `0–1` | Default `0.70` |
+| `ocr_init_retry_cooldown_ms` | int | yes | `>= 0` | Default `2000` — B-01 bounded init retry cooldown |
+| `ocr_min_ink_for_coverage_check` | float | yes | `0–1` | Default `0.08` — B-03 under-detection |
+| `ocr_min_token_coverage` | float | yes | `0–1` | Default `0.05` |
+| `ocr_min_coverage_to_ink_ratio` | float | yes | `0–1` | Default `0.15` |
+| `ocr_min_tokens_ink_rich` | int | yes | `> 0` | Default `25` |
+| `ocr_ink_binarize_threshold` | int | yes | `0–255` | Default `200` |
+| `ocr_under_detection_triggers_retry` | bool | yes | | Default `true` |
 | `ocr_force_for_tests` | bool | yes | | Default `false` — forced OCR test mode; does not replace preferred native artifacts unless explicitly enabled |
 | `enable_llm_semantic_extraction` | bool | yes | | Default `false` |
 | `llm_extraction_temperature` | float | yes | `>= 0` | Default `0` |
@@ -79,6 +86,13 @@ Validated runtime configuration for the prototype. Loaded from environment; neve
   "native_max_cid_ratio": 0.05,
   "ocr_page_mean_conf_low": 0.55,
   "ocr_page_mean_conf_retry_trigger": 0.70,
+  "ocr_init_retry_cooldown_ms": 2000,
+  "ocr_min_ink_for_coverage_check": 0.08,
+  "ocr_min_token_coverage": 0.05,
+  "ocr_min_coverage_to_ink_ratio": 0.15,
+  "ocr_min_tokens_ink_rich": 25,
+  "ocr_ink_binarize_threshold": 200,
+  "ocr_under_detection_triggers_retry": true,
   "ocr_force_for_tests": false,
   "enable_llm_semantic_extraction": false,
   "llm_extraction_temperature": 0,
@@ -94,4 +108,5 @@ Validated runtime configuration for the prototype. Loaded from environment; neve
 Env var names match Appendix D (`SESSION_TTL_MINUTES`, etc.) plus native/OCR knobs from [03-ocr-thresholds.md](../../modules/03-ocr-thresholds.md) (`NATIVE_MIN_CHARS`, …). Additional feature flags may be added in a later contracts version.
 
 **Changelog:** 2026-07-18 — added provisional native usability and OCR page-confidence settings (Pass 3).  
-**Changelog:** 2026-07-20 — added pathological tokenization knobs (Phase 2 hardening B-02; still `0.1-provisional`).
+**Changelog:** 2026-07-20 — added pathological tokenization knobs (Phase 2 hardening B-02; still `0.1-provisional`).  
+**Changelog:** 2026-07-20 — Phase 3 hardening: `ocr_init_retry_cooldown_ms` (B-01); under-detection knobs (B-03; still `0.1-provisional`).

@@ -98,6 +98,7 @@ Preprocess only when diagnostics warrant (skew/rotation/low contrast). Pause OCR
 |-------------------------|-----------------|--------------|------------------|
 | Near-zero tokens after native+OCR | `blank` | `extraction.unreadable_page` | red/amber |
 | Mean token confidence &lt; `OCR_PAGE_MEAN_CONF_LOW` (default `0.55`) after retry | `low_confidence` | `extraction.low_ocr_confidence` | amber (red if page holds only critical fields) |
+| Ink-rich page with materially insufficient OCR coverage (multi-signal) | `insufficient_coverage` | `extraction.insufficient_ocr_coverage` | amber — tokens suppressed; not `ocr_usable` |
 | Native layer present but high replacement/garbage | `broken_text_layer` | `extraction.broken_text_layer` | amber |
 | Abrupt cutoff / incomplete lines heuristic | `truncated_text` | `extraction.truncated_text` | amber |
 | Script/handwriting detector or very irregular strokes | `suspected_handwriting` | `extraction.suspected_handwriting` | red if critical field region |
@@ -108,6 +109,13 @@ Additional provisional knobs:
 |---------------|---------|-------|
 | `OCR_PAGE_MEAN_CONF_LOW` | `0.55` | Page-level mean OCR confidence after best attempt |
 | `OCR_PAGE_MEAN_CONF_RETRY_TRIGGER` | `0.70` | Below this after first OCR → allow one preprocess+retry |
+| `OCR_INIT_RETRY_COOLDOWN_MS` | `2000` | B-01 bounded cooldown between failed init attempts |
+| `OCR_MIN_INK_FOR_COVERAGE_CHECK` | `0.08` | Skip under-detection when page is not ink-rich |
+| `OCR_MIN_TOKEN_COVERAGE` | `0.05` | Absolute coverage floor when ink-rich |
+| `OCR_MIN_COVERAGE_TO_INK_RATIO` | `0.15` | coverage / dark_pixel_fraction floor |
+| `OCR_MIN_TOKENS_INK_RICH` | `25` | Absolute token floor when ink-rich |
+| `OCR_INK_BINARIZE_THRESHOLD` | `200` | Grayscale cutoff for dark_pixel_fraction |
+| `OCR_UNDER_DETECTION_TRIGGERS_RETRY` | `true` | Under-detection forces the single bounded retry |
 
 Flags **never** silently discard evidence; they create visible review items (FR-EXT-07).
 

@@ -19,6 +19,37 @@ def write_minimal_pdf(path: Path, *, pages: int = 1) -> Path:
     return path
 
 
+def write_ocr_routed_pdf(path: Path) -> Path:
+    """Synthetic PDF whose native text fails usability and routes to OCR (no PII)."""
+    # Long glued token triggers pathological_tokenization → PageRoute.ocr.
+    # noqa: E501 — PDF object dictionary lines are intentionally single-line.
+    path.write_bytes(
+        b"%PDF-1.4\n"
+        b"1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj\n"
+        b"2 0 obj<< /Type /Pages /Kids [3 0 R] /Count 1 >>endobj\n"
+        b"3 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] "
+        b"/Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>endobj\n"
+        b"4 0 obj<< /Length 68 >>stream\n"
+        b"BT /F1 12 Tf 10 100 Td (HelloWorldBrokenTextLayerXXXX) Tj ET\n"
+        b"endstream\n"
+        b"endobj\n"
+        b"5 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj\n"
+        b"xref\n"
+        b"0 6\n"
+        b"0000000000 65535 f \n"
+        b"0000000009 00000 n \n"
+        b"0000000058 00000 n \n"
+        b"0000000115 00000 n \n"
+        b"0000000266 00000 n \n"
+        b"0000000385 00000 n \n"
+        b"trailer<< /Size 6 /Root 1 0 R >>\n"
+        b"startxref\n"
+        b"462\n"
+        b"%%EOF\n"
+    )
+    return path
+
+
 def write_encrypted_pdf(path: Path) -> Path:
     writer = PdfWriter()
     writer.add_blank_page(width=200, height=200)

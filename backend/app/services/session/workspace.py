@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import secrets
 import shutil
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -55,9 +56,34 @@ def ensure_descendant(path: Path, root: Path) -> None:
 
 
 def delete_workspace_tree(workspace: Path, temp_root: Path) -> None:
-    """Idempotent removal of a session workspace directory."""
+    """Idempotent removal of a session workspace directory.
+
+    Missing paths are success. Transient Windows lock errors are retried briefly
+    after process drain; remaining errors are logged but do not raise when the
+    tree is already gone.
+    """
     root = temp_root.resolve()
     if not workspace.exists():
         return
     ensure_descendant(workspace, root)
-    shutil.rmtree(workspace, ignore_errors=False)
+    last_exc: Exception | None = None
+    for attempt in range(5):
+        try:
+            if not workspace.exists():
+                return
+            shutil.rmtree(workspace, ignore_errors=False)
+            return
+        except FileNotFoundError:
+            return
+        except OSError as exc:
+            last_exc = exc
+            # Windows: file in use — brief backoff after drain
+            time.sleep(0.05 * (attempt + 1))
+            if not workspace.exists():
+                return
+    # Final best-effort: ignore remaining errors if root vanished mid-flight
+    if not workspace.exists():
+        return
+    shutil.rmtree(workspace, ignore_errors=True)
+    if workspace.exists() and last_exc is not None:
+        raise last_exc

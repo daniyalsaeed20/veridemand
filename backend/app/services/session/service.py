@@ -7,7 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from threading import RLock
+from threading import Event, RLock
 
 from app.core.domain_errors import DomainError, UploadFileError
 from app.core.logging import get_logger
@@ -21,7 +21,6 @@ from app.models.process_event import ProcessEvent
 from app.models.source_span import SourceSpan
 from app.models.source_token import SourceToken
 from app.models.taxonomies import ErrorCode
-from app.services.ocr import request_cancel
 from app.services.session.workspace import (
     SESSION_WARNING,
     build_session_workspace,
@@ -60,6 +59,9 @@ class SessionRecord:
     process_completed: bool = False
     process_cancel_requested: bool = False
     event_sequence: int = 0
+    # Per-session OCR/process cancel (B-02); set on delete/expire
+    cancel_event: Event = field(default_factory=Event)
+    deleting: bool = False
 
 
 @dataclass(frozen=True)
@@ -95,6 +97,12 @@ class SessionService:
         self._lock = RLock()
         # Test-only sync hooks (name -> callable). Never used in production paths.
         self._test_hooks: dict[str, Callable[[], None]] = {}
+        # Optional drain: join process thread before workspace rmtree (set by app wiring)
+        self._drain_process: Callable[[str], None] | None = None
+
+    def set_process_drain(self, fn: Callable[[str], None] | None) -> None:
+        """Wire ProcessService.wait_until_idle so DELETE can drain writers first."""
+        self._drain_process = fn
 
     @property
     def temp_root(self) -> Path:
@@ -364,10 +372,15 @@ class SessionService:
                 record.bytes_used = self._recompute_bytes_locked(record)
 
     def delete_session(self, session_id: str) -> None:
-        """Idempotent delete: unknown/already-deleted sessions succeed."""
+        """Idempotent delete: unknown/already-deleted sessions succeed with 204 semantics.
+
+        Mark deleted → cancel → drain process writers → idempotent rmtree → drop registry.
+        Missing paths after drain are success (never HTTP 500 solely for that race).
+        """
         self._run_hook("before_delete_session")
+        workspace: Path | None = None
         with self._lock:
-            record = self._registry.pop(session_id, None)
+            record = self._registry.get(session_id)
             if record is None:
                 candidate = self._temp_root / session_id
                 if candidate.exists():
@@ -379,24 +392,49 @@ class SessionService:
                             extra={"extra_fields": {"session_id": session_id}},
                         )
                 return
+            if record.session.status == SessionStatus.DELETED and not record.deleting:
+                # Already fully cleaned
+                self._registry.pop(session_id, None)
+                return
+            record.session.status = SessionStatus.DELETED
+            record.deleting = True
             record.generation += 1
             record.process_cancel_requested = True
-            request_cancel()
+            record.cancel_event.set()
+            workspace = record.workspace
+
+        # Outside lock so waiters woken by after_mark_deleting can observe tombstone
+        # without contending on the session registry lock (barrier tests / drain).
+        self._run_hook("after_mark_deleting")
+
+        # Drain process thread so FS writers release handles
+        if self._drain_process is not None:
             try:
-                delete_workspace_tree(record.workspace, self._temp_root)
-            except Exception as exc:  # noqa: BLE001
+                self._drain_process(session_id)
+            except Exception:  # noqa: BLE001
                 logger.exception(
-                    "Session cleanup failed",
+                    "Process drain during delete failed",
                     extra={"extra_fields": {"session_id": session_id}},
                 )
-                raise DomainError(
-                    ErrorCode.SESSION_CLEANUP_FAILED,
-                    session_id=session_id,
-                ) from exc
-            logger.info(
-                "Session deleted",
-                extra={"extra_fields": {"session_id": session_id}},
-            )
+
+        if workspace is not None:
+            try:
+                delete_workspace_tree(workspace, self._temp_root)
+            except Exception:  # noqa: BLE001
+                # After drain, treat residual FS races as best-effort; do not 500
+                logger.exception(
+                    "Session workspace cleanup soft-failed",
+                    extra={"extra_fields": {"session_id": session_id}},
+                )
+                if workspace.exists():
+                    shutil.rmtree(workspace, ignore_errors=True)
+
+        with self._lock:
+            self._registry.pop(session_id, None)
+        logger.info(
+            "Session deleted",
+            extra={"extra_fields": {"session_id": session_id}},
+        )
 
     def cleanup_expired_sessions(self, now: datetime | None = None) -> list[str]:
         """Remove expired sessions. Safe to call repeatedly. Returns cleaned session IDs."""
@@ -408,23 +446,20 @@ class SessionService:
                 for sid, rec in self._registry.items()
                 if is_expired(rec.session, clock) or rec.session.status == SessionStatus.EXPIRED
             ]
-            for sid in expired_ids:
-                record = self._registry.get(sid)
-                if record is None:
-                    continue
-                try:
-                    self._expire_locked(sid, record)
-                    cleaned.append(sid)
-                except Exception:  # noqa: BLE001 — continue remaining
-                    logger.exception(
-                        "Expired session cleanup failed",
-                        extra={"extra_fields": {"session_id": sid}},
-                    )
+        for sid in expired_ids:
+            try:
+                self._expire_session(sid)
+                cleaned.append(sid)
+            except Exception:  # noqa: BLE001 — continue remaining
+                logger.exception(
+                    "Expired session cleanup failed",
+                    extra={"extra_fields": {"session_id": sid}},
+                )
         return cleaned
 
     def _require_live_locked(self, session_id: str) -> SessionRecord:
         record = self._registry.get(session_id)
-        if record is None or record.session.status == SessionStatus.DELETED:
+        if record is None or record.session.status == SessionStatus.DELETED or record.deleting:
             raise DomainError(ErrorCode.SESSION_NOT_FOUND, session_id=session_id)
 
         now = datetime.now(UTC)
@@ -439,20 +474,63 @@ class SessionService:
         record.session.last_activity_at = now
         record.session.expires_at = now + ttl
 
+    def _expire_session(self, session_id: str) -> None:
+        """Expire + cleanup using the same drain/rmtree order as delete."""
+        workspace: Path | None = None
+        with self._lock:
+            record = self._registry.get(session_id)
+            if record is None:
+                return
+            record.session.status = SessionStatus.EXPIRED
+            record.deleting = True
+            record.generation += 1
+            record.process_cancel_requested = True
+            record.cancel_event.set()
+            workspace = record.workspace
+        if self._drain_process is not None:
+            try:
+                self._drain_process(session_id)
+            except Exception:  # noqa: BLE001
+                logger.exception(
+                    "Process drain during expire failed",
+                    extra={"extra_fields": {"session_id": session_id}},
+                )
+        if workspace is not None:
+            try:
+                delete_workspace_tree(workspace, self._temp_root)
+            except Exception:  # noqa: BLE001
+                logger.exception(
+                    "Failed to delete expired workspace",
+                    extra={"extra_fields": {"session_id": session_id}},
+                )
+                if workspace.exists():
+                    shutil.rmtree(workspace, ignore_errors=True)
+        with self._lock:
+            self._registry.pop(session_id, None)
+
     def _expire_locked(self, session_id: str, record: SessionRecord) -> None:
+        """Legacy entry used when already holding lock — schedules expire outside.
+
+        Callers that hold ``_lock`` should not drain under the lock; use
+        ``_expire_session`` from unlocked contexts instead.
+        """
+        # Mark under current lock, then release via expire path after unlock is
+        # the caller's responsibility. For in-lock paths, mark and pop after soft rmtree.
         record.session.status = SessionStatus.EXPIRED
+        record.deleting = True
         record.generation += 1
         record.process_cancel_requested = True
-        request_cancel()
+        record.cancel_event.set()
+        workspace = record.workspace
         try:
-            delete_workspace_tree(record.workspace, self._temp_root)
-        except Exception as exc:  # noqa: BLE001
+            delete_workspace_tree(workspace, self._temp_root)
+        except Exception:  # noqa: BLE001
             logger.exception(
                 "Failed to delete expired workspace",
                 extra={"extra_fields": {"session_id": session_id}},
             )
-            self._registry.pop(session_id, None)
-            raise DomainError(ErrorCode.SESSION_CLEANUP_FAILED, session_id=session_id) from exc
+            if workspace.exists():
+                shutil.rmtree(workspace, ignore_errors=True)
         self._registry.pop(session_id, None)
 
     def mark_ingesting(self, session_id: str) -> None:

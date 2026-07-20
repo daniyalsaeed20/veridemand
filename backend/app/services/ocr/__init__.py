@@ -1,10 +1,13 @@
 """OCR service package — sole production boundary for PaddleOCR."""
 
 from app.services.ocr.adapter import (
+    InitState,
     OcrCancelledError,
     OcrUnavailableError,
     clear_cancel,
+    configure_init_cooldown_ms,
     ensure_engine,
+    get_init_state,
     get_max_inflight,
     get_metrics,
     get_ocr_worker_lock,
@@ -14,17 +17,22 @@ from app.services.ocr.adapter import (
     reset_adapter_state,
     reset_inflight_stats,
     set_fake_engine,
+    set_init_constructor,
     set_test_hooks,
+    shutdown_adapter,
 )
 from app.services.ocr.types import OcrDetection, OcrRawResult
 
 __all__ = [
+    "InitState",
     "OcrCancelledError",
     "OcrDetection",
     "OcrRawResult",
     "OcrUnavailableError",
     "clear_cancel",
+    "configure_init_cooldown_ms",
     "ensure_engine",
+    "get_init_state",
     "get_max_inflight",
     "get_metrics",
     "get_ocr_worker_lock",
@@ -34,5 +42,7 @@ __all__ = [
     "reset_adapter_state",
     "reset_inflight_stats",
     "set_fake_engine",
+    "set_init_constructor",
     "set_test_hooks",
+    "shutdown_adapter",
 ]
