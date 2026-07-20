@@ -1,19 +1,26 @@
-"""Build private human-review packages for selected pages."""
+"""Private review pack + machine prefill builder for the annotation app."""
 
 from __future__ import annotations
 
 import json
 import shutil
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+SCRIPTS = ROOT / "scripts"
+if str(SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS))
+
+from extraction_acceptance.review_app.annotation_store import new_annotation
+
 CORPUS = ROOT / "tmp" / "extraction-remediation" / "acceptance-corpus"
 FORENSIC_PAGES = ROOT / "tmp" / "extraction-forensic-investigation" / "pages"
 REVIEW = ROOT / "tmp" / "extraction-remediation" / "acceptance-review"
-EXAMPLE = ROOT / "docs" / "example"
+BACKEND = ROOT / "backend"
 
-PREFILL = "UNVERIFIED MACHINE PREFILL"
+PREFILL_LABEL = "UNVERIFIED MACHINE OUTPUT"
 
 
 def _load_manifest() -> dict:
@@ -23,175 +30,403 @@ def _load_manifest() -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _copy_if(src: Path, dest: Path) -> bool:
-    if src.is_file():
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dest)
+def _doc_path(doc: dict) -> Path | None:
+    rel = doc.get("canonical_relpath")
+    if not rel:
+        return None
+    p = ROOT / rel
+    return p if p.is_file() else None
+
+
+def _render_page(pdf_path: Path, page_number: int, dest_png: Path, *, scale: float = 2.0) -> bool:
+    try:
+        import pypdfium2 as pdfium
+    except ImportError:
+        return False
+    try:
+        doc = pdfium.PdfDocument(str(pdf_path))
+        page = doc[page_number - 1]
+        bitmap = page.render(scale=scale)
+        pil = bitmap.to_pil()
+        dest_png.parent.mkdir(parents=True, exist_ok=True)
+        pil.save(dest_png)
         return True
-    return False
+    except Exception:  # noqa: BLE001
+        return False
 
 
-def _annotation_template(page: dict, *, reconstructed: str, native_words: list) -> dict:
+def _native_extract(pdf_path: Path, page_number: int) -> dict:
+    if str(BACKEND) not in sys.path:
+        sys.path.insert(0, str(BACKEND))
+    from app.models.app_settings import AppSettings
+    from app.services.extraction.native import extract_native_page
+
+    result = extract_native_page(
+        pdf_path,
+        document_id="doc_01JREVIEW0000000000000001",
+        page_number=page_number,
+        settings=AppSettings(),
+    )
+    words = []
+    for i, tok in enumerate(result.tokens):
+        poly = [[float(p[0]), float(p[1])] for p in (tok.polygon or [])]
+        words.append(
+            {
+                "id": tok.id if hasattr(tok, "id") else f"W{i}",
+                "text": tok.text,
+                "reading_order": i,
+                "polygon": poly,
+                "confidence": getattr(tok, "confidence", None),
+                "layer": "native_pdf_text",
+                "granularity": "word",
+            }
+        )
+    transcript = " ".join(w["text"] for w in words)
+    # Prefer line breaks from spans if present
+    lines = []
+    for i, span in enumerate(result.spans or []):
+        lines.append(
+            {
+                "id": getattr(span, "id", f"L{i}"),
+                "text": span.text,
+                "reading_order": i,
+                "polygon": [[float(p[0]), float(p[1])] for p in (span.polygons[0] if span.polygons else [])]
+                if span.polygons
+                else None,
+                "layer": "native_pdf_text",
+                "granularity": "line",
+            }
+        )
+    if lines:
+        transcript = "\n".join(ln["text"] for ln in lines)
     return {
-        "page_id": page["page_id"],
-        "safe_alias": page["safe_alias"],
-        "page_number": page["page_number"],
-        "annotation_status": "machine_prefill",
-        "prefill_label": PREFILL,
-        "expected_transcript": reconstructed,
-        "expected_reading_order": [],
-        "expected_critical_fields": [],
-        "expected_boxes": [],
-        "unreadable_regions": [],
-        "reviewer": "",
-        "review_date": "",
-        "notes": "",
-        "questions": {
-            "text_matches_visible_page": None,
-            "words_missing": None,
-            "extra_words_present": None,
-            "reading_order_correct": None,
-            "boxes_enclose_correct_words": None,
-            "native_text_layer_trustworthy": None,
-            "fresh_ocr_required": None,
-            "page_unreadable": None,
-            "critical_values_exact": None,
-        },
-        "native_words_prefill": native_words,
-        "warning": "Machine output is UNVERIFIED MACHINE PREFILL — not human ground truth",
+        "route": result.page.route.value,
+        "rotation": result.rotation,
+        "words": words,
+        "lines": lines,
+        "transcript": transcript,
+        "char_count": result.diagnostics.char_count if result.diagnostics else None,
+        "warnings": list(result.diagnostics.warnings) if result.diagnostics else [],
+        "engine": {"name": "pdfplumber", "version": "bundled", "configuration": {"path": "native"}},
     }
 
 
-def build_html_index(pages: list[dict]) -> str:
-    rows = []
-    for p in pages:
-        rows.append(
-            "<tr>"
-            f"<td>{p['page_id']}</td>"
-            f"<td>{p['safe_alias']}</td>"
-            f"<td>{p['page_number']}</td>"
-            f"<td><a href='{p['page_id']}/annotation.json'>annotation</a></td>"
-            f"<td><a href='{p['page_id']}/page_render.png'>render</a></td>"
-            "</tr>"
-        )
-    return f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8"/>
-  <title>Extraction Acceptance Review (Private)</title>
-  <style>
-    body {{ font-family: Georgia, serif; margin: 2rem; background: #f7f5f1; color: #1a1a1a; }}
-    h1 {{ font-size: 1.6rem; }}
-    .banner {{ background: #fff3cd; border: 1px solid #e0c36c; padding: 0.75rem 1rem; margin-bottom: 1.5rem; }}
-    table {{ border-collapse: collapse; width: 100%; background: #fff; }}
-    th, td {{ border: 1px solid #ccc; padding: 0.4rem 0.6rem; text-align: left; }}
-    th {{ background: #eee; }}
-  </style>
-</head>
-<body>
-  <h1>Extraction Acceptance Review</h1>
-  <div class="banner">
-    Technical extraction review only — not law-firm fact review.
-    Prefills are <strong>{PREFILL}</strong>. Do not treat as gold.
-  </div>
-  <p>Answer per page (see annotation.json questions): text match, missing/extra words,
-  reading order, boxes, native trustworthiness, fresh OCR need, unreadable, critical exactness.</p>
-  <table>
-    <thead><tr><th>Page ID</th><th>Alias</th><th>Page</th><th>Annotation</th><th>Render</th></tr></thead>
-    <tbody>
-      {''.join(rows)}
-    </tbody>
-  </table>
-  <h2>Appendix</h2>
-  <p>Full technical metadata lives beside each page (native_words.json, source dumps when copied from forensic).</p>
-</body>
-</html>
-"""
+def _copy_forensic(page_id: str, dest: Path) -> dict:
+    """Map forensic folder names loosely."""
+    candidates = [FORENSIC_PAGES / page_id]
+    # legacy short aliases
+    mapping = {
+        "amini_police_p1": "police_p1",
+        "amini_ecw_billing_p1": "ecw_billing_p1",
+        "amini_ecw_medical_p15": "ecw_medical_p15",
+        "amini_ecw_medical_p16": "ecw_medical_p16",
+        "amini_ecw_medical_p17": "ecw_medical_p17",
+        "amini_ecw_medical_p18": "ecw_medical_p18",
+        "amini_ecw_medical_p19": "ecw_medical_p19",
+        "amini_ecw_medical_p20": "ecw_medical_p20",
+        "amini_ecw_medical_p21": "ecw_medical_p21",
+        "amini_ecw_medical_p22": "ecw_medical_p22",
+        "amini_ecw_medical_p23": "ecw_medical_p23",
+        "amini_ecw_medical_p24": "ecw_medical_p24",
+        "amini_insurer_p1": "insurer_p1",
+        "amini_long_medical_p1": "long_medical_p1",
+        "amini_long_medical_p2": "long_medical_p2",
+        "amini_long_medical_p19": "long_medical_p19",
+        "amini_long_medical_p36": "long_medical_p36",
+        "amini_existing_demand_p1": "existing_demand_p1",
+    }
+    if page_id in mapping:
+        candidates.insert(0, FORENSIC_PAGES / mapping[page_id])
+    for src in candidates:
+        if not src.is_dir():
+            continue
+        for name in (
+            "page_render.png",
+            "native_words.json",
+            "source_tokens.json",
+            "source_spans.json",
+            "reconstructed_text.txt",
+            "reading_order.txt",
+            "overlay_token_boxes.png",
+            "page_meta.json",
+        ):
+            f = src / name
+            if f.is_file():
+                shutil.copy2(f, dest / name)
+        return {"forensic_dir": src.name, "copied": True}
+    return {"copied": False}
 
 
-def build() -> int:
-    REVIEW.mkdir(parents=True, exist_ok=True)
-    manifest = _load_manifest()
-    built = 0
-    for page in manifest.get("selected_pages") or []:
-        pid = page["page_id"]
-        dest = REVIEW / pid
-        dest.mkdir(parents=True, exist_ok=True)
-
-        forensic = FORENSIC_PAGES / pid
-        reconstructed = ""
-        native_words: list = []
-        meta = {
-            "page_id": pid,
-            "safe_alias": page.get("safe_alias"),
-            "page_number": page.get("page_number"),
-            "selection_reason": page.get("selection_reason"),
-            "built_at": datetime.now(timezone.utc).isoformat(),
-            "prefill_label": PREFILL,
-        }
-
-        if forensic.is_dir():
-            _copy_if(forensic / "page_render.png", dest / "page_render.png")
-            _copy_if(forensic / "overlay_token_boxes.png", dest / "overlay_token_boxes.png")
-            _copy_if(forensic / "overlay_token_order.png", dest / "overlay_token_order.png")
-            _copy_if(forensic / "overlay_span_boundaries.png", dest / "overlay_span_boundaries.png")
-            _copy_if(forensic / "reconstructed_text.txt", dest / "reconstructed_text.txt")
-            _copy_if(forensic / "reading_order.txt", dest / "reading_order.txt")
-            _copy_if(forensic / "native_words.json", dest / "native_words.json")
-            _copy_if(forensic / "source_tokens.json", dest / "source_tokens.json")
-            _copy_if(forensic / "source_spans.json", dest / "source_spans.json")
-            _copy_if(forensic / "page_meta.json", dest / "page_meta.json")
-            rt = dest / "reconstructed_text.txt"
-            if rt.is_file():
-                reconstructed = rt.read_text(encoding="utf-8", errors="replace")
-            nw = dest / "native_words.json"
-            if nw.is_file():
-                try:
-                    native_words = json.loads(nw.read_text(encoding="utf-8"))
-                except json.JSONDecodeError:
-                    native_words = []
-            if (forensic / "page_meta.json").is_file():
-                meta["forensic_meta"] = json.loads(
-                    (forensic / "page_meta.json").read_text(encoding="utf-8")
-                )
-        else:
-            (dest / "reconstructed_text.txt").write_text(
-                f"{PREFILL}\n(no forensic dump for this page yet)\n",
+def _maybe_ocr(pdf_path: Path, page_number: int, native: dict, dest: Path) -> dict | None:
+    if native.get("route") != "ocr":
+        # Still check forensic tokens
+        tok_path = dest / "source_tokens.json"
+        if tok_path.is_file():
+            try:
+                toks = json.loads(tok_path.read_text(encoding="utf-8"))
+                return {
+                    "source": "forensic_cache",
+                    "token_count": len(toks) if isinstance(toks, list) else 0,
+                    "label": PREFILL_LABEL,
+                }
+            except json.JSONDecodeError:
+                return None
+        return None
+    tok_path = dest / "source_tokens.json"
+    if tok_path.is_file():
+        try:
+            toks = json.loads(tok_path.read_text(encoding="utf-8"))
+            lines = []
+            if isinstance(toks, list):
+                for i, t in enumerate(toks):
+                    if isinstance(t, dict):
+                        lines.append(
+                            {
+                                "id": t.get("id") or f"O{i}",
+                                "text": t.get("text") or "",
+                                "reading_order": i,
+                                "polygon": t.get("polygon"),
+                                "confidence": t.get("confidence"),
+                                "layer": "fresh_ocr",
+                                "granularity": "line",
+                            }
+                        )
+            transcript = "\n".join(ln["text"] for ln in lines)
+            (dest / "ocr_lines.json").write_text(
+                json.dumps({"label": PREFILL_LABEL, "lines": lines}, indent=2) + "\n",
                 encoding="utf-8",
             )
-            reconstructed = ""
+            (dest / "ocr_transcript.txt").write_text(transcript, encoding="utf-8")
+            return {
+                "source": "forensic_cache",
+                "token_count": len(lines),
+                "transcript": transcript,
+                "label": PREFILL_LABEL,
+                "engine": {"name": "paddleocr", "version": "2.7.3", "configuration": {"cached": True}},
+            }
+        except json.JSONDecodeError:
+            pass
+    # Live OCR (optional, may be slow)
+    try:
+        if str(BACKEND) not in sys.path:
+            sys.path.insert(0, str(BACKEND))
+        from app.models.app_settings import AppSettings
+        from app.services.extraction.native import extract_native_page
+        from app.services.extraction.ocr_page import extract_ocr_page
+        from app.services.ocr import ocr_capability_enabled
 
-        ann = _annotation_template(page, reconstructed=reconstructed, native_words=native_words)
-        # Seed user-confirmed anchors as editable fields without claiming page linkage complete
-        if page.get("safe_alias") in {"ecw_medical", "long_medical", "insurer", "existing_demand"}:
-            ann["expected_critical_fields"].append(
+        if not ocr_capability_enabled():
+            return {"source": "skipped", "reason": "ocr_not_enabled", "label": PREFILL_LABEL}
+        settings = AppSettings()
+        native_res = extract_native_page(
+            pdf_path,
+            document_id="doc_01JREVIEW0000000000000001",
+            page_number=page_number,
+            settings=settings,
+        )
+        ocr = extract_ocr_page(
+            pdf_path,
+            document_id="doc_01JREVIEW0000000000000001",
+            page=native_res.page,
+            settings=settings,
+            page_rotation=native_res.rotation,
+        )
+        lines = []
+        for i, tok in enumerate(ocr.tokens):
+            lines.append(
                 {
-                    "field_id": "client_name",
-                    "field_type": "person_name",
-                    "expected": "Mayel Amini",
-                    "status": "USER_CONFIRMED_ANCHOR",
-                    "page_link_confirmed": False,
+                    "id": getattr(tok, "id", f"O{i}"),
+                    "text": tok.text,
+                    "reading_order": i,
+                    "polygon": [[float(p[0]), float(p[1])] for p in (tok.polygon or [])],
+                    "confidence": getattr(tok, "confidence", None),
+                    "layer": "fresh_ocr",
+                    "granularity": "line",
                 }
             )
-        if page.get("safe_alias") in {"existing_demand", "long_medical"}:
-            ann["expected_critical_fields"].append(
-                {
-                    "field_id": "law_firm",
-                    "field_type": "law_firm_name",
-                    "expected": "The Jackman Law Firm, PLLC",
-                    "status": "USER_CONFIRMED_ANCHOR",
-                    "page_link_confirmed": False,
-                }
+        transcript = "\n".join(ln["text"] for ln in lines)
+        (dest / "ocr_lines.json").write_text(
+            json.dumps({"label": PREFILL_LABEL, "lines": lines}, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        (dest / "ocr_transcript.txt").write_text(transcript, encoding="utf-8")
+        return {
+            "source": "live_paddleocr",
+            "token_count": len(lines),
+            "transcript": transcript,
+            "label": PREFILL_LABEL,
+            "engine": {
+                "name": "paddleocr",
+                "version": "2.7.3",
+                "configuration": {"use_gpu": False},
+            },
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {"source": "error", "reason": type(exc).__name__, "label": PREFILL_LABEL}
+
+
+def build(*, run_ocr: bool = True) -> int:
+    REVIEW.mkdir(parents=True, exist_ok=True)
+    pages_root = REVIEW / "pages"
+    pages_root.mkdir(parents=True, exist_ok=True)
+    (REVIEW / "backups").mkdir(parents=True, exist_ok=True)
+
+    manifest = _load_manifest()
+    docs_by_alias = {d["doc_alias"]: d for d in manifest.get("documents") or []}
+    built = 0
+
+    for page in manifest.get("selected_pages") or []:
+        page_id = page["page_id"]
+        dest = pages_root / page_id
+        dest.mkdir(parents=True, exist_ok=True)
+
+        doc = docs_by_alias.get(page["doc_alias"]) or {}
+        pdf = _doc_path(doc) if doc else None
+        pn = int(page.get("page_number") or 1)
+
+        forensic_info = _copy_forensic(page_id, dest)
+
+        native = {
+            "route": None,
+            "words": [],
+            "lines": [],
+            "transcript": "",
+            "warnings": [],
+        }
+        if pdf and pdf.suffix.lower() == ".pdf":
+            try:
+                native = _native_extract(pdf, pn)
+                (dest / "native_words.json").write_text(
+                    json.dumps(
+                        {"label": PREFILL_LABEL, "words": native["words"], "engine": native["engine"]},
+                        indent=2,
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+                (dest / "native_lines.json").write_text(
+                    json.dumps({"label": PREFILL_LABEL, "lines": native["lines"]}, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+                (dest / "native_transcript.txt").write_text(native["transcript"], encoding="utf-8")
+            except Exception as exc:  # noqa: BLE001
+                native["warnings"] = [type(exc).__name__]
+
+            if not (dest / "page_render.png").is_file():
+                _render_page(pdf, pn, dest / "page_render.png")
+
+        ocr_info = None
+        if run_ocr and pdf and pdf.suffix.lower() == ".pdf":
+            ocr_info = _maybe_ocr(pdf, pn, native, dest)
+
+        # Choose display machine transcript: OCR if routed and available, else native
+        machine_transcript = native.get("transcript") or ""
+        if ocr_info and ocr_info.get("transcript"):
+            if native.get("route") == "ocr" or not machine_transcript.strip():
+                machine_transcript = ocr_info["transcript"]
+        if not machine_transcript.strip() and (dest / "reconstructed_text.txt").is_file():
+            machine_transcript = (dest / "reconstructed_text.txt").read_text(
+                encoding="utf-8", errors="replace"
             )
 
-        (dest / "page_metadata.json").write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
-        (dest / "annotation.json").write_text(json.dumps(ann, indent=2) + "\n", encoding="utf-8")
-        (dest / "technical_appendix.json").write_text(
+        # Reading order from lines
+        order_src = native.get("lines") or [
+            {"id": w["id"], "text": w["text"], "reading_order": w["reading_order"]}
+            for w in native.get("words") or []
+        ]
+        if ocr_info and (dest / "ocr_lines.json").is_file():
+            ocr_lines = json.loads((dest / "ocr_lines.json").read_text(encoding="utf-8"))
+            if native.get("route") == "ocr" and ocr_lines.get("lines"):
+                order_src = ocr_lines["lines"]
+
+        prefill = {
+            "label": PREFILL_LABEL,
+            "page_id": page_id,
+            "built_at": datetime.now(timezone.utc).isoformat(),
+            "native": {
+                "route": native.get("route"),
+                "transcript": native.get("transcript") or "",
+                "word_count": len(native.get("words") or []),
+                "line_count": len(native.get("lines") or []),
+                "warnings": native.get("warnings") or [],
+                "engine": native.get("engine"),
+            },
+            "ocr": ocr_info,
+            "forensic": forensic_info,
+            "layers_separate": True,
+            "note": "Do not treat as human ground truth",
+        }
+        (dest / "machine_prefill.json").write_text(
+            json.dumps(prefill, indent=2) + "\n", encoding="utf-8"
+        )
+
+        ann_path = dest / "annotation.json"
+        if ann_path.is_file():
+            # Do not overwrite human work; refresh machine_transcript only if still prefill
+            existing = json.loads(ann_path.read_text(encoding="utf-8"))
+            if existing.get("annotation_status") in {"machine_prefill", None}:
+                existing["machine_transcript"] = machine_transcript
+                existing["machine_reading_order"] = [
+                    {"id": x.get("id"), "text": x.get("text"), "reading_order": x.get("reading_order")}
+                    for x in order_src
+                ]
+                if not existing.get("critical_fields") and page.get("critical_anchors"):
+                    existing["critical_fields"] = [
+                        {
+                            **a,
+                            "machine_reading": "",
+                            "match_status": "unresolved",
+                            "status": a.get("status") or "USER_CONFIRMED_ANCHOR",
+                        }
+                        for a in page.get("critical_anchors") or []
+                    ]
+                ann_path.write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8")
+        else:
+            crit = []
+            for a in page.get("critical_anchors") or []:
+                crit.append(
+                    {
+                        **a,
+                        "machine_reading": "",
+                        "status": a.get("status") or "USER_CONFIRMED_ANCHOR",
+                        "match_status": "unresolved",
+                    }
+                )
+            # Seed machine reading for badge corrupt candidate when present in transcript
+            for c in crit:
+                if c.get("corrupt_embedded_candidate") and c["corrupt_embedded_candidate"] in (
+                    native.get("transcript") or ""
+                ):
+                    c["machine_reading"] = c["corrupt_embedded_candidate"]
+                    c["layer"] = "embedded_ocr"
+            ann = new_annotation(
+                page_id=page_id,
+                case_alias=str(page.get("case_alias") or ""),
+                doc_alias=str(page.get("doc_alias") or ""),
+                page_number=pn,
+                machine_transcript=machine_transcript,
+                critical_fields=crit,
+                challenges=list(page.get("challenges") or []),
+            )
+            ann["machine_reading_order"] = [
+                {"id": x.get("id"), "text": x.get("text"), "reading_order": x.get("reading_order")}
+                for x in order_src
+            ]
+            ann_path.write_text(json.dumps(ann, indent=2) + "\n", encoding="utf-8")
+
+        (dest / "page_meta.json").write_text(
             json.dumps(
                 {
-                    "note": "Technical metadata appendix",
-                    "has_forensic_dump": forensic.is_dir(),
-                    "files": sorted(p.name for p in dest.iterdir() if p.is_file()),
+                    "page_id": page_id,
+                    "case_alias": page.get("case_alias"),
+                    "doc_alias": page.get("doc_alias"),
+                    "page_number": pn,
+                    "challenges": page.get("challenges") or [],
+                    "selection_reason": page.get("selection_reason"),
+                    "has_render": (dest / "page_render.png").is_file(),
+                    "has_native": bool(native.get("words")),
+                    "has_ocr": bool(ocr_info and ocr_info.get("token_count")),
+                    "route": native.get("route"),
                 },
                 indent=2,
             )
@@ -200,19 +435,27 @@ def build() -> int:
         )
         built += 1
 
-    (REVIEW / "index.html").write_text(
-        build_html_index(manifest.get("selected_pages") or []),
+    # Private launcher copy
+    launcher = REVIEW / "start_review.cmd"
+    launcher.write_text(
+        "@echo off\r\n"
+        "setlocal\r\n"
+        "cd /d \"%~dp0\\..\\..\\..\"\r\n"
+        "echo Starting extraction review on http://127.0.0.1:8765/\r\n"
+        "backend\\.venv\\Scripts\\python.exe scripts\\extraction_acceptance\\start_review_server.py\r\n",
         encoding="utf-8",
     )
     (REVIEW / "README.txt").write_text(
         "PRIVATE extraction acceptance review pack.\n"
-        f"Open index.html. Prefills are {PREFILL}.\n"
-        "Do not commit this directory.\n",
+        "Launch via start_review.cmd or:\n"
+        "  backend\\.venv\\Scripts\\python.exe scripts\\extraction_acceptance\\start_review_server.py\n"
+        "Open http://127.0.0.1:8765/ — do not use file:///\n"
+        "Prefills are UNVERIFIED MACHINE OUTPUT.\n",
         encoding="utf-8",
     )
     return built
 
 
 if __name__ == "__main__":
-    n = build()
+    n = build(run_ocr=True)
     print(f"review pack pages: {n} -> {REVIEW}")

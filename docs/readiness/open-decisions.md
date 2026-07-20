@@ -273,9 +273,10 @@
 | **Why it matters** | User-confirmed badge/ID visual value and corrupt-embed candidate cannot be evaluated without the source pages. |
 | **Options** | (A) User places the two-page file in private intake and re-runs corpus tooling. (B) Proceed without this anchor indefinitely. (C) Infer annotations from other police pages (forbidden). |
 | **Recommended** | **A** — do not fabricate annotations from machine text. |
-| **Consequences / risks** | Part 1 remains `CORPUS PREPARED — HUMAN GROUND-TRUTH REVIEW PENDING` / gap on badge layer-selection proof. |
-| **Blocks a phase?** | Soft-blocks final Part 1 acceptance for corrupt-hidden-OCR critical-field proof. |
-| **Resolve by** | When the intake PDF is provided under `tmp/extraction-remediation/intake/`. |
+| **Status (2026-07-21)** | **File located** privately (intake + case folder; hash-deduplicated as one corpus document). Both pages selected; badge anchor seeded on page 2 as `USER_CONFIRMED_ANCHOR`. **Human review still pending** via the localhost annotation app. |
+| **Consequences / risks** | Numeric/corrupt-layer acceptance still blocked until human review completes; tooling no longer blocked on missing file. |
+| **Blocks a phase?** | Soft-blocks final Part 1 **numeric** acceptance until human GT review. |
+| **Resolve by** | Complete human review in the localhost review app (start with the badge page). |
 
 ---
 
@@ -301,4 +302,4 @@
 | OD-16 | PaddleOCR version pin | No (blocks Phase 3 adapter) | Phase 3 start |
 | OD-17 | Extraction acceptance thresholds | No (soft-blocks numeric accept) | Post human GT review |
 | OD-18 | Character geometry capability | No | Before production contract promotion |
-| OD-19 | Difficult police badge intake | No (soft-blocks Part 1 final) | Intake file provided |
+| OD-19 | Difficult police badge intake | No (soft-blocks Part 1 numeric) | Human review in review app |

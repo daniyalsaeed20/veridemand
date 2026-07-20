@@ -65,6 +65,10 @@ Part 1 is complete when:
 
 If real annotations remain unreviewed:
 
-**`CORPUS PREPARED — HUMAN GROUND-TRUTH REVIEW PENDING`**
+**`CORPUS REVIEW TOOL READY — HUMAN REVIEW PENDING`**
 
-Do not call the corpus gold until human-checked.
+(Earlier phrasing `CORPUS PREPARED — HUMAN GROUND-TRUTH REVIEW PENDING` still applies to gold status: the corpus is **not** gold until human-checked.)
+
+Difficult police report with badge/ID corrupt-embed challenge: present in the private multi-case corpus (deduplicated); human review via the localhost app remains required.
+
+Do not call the entire corpus gold during tooling delivery.

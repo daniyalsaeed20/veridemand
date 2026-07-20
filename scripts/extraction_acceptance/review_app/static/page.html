@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Page review</title>
+  <link rel="stylesheet" href="/static/app.css"/>
+</head>
+<body class="page-editor">
+  <header class="top bar">
+    <a href="/">&larr; Dashboard</a>
+    <span id="page-title"></span>
+    <span id="status-badge" class="badge"></span>
+    <span id="nav-info"></span>
+  </header>
+
+  <div class="layout">
+    <section class="left">
+      <div class="toolbar">
+        <button type="button" id="zoom-in">Zoom +</button>
+        <button type="button" id="zoom-out">Zoom −</button>
+        <button type="button" id="zoom-reset">Reset</button>
+        <label><input type="checkbox" id="ov-native" checked/> Native words</label>
+        <label><input type="checkbox" id="ov-ocr"/> Fresh OCR</label>
+        <label><input type="checkbox" id="ov-tokens"/> SourceTokens</label>
+        <label><input type="checkbox" id="ov-spans"/> SourceSpans</label>
+        <label><input type="checkbox" id="ov-human" checked/> Human boxes</label>
+        <label><input type="checkbox" id="ov-order"/> Order #</label>
+        <select id="draw-granularity">
+          <option value="word">Draw word</option>
+          <option value="line">Draw line</option>
+          <option value="region">Draw region</option>
+          <option value="symbol">Draw symbol</option>
+        </select>
+        <button type="button" id="draw-toggle">Draw box</button>
+      </div>
+      <div id="viewer" class="viewer">
+        <canvas id="canvas"></canvas>
+      </div>
+      <div id="token-info" class="token-info">Click a region for details.</div>
+    </section>
+
+    <section class="right">
+      <h2>Machine transcript <span class="warn">UNVERIFIED MACHINE OUTPUT</span></h2>
+      <textarea id="machine-transcript" readonly rows="6"></textarea>
+      <div class="row">
+        <button type="button" id="copy-machine">Copy to expected</button>
+        <button type="button" id="reset-prefill">Reset expected to empty</button>
+      </div>
+
+      <h2>Expected transcript</h2>
+      <textarea id="expected-transcript" rows="8" placeholder="Correct visible text…"></textarea>
+
+      <h2>Reading order</h2>
+      <label><input type="checkbox" id="order-confirmed"/> Order confirmed / corrected</label>
+      <ul id="order-list" class="order-list"></ul>
+      <div class="flags">
+        <label><input type="checkbox" data-flag="cross_column_error"/> Cross-column</label>
+        <label><input type="checkbox" data-flag="cross_row_error"/> Cross-row</label>
+        <label><input type="checkbox" data-flag="header_body_merge"/> Header/body merge</label>
+        <label><input type="checkbox" data-flag="footer_body_merge"/> Footer/body merge</label>
+        <label><input type="checkbox" data-flag="table_cell_order_error"/> Table-cell order</label>
+        <label><input type="checkbox" data-flag="form_label_value_mismatch"/> Label/value mismatch</label>
+      </div>
+      <label><input type="checkbox" id="order-complete"/> Order review complete</label>
+
+      <h2>Critical fields</h2>
+      <div id="critical-fields"></div>
+
+      <h2>Page quality questions</h2>
+      <div id="questions"></div>
+
+      <h2>Geometry</h2>
+      <label><input type="checkbox" id="geom-complete"/> Geometry review complete</label>
+      <label><input type="checkbox" id="text-complete"/> Text review complete</label>
+      <ul id="human-boxes"></ul>
+
+      <h2>Reviewer</h2>
+      <label>Initials <input id="reviewer" maxlength="16"/></label>
+      <label>Date <input id="review-date" type="date"/></label>
+      <label>Notes <textarea id="notes" rows="3"></textarea></label>
+
+      <div class="actions">
+        <button type="button" id="btn-prev">Previous</button>
+        <button type="button" id="btn-save">Save</button>
+        <button type="button" id="btn-save-next">Save and next</button>
+        <button type="button" id="btn-next">Next</button>
+        <button type="button" id="btn-mark" class="primary">Mark page as human reviewed</button>
+        <button type="button" id="btn-second">Needs second review</button>
+      </div>
+      <pre id="save-msg"></pre>
+    </section>
+  </div>
+
+  <script src="/static/overlay.js"></script>
+  <script src="/static/page.js"></script>
+</body>
+</html>

@@ -47,6 +47,9 @@ docs/example/*.docx
 docs/example/**/*.pdf
 docs/example/**/*.docx
 
+# LibreOffice lock files under local case folders
+docs/example/**/.~lock.*
+
 # OS / IDE
 .DS_Store
 Thumbs.db
