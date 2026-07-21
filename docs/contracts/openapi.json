@@ -75,6 +75,24 @@
         "title": "ApiErrorEnvelope",
         "type": "object"
       },
+      "Body_upload_documents_api_v1_sessions__session_id__documents_post": {
+        "properties": {
+          "files": {
+            "description": "One or more files to upload.",
+            "items": {
+              "contentMediaType": "application/octet-stream",
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "array"
+          }
+        },
+        "required": [
+          "files"
+        ],
+        "title": "Body_upload_documents_api_v1_sessions__session_id__documents_post",
+        "type": "object"
+      },
       "CheckState": {
         "description": "Result of a single readiness dependency check.",
         "enum": [
@@ -124,6 +142,423 @@
         "title": "DependencyCheck",
         "type": "object"
       },
+      "DocumentFormat": {
+        "description": "Canonical internal format key for a supported input type.",
+        "enum": [
+          "pdf",
+          "doc",
+          "docx",
+          "txt",
+          "jpeg",
+          "png",
+          "tiff",
+          "bmp",
+          "webp"
+        ],
+        "title": "DocumentFormat",
+        "type": "string"
+      },
+      "DocumentListResponse": {
+        "additionalProperties": false,
+        "description": "Response body for listing a session's documents.",
+        "properties": {
+          "documents": {
+            "description": "Documents in acceptance order.",
+            "items": {
+              "$ref": "#/components/schemas/DocumentSummary"
+            },
+            "title": "Documents",
+            "type": "array"
+          }
+        },
+        "required": [
+          "documents"
+        ],
+        "title": "DocumentListResponse",
+        "type": "object"
+      },
+      "DocumentStatus": {
+        "description": "Lifecycle state of an accepted document during Phase 1.",
+        "enum": [
+          "uploaded",
+          "queued",
+          "preparing",
+          "ready_for_extraction",
+          "cancelled",
+          "failed"
+        ],
+        "title": "DocumentStatus",
+        "type": "string"
+      },
+      "DocumentStatusCounts": {
+        "additionalProperties": false,
+        "description": "Counts of documents grouped by lifecycle status.",
+        "properties": {
+          "cancelled": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Cancelled",
+            "type": "integer"
+          },
+          "failed": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Failed",
+            "type": "integer"
+          },
+          "preparing": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Preparing",
+            "type": "integer"
+          },
+          "queued": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Queued",
+            "type": "integer"
+          },
+          "ready_for_extraction": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Ready For Extraction",
+            "type": "integer"
+          },
+          "uploaded": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Uploaded",
+            "type": "integer"
+          }
+        },
+        "title": "DocumentStatusCounts",
+        "type": "object"
+      },
+      "DocumentSummary": {
+        "additionalProperties": false,
+        "description": "Public summary of an accepted document.",
+        "properties": {
+          "active_job_id": {
+            "anyOf": [
+              {
+                "pattern": "^job_[0-9a-f]{32}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Identifier of the active/last admission job, if any.",
+            "title": "Active Job Id"
+          },
+          "created_at": {
+            "description": "Timezone-aware UTC acceptance time.",
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "display_filename": {
+            "description": "Sanitised display filename (never a storage path).",
+            "title": "Display Filename",
+            "type": "string"
+          },
+          "document_id": {
+            "description": "Opaque document identifier.",
+            "pattern": "^doc_[0-9a-f]{32}$",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "extension": {
+            "description": "Lowercased, validated file extension without the dot.",
+            "title": "Extension",
+            "type": "string"
+          },
+          "extraction_performed": {
+            "default": false,
+            "description": "Always false in Phase 1.",
+            "title": "Extraction Performed",
+            "type": "boolean"
+          },
+          "format": {
+            "$ref": "#/components/schemas/DocumentFormat",
+            "description": "Canonical internal format key."
+          },
+          "media_type": {
+            "description": "Server-validated media type.",
+            "title": "Media Type",
+            "type": "string"
+          },
+          "page_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Known page count, else null.",
+            "title": "Page Count"
+          },
+          "page_count_status": {
+            "$ref": "#/components/schemas/PageCountStatus",
+            "description": "Whether the page count is known."
+          },
+          "progress_percent": {
+            "description": "Honest Phase 1 progress; capped at 5% (no extraction).",
+            "maximum": 5.0,
+            "minimum": 0.0,
+            "title": "Progress Percent",
+            "type": "integer"
+          },
+          "queue_position": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Dynamic 1-based queue position while queued.",
+            "title": "Queue Position"
+          },
+          "result_available": {
+            "default": false,
+            "description": "Always false in Phase 1.",
+            "title": "Result Available",
+            "type": "boolean"
+          },
+          "sha256": {
+            "description": "Lowercase hex SHA-256 digest.",
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size_bytes": {
+            "description": "Accepted file size in bytes.",
+            "minimum": 0.0,
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DocumentStatus",
+            "description": "Current document lifecycle status."
+          },
+          "warning_count": {
+            "default": 0,
+            "description": "Number of non-fatal upload warnings.",
+            "minimum": 0.0,
+            "title": "Warning Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "document_id",
+          "display_filename",
+          "extension",
+          "format",
+          "media_type",
+          "size_bytes",
+          "sha256",
+          "page_count_status",
+          "status",
+          "progress_percent",
+          "created_at"
+        ],
+        "title": "DocumentSummary",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "IgnoredDocument": {
+        "additionalProperties": false,
+        "description": "A document that was not (re-)queued, with a safe reason.",
+        "properties": {
+          "document_id": {
+            "description": "Ignored document identifier.",
+            "pattern": "^doc_[0-9a-f]{32}$",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "reason": {
+            "description": "Why the document was not queued (e.g. already queued/terminal).",
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id",
+          "reason"
+        ],
+        "title": "IgnoredDocument",
+        "type": "object"
+      },
+      "JobListResponse": {
+        "additionalProperties": false,
+        "description": "Response body for listing a session's jobs.",
+        "properties": {
+          "jobs": {
+            "description": "Jobs in creation order.",
+            "items": {
+              "$ref": "#/components/schemas/JobSummary"
+            },
+            "title": "Jobs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "jobs"
+        ],
+        "title": "JobListResponse",
+        "type": "object"
+      },
+      "JobStatus": {
+        "description": "Lifecycle state of a queue-admission job.",
+        "enum": [
+          "queued",
+          "running",
+          "completed",
+          "cancelled",
+          "failed"
+        ],
+        "title": "JobStatus",
+        "type": "string"
+      },
+      "JobSummary": {
+        "additionalProperties": false,
+        "description": "Public summary of a queue-admission job.",
+        "properties": {
+          "attempt": {
+            "default": 1,
+            "description": "Attempt number; fixed at 1 in Phase 1.",
+            "maximum": 1.0,
+            "minimum": 1.0,
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "cancellation_requested": {
+            "default": false,
+            "description": "Whether cooperative cancellation was requested.",
+            "title": "Cancellation Requested",
+            "type": "boolean"
+          },
+          "created_at": {
+            "description": "Timezone-aware UTC creation time.",
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "document_id": {
+            "description": "Target document identifier.",
+            "pattern": "^doc_[0-9a-f]{32}$",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "failure_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Safe failure code, if failed.",
+            "title": "Failure Code"
+          },
+          "failure_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Safe failure message, if failed.",
+            "title": "Failure Message"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the job reached a terminal state.",
+            "title": "Finished At"
+          },
+          "job_id": {
+            "description": "Opaque job identifier.",
+            "pattern": "^job_[0-9a-f]{32}$",
+            "title": "Job Id",
+            "type": "string"
+          },
+          "queue_position": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Dynamic 1-based position while queued, else null.",
+            "title": "Queue Position"
+          },
+          "session_id": {
+            "description": "Owning session identifier.",
+            "pattern": "^ses_[0-9a-f]{32}$",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When admission began.",
+            "title": "Started At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobStatus",
+            "description": "Current job status."
+          }
+        },
+        "required": [
+          "job_id",
+          "session_id",
+          "document_id",
+          "status",
+          "created_at"
+        ],
+        "title": "JobSummary",
+        "type": "object"
+      },
       "LivenessResponse": {
         "additionalProperties": false,
         "description": "Response for the liveness probe.",
@@ -171,6 +606,332 @@
           "request_id"
         ],
         "title": "LivenessResponse",
+        "type": "object"
+      },
+      "PageCountStatus": {
+        "description": "Whether a document's page count is known in Phase 1.",
+        "enum": [
+          "known",
+          "pending_canonicalisation"
+        ],
+        "title": "PageCountStatus",
+        "type": "string"
+      },
+      "ProcessRequest": {
+        "additionalProperties": false,
+        "description": "Request to queue documents for admission.\n\nWhen ``document_ids`` is null, all documents currently in the ``uploaded``\nstate are queued. When supplied, every id must belong to the session and only\neligible uploaded documents are queued.",
+        "properties": {
+          "document_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "pattern": "^doc_[0-9a-f]{32}$",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Specific documents to queue, or null for all uploaded documents.",
+            "title": "Document Ids"
+          }
+        },
+        "title": "ProcessRequest",
+        "type": "object"
+      },
+      "ProcessResponse": {
+        "additionalProperties": false,
+        "description": "Response for a process request (202 Accepted).",
+        "properties": {
+          "ignored": {
+            "description": "Documents that were already queued/terminal.",
+            "items": {
+              "$ref": "#/components/schemas/IgnoredDocument"
+            },
+            "title": "Ignored",
+            "type": "array"
+          },
+          "queued": {
+            "description": "Newly created admission jobs.",
+            "items": {
+              "$ref": "#/components/schemas/JobSummary"
+            },
+            "title": "Queued",
+            "type": "array"
+          },
+          "session": {
+            "$ref": "#/components/schemas/SessionSnapshot",
+            "description": "Updated session snapshot."
+          }
+        },
+        "required": [
+          "queued",
+          "ignored",
+          "session"
+        ],
+        "title": "ProcessResponse",
+        "type": "object"
+      },
+      "ProgressEvent": {
+        "additionalProperties": false,
+        "description": "A single, strictly-validated progress event.",
+        "properties": {
+          "document_id": {
+            "anyOf": [
+              {
+                "pattern": "^doc_[0-9a-f]{32}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Related document, if any.",
+            "title": "Document Id"
+          },
+          "document_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DocumentStatus"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Document status at the time of the event, if relevant."
+          },
+          "event": {
+            "$ref": "#/components/schemas/ProgressEventType",
+            "description": "Event type."
+          },
+          "event_id": {
+            "description": "Per-session stable event identifier.",
+            "pattern": "^evt_[0-9]{12}$",
+            "title": "Event Id",
+            "type": "string"
+          },
+          "event_sequence": {
+            "description": "Monotonic per-session sequence number.",
+            "minimum": 1.0,
+            "title": "Event Sequence",
+            "type": "integer"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "pattern": "^job_[0-9a-f]{32}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Related job, if any.",
+            "title": "Job Id"
+          },
+          "job_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JobStatus"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Job status at the time of the event, if relevant."
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional safe, non-sensitive message.",
+            "title": "Message"
+          },
+          "page_number": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Reserved; unused in Phase 1.",
+            "title": "Page Number"
+          },
+          "pages_completed": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Reserved; unused in Phase 1.",
+            "title": "Pages Completed"
+          },
+          "pages_total": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Reserved; unused in Phase 1.",
+            "title": "Pages Total"
+          },
+          "percent": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional progress percent.",
+            "title": "Percent"
+          },
+          "queue_position": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Queue position, if relevant.",
+            "title": "Queue Position"
+          },
+          "session_id": {
+            "description": "Owning session identifier.",
+            "pattern": "^ses_[0-9a-f]{32}$",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional stage label.",
+            "title": "Stage"
+          },
+          "timestamp": {
+            "description": "Timezone-aware UTC time of the event.",
+            "format": "date-time",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "event_sequence",
+          "event",
+          "session_id",
+          "timestamp"
+        ],
+        "title": "ProgressEvent",
+        "type": "object"
+      },
+      "ProgressEventType": {
+        "description": "All event types the SSE stream may carry.\n\nExtraction-stage types are reserved for later phases and are never emitted in\nPhase 1.",
+        "enum": [
+          "session.created",
+          "session.snapshot",
+          "session.expiring",
+          "session.deleted",
+          "document.uploaded",
+          "document.rejected",
+          "document.queued",
+          "document.started",
+          "document.stage_changed",
+          "document.ready_for_extraction",
+          "document.removed",
+          "document.warning",
+          "document.failed",
+          "document.cancelled",
+          "job.queued",
+          "job.started",
+          "job.completed",
+          "job.failed",
+          "job.cancelled",
+          "stream.resync_required",
+          "heartbeat",
+          "document.page_started",
+          "document.page_completed",
+          "document.completed"
+        ],
+        "title": "ProgressEventType",
+        "type": "string"
+      },
+      "QueueInfo": {
+        "additionalProperties": false,
+        "description": "Snapshot of the session's queue state.",
+        "properties": {
+          "active_document_id": {
+            "anyOf": [
+              {
+                "pattern": "^doc_[0-9a-f]{32}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Document currently being admitted, if any.",
+            "title": "Active Document Id"
+          },
+          "active_job_id": {
+            "anyOf": [
+              {
+                "pattern": "^job_[0-9a-f]{32}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Active admission job, if any.",
+            "title": "Active Job Id"
+          },
+          "pending": {
+            "default": 0,
+            "description": "Queued admission jobs waiting.",
+            "minimum": 0.0,
+            "title": "Pending",
+            "type": "integer"
+          },
+          "running": {
+            "default": 0,
+            "description": "Admission jobs currently running.",
+            "minimum": 0.0,
+            "title": "Running",
+            "type": "integer"
+          }
+        },
+        "title": "QueueInfo",
         "type": "object"
       },
       "ReadinessResponse": {
@@ -234,6 +995,334 @@
         ],
         "title": "ReadinessResponse",
         "type": "object"
+      },
+      "RejectedDocument": {
+        "additionalProperties": false,
+        "description": "A single rejected file in a bulk upload batch.",
+        "properties": {
+          "client_media_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Client-supplied media type, echoed only when safe.",
+            "title": "Client Media Type"
+          },
+          "detected_format": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Server-detected format where safely determined.",
+            "title": "Detected Format"
+          },
+          "display_filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sanitised display filename where recoverable.",
+            "title": "Display Filename"
+          },
+          "error_code": {
+            "description": "Stable rejection error code.",
+            "title": "Error Code",
+            "type": "string"
+          },
+          "input_index": {
+            "description": "Original 0-based position in the multipart batch.",
+            "minimum": 0.0,
+            "title": "Input Index",
+            "type": "integer"
+          },
+          "message": {
+            "description": "Safe, non-sensitive rejection message.",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "input_index",
+          "error_code",
+          "message"
+        ],
+        "title": "RejectedDocument",
+        "type": "object"
+      },
+      "SessionLimits": {
+        "additionalProperties": false,
+        "description": "Public, non-sensitive session limits surfaced to the frontend.",
+        "properties": {
+          "max_filename_length": {
+            "exclusiveMinimum": 0.0,
+            "title": "Max Filename Length",
+            "type": "integer"
+          },
+          "max_files_per_session": {
+            "exclusiveMinimum": 0.0,
+            "title": "Max Files Per Session",
+            "type": "integer"
+          },
+          "max_pages_per_session": {
+            "exclusiveMinimum": 0.0,
+            "title": "Max Pages Per Session",
+            "type": "integer"
+          },
+          "max_session_bytes": {
+            "exclusiveMinimum": 0.0,
+            "title": "Max Session Bytes",
+            "type": "integer"
+          },
+          "max_single_file_bytes": {
+            "exclusiveMinimum": 0.0,
+            "title": "Max Single File Bytes",
+            "type": "integer"
+          },
+          "supported_extensions": {
+            "description": "Allowed file extensions (with dot).",
+            "items": {
+              "type": "string"
+            },
+            "title": "Supported Extensions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "max_files_per_session",
+          "max_pages_per_session",
+          "max_single_file_bytes",
+          "max_session_bytes",
+          "max_filename_length",
+          "supported_extensions"
+        ],
+        "title": "SessionLimits",
+        "type": "object"
+      },
+      "SessionSnapshot": {
+        "additionalProperties": false,
+        "description": "Canonical public read model of a runtime session.",
+        "properties": {
+          "accepted_bytes": {
+            "description": "Total accepted bytes in the session.",
+            "minimum": 0.0,
+            "title": "Accepted Bytes",
+            "type": "integer"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/DocumentStatusCounts",
+            "description": "Document counts by status."
+          },
+          "created_at": {
+            "description": "Timezone-aware UTC creation time.",
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "documents": {
+            "description": "Documents in acceptance order.",
+            "items": {
+              "$ref": "#/components/schemas/DocumentSummary"
+            },
+            "title": "Documents",
+            "type": "array"
+          },
+          "expires_at": {
+            "description": "Timezone-aware UTC expiry deadline.",
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "expiring": {
+            "default": false,
+            "description": "Whether the session is in its warning window.",
+            "title": "Expiring",
+            "type": "boolean"
+          },
+          "jobs": {
+            "description": "Jobs in creation order.",
+            "items": {
+              "$ref": "#/components/schemas/JobSummary"
+            },
+            "title": "Jobs",
+            "type": "array"
+          },
+          "known_pages": {
+            "description": "Total known page count across documents.",
+            "minimum": 0.0,
+            "title": "Known Pages",
+            "type": "integer"
+          },
+          "last_activity_at": {
+            "description": "Timezone-aware UTC time of last activity.",
+            "format": "date-time",
+            "title": "Last Activity At",
+            "type": "string"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/SessionLimits",
+            "description": "Session limits."
+          },
+          "queue": {
+            "$ref": "#/components/schemas/QueueInfo",
+            "description": "Queue state."
+          },
+          "recent_events": {
+            "description": "Bounded recent progress events.",
+            "items": {
+              "$ref": "#/components/schemas/ProgressEvent"
+            },
+            "title": "Recent Events",
+            "type": "array"
+          },
+          "runtime_warning": {
+            "description": "Constant runtime-only warning message.",
+            "title": "Runtime Warning",
+            "type": "string"
+          },
+          "seconds_remaining": {
+            "description": "Whole seconds until expiry (never negative).",
+            "minimum": 0.0,
+            "title": "Seconds Remaining",
+            "type": "integer"
+          },
+          "session_id": {
+            "description": "Opaque session identifier.",
+            "pattern": "^ses_[0-9a-f]{32}$",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SessionStatus",
+            "description": "Current session status."
+          },
+          "unknown_page_documents": {
+            "description": "Documents whose page count is pending canonicalisation.",
+            "minimum": 0.0,
+            "title": "Unknown Page Documents",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "session_id",
+          "status",
+          "created_at",
+          "last_activity_at",
+          "expires_at",
+          "seconds_remaining",
+          "limits",
+          "runtime_warning",
+          "counts",
+          "accepted_bytes",
+          "known_pages",
+          "unknown_page_documents",
+          "queue",
+          "documents",
+          "jobs",
+          "recent_events"
+        ],
+        "title": "SessionSnapshot",
+        "type": "object"
+      },
+      "SessionStatus": {
+        "description": "Lifecycle state of a runtime session.\n\n``ready`` means all currently queued admission jobs finished and files are\nready for a *future* extraction phase; it does not mean extraction occurred.",
+        "enum": [
+          "created",
+          "accepting_uploads",
+          "queued",
+          "processing",
+          "ready",
+          "reset",
+          "expired",
+          "failed",
+          "deleted"
+        ],
+        "title": "SessionStatus",
+        "type": "string"
+      },
+      "UploadBatchResponse": {
+        "additionalProperties": false,
+        "description": "Response body for a bulk upload request (201, incl. partial acceptance).",
+        "properties": {
+          "accepted": {
+            "description": "Accepted documents, in input order.",
+            "items": {
+              "$ref": "#/components/schemas/DocumentSummary"
+            },
+            "title": "Accepted",
+            "type": "array"
+          },
+          "rejected": {
+            "description": "Rejected files, in input order.",
+            "items": {
+              "$ref": "#/components/schemas/RejectedDocument"
+            },
+            "title": "Rejected",
+            "type": "array"
+          },
+          "session": {
+            "$ref": "#/components/schemas/SessionSnapshot",
+            "description": "Updated session snapshot."
+          }
+        },
+        "required": [
+          "session",
+          "accepted",
+          "rejected"
+        ],
+        "title": "UploadBatchResponse",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
       }
     }
   },
@@ -244,6 +1333,633 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/sessions": {
+      "post": {
+        "operationId": "create_session_api_v1_sessions_post",
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Create a runtime session",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/api/v1/sessions/{session_id}": {
+      "delete": {
+        "operationId": "delete_session_api_v1_sessions__session_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "Session not found or expired."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete a session and its data",
+        "tags": [
+          "sessions"
+        ]
+      },
+      "get": {
+        "operationId": "get_session_api_v1_sessions__session_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "Session not found or expired."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get a session snapshot",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/api/v1/sessions/{session_id}/documents": {
+      "get": {
+        "operationId": "list_documents_api_v1_sessions__session_id__documents_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "Session or document not found."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List a session's documents",
+        "tags": [
+          "documents"
+        ]
+      },
+      "post": {
+        "operationId": "upload_documents_api_v1_sessions__session_id__documents_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_documents_api_v1_sessions__session_id__documents_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadBatchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "Session or document not found."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload one or more documents",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
+    "/api/v1/sessions/{session_id}/documents/{document_id}": {
+      "delete": {
+        "operationId": "remove_document_api_v1_sessions__session_id__documents__document_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "Session or document not found."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove a document and its files",
+        "tags": [
+          "documents"
+        ]
+      },
+      "get": {
+        "operationId": "get_document_api_v1_sessions__session_id__documents__document_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "Session or document not found."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get a single document",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
+    "/api/v1/sessions/{session_id}/documents/{document_id}/cancel": {
+      "post": {
+        "operationId": "cancel_document_api_v1_sessions__session_id__documents__document_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "Session or document not found."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel a queued or in-progress document",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
+    "/api/v1/sessions/{session_id}/events": {
+      "get": {
+        "operationId": "session_events_api_v1_sessions__session_id__events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "Session not found or expired."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Subscribe to live session progress (SSE)",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/api/v1/sessions/{session_id}/jobs": {
+      "get": {
+        "operationId": "list_jobs_api_v1_sessions__session_id__jobs_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "Session or job not found."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List a session's jobs",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
+    "/api/v1/sessions/{session_id}/jobs/{job_id}": {
+      "get": {
+        "operationId": "get_job_api_v1_sessions__session_id__jobs__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "Session or job not found."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get a single job",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
+    "/api/v1/sessions/{session_id}/process": {
+      "post": {
+        "operationId": "process_documents_api_v1_sessions__session_id__process_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProcessRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "Session not found or expired."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Queue documents for admission",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
     "/health/live": {
       "get": {
         "description": "Return 200 while the process is running. No expensive work is performed.",

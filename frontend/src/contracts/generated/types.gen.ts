@@ -63,6 +63,18 @@ export type ApiErrorEnvelope = {
 };
 
 /**
+ * Body_upload_documents_api_v1_sessions__session_id__documents_post
+ */
+export type BodyUploadDocumentsApiV1SessionsSessionIdDocumentsPost = {
+    /**
+     * Files
+     *
+     * One or more files to upload.
+     */
+    files: Array<Blob | File>;
+};
+
+/**
  * CheckState
  *
  * Result of a single readiness dependency check.
@@ -97,6 +109,299 @@ export type DependencyCheck = {
      * Result of the check.
      */
     status: CheckState;
+};
+
+/**
+ * DocumentFormat
+ *
+ * Canonical internal format key for a supported input type.
+ */
+export type DocumentFormat = 'pdf' | 'doc' | 'docx' | 'txt' | 'jpeg' | 'png' | 'tiff' | 'bmp' | 'webp';
+
+/**
+ * DocumentListResponse
+ *
+ * Response body for listing a session's documents.
+ */
+export type DocumentListResponse = {
+    /**
+     * Documents
+     *
+     * Documents in acceptance order.
+     */
+    documents: Array<DocumentSummary>;
+};
+
+/**
+ * DocumentStatus
+ *
+ * Lifecycle state of an accepted document during Phase 1.
+ */
+export type DocumentStatus = 'uploaded' | 'queued' | 'preparing' | 'ready_for_extraction' | 'cancelled' | 'failed';
+
+/**
+ * DocumentStatusCounts
+ *
+ * Counts of documents grouped by lifecycle status.
+ */
+export type DocumentStatusCounts = {
+    /**
+     * Cancelled
+     */
+    cancelled?: number;
+    /**
+     * Failed
+     */
+    failed?: number;
+    /**
+     * Preparing
+     */
+    preparing?: number;
+    /**
+     * Queued
+     */
+    queued?: number;
+    /**
+     * Ready For Extraction
+     */
+    ready_for_extraction?: number;
+    /**
+     * Uploaded
+     */
+    uploaded?: number;
+};
+
+/**
+ * DocumentSummary
+ *
+ * Public summary of an accepted document.
+ */
+export type DocumentSummary = {
+    /**
+     * Active Job Id
+     *
+     * Identifier of the active/last admission job, if any.
+     */
+    active_job_id?: string | null;
+    /**
+     * Created At
+     *
+     * Timezone-aware UTC acceptance time.
+     */
+    created_at: string;
+    /**
+     * Display Filename
+     *
+     * Sanitised display filename (never a storage path).
+     */
+    display_filename: string;
+    /**
+     * Document Id
+     *
+     * Opaque document identifier.
+     */
+    document_id: string;
+    /**
+     * Extension
+     *
+     * Lowercased, validated file extension without the dot.
+     */
+    extension: string;
+    /**
+     * Extraction Performed
+     *
+     * Always false in Phase 1.
+     */
+    extraction_performed?: boolean;
+    /**
+     * Canonical internal format key.
+     */
+    format: DocumentFormat;
+    /**
+     * Media Type
+     *
+     * Server-validated media type.
+     */
+    media_type: string;
+    /**
+     * Page Count
+     *
+     * Known page count, else null.
+     */
+    page_count?: number | null;
+    /**
+     * Whether the page count is known.
+     */
+    page_count_status: PageCountStatus;
+    /**
+     * Progress Percent
+     *
+     * Honest Phase 1 progress; capped at 5% (no extraction).
+     */
+    progress_percent: number;
+    /**
+     * Queue Position
+     *
+     * Dynamic 1-based queue position while queued.
+     */
+    queue_position?: number | null;
+    /**
+     * Result Available
+     *
+     * Always false in Phase 1.
+     */
+    result_available?: boolean;
+    /**
+     * Sha256
+     *
+     * Lowercase hex SHA-256 digest.
+     */
+    sha256: string;
+    /**
+     * Size Bytes
+     *
+     * Accepted file size in bytes.
+     */
+    size_bytes: number;
+    /**
+     * Current document lifecycle status.
+     */
+    status: DocumentStatus;
+    /**
+     * Warning Count
+     *
+     * Number of non-fatal upload warnings.
+     */
+    warning_count?: number;
+};
+
+/**
+ * HTTPValidationError
+ */
+export type HttpValidationError = {
+    /**
+     * Detail
+     */
+    detail?: Array<ValidationError>;
+};
+
+/**
+ * IgnoredDocument
+ *
+ * A document that was not (re-)queued, with a safe reason.
+ */
+export type IgnoredDocument = {
+    /**
+     * Document Id
+     *
+     * Ignored document identifier.
+     */
+    document_id: string;
+    /**
+     * Reason
+     *
+     * Why the document was not queued (e.g. already queued/terminal).
+     */
+    reason: string;
+};
+
+/**
+ * JobListResponse
+ *
+ * Response body for listing a session's jobs.
+ */
+export type JobListResponse = {
+    /**
+     * Jobs
+     *
+     * Jobs in creation order.
+     */
+    jobs: Array<JobSummary>;
+};
+
+/**
+ * JobStatus
+ *
+ * Lifecycle state of a queue-admission job.
+ */
+export type JobStatus = 'queued' | 'running' | 'completed' | 'cancelled' | 'failed';
+
+/**
+ * JobSummary
+ *
+ * Public summary of a queue-admission job.
+ */
+export type JobSummary = {
+    /**
+     * Attempt
+     *
+     * Attempt number; fixed at 1 in Phase 1.
+     */
+    attempt?: number;
+    /**
+     * Cancellation Requested
+     *
+     * Whether cooperative cancellation was requested.
+     */
+    cancellation_requested?: boolean;
+    /**
+     * Created At
+     *
+     * Timezone-aware UTC creation time.
+     */
+    created_at: string;
+    /**
+     * Document Id
+     *
+     * Target document identifier.
+     */
+    document_id: string;
+    /**
+     * Failure Code
+     *
+     * Safe failure code, if failed.
+     */
+    failure_code?: string | null;
+    /**
+     * Failure Message
+     *
+     * Safe failure message, if failed.
+     */
+    failure_message?: string | null;
+    /**
+     * Finished At
+     *
+     * When the job reached a terminal state.
+     */
+    finished_at?: string | null;
+    /**
+     * Job Id
+     *
+     * Opaque job identifier.
+     */
+    job_id: string;
+    /**
+     * Queue Position
+     *
+     * Dynamic 1-based position while queued, else null.
+     */
+    queue_position?: number | null;
+    /**
+     * Session Id
+     *
+     * Owning session identifier.
+     */
+    session_id: string;
+    /**
+     * Started At
+     *
+     * When admission began.
+     */
+    started_at?: string | null;
+    /**
+     * Current job status.
+     */
+    status: JobStatus;
 };
 
 /**
@@ -141,6 +446,195 @@ export type LivenessResponse = {
      * Application version.
      */
     version: string;
+};
+
+/**
+ * PageCountStatus
+ *
+ * Whether a document's page count is known in Phase 1.
+ */
+export type PageCountStatus = 'known' | 'pending_canonicalisation';
+
+/**
+ * ProcessRequest
+ *
+ * Request to queue documents for admission.
+ *
+ * When ``document_ids`` is null, all documents currently in the ``uploaded``
+ * state are queued. When supplied, every id must belong to the session and only
+ * eligible uploaded documents are queued.
+ */
+export type ProcessRequest = {
+    /**
+     * Document Ids
+     *
+     * Specific documents to queue, or null for all uploaded documents.
+     */
+    document_ids?: Array<string> | null;
+};
+
+/**
+ * ProcessResponse
+ *
+ * Response for a process request (202 Accepted).
+ */
+export type ProcessResponse = {
+    /**
+     * Ignored
+     *
+     * Documents that were already queued/terminal.
+     */
+    ignored: Array<IgnoredDocument>;
+    /**
+     * Queued
+     *
+     * Newly created admission jobs.
+     */
+    queued: Array<JobSummary>;
+    /**
+     * Updated session snapshot.
+     */
+    session: SessionSnapshot;
+};
+
+/**
+ * ProgressEvent
+ *
+ * A single, strictly-validated progress event.
+ */
+export type ProgressEvent = {
+    /**
+     * Document Id
+     *
+     * Related document, if any.
+     */
+    document_id?: string | null;
+    /**
+     * Document status at the time of the event, if relevant.
+     */
+    document_status?: DocumentStatus | null;
+    /**
+     * Event type.
+     */
+    event: ProgressEventType;
+    /**
+     * Event Id
+     *
+     * Per-session stable event identifier.
+     */
+    event_id: string;
+    /**
+     * Event Sequence
+     *
+     * Monotonic per-session sequence number.
+     */
+    event_sequence: number;
+    /**
+     * Job Id
+     *
+     * Related job, if any.
+     */
+    job_id?: string | null;
+    /**
+     * Job status at the time of the event, if relevant.
+     */
+    job_status?: JobStatus | null;
+    /**
+     * Message
+     *
+     * Optional safe, non-sensitive message.
+     */
+    message?: string | null;
+    /**
+     * Page Number
+     *
+     * Reserved; unused in Phase 1.
+     */
+    page_number?: number | null;
+    /**
+     * Pages Completed
+     *
+     * Reserved; unused in Phase 1.
+     */
+    pages_completed?: number | null;
+    /**
+     * Pages Total
+     *
+     * Reserved; unused in Phase 1.
+     */
+    pages_total?: number | null;
+    /**
+     * Percent
+     *
+     * Optional progress percent.
+     */
+    percent?: number | null;
+    /**
+     * Queue Position
+     *
+     * Queue position, if relevant.
+     */
+    queue_position?: number | null;
+    /**
+     * Session Id
+     *
+     * Owning session identifier.
+     */
+    session_id: string;
+    /**
+     * Stage
+     *
+     * Optional stage label.
+     */
+    stage?: string | null;
+    /**
+     * Timestamp
+     *
+     * Timezone-aware UTC time of the event.
+     */
+    timestamp: string;
+};
+
+/**
+ * ProgressEventType
+ *
+ * All event types the SSE stream may carry.
+ *
+ * Extraction-stage types are reserved for later phases and are never emitted in
+ * Phase 1.
+ */
+export type ProgressEventType = 'session.created' | 'session.snapshot' | 'session.expiring' | 'session.deleted' | 'document.uploaded' | 'document.rejected' | 'document.queued' | 'document.started' | 'document.stage_changed' | 'document.ready_for_extraction' | 'document.removed' | 'document.warning' | 'document.failed' | 'document.cancelled' | 'job.queued' | 'job.started' | 'job.completed' | 'job.failed' | 'job.cancelled' | 'stream.resync_required' | 'heartbeat' | 'document.page_started' | 'document.page_completed' | 'document.completed';
+
+/**
+ * QueueInfo
+ *
+ * Snapshot of the session's queue state.
+ */
+export type QueueInfo = {
+    /**
+     * Active Document Id
+     *
+     * Document currently being admitted, if any.
+     */
+    active_document_id?: string | null;
+    /**
+     * Active Job Id
+     *
+     * Active admission job, if any.
+     */
+    active_job_id?: string | null;
+    /**
+     * Pending
+     *
+     * Queued admission jobs waiting.
+     */
+    pending?: number;
+    /**
+     * Running
+     *
+     * Admission jobs currently running.
+     */
+    running?: number;
 };
 
 /**
@@ -192,6 +686,652 @@ export type ReadinessResponse = {
      */
     version: string;
 };
+
+/**
+ * RejectedDocument
+ *
+ * A single rejected file in a bulk upload batch.
+ */
+export type RejectedDocument = {
+    /**
+     * Client Media Type
+     *
+     * Client-supplied media type, echoed only when safe.
+     */
+    client_media_type?: string | null;
+    /**
+     * Detected Format
+     *
+     * Server-detected format where safely determined.
+     */
+    detected_format?: string | null;
+    /**
+     * Display Filename
+     *
+     * Sanitised display filename where recoverable.
+     */
+    display_filename?: string | null;
+    /**
+     * Error Code
+     *
+     * Stable rejection error code.
+     */
+    error_code: string;
+    /**
+     * Input Index
+     *
+     * Original 0-based position in the multipart batch.
+     */
+    input_index: number;
+    /**
+     * Message
+     *
+     * Safe, non-sensitive rejection message.
+     */
+    message: string;
+};
+
+/**
+ * SessionLimits
+ *
+ * Public, non-sensitive session limits surfaced to the frontend.
+ */
+export type SessionLimits = {
+    /**
+     * Max Filename Length
+     */
+    max_filename_length: number;
+    /**
+     * Max Files Per Session
+     */
+    max_files_per_session: number;
+    /**
+     * Max Pages Per Session
+     */
+    max_pages_per_session: number;
+    /**
+     * Max Session Bytes
+     */
+    max_session_bytes: number;
+    /**
+     * Max Single File Bytes
+     */
+    max_single_file_bytes: number;
+    /**
+     * Supported Extensions
+     *
+     * Allowed file extensions (with dot).
+     */
+    supported_extensions: Array<string>;
+};
+
+/**
+ * SessionSnapshot
+ *
+ * Canonical public read model of a runtime session.
+ */
+export type SessionSnapshot = {
+    /**
+     * Accepted Bytes
+     *
+     * Total accepted bytes in the session.
+     */
+    accepted_bytes: number;
+    /**
+     * Document counts by status.
+     */
+    counts: DocumentStatusCounts;
+    /**
+     * Created At
+     *
+     * Timezone-aware UTC creation time.
+     */
+    created_at: string;
+    /**
+     * Documents
+     *
+     * Documents in acceptance order.
+     */
+    documents: Array<DocumentSummary>;
+    /**
+     * Expires At
+     *
+     * Timezone-aware UTC expiry deadline.
+     */
+    expires_at: string;
+    /**
+     * Expiring
+     *
+     * Whether the session is in its warning window.
+     */
+    expiring?: boolean;
+    /**
+     * Jobs
+     *
+     * Jobs in creation order.
+     */
+    jobs: Array<JobSummary>;
+    /**
+     * Known Pages
+     *
+     * Total known page count across documents.
+     */
+    known_pages: number;
+    /**
+     * Last Activity At
+     *
+     * Timezone-aware UTC time of last activity.
+     */
+    last_activity_at: string;
+    /**
+     * Session limits.
+     */
+    limits: SessionLimits;
+    /**
+     * Queue state.
+     */
+    queue: QueueInfo;
+    /**
+     * Recent Events
+     *
+     * Bounded recent progress events.
+     */
+    recent_events: Array<ProgressEvent>;
+    /**
+     * Runtime Warning
+     *
+     * Constant runtime-only warning message.
+     */
+    runtime_warning: string;
+    /**
+     * Seconds Remaining
+     *
+     * Whole seconds until expiry (never negative).
+     */
+    seconds_remaining: number;
+    /**
+     * Session Id
+     *
+     * Opaque session identifier.
+     */
+    session_id: string;
+    /**
+     * Current session status.
+     */
+    status: SessionStatus;
+    /**
+     * Unknown Page Documents
+     *
+     * Documents whose page count is pending canonicalisation.
+     */
+    unknown_page_documents: number;
+};
+
+/**
+ * SessionStatus
+ *
+ * Lifecycle state of a runtime session.
+ *
+ * ``ready`` means all currently queued admission jobs finished and files are
+ * ready for a *future* extraction phase; it does not mean extraction occurred.
+ */
+export type SessionStatus = 'created' | 'accepting_uploads' | 'queued' | 'processing' | 'ready' | 'reset' | 'expired' | 'failed' | 'deleted';
+
+/**
+ * UploadBatchResponse
+ *
+ * Response body for a bulk upload request (201, incl. partial acceptance).
+ */
+export type UploadBatchResponse = {
+    /**
+     * Accepted
+     *
+     * Accepted documents, in input order.
+     */
+    accepted: Array<DocumentSummary>;
+    /**
+     * Rejected
+     *
+     * Rejected files, in input order.
+     */
+    rejected: Array<RejectedDocument>;
+    /**
+     * Updated session snapshot.
+     */
+    session: SessionSnapshot;
+};
+
+/**
+ * ValidationError
+ */
+export type ValidationError = {
+    /**
+     * Context
+     */
+    ctx?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Input
+     */
+    input?: unknown;
+    /**
+     * Location
+     */
+    loc: Array<string | number>;
+    /**
+     * Message
+     */
+    msg: string;
+    /**
+     * Error Type
+     */
+    type: string;
+};
+
+export type CreateSessionApiV1SessionsPostData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/sessions';
+};
+
+export type CreateSessionApiV1SessionsPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: SessionSnapshot;
+};
+
+export type CreateSessionApiV1SessionsPostResponse = CreateSessionApiV1SessionsPostResponses[keyof CreateSessionApiV1SessionsPostResponses];
+
+export type DeleteSessionApiV1SessionsSessionIdDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/api/v1/sessions/{session_id}';
+};
+
+export type DeleteSessionApiV1SessionsSessionIdDeleteErrors = {
+    /**
+     * Session not found or expired.
+     */
+    404: ApiErrorEnvelope;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteSessionApiV1SessionsSessionIdDeleteError = DeleteSessionApiV1SessionsSessionIdDeleteErrors[keyof DeleteSessionApiV1SessionsSessionIdDeleteErrors];
+
+export type DeleteSessionApiV1SessionsSessionIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteSessionApiV1SessionsSessionIdDeleteResponse = DeleteSessionApiV1SessionsSessionIdDeleteResponses[keyof DeleteSessionApiV1SessionsSessionIdDeleteResponses];
+
+export type GetSessionApiV1SessionsSessionIdGetData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/api/v1/sessions/{session_id}';
+};
+
+export type GetSessionApiV1SessionsSessionIdGetErrors = {
+    /**
+     * Session not found or expired.
+     */
+    404: ApiErrorEnvelope;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetSessionApiV1SessionsSessionIdGetError = GetSessionApiV1SessionsSessionIdGetErrors[keyof GetSessionApiV1SessionsSessionIdGetErrors];
+
+export type GetSessionApiV1SessionsSessionIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: SessionSnapshot;
+};
+
+export type GetSessionApiV1SessionsSessionIdGetResponse = GetSessionApiV1SessionsSessionIdGetResponses[keyof GetSessionApiV1SessionsSessionIdGetResponses];
+
+export type ListDocumentsApiV1SessionsSessionIdDocumentsGetData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/api/v1/sessions/{session_id}/documents';
+};
+
+export type ListDocumentsApiV1SessionsSessionIdDocumentsGetErrors = {
+    /**
+     * Session or document not found.
+     */
+    404: ApiErrorEnvelope;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListDocumentsApiV1SessionsSessionIdDocumentsGetError = ListDocumentsApiV1SessionsSessionIdDocumentsGetErrors[keyof ListDocumentsApiV1SessionsSessionIdDocumentsGetErrors];
+
+export type ListDocumentsApiV1SessionsSessionIdDocumentsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: DocumentListResponse;
+};
+
+export type ListDocumentsApiV1SessionsSessionIdDocumentsGetResponse = ListDocumentsApiV1SessionsSessionIdDocumentsGetResponses[keyof ListDocumentsApiV1SessionsSessionIdDocumentsGetResponses];
+
+export type UploadDocumentsApiV1SessionsSessionIdDocumentsPostData = {
+    body: BodyUploadDocumentsApiV1SessionsSessionIdDocumentsPost;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/api/v1/sessions/{session_id}/documents';
+};
+
+export type UploadDocumentsApiV1SessionsSessionIdDocumentsPostErrors = {
+    /**
+     * Session or document not found.
+     */
+    404: ApiErrorEnvelope;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UploadDocumentsApiV1SessionsSessionIdDocumentsPostError = UploadDocumentsApiV1SessionsSessionIdDocumentsPostErrors[keyof UploadDocumentsApiV1SessionsSessionIdDocumentsPostErrors];
+
+export type UploadDocumentsApiV1SessionsSessionIdDocumentsPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: UploadBatchResponse;
+};
+
+export type UploadDocumentsApiV1SessionsSessionIdDocumentsPostResponse = UploadDocumentsApiV1SessionsSessionIdDocumentsPostResponses[keyof UploadDocumentsApiV1SessionsSessionIdDocumentsPostResponses];
+
+export type RemoveDocumentApiV1SessionsSessionIdDocumentsDocumentIdDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+        /**
+         * Document Id
+         */
+        document_id: string;
+    };
+    query?: never;
+    url: '/api/v1/sessions/{session_id}/documents/{document_id}';
+};
+
+export type RemoveDocumentApiV1SessionsSessionIdDocumentsDocumentIdDeleteErrors = {
+    /**
+     * Session or document not found.
+     */
+    404: ApiErrorEnvelope;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RemoveDocumentApiV1SessionsSessionIdDocumentsDocumentIdDeleteError = RemoveDocumentApiV1SessionsSessionIdDocumentsDocumentIdDeleteErrors[keyof RemoveDocumentApiV1SessionsSessionIdDocumentsDocumentIdDeleteErrors];
+
+export type RemoveDocumentApiV1SessionsSessionIdDocumentsDocumentIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type RemoveDocumentApiV1SessionsSessionIdDocumentsDocumentIdDeleteResponse = RemoveDocumentApiV1SessionsSessionIdDocumentsDocumentIdDeleteResponses[keyof RemoveDocumentApiV1SessionsSessionIdDocumentsDocumentIdDeleteResponses];
+
+export type GetDocumentApiV1SessionsSessionIdDocumentsDocumentIdGetData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+        /**
+         * Document Id
+         */
+        document_id: string;
+    };
+    query?: never;
+    url: '/api/v1/sessions/{session_id}/documents/{document_id}';
+};
+
+export type GetDocumentApiV1SessionsSessionIdDocumentsDocumentIdGetErrors = {
+    /**
+     * Session or document not found.
+     */
+    404: ApiErrorEnvelope;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetDocumentApiV1SessionsSessionIdDocumentsDocumentIdGetError = GetDocumentApiV1SessionsSessionIdDocumentsDocumentIdGetErrors[keyof GetDocumentApiV1SessionsSessionIdDocumentsDocumentIdGetErrors];
+
+export type GetDocumentApiV1SessionsSessionIdDocumentsDocumentIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: DocumentSummary;
+};
+
+export type GetDocumentApiV1SessionsSessionIdDocumentsDocumentIdGetResponse = GetDocumentApiV1SessionsSessionIdDocumentsDocumentIdGetResponses[keyof GetDocumentApiV1SessionsSessionIdDocumentsDocumentIdGetResponses];
+
+export type CancelDocumentApiV1SessionsSessionIdDocumentsDocumentIdCancelPostData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+        /**
+         * Document Id
+         */
+        document_id: string;
+    };
+    query?: never;
+    url: '/api/v1/sessions/{session_id}/documents/{document_id}/cancel';
+};
+
+export type CancelDocumentApiV1SessionsSessionIdDocumentsDocumentIdCancelPostErrors = {
+    /**
+     * Session or document not found.
+     */
+    404: ApiErrorEnvelope;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CancelDocumentApiV1SessionsSessionIdDocumentsDocumentIdCancelPostError = CancelDocumentApiV1SessionsSessionIdDocumentsDocumentIdCancelPostErrors[keyof CancelDocumentApiV1SessionsSessionIdDocumentsDocumentIdCancelPostErrors];
+
+export type CancelDocumentApiV1SessionsSessionIdDocumentsDocumentIdCancelPostResponses = {
+    /**
+     * Successful Response
+     */
+    202: DocumentSummary;
+};
+
+export type CancelDocumentApiV1SessionsSessionIdDocumentsDocumentIdCancelPostResponse = CancelDocumentApiV1SessionsSessionIdDocumentsDocumentIdCancelPostResponses[keyof CancelDocumentApiV1SessionsSessionIdDocumentsDocumentIdCancelPostResponses];
+
+export type SessionEventsApiV1SessionsSessionIdEventsGetData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/api/v1/sessions/{session_id}/events';
+};
+
+export type SessionEventsApiV1SessionsSessionIdEventsGetErrors = {
+    /**
+     * Session not found or expired.
+     */
+    404: ApiErrorEnvelope;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SessionEventsApiV1SessionsSessionIdEventsGetError = SessionEventsApiV1SessionsSessionIdEventsGetErrors[keyof SessionEventsApiV1SessionsSessionIdEventsGetErrors];
+
+export type SessionEventsApiV1SessionsSessionIdEventsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type ListJobsApiV1SessionsSessionIdJobsGetData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/api/v1/sessions/{session_id}/jobs';
+};
+
+export type ListJobsApiV1SessionsSessionIdJobsGetErrors = {
+    /**
+     * Session or job not found.
+     */
+    404: ApiErrorEnvelope;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListJobsApiV1SessionsSessionIdJobsGetError = ListJobsApiV1SessionsSessionIdJobsGetErrors[keyof ListJobsApiV1SessionsSessionIdJobsGetErrors];
+
+export type ListJobsApiV1SessionsSessionIdJobsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: JobListResponse;
+};
+
+export type ListJobsApiV1SessionsSessionIdJobsGetResponse = ListJobsApiV1SessionsSessionIdJobsGetResponses[keyof ListJobsApiV1SessionsSessionIdJobsGetResponses];
+
+export type GetJobApiV1SessionsSessionIdJobsJobIdGetData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/api/v1/sessions/{session_id}/jobs/{job_id}';
+};
+
+export type GetJobApiV1SessionsSessionIdJobsJobIdGetErrors = {
+    /**
+     * Session or job not found.
+     */
+    404: ApiErrorEnvelope;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetJobApiV1SessionsSessionIdJobsJobIdGetError = GetJobApiV1SessionsSessionIdJobsJobIdGetErrors[keyof GetJobApiV1SessionsSessionIdJobsJobIdGetErrors];
+
+export type GetJobApiV1SessionsSessionIdJobsJobIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: JobSummary;
+};
+
+export type GetJobApiV1SessionsSessionIdJobsJobIdGetResponse = GetJobApiV1SessionsSessionIdJobsJobIdGetResponses[keyof GetJobApiV1SessionsSessionIdJobsJobIdGetResponses];
+
+export type ProcessDocumentsApiV1SessionsSessionIdProcessPostData = {
+    body: ProcessRequest;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/api/v1/sessions/{session_id}/process';
+};
+
+export type ProcessDocumentsApiV1SessionsSessionIdProcessPostErrors = {
+    /**
+     * Session not found or expired.
+     */
+    404: ApiErrorEnvelope;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ProcessDocumentsApiV1SessionsSessionIdProcessPostError = ProcessDocumentsApiV1SessionsSessionIdProcessPostErrors[keyof ProcessDocumentsApiV1SessionsSessionIdProcessPostErrors];
+
+export type ProcessDocumentsApiV1SessionsSessionIdProcessPostResponses = {
+    /**
+     * Successful Response
+     */
+    202: ProcessResponse;
+};
+
+export type ProcessDocumentsApiV1SessionsSessionIdProcessPostResponse = ProcessDocumentsApiV1SessionsSessionIdProcessPostResponses[keyof ProcessDocumentsApiV1SessionsSessionIdProcessPostResponses];
 
 export type HealthLiveData = {
     body?: never;

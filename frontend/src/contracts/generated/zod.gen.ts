@@ -26,6 +26,13 @@ export const zApiErrorEnvelope = z.object({
 });
 
 /**
+ * Body_upload_documents_api_v1_sessions__session_id__documents_post
+ */
+export const zBodyUploadDocumentsApiV1SessionsSessionIdDocumentsPost = z.object({
+    files: z.array(z.string())
+});
+
+/**
  * CheckState
  *
  * Result of a single readiness dependency check.
@@ -49,6 +56,103 @@ export const zDependencyCheck = z.object({
 });
 
 /**
+ * DocumentFormat
+ *
+ * Canonical internal format key for a supported input type.
+ */
+export const zDocumentFormat = z.enum([
+    'pdf',
+    'doc',
+    'docx',
+    'txt',
+    'jpeg',
+    'png',
+    'tiff',
+    'bmp',
+    'webp'
+]);
+
+/**
+ * DocumentStatus
+ *
+ * Lifecycle state of an accepted document during Phase 1.
+ */
+export const zDocumentStatus = z.enum([
+    'uploaded',
+    'queued',
+    'preparing',
+    'ready_for_extraction',
+    'cancelled',
+    'failed'
+]);
+
+/**
+ * DocumentStatusCounts
+ *
+ * Counts of documents grouped by lifecycle status.
+ */
+export const zDocumentStatusCounts = z.object({
+    cancelled: z.int().gte(0).optional().default(0),
+    failed: z.int().gte(0).optional().default(0),
+    preparing: z.int().gte(0).optional().default(0),
+    queued: z.int().gte(0).optional().default(0),
+    ready_for_extraction: z.int().gte(0).optional().default(0),
+    uploaded: z.int().gte(0).optional().default(0)
+});
+
+/**
+ * IgnoredDocument
+ *
+ * A document that was not (re-)queued, with a safe reason.
+ */
+export const zIgnoredDocument = z.object({
+    document_id: z.string().regex(/^doc_[0-9a-f]{32}$/),
+    reason: z.string()
+});
+
+/**
+ * JobStatus
+ *
+ * Lifecycle state of a queue-admission job.
+ */
+export const zJobStatus = z.enum([
+    'queued',
+    'running',
+    'completed',
+    'cancelled',
+    'failed'
+]);
+
+/**
+ * JobSummary
+ *
+ * Public summary of a queue-admission job.
+ */
+export const zJobSummary = z.object({
+    attempt: z.int().gte(1).lte(1).optional().default(1),
+    cancellation_requested: z.boolean().optional().default(false),
+    created_at: z.iso.datetime(),
+    document_id: z.string().regex(/^doc_[0-9a-f]{32}$/),
+    failure_code: z.string().nullish(),
+    failure_message: z.string().nullish(),
+    finished_at: z.iso.datetime().nullish(),
+    job_id: z.string().regex(/^job_[0-9a-f]{32}$/),
+    queue_position: z.int().gte(1).nullish(),
+    session_id: z.string().regex(/^ses_[0-9a-f]{32}$/),
+    started_at: z.iso.datetime().nullish(),
+    status: zJobStatus
+});
+
+/**
+ * JobListResponse
+ *
+ * Response body for listing a session's jobs.
+ */
+export const zJobListResponse = z.object({
+    jobs: z.array(zJobSummary)
+});
+
+/**
  * LivenessResponse
  *
  * Response for the liveness probe.
@@ -60,6 +164,131 @@ export const zLivenessResponse = z.object({
     status: z.literal('ok').optional().default('ok'),
     timestamp: z.iso.datetime(),
     version: z.string()
+});
+
+/**
+ * PageCountStatus
+ *
+ * Whether a document's page count is known in Phase 1.
+ */
+export const zPageCountStatus = z.enum(['known', 'pending_canonicalisation']);
+
+/**
+ * DocumentSummary
+ *
+ * Public summary of an accepted document.
+ */
+export const zDocumentSummary = z.object({
+    active_job_id: z.string().regex(/^job_[0-9a-f]{32}$/).nullish(),
+    created_at: z.iso.datetime(),
+    display_filename: z.string(),
+    document_id: z.string().regex(/^doc_[0-9a-f]{32}$/),
+    extension: z.string(),
+    extraction_performed: z.boolean().optional().default(false),
+    format: zDocumentFormat,
+    media_type: z.string(),
+    page_count: z.int().gte(0).nullish(),
+    page_count_status: zPageCountStatus,
+    progress_percent: z.int().gte(0).lte(5),
+    queue_position: z.int().gte(1).nullish(),
+    result_available: z.boolean().optional().default(false),
+    sha256: z.string().length(64),
+    size_bytes: z.int().gte(0),
+    status: zDocumentStatus,
+    warning_count: z.int().gte(0).optional().default(0)
+});
+
+/**
+ * DocumentListResponse
+ *
+ * Response body for listing a session's documents.
+ */
+export const zDocumentListResponse = z.object({
+    documents: z.array(zDocumentSummary)
+});
+
+/**
+ * ProcessRequest
+ *
+ * Request to queue documents for admission.
+ *
+ * When ``document_ids`` is null, all documents currently in the ``uploaded``
+ * state are queued. When supplied, every id must belong to the session and only
+ * eligible uploaded documents are queued.
+ */
+export const zProcessRequest = z.object({
+    document_ids: z.array(z.string().regex(/^doc_[0-9a-f]{32}$/)).nullish()
+});
+
+/**
+ * ProgressEventType
+ *
+ * All event types the SSE stream may carry.
+ *
+ * Extraction-stage types are reserved for later phases and are never emitted in
+ * Phase 1.
+ */
+export const zProgressEventType = z.enum([
+    'session.created',
+    'session.snapshot',
+    'session.expiring',
+    'session.deleted',
+    'document.uploaded',
+    'document.rejected',
+    'document.queued',
+    'document.started',
+    'document.stage_changed',
+    'document.ready_for_extraction',
+    'document.removed',
+    'document.warning',
+    'document.failed',
+    'document.cancelled',
+    'job.queued',
+    'job.started',
+    'job.completed',
+    'job.failed',
+    'job.cancelled',
+    'stream.resync_required',
+    'heartbeat',
+    'document.page_started',
+    'document.page_completed',
+    'document.completed'
+]);
+
+/**
+ * ProgressEvent
+ *
+ * A single, strictly-validated progress event.
+ */
+export const zProgressEvent = z.object({
+    document_id: z.string().regex(/^doc_[0-9a-f]{32}$/).nullish(),
+    document_status: zDocumentStatus.nullish(),
+    event: zProgressEventType,
+    event_id: z.string().regex(/^evt_[0-9]{12}$/),
+    event_sequence: z.int().gte(1),
+    job_id: z.string().regex(/^job_[0-9a-f]{32}$/).nullish(),
+    job_status: zJobStatus.nullish(),
+    message: z.string().nullish(),
+    page_number: z.int().gte(1).nullish(),
+    pages_completed: z.int().gte(0).nullish(),
+    pages_total: z.int().gte(0).nullish(),
+    percent: z.int().gte(0).lte(100).nullish(),
+    queue_position: z.int().gte(1).nullish(),
+    session_id: z.string().regex(/^ses_[0-9a-f]{32}$/),
+    stage: z.string().nullish(),
+    timestamp: z.iso.datetime()
+});
+
+/**
+ * QueueInfo
+ *
+ * Snapshot of the session's queue state.
+ */
+export const zQueueInfo = z.object({
+    active_document_id: z.string().regex(/^doc_[0-9a-f]{32}$/).nullish(),
+    active_job_id: z.string().regex(/^job_[0-9a-f]{32}$/).nullish(),
+    pending: z.int().gte(0).optional().default(0),
+    running: z.int().gte(0).optional().default(0)
 });
 
 /**
@@ -80,6 +309,226 @@ export const zReadinessResponse = z.object({
     timestamp: z.iso.datetime(),
     version: z.string()
 });
+
+/**
+ * RejectedDocument
+ *
+ * A single rejected file in a bulk upload batch.
+ */
+export const zRejectedDocument = z.object({
+    client_media_type: z.string().nullish(),
+    detected_format: z.string().nullish(),
+    display_filename: z.string().nullish(),
+    error_code: z.string(),
+    input_index: z.int().gte(0),
+    message: z.string()
+});
+
+/**
+ * SessionLimits
+ *
+ * Public, non-sensitive session limits surfaced to the frontend.
+ */
+export const zSessionLimits = z.object({
+    max_filename_length: z.int().gt(0),
+    max_files_per_session: z.int().gt(0),
+    max_pages_per_session: z.int().gt(0),
+    max_session_bytes: z.int().gt(0),
+    max_single_file_bytes: z.int().gt(0),
+    supported_extensions: z.array(z.string())
+});
+
+/**
+ * SessionStatus
+ *
+ * Lifecycle state of a runtime session.
+ *
+ * ``ready`` means all currently queued admission jobs finished and files are
+ * ready for a *future* extraction phase; it does not mean extraction occurred.
+ */
+export const zSessionStatus = z.enum([
+    'created',
+    'accepting_uploads',
+    'queued',
+    'processing',
+    'ready',
+    'reset',
+    'expired',
+    'failed',
+    'deleted'
+]);
+
+/**
+ * SessionSnapshot
+ *
+ * Canonical public read model of a runtime session.
+ */
+export const zSessionSnapshot = z.object({
+    accepted_bytes: z.int().gte(0),
+    counts: zDocumentStatusCounts,
+    created_at: z.iso.datetime(),
+    documents: z.array(zDocumentSummary),
+    expires_at: z.iso.datetime(),
+    expiring: z.boolean().optional().default(false),
+    jobs: z.array(zJobSummary),
+    known_pages: z.int().gte(0),
+    last_activity_at: z.iso.datetime(),
+    limits: zSessionLimits,
+    queue: zQueueInfo,
+    recent_events: z.array(zProgressEvent),
+    runtime_warning: z.string(),
+    seconds_remaining: z.int().gte(0),
+    session_id: z.string().regex(/^ses_[0-9a-f]{32}$/),
+    status: zSessionStatus,
+    unknown_page_documents: z.int().gte(0)
+});
+
+/**
+ * ProcessResponse
+ *
+ * Response for a process request (202 Accepted).
+ */
+export const zProcessResponse = z.object({
+    ignored: z.array(zIgnoredDocument),
+    queued: z.array(zJobSummary),
+    session: zSessionSnapshot
+});
+
+/**
+ * UploadBatchResponse
+ *
+ * Response body for a bulk upload request (201, incl. partial acceptance).
+ */
+export const zUploadBatchResponse = z.object({
+    accepted: z.array(zDocumentSummary),
+    rejected: z.array(zRejectedDocument),
+    session: zSessionSnapshot
+});
+
+/**
+ * ValidationError
+ */
+export const zValidationError = z.object({
+    ctx: z.record(z.string(), z.unknown()).optional(),
+    input: z.unknown().optional(),
+    loc: z.array(z.union([z.string(), z.int()])),
+    msg: z.string(),
+    type: z.string()
+});
+
+/**
+ * HTTPValidationError
+ */
+export const zHttpValidationError = z.object({
+    detail: z.array(zValidationError).optional()
+});
+
+/**
+ * Successful Response
+ */
+export const zCreateSessionApiV1SessionsPostResponse = zSessionSnapshot;
+
+export const zDeleteSessionApiV1SessionsSessionIdDeletePath = z.object({
+    session_id: z.string()
+});
+
+/**
+ * Successful Response
+ */
+export const zDeleteSessionApiV1SessionsSessionIdDeleteResponse = z.void();
+
+export const zGetSessionApiV1SessionsSessionIdGetPath = z.object({
+    session_id: z.string()
+});
+
+/**
+ * Successful Response
+ */
+export const zGetSessionApiV1SessionsSessionIdGetResponse = zSessionSnapshot;
+
+export const zListDocumentsApiV1SessionsSessionIdDocumentsGetPath = z.object({
+    session_id: z.string()
+});
+
+/**
+ * Successful Response
+ */
+export const zListDocumentsApiV1SessionsSessionIdDocumentsGetResponse = zDocumentListResponse;
+
+export const zUploadDocumentsApiV1SessionsSessionIdDocumentsPostBody = zBodyUploadDocumentsApiV1SessionsSessionIdDocumentsPost;
+
+export const zUploadDocumentsApiV1SessionsSessionIdDocumentsPostPath = z.object({
+    session_id: z.string()
+});
+
+/**
+ * Successful Response
+ */
+export const zUploadDocumentsApiV1SessionsSessionIdDocumentsPostResponse = zUploadBatchResponse;
+
+export const zRemoveDocumentApiV1SessionsSessionIdDocumentsDocumentIdDeletePath = z.object({
+    session_id: z.string(),
+    document_id: z.string()
+});
+
+/**
+ * Successful Response
+ */
+export const zRemoveDocumentApiV1SessionsSessionIdDocumentsDocumentIdDeleteResponse = z.void();
+
+export const zGetDocumentApiV1SessionsSessionIdDocumentsDocumentIdGetPath = z.object({
+    session_id: z.string(),
+    document_id: z.string()
+});
+
+/**
+ * Successful Response
+ */
+export const zGetDocumentApiV1SessionsSessionIdDocumentsDocumentIdGetResponse = zDocumentSummary;
+
+export const zCancelDocumentApiV1SessionsSessionIdDocumentsDocumentIdCancelPostPath = z.object({
+    session_id: z.string(),
+    document_id: z.string()
+});
+
+/**
+ * Successful Response
+ */
+export const zCancelDocumentApiV1SessionsSessionIdDocumentsDocumentIdCancelPostResponse = zDocumentSummary;
+
+export const zSessionEventsApiV1SessionsSessionIdEventsGetPath = z.object({
+    session_id: z.string()
+});
+
+export const zListJobsApiV1SessionsSessionIdJobsGetPath = z.object({
+    session_id: z.string()
+});
+
+/**
+ * Successful Response
+ */
+export const zListJobsApiV1SessionsSessionIdJobsGetResponse = zJobListResponse;
+
+export const zGetJobApiV1SessionsSessionIdJobsJobIdGetPath = z.object({
+    session_id: z.string(),
+    job_id: z.string()
+});
+
+/**
+ * Successful Response
+ */
+export const zGetJobApiV1SessionsSessionIdJobsJobIdGetResponse = zJobSummary;
+
+export const zProcessDocumentsApiV1SessionsSessionIdProcessPostBody = zProcessRequest;
+
+export const zProcessDocumentsApiV1SessionsSessionIdProcessPostPath = z.object({
+    session_id: z.string()
+});
+
+/**
+ * Successful Response
+ */
+export const zProcessDocumentsApiV1SessionsSessionIdProcessPostResponse = zProcessResponse;
 
 /**
  * Successful Response
