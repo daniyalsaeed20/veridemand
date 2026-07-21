@@ -14,6 +14,7 @@ paths, parser output, or document content.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 
 from starlette.datastructures import UploadFile
@@ -68,7 +69,7 @@ class UploadService:
         self._file_store = file_store
 
     async def process_batch(
-        self, session: RuntimeSession, uploads: list[UploadFile]
+        self, session: RuntimeSession, uploads: Sequence[UploadFile]
     ) -> tuple[list[DocumentSummary], list[RejectedDocument]]:
         accepted: list[DocumentSummary] = []
         rejected: list[RejectedDocument] = []

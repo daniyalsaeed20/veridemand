@@ -1,12 +1,19 @@
 """Versioned API router mounted under the configured API prefix (e.g. /api/v1).
 
-Intentionally empty in Phase 0. Later phases register their routes here
-(sessions, uploads, processing, extraction, search, exports). No Phase 1+
-endpoints exist yet.
+Phase 1 registers the runtime session, document (upload/list/cancel/remove),
+process and job routes plus the SSE progress stream. Extraction, search and
+export routes remain for later phases.
 """
 
 from __future__ import annotations
 
 from fastapi import APIRouter
 
+from backend.app.api.v1.endpoints import documents as document_endpoints
+from backend.app.api.v1.endpoints import jobs as job_endpoints
+from backend.app.api.v1.endpoints import sessions as session_endpoints
+
 router = APIRouter()
+router.include_router(session_endpoints.router)
+router.include_router(document_endpoints.router)
+router.include_router(job_endpoints.router)

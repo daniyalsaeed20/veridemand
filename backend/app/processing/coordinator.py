@@ -29,6 +29,7 @@ from backend.app.progress.models import BrokerClosedError
 from backend.app.sessions.models import RuntimeDocument, RuntimeSession
 from backend.app.sessions.registry import SessionRegistry
 from backend.app.sessions.service import recompute_session_status
+from backend.app.storage.file_store import FileStore
 
 logger = logging.getLogger("veridemand.processing")
 
@@ -50,6 +51,7 @@ class ProcessingCoordinator:
         registry: SessionRegistry,
         job_queue: JobQueue,
         admission: AdmissionProcessor,
+        file_store: FileStore,
         *,
         worker_count: int = 1,
     ) -> None:
@@ -58,6 +60,7 @@ class ProcessingCoordinator:
         self._registry = registry
         self._queue = job_queue
         self._admission = admission
+        self._file_store = file_store
         self._worker: asyncio.Task[None] | None = None
         self._current_job: ProcessingJob | None = None
         self._running = False
@@ -210,6 +213,48 @@ class ProcessingCoordinator:
 
             recompute_session_status(session)
             return document
+
+    async def remove_document(self, session: RuntimeSession, document_id: str) -> None:
+        """Remove a non-active document and its files (see Section 28)."""
+
+        async with session.state_lock:
+            document = session.documents.get(document_id)
+            if document is None:
+                raise ApiException(
+                    status_code=404,
+                    code=ErrorCode.DOCUMENT_NOT_FOUND,
+                    message="Document not found in this session.",
+                    document_id=document_id,
+                )
+            if document.status in (DocumentStatus.QUEUED, DocumentStatus.PREPARING):
+                raise ApiException(
+                    status_code=409,
+                    code=ErrorCode.DOCUMENT_PROCESSING,
+                    message="Cancel the document before removing it.",
+                    document_id=document_id,
+                )
+
+            self._file_store.remove_document_files(
+                session.session_id, document_id, document.extension
+            )
+            session.accepted_bytes = max(0, session.accepted_bytes - document.size_bytes)
+            if document.page_count is not None:
+                session.known_pages = max(0, session.known_pages - document.page_count)
+            terminal_jobs = [
+                job_id
+                for job_id, job in session.jobs.items()
+                if job.document_id == document_id and job.is_terminal
+            ]
+            for job_id in terminal_jobs:
+                del session.jobs[job_id]
+            del session.documents[document_id]
+
+            await _safe_publish(
+                session.broker,
+                ProgressEventType.DOCUMENT_REMOVED,
+                document_id=document_id,
+            )
+            recompute_session_status(session)
 
     async def _worker_loop(self) -> None:
         while True:

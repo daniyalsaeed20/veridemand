@@ -44,7 +44,11 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     registry = SessionRegistry(settings, file_store, job_queue)
     admission = Phase1AdmissionProcessor(file_store)
     coordinator = ProcessingCoordinator(
-        registry, job_queue, admission, worker_count=settings.queue_admission_workers
+        registry,
+        job_queue,
+        admission,
+        file_store,
+        worker_count=settings.queue_admission_workers,
     )
     upload_service = UploadService(settings, file_store)
     cleanup_service = CleanupService(registry, file_store, settings)
