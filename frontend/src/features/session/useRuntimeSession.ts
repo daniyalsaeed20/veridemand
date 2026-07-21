@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { deleteBeacon } from "../../api/http";
 import type { SessionSnapshot } from "../../contracts";
@@ -24,6 +24,9 @@ export function useRuntimeSession(): RuntimeSession {
   const [bootstrapError, setBootstrapError] = useState<Error | null>(null);
   const [expired, setExpired] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  // Set synchronously while a reset is in flight so the deliberate deletion of
+  // the outgoing session's stream cannot mark the fresh session as gone.
+  const resettingRef = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -65,12 +68,23 @@ export function useRuntimeSession(): RuntimeSession {
   }, [sessionId]);
 
   const markGone = useCallback(() => {
+    // Ignore the deleted event for a session we are deliberately replacing.
+    if (resettingRef.current) {
+      return;
+    }
     setExpired(true);
   }, []);
 
   const reset = useCallback(async () => {
+    resettingRef.current = true;
     setIsResetting(true);
     const previous = sessionId;
+    // Unmount the outgoing event stream first so its session.deleted event
+    // (from the delete below) never reaches the replacement session.
+    setSessionId(null);
+    setExpired(false);
+    queryClient.removeQueries({ queryKey: sessionKeys.root });
+    clearBootstrap();
     try {
       if (previous !== null) {
         try {
@@ -79,14 +93,11 @@ export function useRuntimeSession(): RuntimeSession {
           // Best-effort: the session may already be gone.
         }
       }
-      queryClient.removeQueries({ queryKey: sessionKeys.root });
-      clearBootstrap();
-      setSessionId(null);
-      setExpired(false);
       const snapshot = await bootstrapSession();
       setSessionId(snapshot.session_id);
       queryClient.setQueryData(sessionKeys.detail(snapshot.session_id), snapshot);
     } finally {
+      resettingRef.current = false;
       setIsResetting(false);
     }
   }, [queryClient, sessionId]);

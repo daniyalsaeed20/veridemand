@@ -55,7 +55,11 @@ async def get_session(
     registry: RegistryDep,
     settings: SettingsDep,
 ) -> SessionSnapshot:
-    session = await registry.get(session_id)
+    # Reading a snapshot is not user activity: the frontend polls it on every
+    # server-sent event (including the expiry warning), so touching here would
+    # continually reset the inactivity TTL and a watched session could never
+    # expire. Only user-initiated mutations extend the deadline.
+    session = await registry.get(session_id, touch=False)
     return build_session_snapshot(session, settings)
 
 

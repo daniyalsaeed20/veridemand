@@ -82,6 +82,12 @@ class Settings(BaseSettings):
     # independent, inconsistent session registries and queues.
     queue_admission_workers: int = Field(default=1, ge=1, le=1)
 
+    # Test-only admission hold. When > 0, the non-extractive admission step sleeps
+    # cooperatively (honouring cancellation) for this many seconds before marking a
+    # document ready. It exists solely so E2E tests can observe the queued/preparing
+    # states and exercise cancellation deterministically. MUST be 0 in production.
+    queue_admission_test_delay_seconds: float = Field(default=0.0, ge=0.0, le=60.0)
+
     # Concurrency (future processing pipeline).
     heavy_document_workers: int = Field(default=1, gt=0)
     render_concurrency: int = Field(default=2, gt=0)

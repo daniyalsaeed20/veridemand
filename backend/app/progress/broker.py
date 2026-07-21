@@ -10,6 +10,7 @@ closed, rather than growing memory without bound or silently dropping events.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections import deque
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
@@ -220,14 +221,21 @@ class EventBroker:
 
             getter: asyncio.Task[ProgressEvent] = asyncio.ensure_future(subscriber.queue.get())
             waiter: asyncio.Task[bool] = asyncio.ensure_future(subscriber.signal.wait())
-            done, _ = await asyncio.wait({getter, waiter}, return_when=asyncio.FIRST_COMPLETED)
+            try:
+                done, _ = await asyncio.wait({getter, waiter}, return_when=asyncio.FIRST_COMPLETED)
+            finally:
+                # Ensure neither helper task is left pending if this generator is
+                # closed (client disconnect) while awaiting: no orphan tasks.
+                for task in (getter, waiter):
+                    if not task.done():
+                        task.cancel()
+                        with contextlib.suppress(asyncio.CancelledError):
+                            await task
 
             if getter in done:
-                waiter.cancel()
                 yield getter.result()
                 continue
 
-            getter.cancel()
             if subscriber.overflow:
                 yield await self.build_resync_event()
                 return

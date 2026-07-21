@@ -65,7 +65,7 @@ async def list_documents(
     registry: RegistryDep,
     settings: SettingsDep,
 ) -> DocumentListResponse:
-    session = await registry.get(session_id)
+    session = await registry.get(session_id, touch=False)
     snapshot = build_session_snapshot(session, settings)
     return DocumentListResponse(documents=snapshot.documents)
 
@@ -82,7 +82,7 @@ async def get_document(
     registry: RegistryDep,
     settings: SettingsDep,
 ) -> DocumentSummary:
-    session = await registry.get(session_id)
+    session = await registry.get(session_id, touch=False)
     snapshot = build_session_snapshot(session, settings)
     for document in snapshot.documents:
         if document.document_id == document_id:

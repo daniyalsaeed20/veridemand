@@ -42,7 +42,9 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     file_store = FileStore(settings.temp_root)
     job_queue = InMemoryJobQueue()
     registry = SessionRegistry(settings, file_store, job_queue)
-    admission = Phase1AdmissionProcessor(file_store)
+    admission = Phase1AdmissionProcessor(
+        file_store, test_hold_seconds=settings.queue_admission_test_delay_seconds
+    )
     coordinator = ProcessingCoordinator(
         registry,
         job_queue,
