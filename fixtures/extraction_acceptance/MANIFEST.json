@@ -1,6 +1,21 @@
 {
-  "schema_label": "EVALUATION SCHEMA \u2014 NOT YET PRODUCTION CONTRACT",
-  "fixture_count": 17,
+  "schema_label": "SYNTHETIC EXTRACTION FIXTURE \u2014 FUTURE GOLD INPUT (no active test)",
+  "purpose": "Future gold inputs for the document-extraction platform. No active test consumes these.",
+  "concepts": [
+    "documents",
+    "pages",
+    "blocks",
+    "lines",
+    "words",
+    "tables",
+    "cells",
+    "coordinates_normalized_top_left",
+    "source_modes",
+    "script_types",
+    "recognition_methods",
+    "warnings"
+  ],
+  "fixture_count": 15,
   "fixtures": [
     "clean_native_paragraph",
     "two_column_page",
@@ -16,9 +31,7 @@
     "mixed_print_handwritten_like",
     "diagram_grid_labels",
     "overlapping_duplicate_hidden_text",
-    "person_name_field",
-    "law_firm_name_field",
     "date_identifier_fields"
   ],
-  "note": "Synthetic only \u2014 no private case names or values"
+  "note": "Synthetic only \u2014 no private case names or values."
 }

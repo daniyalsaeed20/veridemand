@@ -1,5 +1,0 @@
-/* AUTO-GENERATED — do not edit by hand. */
-import { z } from "zod"
-
-export const BillingEntrySchema = z.object({ "adjustment": z.union([z.string(), z.null()]).default(null), "balance": z.union([z.string(), z.null()]).default(null), "charge": z.union([z.string(), z.null()]).default(null), "code": z.union([z.string(), z.null()]).default(null), "currency": z.string().default("USD"), "description": z.union([z.string(), z.null()]).default(null), "document_id": z.union([z.string(), z.null()]).default(null), "fact_ids": z.union([z.array(z.string()), z.null()]).default(null), "id": z.string(), "payment": z.union([z.string(), z.null()]).default(null), "provider": z.union([z.string(), z.null()]).default(null), "reconciliation_note": z.union([z.string(), z.null()]).default(null), "reconciliation_ok": z.union([z.boolean(), z.null()]).default(null), "service_date": z.union([z.string(), z.null()]).default(null), "session_id": z.string(), "source_span_ids": z.array(z.string()).optional() }).strict()
-

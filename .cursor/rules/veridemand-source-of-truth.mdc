@@ -1,0 +1,52 @@
+---
+description: VeriDemand single source of truth and scope discipline (document-extraction platform)
+alwaysApply: true
+---
+
+# VeriDemand source of truth
+
+## Canonical specification
+
+- The sole authoritative specification is
+  `docs/VeriDemand_Document_Extraction_Source_of_Truth_v1.0.md`.
+- Never rename, move, or delete it. Do not edit it merely to make a report or check pass.
+- If code, docs, or tests conflict with the specification, **stop and report** the conflict;
+  do not silently reinterpret it.
+
+## Product scope
+
+- VeriDemand is a **document-extraction platform**. The obsolete demand-letter product was
+  removed in the reset (see `docs/decisions/0001-reset-to-document-extraction.md`).
+- Out of scope (do not implement or reintroduce): demand-letter drafting, legal fact
+  extraction, chronology/timeline, billing reconciliation, issue/verification workflows,
+  settlement math, exhibit management, and any "critical legal fact" answer keys.
+
+## Extraction doctrine (from the specification)
+
+- Extract from the least expensive reliable source; reject untrustworthy sources early.
+- Native text is never automatically trusted — it must pass the native-text trust gate.
+- No dedicated local HTR. Handwritten or uncertain regions route directly to the configured
+  vision LLM; local detection and page geometry stay authoritative (the LLM never invents
+  coordinates).
+- Coordinates are owned locally: normalized page space, origin top-left, values in `[0, 1]`.
+
+## Phase discipline
+
+- Implement only the current roadmap phase from the specification. Do not start a dependent
+  phase before the prior exit gate is satisfied with evidence.
+- This repository is currently at the **foundation shell** (health endpoints only). No
+  upload, queue, session, rendering, OCR, detection, routing, LLM, or extraction feature is
+  implemented yet.
+
+## Contracts
+
+- Pydantic models under `backend/app/models/` are the machine source of truth for API shapes.
+- Frontend Zod schemas are generated from exported JSON Schema; do not hand-maintain duplicate
+  field shapes. Keep the drift guard green.
+
+## Dependencies and evidence
+
+- Do not add production dependencies without recording purpose, version, and licence in
+  `DEPENDENCY_INVENTORY.md`.
+- Do not invent extraction results, and do not add private/case documents to the repository.
+  Local regression documents live under the git-ignored `fixtures/private/`.

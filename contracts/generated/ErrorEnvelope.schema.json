@@ -2,42 +2,6 @@
   "$defs": {
     "ErrorCode": {
       "enum": [
-        "session_not_found",
-        "session_expired",
-        "session_cleanup_failed",
-        "session_limit_exceeded",
-        "upload_unsupported_type",
-        "upload_mime_mismatch",
-        "upload_signature_mismatch",
-        "upload_encrypted_pdf",
-        "upload_corrupt_file",
-        "upload_file_too_large",
-        "upload_page_limit_exceeded",
-        "upload_total_size_exceeded",
-        "upload_file_count_exceeded",
-        "upload_duplicate",
-        "upload_macros_not_supported",
-        "process_not_ready",
-        "process_already_running",
-        "process_cancelled",
-        "process_stage_failed",
-        "extraction_render_failed",
-        "extraction_ocr_failed",
-        "extraction_native_failed",
-        "classification_locked",
-        "document_invalid_patch",
-        "sequence_invalid",
-        "fact_not_found",
-        "fact_locked",
-        "fact_invalid_patch",
-        "issue_not_found",
-        "issue_invalid_resolution",
-        "draft_not_ready",
-        "draft_not_found",
-        "draft_llm_schema_failed",
-        "export_blocked_red_issues",
-        "export_blocked_preflight",
-        "export_failed",
         "route_not_found",
         "validation_error",
         "internal_error",
@@ -53,18 +17,6 @@
       "additionalProperties": true,
       "title": "Details",
       "type": "object"
-    },
-    "document_id": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Document Id"
     },
     "error_code": {
       "anyOf": [
@@ -92,18 +44,6 @@
       ],
       "default": null,
       "title": "Request Id"
-    },
-    "session_id": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Session Id"
     }
   },
   "required": [

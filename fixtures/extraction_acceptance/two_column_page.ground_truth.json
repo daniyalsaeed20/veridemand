@@ -1,195 +1,662 @@
 {
   "fixture_id": "two_column_page",
-  "annotation_status": "human_approved",
+  "schema_label": "SYNTHETIC EXTRACTION FIXTURE \u2014 FUTURE GOLD INPUT (no active test)",
   "page_number": 1,
-  "expected_transcript": "Column A line 1\nColumn A line 2\nColumn A line 3\nColumn B line 1\nColumn B line 2\nColumn B line 3",
-  "expected_lines": [
-    "Column A line 1",
-    "Column A line 2",
-    "Column A line 3",
-    "Column B line 1",
-    "Column B line 2",
-    "Column B line 3"
-  ],
-  "expected_line_ids": [
-    "L0",
-    "L1",
-    "L2",
-    "L3",
-    "L4",
-    "L5"
-  ],
-  "expected_word_ids": [
-    "W0",
-    "W1",
-    "W2",
-    "W3",
-    "W4",
-    "W5"
-  ],
-  "expected_words": [
+  "source_mode": "native_authority",
+  "rotation_degrees": 0,
+  "expected_text": "Column A line 1\nColumn A line 2\nColumn A line 3\nColumn B line 1\nColumn B line 2\nColumn B line 3",
+  "blocks": [
     {
-      "word_id": "W0",
-      "text": "Column A line 1",
+      "id": "block_p1_000",
+      "type": "paragraph",
       "reading_order": 0,
-      "polygon": [
-        [
-          0.05,
-          0.1
-        ],
-        [
-          0.45,
-          0.1
-        ],
-        [
-          0.45,
-          0.16
-        ],
-        [
-          0.05,
-          0.16
-        ]
-      ],
-      "column": 0
+      "lines": [
+        {
+          "id": "line_p1_000",
+          "reading_order": 0,
+          "words": [
+            {
+              "id": "word_p1_000",
+              "text": "Column",
+              "reading_order": 0,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.06,
+                  0.12
+                ],
+                [
+                  0.15,
+                  0.12
+                ],
+                [
+                  0.15,
+                  0.16
+                ],
+                [
+                  0.06,
+                  0.16
+                ]
+              ]
+            },
+            {
+              "id": "word_p1_001",
+              "text": "A",
+              "reading_order": 1,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.16,
+                  0.12
+                ],
+                [
+                  0.25,
+                  0.12
+                ],
+                [
+                  0.25,
+                  0.16
+                ],
+                [
+                  0.16,
+                  0.16
+                ]
+              ]
+            },
+            {
+              "id": "word_p1_002",
+              "text": "line",
+              "reading_order": 2,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.26,
+                  0.12
+                ],
+                [
+                  0.35,
+                  0.12
+                ],
+                [
+                  0.35,
+                  0.16
+                ],
+                [
+                  0.26,
+                  0.16
+                ]
+              ]
+            },
+            {
+              "id": "word_p1_003",
+              "text": "1",
+              "reading_order": 3,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.36,
+                  0.12
+                ],
+                [
+                  0.45,
+                  0.12
+                ],
+                [
+                  0.45,
+                  0.16
+                ],
+                [
+                  0.36,
+                  0.16
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "id": "line_p1_001",
+          "reading_order": 1,
+          "words": [
+            {
+              "id": "word_p1_004",
+              "text": "Column",
+              "reading_order": 4,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.06,
+                  0.2
+                ],
+                [
+                  0.15,
+                  0.2
+                ],
+                [
+                  0.15,
+                  0.24
+                ],
+                [
+                  0.06,
+                  0.24
+                ]
+              ]
+            },
+            {
+              "id": "word_p1_005",
+              "text": "A",
+              "reading_order": 5,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.16,
+                  0.2
+                ],
+                [
+                  0.25,
+                  0.2
+                ],
+                [
+                  0.25,
+                  0.24
+                ],
+                [
+                  0.16,
+                  0.24
+                ]
+              ]
+            },
+            {
+              "id": "word_p1_006",
+              "text": "line",
+              "reading_order": 6,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.26,
+                  0.2
+                ],
+                [
+                  0.35,
+                  0.2
+                ],
+                [
+                  0.35,
+                  0.24
+                ],
+                [
+                  0.26,
+                  0.24
+                ]
+              ]
+            },
+            {
+              "id": "word_p1_007",
+              "text": "2",
+              "reading_order": 7,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.36,
+                  0.2
+                ],
+                [
+                  0.45,
+                  0.2
+                ],
+                [
+                  0.45,
+                  0.24
+                ],
+                [
+                  0.36,
+                  0.24
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "id": "line_p1_002",
+          "reading_order": 2,
+          "words": [
+            {
+              "id": "word_p1_008",
+              "text": "Column",
+              "reading_order": 8,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.06,
+                  0.28
+                ],
+                [
+                  0.15,
+                  0.28
+                ],
+                [
+                  0.15,
+                  0.32
+                ],
+                [
+                  0.06,
+                  0.32
+                ]
+              ]
+            },
+            {
+              "id": "word_p1_009",
+              "text": "A",
+              "reading_order": 9,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.16,
+                  0.28
+                ],
+                [
+                  0.25,
+                  0.28
+                ],
+                [
+                  0.25,
+                  0.32
+                ],
+                [
+                  0.16,
+                  0.32
+                ]
+              ]
+            },
+            {
+              "id": "word_p1_010",
+              "text": "line",
+              "reading_order": 10,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.26,
+                  0.28
+                ],
+                [
+                  0.35,
+                  0.28
+                ],
+                [
+                  0.35,
+                  0.32
+                ],
+                [
+                  0.26,
+                  0.32
+                ]
+              ]
+            },
+            {
+              "id": "word_p1_011",
+              "text": "3",
+              "reading_order": 11,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.36,
+                  0.28
+                ],
+                [
+                  0.45,
+                  0.28
+                ],
+                [
+                  0.45,
+                  0.32
+                ],
+                [
+                  0.36,
+                  0.32
+                ]
+              ]
+            }
+          ]
+        }
+      ]
     },
     {
-      "word_id": "W1",
-      "text": "Column A line 2",
+      "id": "block_p1_001",
+      "type": "paragraph",
       "reading_order": 1,
-      "polygon": [
-        [
-          0.05,
-          0.18
-        ],
-        [
-          0.45,
-          0.18
-        ],
-        [
-          0.45,
-          0.24
-        ],
-        [
-          0.05,
-          0.24
-        ]
-      ],
-      "column": 0
-    },
-    {
-      "word_id": "W2",
-      "text": "Column A line 3",
-      "reading_order": 2,
-      "polygon": [
-        [
-          0.05,
-          0.26
-        ],
-        [
-          0.45,
-          0.26
-        ],
-        [
-          0.45,
-          0.32
-        ],
-        [
-          0.05,
-          0.32
-        ]
-      ],
-      "column": 0
-    },
-    {
-      "word_id": "W3",
-      "text": "Column B line 1",
-      "reading_order": 3,
-      "polygon": [
-        [
-          0.55,
-          0.1
-        ],
-        [
-          0.95,
-          0.1
-        ],
-        [
-          0.95,
-          0.16
-        ],
-        [
-          0.55,
-          0.16
-        ]
-      ],
-      "column": 1
-    },
-    {
-      "word_id": "W4",
-      "text": "Column B line 2",
-      "reading_order": 4,
-      "polygon": [
-        [
-          0.55,
-          0.18
-        ],
-        [
-          0.95,
-          0.18
-        ],
-        [
-          0.95,
-          0.24
-        ],
-        [
-          0.55,
-          0.24
-        ]
-      ],
-      "column": 1
-    },
-    {
-      "word_id": "W5",
-      "text": "Column B line 3",
-      "reading_order": 5,
-      "polygon": [
-        [
-          0.55,
-          0.26
-        ],
-        [
-          0.95,
-          0.26
-        ],
-        [
-          0.95,
-          0.32
-        ],
-        [
-          0.55,
-          0.32
-        ]
-      ],
-      "column": 1
+      "lines": [
+        {
+          "id": "line_p1_003",
+          "reading_order": 3,
+          "words": [
+            {
+              "id": "word_p1_012",
+              "text": "Column",
+              "reading_order": 12,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.54,
+                  0.12
+                ],
+                [
+                  0.63,
+                  0.12
+                ],
+                [
+                  0.63,
+                  0.16
+                ],
+                [
+                  0.54,
+                  0.16
+                ]
+              ]
+            },
+            {
+              "id": "word_p1_013",
+              "text": "B",
+              "reading_order": 13,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.64,
+                  0.12
+                ],
+                [
+                  0.73,
+                  0.12
+                ],
+                [
+                  0.73,
+                  0.16
+                ],
+                [
+                  0.64,
+                  0.16
+                ]
+              ]
+            },
+            {
+              "id": "word_p1_014",
+              "text": "line",
+              "reading_order": 14,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.74,
+                  0.12
+                ],
+                [
+                  0.83,
+                  0.12
+                ],
+                [
+                  0.83,
+                  0.16
+                ],
+                [
+                  0.74,
+                  0.16
+                ]
+              ]
+            },
+            {
+              "id": "word_p1_015",
+              "text": "1",
+              "reading_order": 15,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.84,
+                  0.12
+                ],
+                [
+                  0.93,
+                  0.12
+                ],
+                [
+                  0.93,
+                  0.16
+                ],
+                [
+                  0.84,
+                  0.16
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "id": "line_p1_004",
+          "reading_order": 4,
+          "words": [
+            {
+              "id": "word_p1_016",
+              "text": "Column",
+              "reading_order": 16,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.54,
+                  0.2
+                ],
+                [
+                  0.63,
+                  0.2
+                ],
+                [
+                  0.63,
+                  0.24
+                ],
+                [
+                  0.54,
+                  0.24
+                ]
+              ]
+            },
+            {
+              "id": "word_p1_017",
+              "text": "B",
+              "reading_order": 17,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.64,
+                  0.2
+                ],
+                [
+                  0.73,
+                  0.2
+                ],
+                [
+                  0.73,
+                  0.24
+                ],
+                [
+                  0.64,
+                  0.24
+                ]
+              ]
+            },
+            {
+              "id": "word_p1_018",
+              "text": "line",
+              "reading_order": 18,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.74,
+                  0.2
+                ],
+                [
+                  0.83,
+                  0.2
+                ],
+                [
+                  0.83,
+                  0.24
+                ],
+                [
+                  0.74,
+                  0.24
+                ]
+              ]
+            },
+            {
+              "id": "word_p1_019",
+              "text": "2",
+              "reading_order": 19,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.84,
+                  0.2
+                ],
+                [
+                  0.93,
+                  0.2
+                ],
+                [
+                  0.93,
+                  0.24
+                ],
+                [
+                  0.84,
+                  0.24
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "id": "line_p1_005",
+          "reading_order": 5,
+          "words": [
+            {
+              "id": "word_p1_020",
+              "text": "Column",
+              "reading_order": 20,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.54,
+                  0.28
+                ],
+                [
+                  0.63,
+                  0.28
+                ],
+                [
+                  0.63,
+                  0.32
+                ],
+                [
+                  0.54,
+                  0.32
+                ]
+              ]
+            },
+            {
+              "id": "word_p1_021",
+              "text": "B",
+              "reading_order": 21,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.64,
+                  0.28
+                ],
+                [
+                  0.73,
+                  0.28
+                ],
+                [
+                  0.73,
+                  0.32
+                ],
+                [
+                  0.64,
+                  0.32
+                ]
+              ]
+            },
+            {
+              "id": "word_p1_022",
+              "text": "line",
+              "reading_order": 22,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.74,
+                  0.28
+                ],
+                [
+                  0.83,
+                  0.28
+                ],
+                [
+                  0.83,
+                  0.32
+                ],
+                [
+                  0.74,
+                  0.32
+                ]
+              ]
+            },
+            {
+              "id": "word_p1_023",
+              "text": "3",
+              "reading_order": 23,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.84,
+                  0.28
+                ],
+                [
+                  0.93,
+                  0.28
+                ],
+                [
+                  0.93,
+                  0.32
+                ],
+                [
+                  0.84,
+                  0.32
+                ]
+              ]
+            }
+          ]
+        }
+      ]
     }
   ],
-  "expected_layer": "native_pdf_text",
-  "expected_outcome": "faithful_canonical",
-  "expected_rotation": 0,
-  "native_trustworthy": true,
-  "corrupt_embedded": false,
-  "must_reject_corrupt": false,
-  "ocr_required": false,
-  "silent_mix": false,
-  "critical_fields": [],
-  "notes": "Synthetic fixture \u2014 no private case data",
-  "layout": "two_column",
-  "expected_column_order": [
-    0,
-    0,
-    0,
-    1,
-    1,
-    1
-  ]
+  "warnings": [],
+  "notes": "Synthetic fixture \u2014 no private case data"
 }

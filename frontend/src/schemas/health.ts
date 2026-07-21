@@ -5,7 +5,7 @@
 import { z } from "zod";
 import { HealthResponseSchema as GeneratedHealthResponseSchema } from "./generated/HealthResponse";
 
-// Generated schema may be loose (json-schema-to-zod). Tighten wire validation for Phase 0.
+// Generated schema may be loose (json-schema-to-zod). Tighten wire validation here.
 export const HealthResponseSchema = GeneratedHealthResponseSchema.and(
   z.object({
     status: z.enum(["ok", "degraded", "error"]),
@@ -13,12 +13,6 @@ export const HealthResponseSchema = GeneratedHealthResponseSchema.and(
     app_version: z.string().nullable().optional(),
     contracts_version: z.string(),
     time_utc: z.string(),
-    capabilities: z.object({
-      ocr_enabled: z.boolean(),
-      llm_semantic_extraction_enabled: z.boolean(),
-      max_files_per_session: z.number().int(),
-      max_pages_per_session: z.number().int(),
-    }),
     message: z.string().nullable().optional(),
   }),
 );

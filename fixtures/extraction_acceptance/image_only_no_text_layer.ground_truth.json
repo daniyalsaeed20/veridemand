@@ -1,50 +1,100 @@
 {
   "fixture_id": "image_only_no_text_layer",
-  "annotation_status": "human_approved",
+  "schema_label": "SYNTHETIC EXTRACTION FIXTURE \u2014 FUTURE GOLD INPUT (no active test)",
   "page_number": 1,
-  "expected_transcript": "TYPED SCAN LINE",
-  "expected_lines": [
-    "TYPED SCAN LINE"
-  ],
-  "expected_line_ids": [
-    "L0"
-  ],
-  "expected_word_ids": [
-    "W0"
-  ],
-  "expected_words": [
+  "source_mode": "image_authority",
+  "rotation_degrees": 0,
+  "expected_text": "TYPED SCAN LINE",
+  "blocks": [
     {
-      "word_id": "W0",
-      "text": "TYPED",
+      "id": "block_p1_000",
+      "type": "paragraph",
       "reading_order": 0,
-      "polygon": [
-        [
-          0.1,
-          0.1
-        ],
-        [
-          0.4,
-          0.1
-        ],
-        [
-          0.4,
-          0.2
-        ],
-        [
-          0.1,
-          0.2
-        ]
+      "lines": [
+        {
+          "id": "line_p1_000",
+          "reading_order": 0,
+          "words": [
+            {
+              "id": "word_p1_000",
+              "text": "TYPED",
+              "reading_order": 0,
+              "script_type": "printed",
+              "recognition_method": "paddle_ocr",
+              "polygon_normalized": [
+                [
+                  0.08,
+                  0.2
+                ],
+                [
+                  0.35,
+                  0.2
+                ],
+                [
+                  0.35,
+                  0.24
+                ],
+                [
+                  0.08,
+                  0.24
+                ]
+              ]
+            },
+            {
+              "id": "word_p1_001",
+              "text": "SCAN",
+              "reading_order": 1,
+              "script_type": "printed",
+              "recognition_method": "paddle_ocr",
+              "polygon_normalized": [
+                [
+                  0.36,
+                  0.2
+                ],
+                [
+                  0.63,
+                  0.2
+                ],
+                [
+                  0.63,
+                  0.24
+                ],
+                [
+                  0.36,
+                  0.24
+                ]
+              ]
+            },
+            {
+              "id": "word_p1_002",
+              "text": "LINE",
+              "reading_order": 2,
+              "script_type": "printed",
+              "recognition_method": "paddle_ocr",
+              "polygon_normalized": [
+                [
+                  0.64,
+                  0.2
+                ],
+                [
+                  0.91,
+                  0.2
+                ],
+                [
+                  0.91,
+                  0.24
+                ],
+                [
+                  0.64,
+                  0.24
+                ]
+              ]
+            }
+          ]
+        }
       ]
     }
   ],
-  "expected_layer": "fresh_ocr",
-  "expected_outcome": "faithful_canonical",
-  "expected_rotation": 0,
-  "native_trustworthy": false,
-  "corrupt_embedded": false,
-  "must_reject_corrupt": false,
-  "ocr_required": true,
-  "silent_mix": false,
-  "critical_fields": [],
+  "warnings": [],
   "notes": "Synthetic fixture \u2014 no private case data"
 }

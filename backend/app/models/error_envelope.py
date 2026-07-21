@@ -1,4 +1,4 @@
-"""API error envelope from docs/contracts/error-codes.md."""
+"""Standard API error envelope."""
 
 from typing import Any
 
@@ -13,6 +13,4 @@ class ErrorEnvelope(BaseModel):
     error_code: ErrorCode | str
     message: str
     details: dict[str, Any] = Field(default_factory=dict)
-    session_id: str | None = None
-    document_id: str | None = None
     request_id: str | None = None

@@ -50,6 +50,10 @@ docs/example/**/*.docx
 # LibreOffice lock files under local case folders
 docs/example/**/.~lock.*
 
+# Private local regression fixtures (may contain PII) — keep out of Git
+fixtures/private/*
+!fixtures/private/README.example.md
+
 # OS / IDE
 .DS_Store
 Thumbs.db

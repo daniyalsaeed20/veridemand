@@ -1,34 +1,5 @@
 {
   "$defs": {
-    "HealthCapabilities": {
-      "additionalProperties": true,
-      "properties": {
-        "llm_semantic_extraction_enabled": {
-          "title": "Llm Semantic Extraction Enabled",
-          "type": "boolean"
-        },
-        "max_files_per_session": {
-          "title": "Max Files Per Session",
-          "type": "integer"
-        },
-        "max_pages_per_session": {
-          "title": "Max Pages Per Session",
-          "type": "integer"
-        },
-        "ocr_enabled": {
-          "title": "Ocr Enabled",
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "ocr_enabled",
-        "llm_semantic_extraction_enabled",
-        "max_files_per_session",
-        "max_pages_per_session"
-      ],
-      "title": "HealthCapabilities",
-      "type": "object"
-    },
     "HealthStatus": {
       "enum": [
         "ok",
@@ -58,18 +29,6 @@
       "default": null,
       "title": "App Version"
     },
-    "capabilities": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/HealthCapabilities"
-        },
-        {
-          "additionalProperties": true,
-          "type": "object"
-        }
-      ],
-      "title": "Capabilities"
-    },
     "contracts_version": {
       "default": "0.1",
       "title": "Contracts Version",
@@ -98,8 +57,7 @@
   },
   "required": [
     "status",
-    "time_utc",
-    "capabilities"
+    "time_utc"
   ],
   "title": "HealthResponse",
   "type": "object"

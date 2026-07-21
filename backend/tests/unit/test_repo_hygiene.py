@@ -17,6 +17,24 @@ def test_gitignore_covers_temp_and_example_binaries() -> None:
     assert "spikes/**/out/" in text
 
 
+def test_gitignore_covers_private_fixtures() -> None:
+    text = (ROOT / ".gitignore").read_text(encoding="utf-8")
+    assert "fixtures/private/*" in text
+    assert "!fixtures/private/README.example.md" in text
+
+
+def test_only_example_readme_tracked_under_private_fixtures() -> None:
+    result = subprocess.run(
+        ["git", "ls-files", "fixtures/private"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    tracked = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    assert tracked == ["fixtures/private/README.example.md"]
+
+
 def test_no_example_binaries_tracked() -> None:
     result = subprocess.run(
         ["git", "ls-files", "docs/example"],

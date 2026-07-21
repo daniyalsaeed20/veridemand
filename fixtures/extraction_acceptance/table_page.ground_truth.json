@@ -1,258 +1,478 @@
 {
   "fixture_id": "table_page",
-  "annotation_status": "human_approved",
+  "schema_label": "SYNTHETIC EXTRACTION FIXTURE \u2014 FUTURE GOLD INPUT (no active test)",
   "page_number": 1,
-  "expected_transcript": "Item Qty Amount\nAlpha 1 10.00\nBeta 2 20.00",
-  "expected_lines": [
-    "Item Qty Amount",
-    "Alpha 1 10.00",
-    "Beta 2 20.00"
-  ],
-  "expected_line_ids": [
-    "L0",
-    "L1",
-    "L2"
-  ],
-  "expected_word_ids": [
-    "W0",
-    "W1",
-    "W2",
-    "W3",
-    "W4",
-    "W5",
-    "W6",
-    "W7",
-    "W8"
-  ],
-  "expected_words": [
+  "source_mode": "native_authority",
+  "rotation_degrees": 0,
+  "expected_text": "Item Qty Amount\nAlpha 1 10.00\nBeta 2 20.00",
+  "blocks": [
     {
-      "word_id": "W0",
-      "text": "Item",
+      "id": "block_p1_000",
+      "type": "table",
       "reading_order": 0,
-      "polygon": [
-        [
-          0.1,
-          0.1
-        ],
-        [
-          0.3,
-          0.1
-        ],
-        [
-          0.3,
-          0.18
-        ],
-        [
-          0.1,
-          0.18
-        ]
-      ]
-    },
-    {
-      "word_id": "W1",
-      "text": "Qty",
-      "reading_order": 1,
-      "polygon": [
-        [
-          0.35,
-          0.1
-        ],
-        [
-          0.55,
-          0.1
-        ],
-        [
-          0.55,
-          0.18
-        ],
-        [
-          0.35,
-          0.18
-        ]
-      ]
-    },
-    {
-      "word_id": "W2",
-      "text": "Amount",
-      "reading_order": 2,
-      "polygon": [
-        [
-          0.6,
-          0.1
-        ],
-        [
-          0.8,
-          0.1
-        ],
-        [
-          0.8,
-          0.18
-        ],
-        [
-          0.6,
-          0.18
-        ]
-      ]
-    },
-    {
-      "word_id": "W3",
-      "text": "Alpha",
-      "reading_order": 3,
-      "polygon": [
-        [
-          0.1,
-          0.2
-        ],
-        [
-          0.3,
-          0.2
-        ],
-        [
-          0.3,
-          0.28
-        ],
-        [
-          0.1,
-          0.28
-        ]
-      ]
-    },
-    {
-      "word_id": "W4",
-      "text": "1",
-      "reading_order": 4,
-      "polygon": [
-        [
-          0.35,
-          0.2
-        ],
-        [
-          0.55,
-          0.2
-        ],
-        [
-          0.55,
-          0.28
-        ],
-        [
-          0.35,
-          0.28
-        ]
-      ]
-    },
-    {
-      "word_id": "W5",
-      "text": "10.00",
-      "reading_order": 5,
-      "polygon": [
-        [
-          0.6,
-          0.2
-        ],
-        [
-          0.8,
-          0.2
-        ],
-        [
-          0.8,
-          0.28
-        ],
-        [
-          0.6,
-          0.28
-        ]
-      ]
-    },
-    {
-      "word_id": "W6",
-      "text": "Beta",
-      "reading_order": 6,
-      "polygon": [
-        [
-          0.1,
-          0.30000000000000004
-        ],
-        [
-          0.3,
-          0.30000000000000004
-        ],
-        [
-          0.3,
-          0.38
-        ],
-        [
-          0.1,
-          0.38
-        ]
-      ]
-    },
-    {
-      "word_id": "W7",
-      "text": "2",
-      "reading_order": 7,
-      "polygon": [
-        [
-          0.35,
-          0.30000000000000004
-        ],
-        [
-          0.55,
-          0.30000000000000004
-        ],
-        [
-          0.55,
-          0.38
-        ],
-        [
-          0.35,
-          0.38
-        ]
-      ]
-    },
-    {
-      "word_id": "W8",
-      "text": "20.00",
-      "reading_order": 8,
-      "polygon": [
-        [
-          0.6,
-          0.30000000000000004
-        ],
-        [
-          0.8,
-          0.30000000000000004
-        ],
-        [
-          0.8,
-          0.38
-        ],
-        [
-          0.6,
-          0.38
-        ]
+      "lines": [
+        {
+          "id": "line_p1_000",
+          "reading_order": 0,
+          "words": [
+            {
+              "id": "word_p1_000",
+              "text": "Item",
+              "reading_order": 0,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.08,
+                  0.12
+                ],
+                [
+                  0.35,
+                  0.12
+                ],
+                [
+                  0.35,
+                  0.16
+                ],
+                [
+                  0.08,
+                  0.16
+                ]
+              ]
+            },
+            {
+              "id": "word_p1_001",
+              "text": "Qty",
+              "reading_order": 1,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.36,
+                  0.12
+                ],
+                [
+                  0.63,
+                  0.12
+                ],
+                [
+                  0.63,
+                  0.16
+                ],
+                [
+                  0.36,
+                  0.16
+                ]
+              ]
+            },
+            {
+              "id": "word_p1_002",
+              "text": "Amount",
+              "reading_order": 2,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.64,
+                  0.12
+                ],
+                [
+                  0.91,
+                  0.12
+                ],
+                [
+                  0.91,
+                  0.16
+                ],
+                [
+                  0.64,
+                  0.16
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "id": "line_p1_001",
+          "reading_order": 1,
+          "words": [
+            {
+              "id": "word_p1_003",
+              "text": "Alpha",
+              "reading_order": 3,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.08,
+                  0.22
+                ],
+                [
+                  0.35,
+                  0.22
+                ],
+                [
+                  0.35,
+                  0.26
+                ],
+                [
+                  0.08,
+                  0.26
+                ]
+              ]
+            },
+            {
+              "id": "word_p1_004",
+              "text": "1",
+              "reading_order": 4,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.36,
+                  0.22
+                ],
+                [
+                  0.63,
+                  0.22
+                ],
+                [
+                  0.63,
+                  0.26
+                ],
+                [
+                  0.36,
+                  0.26
+                ]
+              ]
+            },
+            {
+              "id": "word_p1_005",
+              "text": "10.00",
+              "reading_order": 5,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.64,
+                  0.22
+                ],
+                [
+                  0.91,
+                  0.22
+                ],
+                [
+                  0.91,
+                  0.26
+                ],
+                [
+                  0.64,
+                  0.26
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "id": "line_p1_002",
+          "reading_order": 2,
+          "words": [
+            {
+              "id": "word_p1_006",
+              "text": "Beta",
+              "reading_order": 6,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.08,
+                  0.32
+                ],
+                [
+                  0.35,
+                  0.32
+                ],
+                [
+                  0.35,
+                  0.36
+                ],
+                [
+                  0.08,
+                  0.36
+                ]
+              ]
+            },
+            {
+              "id": "word_p1_007",
+              "text": "2",
+              "reading_order": 7,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.36,
+                  0.32
+                ],
+                [
+                  0.63,
+                  0.32
+                ],
+                [
+                  0.63,
+                  0.36
+                ],
+                [
+                  0.36,
+                  0.36
+                ]
+              ]
+            },
+            {
+              "id": "word_p1_008",
+              "text": "20.00",
+              "reading_order": 8,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.64,
+                  0.32
+                ],
+                [
+                  0.91,
+                  0.32
+                ],
+                [
+                  0.91,
+                  0.36
+                ],
+                [
+                  0.64,
+                  0.36
+                ]
+              ]
+            }
+          ]
+        }
       ]
     }
   ],
-  "expected_layer": "native_pdf_text",
-  "expected_outcome": "faithful_canonical",
-  "expected_rotation": 0,
-  "native_trustworthy": true,
-  "corrupt_embedded": false,
-  "must_reject_corrupt": false,
-  "ocr_required": false,
-  "silent_mix": false,
-  "critical_fields": [],
+  "warnings": [],
   "notes": "Synthetic fixture \u2014 no private case data",
-  "expected_table_cells": [
-    "Item",
-    "Qty",
-    "Amount",
-    "Alpha",
-    "1",
-    "10.00",
-    "Beta",
-    "2",
-    "20.00"
-  ],
-  "layout": "table"
+  "tables": [
+    {
+      "id": "table_p1_000",
+      "row_count": 3,
+      "column_count": 3,
+      "cells": [
+        {
+          "row": 0,
+          "column": 0,
+          "text": "Item",
+          "polygon_normalized": [
+            [
+              0.1,
+              0.12
+            ],
+            [
+              0.32,
+              0.12
+            ],
+            [
+              0.32,
+              0.2
+            ],
+            [
+              0.1,
+              0.2
+            ]
+          ]
+        },
+        {
+          "row": 0,
+          "column": 1,
+          "text": "Qty",
+          "polygon_normalized": [
+            [
+              0.35,
+              0.12
+            ],
+            [
+              0.57,
+              0.12
+            ],
+            [
+              0.57,
+              0.2
+            ],
+            [
+              0.35,
+              0.2
+            ]
+          ]
+        },
+        {
+          "row": 0,
+          "column": 2,
+          "text": "Amount",
+          "polygon_normalized": [
+            [
+              0.6,
+              0.12
+            ],
+            [
+              0.82,
+              0.12
+            ],
+            [
+              0.82,
+              0.2
+            ],
+            [
+              0.6,
+              0.2
+            ]
+          ]
+        },
+        {
+          "row": 1,
+          "column": 0,
+          "text": "Alpha",
+          "polygon_normalized": [
+            [
+              0.1,
+              0.22
+            ],
+            [
+              0.32,
+              0.22
+            ],
+            [
+              0.32,
+              0.3
+            ],
+            [
+              0.1,
+              0.3
+            ]
+          ]
+        },
+        {
+          "row": 1,
+          "column": 1,
+          "text": "1",
+          "polygon_normalized": [
+            [
+              0.35,
+              0.22
+            ],
+            [
+              0.57,
+              0.22
+            ],
+            [
+              0.57,
+              0.3
+            ],
+            [
+              0.35,
+              0.3
+            ]
+          ]
+        },
+        {
+          "row": 1,
+          "column": 2,
+          "text": "10.00",
+          "polygon_normalized": [
+            [
+              0.6,
+              0.22
+            ],
+            [
+              0.82,
+              0.22
+            ],
+            [
+              0.82,
+              0.3
+            ],
+            [
+              0.6,
+              0.3
+            ]
+          ]
+        },
+        {
+          "row": 2,
+          "column": 0,
+          "text": "Beta",
+          "polygon_normalized": [
+            [
+              0.1,
+              0.32
+            ],
+            [
+              0.32,
+              0.32
+            ],
+            [
+              0.32,
+              0.4
+            ],
+            [
+              0.1,
+              0.4
+            ]
+          ]
+        },
+        {
+          "row": 2,
+          "column": 1,
+          "text": "2",
+          "polygon_normalized": [
+            [
+              0.35,
+              0.32
+            ],
+            [
+              0.57,
+              0.32
+            ],
+            [
+              0.57,
+              0.4
+            ],
+            [
+              0.35,
+              0.4
+            ]
+          ]
+        },
+        {
+          "row": 2,
+          "column": 2,
+          "text": "20.00",
+          "polygon_normalized": [
+            [
+              0.6,
+              0.32
+            ],
+            [
+              0.82,
+              0.32
+            ],
+            [
+              0.82,
+              0.4
+            ],
+            [
+              0.6,
+              0.4
+            ]
+          ]
+        }
+      ]
+    }
+  ]
 }

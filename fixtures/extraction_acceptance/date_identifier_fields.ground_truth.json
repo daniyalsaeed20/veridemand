@@ -1,97 +1,131 @@
 {
   "fixture_id": "date_identifier_fields",
-  "annotation_status": "human_approved",
+  "schema_label": "SYNTHETIC EXTRACTION FIXTURE \u2014 FUTURE GOLD INPUT (no active test)",
   "page_number": 1,
-  "expected_transcript": "Date 2024-01-15\nID ID-10042",
-  "expected_lines": [
-    "Date 2024-01-15",
-    "ID ID-10042"
-  ],
-  "expected_line_ids": [
-    "L0",
-    "L1"
-  ],
-  "expected_word_ids": [
-    "W0",
-    "W1"
-  ],
-  "expected_words": [
+  "source_mode": "native_authority",
+  "rotation_degrees": 0,
+  "expected_text": "Date 2024-01-15\nID ID-10042",
+  "blocks": [
     {
-      "word_id": "W0",
-      "text": "2024-01-15",
+      "id": "block_p1_000",
+      "type": "key_value",
       "reading_order": 0,
-      "polygon": [
-        [
-          0.2,
-          0.1
-        ],
-        [
-          0.5,
-          0.1
-        ],
-        [
-          0.5,
-          0.2
-        ],
-        [
-          0.2,
-          0.2
-        ]
-      ]
-    },
-    {
-      "word_id": "W1",
-      "text": "ID-10042",
-      "reading_order": 1,
-      "polygon": [
-        [
-          0.2,
-          0.25
-        ],
-        [
-          0.5,
-          0.25
-        ],
-        [
-          0.5,
-          0.35
-        ],
-        [
-          0.2,
-          0.35
-        ]
+      "lines": [
+        {
+          "id": "line_p1_000",
+          "reading_order": 0,
+          "words": [
+            {
+              "id": "word_p1_000",
+              "text": "Date",
+              "reading_order": 0,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.08,
+                  0.15
+                ],
+                [
+                  0.49,
+                  0.15
+                ],
+                [
+                  0.49,
+                  0.19
+                ],
+                [
+                  0.08,
+                  0.19
+                ]
+              ]
+            },
+            {
+              "id": "word_p1_001",
+              "text": "2024-01-15",
+              "reading_order": 1,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.5,
+                  0.15
+                ],
+                [
+                  0.91,
+                  0.15
+                ],
+                [
+                  0.91,
+                  0.19
+                ],
+                [
+                  0.5,
+                  0.19
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "id": "line_p1_001",
+          "reading_order": 1,
+          "words": [
+            {
+              "id": "word_p1_002",
+              "text": "ID",
+              "reading_order": 2,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.08,
+                  0.27
+                ],
+                [
+                  0.49,
+                  0.27
+                ],
+                [
+                  0.49,
+                  0.31
+                ],
+                [
+                  0.08,
+                  0.31
+                ]
+              ]
+            },
+            {
+              "id": "word_p1_003",
+              "text": "ID-10042",
+              "reading_order": 3,
+              "script_type": "printed",
+              "recognition_method": "native",
+              "polygon_normalized": [
+                [
+                  0.5,
+                  0.27
+                ],
+                [
+                  0.91,
+                  0.27
+                ],
+                [
+                  0.91,
+                  0.31
+                ],
+                [
+                  0.5,
+                  0.31
+                ]
+              ]
+            }
+          ]
+        }
       ]
     }
   ],
-  "expected_layer": "native_pdf_text",
-  "expected_outcome": "faithful_canonical",
-  "expected_rotation": 0,
-  "native_trustworthy": true,
-  "corrupt_embedded": false,
-  "must_reject_corrupt": false,
-  "ocr_required": false,
-  "silent_mix": false,
-  "critical_fields": [
-    {
-      "field_id": "date",
-      "field_type": "date",
-      "expected": "2024-01-15",
-      "hypothesized": "2024-01-15",
-      "uncertain": false,
-      "accepted": true,
-      "review_required": false,
-      "layer_used": "native_pdf_text"
-    },
-    {
-      "field_id": "id",
-      "field_type": "id",
-      "expected": "ID-10042",
-      "hypothesized": "ID-10042",
-      "uncertain": false,
-      "accepted": true,
-      "review_required": false,
-      "layer_used": "native_pdf_text"
-    }
-  ],
+  "warnings": [],
   "notes": "Synthetic fixture \u2014 no private case data"
 }

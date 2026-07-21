@@ -11,7 +11,6 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.core.domain_errors import DomainError
 from app.core.middleware import get_request_id
 from app.models.error_envelope import ErrorEnvelope
 from app.models.taxonomies import ErrorCode
@@ -24,36 +23,19 @@ def _envelope(
     error_code: str,
     message: str,
     request_id: str,
-    details: Mapping[str, Any] | None = None,
     status_code: int,
-    session_id: str | None = None,
-    document_id: str | None = None,
+    details: Mapping[str, Any] | None = None,
 ) -> JSONResponse:
     body = ErrorEnvelope(
         error_code=error_code,
         message=message,
         details=dict(details or {}),
-        session_id=session_id,
-        document_id=document_id,
         request_id=request_id,
     )
     return JSONResponse(status_code=status_code, content=body.model_dump(mode="json"))
 
 
 def register_exception_handlers(app: FastAPI) -> None:
-    @app.exception_handler(DomainError)
-    async def domain_handler(request: Request, exc: DomainError) -> JSONResponse:
-        request_id = get_request_id(request)
-        return _envelope(
-            error_code=exc.error_code,
-            message=exc.message,
-            request_id=request_id,
-            details=exc.details,
-            status_code=exc.status_code,
-            session_id=exc.session_id,
-            document_id=exc.document_id,
-        )
-
     @app.exception_handler(RequestValidationError)
     async def validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
         request_id = get_request_id(request)
@@ -72,7 +54,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def http_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
         request_id = get_request_id(request)
         if exc.status_code == 404:
-            code = ErrorCode.ROUTE_NOT_FOUND
+            code: str = ErrorCode.ROUTE_NOT_FOUND
             message = "The requested API route was not found."
         else:
             code = ErrorCode.INTERNAL_ERROR
