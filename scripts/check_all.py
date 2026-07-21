@@ -1,8 +1,9 @@
-"""Cross-platform Phase 0 validation orchestrator.
+"""Cross-platform validation orchestrator.
 
 Runs the full validation suite in a sensible fail-fast order. Each command is
 printed before it runs; the first failure stops the run and its exit code is
-preserved.
+preserved. Covers Phase 0 and Phase 1 (backend + frontend tests, build, E2E, and
+a residual-session-data guard).
 """
 
 from __future__ import annotations
@@ -34,6 +35,11 @@ STEPS: list[tuple[str, str]] = [
 
 E2E_STEP: tuple[str, str] = ("End-to-end smoke test", "pnpm -C frontend test:e2e")
 
+RESIDUAL_STEP: tuple[str, str] = (
+    "Residual session-data check",
+    f"{PYTHON} scripts/check_no_residual_sessions.py",
+)
+
 
 def run_step(label: str, command: str) -> int:
     print(f"\n=== {label} ===")
@@ -54,6 +60,8 @@ def main(argv: list[str] | None = None) -> int:
     steps = list(STEPS)
     if not args.skip_e2e:
         steps.append(E2E_STEP)
+    # Always verify no runtime session data was left on disk.
+    steps.append(RESIDUAL_STEP)
 
     for label, command in steps:
         code = run_step(label, command)
@@ -61,7 +69,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"\nFAILED: {label} (exit code {code})")
             return code
 
-    print("\nAll Phase 0 validation steps passed.")
+    print("\nAll validation steps passed.")
     return 0
 
 

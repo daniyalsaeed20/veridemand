@@ -49,12 +49,16 @@ jobs:
       - name: Verify contracts (no drift)
         run: pnpm contracts:check
 
-      - name: Run Phase 0 validation (excluding E2E)
+      - name: Run validation suite (excluding E2E)
         run: uv run python scripts/check_all.py --skip-e2e
 
   e2e:
-    name: End-to-end smoke test
+    name: End-to-end tests
     runs-on: ubuntu-latest
+    # No secrets are provided to this job: the runtime-session/upload/queue flows
+    # are fully offline and must never call a live vision provider.
+    env:
+      OPENAI_API_KEY: ""
     steps:
       - uses: actions/checkout@v4
 
@@ -82,8 +86,12 @@ jobs:
       - name: Install Playwright Chromium
         run: pnpm -C frontend exec playwright install --with-deps chromium
 
-      - name: Run Playwright smoke test
+      - name: Run Playwright end-to-end tests
         run: pnpm test:e2e
+
+      - name: Verify no residual session data
+        if: always()
+        run: uv run python scripts/check_no_residual_sessions.py
 
       - name: Upload Playwright report on failure
         if: failure()
