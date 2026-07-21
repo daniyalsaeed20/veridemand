@@ -1,0 +1,99 @@
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import { Box, Button, Card, CardContent, Chip, Divider, Stack, Typography } from "@mui/material";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+
+import type { SessionSnapshot } from "../../contracts";
+import { processDocuments } from "../session/sessionApi";
+import { sessionKeys } from "../session/sessionKeys";
+import { DocumentCard } from "./DocumentCard";
+
+interface QueueDashboardProps {
+  readonly sessionId: string;
+  readonly snapshot: SessionSnapshot;
+  readonly disabled?: boolean;
+}
+
+export function QueueDashboard({ sessionId, snapshot, disabled = false }: QueueDashboardProps) {
+  const queryClient = useQueryClient();
+  const { counts, queue, documents } = snapshot;
+
+  const processAll = useMutation({
+    mutationFn: () => processDocuments(sessionId, null),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionKeys.detail(sessionId) }),
+  });
+
+  const hasQueueable = (counts.uploaded ?? 0) > 0;
+
+  return (
+    <Card variant="outlined">
+      <CardContent>
+        <Stack spacing={2}>
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{ justifyContent: "space-between", alignItems: "center" }}
+          >
+            <Typography variant="h2" component="h2">
+              Documents &amp; queue
+            </Typography>
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<PlayArrowIcon />}
+              disabled={disabled || !hasQueueable || processAll.isPending}
+              onClick={() => processAll.mutate()}
+            >
+              {processAll.isPending ? "Queuing..." : "Process all uploaded"}
+            </Button>
+          </Stack>
+
+          <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
+            <CountChip label="Uploaded" value={counts.uploaded ?? 0} />
+            <CountChip label="Queued" value={counts.queued ?? 0} />
+            <CountChip label="Preparing" value={counts.preparing ?? 0} />
+            <CountChip label="Ready" value={counts.ready_for_extraction ?? 0} />
+            <CountChip label="Cancelled" value={counts.cancelled ?? 0} />
+            <CountChip label="Failed" value={counts.failed ?? 0} />
+          </Stack>
+
+          <Typography variant="body2" color="text.secondary">
+            Queue: {queue.pending} pending · {queue.running} running · single-worker, first-in
+            first-out. Extraction is not performed in this phase.
+          </Typography>
+
+          <Divider />
+
+          {documents.length === 0 ? (
+            <Box sx={{ py: 3, textAlign: "center" }}>
+              <Typography variant="body2" color="text.secondary">
+                No documents yet. Upload files to build the queue.
+              </Typography>
+            </Box>
+          ) : (
+            <Stack spacing={1.5}>
+              {documents.map((document) => (
+                <DocumentCard
+                  key={document.document_id}
+                  sessionId={sessionId}
+                  document={document}
+                  disabled={disabled}
+                />
+              ))}
+            </Stack>
+          )}
+        </Stack>
+      </CardContent>
+    </Card>
+  );
+}
+
+function CountChip({ label, value }: { label: string; value: number }) {
+  return (
+    <Chip
+      label={`${label}: ${value}`}
+      size="small"
+      variant={value > 0 ? "filled" : "outlined"}
+      color={value > 0 ? "primary" : "default"}
+    />
+  );
+}
