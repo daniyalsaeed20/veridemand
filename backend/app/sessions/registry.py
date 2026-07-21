@@ -16,9 +16,11 @@ from enum import StrEnum
 
 from backend.app.contracts.errors import ErrorCode
 from backend.app.contracts.identifiers import new_session_id
+from backend.app.contracts.jobs import JobStatus
 from backend.app.contracts.progress import ProgressEventType
 from backend.app.contracts.sessions import SessionStatus
 from backend.app.observability.errors import ApiException
+from backend.app.processing.queue import JobQueue
 from backend.app.progress.broker import EventBroker
 from backend.app.progress.models import BrokerClosedError
 from backend.app.sessions.models import RuntimeSession
@@ -46,9 +48,10 @@ _REASON_STATUS = {
 class SessionRegistry:
     """A process-local, async-safe registry of runtime sessions."""
 
-    def __init__(self, settings: Settings, file_store: FileStore) -> None:
+    def __init__(self, settings: Settings, file_store: FileStore, job_queue: JobQueue) -> None:
         self._settings = settings
         self._file_store = file_store
+        self._job_queue = job_queue
         self._sessions: dict[str, RuntimeSession] = {}
         self._lock = asyncio.Lock()
 
@@ -164,8 +167,13 @@ class SessionRegistry:
 
     async def _teardown(self, session: RuntimeSession) -> None:
         for job in list(session.jobs.values()):
-            if not job.is_terminal:
-                job.request_cancellation()
+            if job.is_terminal:
+                continue
+            if job.status is JobStatus.QUEUED:
+                await self._job_queue.cancel(job.job_id)
+                job.status = JobStatus.CANCELLED
+                job.finished_at = datetime.now(UTC)
+            job.request_cancellation()
         await self._await_idle(session)
         with contextlib.suppress(BrokerClosedError):
             await session.broker.publish(ProgressEventType.SESSION_DELETED)

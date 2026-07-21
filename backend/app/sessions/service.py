@@ -48,8 +48,7 @@ def recompute_session_status(session: RuntimeSession) -> None:
         return
     if session.documents:
         if any(
-            doc.status is DocumentStatus.READY_FOR_EXTRACTION
-            for doc in session.documents.values()
+            doc.status is DocumentStatus.READY_FOR_EXTRACTION for doc in session.documents.values()
         ):
             session.status = SessionStatus.READY
             return
