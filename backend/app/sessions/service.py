@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import time
 
+from backend.app.contracts.documents import DocumentStatus
 from backend.app.contracts.jobs import JobStatus
 from backend.app.contracts.sessions import (
     RUNTIME_WARNING,
     QueueInfo,
     SessionLimits,
     SessionSnapshot,
+    SessionStatus,
 )
 from backend.app.sessions.models import RuntimeSession
 from backend.app.settings.config import Settings
@@ -22,6 +24,38 @@ from backend.app.uploads.formats import SUPPORTED_EXTENSIONS
 
 # Bounded number of recent events embedded in a session snapshot.
 RECENT_EVENTS_LIMIT = 50
+
+
+def recompute_session_status(session: RuntimeSession) -> None:
+    """Recompute the session's derived status from document and job states.
+
+    Never overrides terminal (deleting/expired/reset) states.
+    """
+
+    if session.deleting or session.status in (
+        SessionStatus.EXPIRED,
+        SessionStatus.RESET,
+        SessionStatus.DELETED,
+    ):
+        return
+
+    jobs = session.jobs.values()
+    if any(job.status is JobStatus.RUNNING for job in jobs):
+        session.status = SessionStatus.PROCESSING
+        return
+    if any(job.status is JobStatus.QUEUED for job in jobs):
+        session.status = SessionStatus.QUEUED
+        return
+    if session.documents:
+        if any(
+            doc.status is DocumentStatus.READY_FOR_EXTRACTION
+            for doc in session.documents.values()
+        ):
+            session.status = SessionStatus.READY
+            return
+        session.status = SessionStatus.ACCEPTING_UPLOADS
+        return
+    session.status = SessionStatus.CREATED
 
 
 def build_session_limits(settings: Settings) -> SessionLimits:

@@ -63,3 +63,9 @@ exclude = ["^frontend/", "^\\.venv/"]
 [[tool.mypy.overrides]]
 module = ["backend.tests.*"]
 disallow_untyped_defs = false
+
+# Third-party upload-validation libraries without type stubs (used only for
+# structural validation). Their imports are treated as untyped.
+[[tool.mypy.overrides]]
+module = ["defusedxml.*", "olefile", "olefile.*", "oletools.*"]
+ignore_missing_imports = true
