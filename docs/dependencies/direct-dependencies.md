@@ -1,8 +1,12 @@
 # Direct dependencies
 
 Exact versions are taken from the committed lockfiles (`uv.lock`,
-`pnpm-lock.yaml`) and installed package metadata. Phase 0 introduces **no**
+`pnpm-lock.yaml`) and installed package metadata. Phase 0 introduced **no**
 OCR, PDF, image, MuPDF, HTR, vision-model, database, or queue dependencies.
+Phase 1 adds upload-validation and SSE libraries only: `pypdf` and `Pillow` are
+used strictly for structural upload validation (no rendering or text
+extraction); no OCR, MuPDF, HTR, vision-model, database, or external-queue
+dependency is introduced.
 
 ## Python - runtime (`pyproject.toml` `[project].dependencies`)
 
@@ -13,6 +17,12 @@ OCR, PDF, image, MuPDF, HTR, vision-model, database, or queue dependencies.
 | pydantic | 2.13.4 | Contract models / validation | 0 | https://github.com/pydantic/pydantic | MIT |
 | pydantic-settings | 2.14.2 | Typed environment settings | 0 | https://github.com/pydantic/pydantic-settings | MIT |
 | python-dotenv | 1.2.2 | `.env` loading in development | 0 | https://github.com/theskumar/python-dotenv | BSD-3-Clause |
+| python-multipart | 0.0.32 | Receive multipart file uploads | 1 | https://github.com/Kludex/python-multipart | Apache-2.0 |
+| sse-starlette | 3.4.6 | SSE responses, heartbeat, disconnect handling | 1 | https://github.com/sysid/sse-starlette | BSD-3-Clause |
+| pypdf | 5.9.0 | PDF structural validation, encryption check, page count only | 1 | https://github.com/py-pdf/pypdf | BSD-3-Clause |
+| Pillow | 11.3.0 | Image identification, integrity, dimensions, frame count only | 1 | https://github.com/python-pillow/Pillow | MIT-CMU (HPND) |
+| oletools | 0.60.2 | Detect VBA macros in legacy `.doc` files | 1 | https://github.com/decalage2/oletools | BSD-2-Clause |
+| defusedxml | 0.7.1 | Safely inspect XML metadata in DOCX packages | 1 | https://github.com/tiran/defusedxml | PSF-2.0 |
 
 ## Python - development (`[dependency-groups].dev`)
 
@@ -26,6 +36,17 @@ OCR, PDF, image, MuPDF, HTR, vision-model, database, or queue dependencies.
 
 Python direct-dependency licences were confirmed from the installed dist-info
 METADATA in the uv-managed environment.
+
+### Phase 1 notable transitive dependencies (from `oletools`)
+
+`oletools` pulls in `olefile` (BSD), `msoffcrypto-tool` (MIT), `cryptography`
+(Apache-2.0 OR BSD-3-Clause), `pyparsing`/`colorclass`/`easygui`/`cffi`/
+`pycparser`/`win-unicode-console` (permissive), and **`pcodedmp` 1.2.6
+(GPL-3.0)**. `pcodedmp` is a VBA p-code disassembler. VeriDemand only calls the
+`oletools` macro-**detection** API (`VBA_Parser.detect_vba_macros`) and never
+disassembles or distributes p-code. The GPL-3.0 transitive dependency is
+recorded here and flagged for manual review in `licence-inventory.md`; it is not
+imported directly by application code.
 
 ## Node - frontend runtime (`frontend/package.json` `dependencies`)
 

@@ -9,8 +9,12 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import AnyHttpUrl, Field, SecretStr, TypeAdapter, field_validator
+from pydantic import AnyHttpUrl, Field, SecretStr, TypeAdapter, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Bounded, sensible range for streamed upload chunk size (4 KiB - 16 MiB).
+_MIN_UPLOAD_CHUNK_BYTES = 4_096
+_MAX_UPLOAD_CHUNK_BYTES = 16_777_216
 
 _HTTP_URL_ADAPTER = TypeAdapter(AnyHttpUrl)
 _VALID_LOG_LEVELS = frozenset({"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"})
@@ -44,11 +48,39 @@ class Settings(BaseSettings):
     session_ttl_seconds: int = Field(default=7200, gt=0)
     export_ttl_seconds: int = Field(default=1800, gt=0)
 
+    # Session lifecycle (Phase 1).
+    session_cleanup_interval_seconds: int = Field(default=60, gt=0)
+    session_expiring_warning_seconds: int = Field(default=300, ge=0)
+
     # Session limits.
     max_files_per_session: int = Field(default=25, gt=0)
     max_pages_per_session: int = Field(default=500, gt=0)
     max_single_file_bytes: int = Field(default=104_857_600, gt=0)
     max_session_bytes: int = Field(default=524_288_000, gt=0)
+
+    # Upload streaming and filename limits (Phase 1).
+    upload_chunk_bytes: int = Field(
+        default=1_048_576, ge=_MIN_UPLOAD_CHUNK_BYTES, le=_MAX_UPLOAD_CHUNK_BYTES
+    )
+    max_filename_length: int = Field(default=255, gt=0)
+    max_image_pixels: int = Field(default=100_000_000, gt=0)
+
+    # DOCX archive-safety limits (Phase 1).
+    max_docx_archive_entries: int = Field(default=10_000, gt=0)
+    max_docx_uncompressed_bytes: int = Field(default=268_435_456, gt=0)
+    max_docx_entry_bytes: int = Field(default=67_108_864, gt=0)
+    max_docx_compression_ratio: float = Field(default=100.0, ge=1.0)
+
+    # Server-Sent Events (Phase 1).
+    sse_heartbeat_seconds: int = Field(default=15, gt=0)
+    sse_replay_max_events: int = Field(default=500, gt=0)
+    sse_subscriber_queue_size: int = Field(default=100, gt=0)
+    max_sse_connections_per_session: int = Field(default=3, gt=0)
+
+    # Processing queue (Phase 1). The runtime-only implementation is single-process
+    # and MUST run exactly one admission worker: multiple workers would create
+    # independent, inconsistent session registries and queues.
+    queue_admission_workers: int = Field(default=1, ge=1, le=1)
 
     # Concurrency (future processing pipeline).
     heavy_document_workers: int = Field(default=1, gt=0)
@@ -107,6 +139,18 @@ class Settings(BaseSettings):
         if level not in _VALID_LOG_LEVELS:
             raise ValueError(f"LOG_LEVEL must be one of {sorted(_VALID_LOG_LEVELS)}.")
         return level
+
+    @model_validator(mode="after")
+    def _validate_lifecycle_windows(self) -> Settings:
+        if self.session_cleanup_interval_seconds >= self.session_ttl_seconds:
+            raise ValueError(
+                "SESSION_CLEANUP_INTERVAL_SECONDS must be less than SESSION_TTL_SECONDS."
+            )
+        if self.session_expiring_warning_seconds >= self.session_ttl_seconds:
+            raise ValueError(
+                "SESSION_EXPIRING_WARNING_SECONDS must be less than SESSION_TTL_SECONDS."
+            )
+        return self
 
 
 @lru_cache

@@ -2,9 +2,22 @@
 
 ## Summary
 
-All Phase 0 direct dependencies are under permissive licences (MIT, BSD-3-Clause,
-or Apache-2.0). No copyleft (GPL/LGPL/AGPL) or source-disclosure licences were
-introduced.
+All Phase 0 and Phase 1 **direct** dependencies are under permissive licences
+(MIT, MIT-CMU/HPND, BSD-2/3-Clause, Apache-2.0, or PSF-2.0). No copyleft
+licence is present in the direct dependency set. Phase 1 introduces one
+**transitive** GPL-3.0 package (`pcodedmp`, via `oletools`) that is flagged for
+review below.
+
+## Phase 1 direct dependency additions
+
+| Package | Version | Licence | Notes |
+|---|---|---|---|
+| python-multipart | 0.0.32 | Apache-2.0 | Permissive; patent grant |
+| sse-starlette | 3.4.6 | BSD-3-Clause | Permissive |
+| pypdf | 5.9.0 | BSD-3-Clause | Permissive |
+| Pillow | 11.3.0 | MIT-CMU (HPND) | Permissive (historical PIL/HPND licence) |
+| oletools | 0.60.2 | BSD-2-Clause | Permissive |
+| defusedxml | 0.7.1 | PSF-2.0 | Permissive |
 
 ## Direct dependency licence distribution
 
@@ -34,15 +47,28 @@ required; no questionable dependency was added merely to produce a report.
 
 ## Copyleft / source-disclosure concerns
 
-None identified for Phase 0.
+- **`pcodedmp` 1.2.6 - GPL-3.0 (transitive, via `oletools`).** This is a VBA
+  p-code disassembler. VeriDemand only uses the `oletools` macro-**detection**
+  API and never imports, invokes, distributes, or links `pcodedmp` p-code
+  disassembly. As a runtime-only server component that is not distributed as a
+  binary, no GPL distribution obligation is currently triggered. Flagged for
+  manual review; if a stricter posture is required, pin/exclude `pcodedmp` or
+  replace the macro-detection path with a direct `olefile` (BSD) stream check.
 
 ## Packages needing future review
 
-- None for Phase 0.
-- Later phases will add OCR (PaddleOCR), PDF (pypdf/pdfplumber/pypdfium2),
-  imaging (OpenCV/Pillow), ONNX Runtime, the OpenAI SDK, and LibreOffice
+- `pcodedmp` (GPL-3.0, transitive) - see the concern above.
+- Later phases will add OCR (PaddleOCR), PDF (pdfplumber/pypdfium2),
+  imaging (OpenCV), ONNX Runtime, the OpenAI SDK, and LibreOffice
   integration. Each must be licence-reviewed before it is added, per the
   dependency policy.
+
+## Phase 1 confirmation
+
+Confirmed: **no** OCR, MuPDF/PyMuPDF, HTR, vision-model, database, or
+external-queue licences were introduced in Phase 1. `pypdf` and `Pillow` are
+used strictly for upload validation. The only copyleft finding is the
+transitive `pcodedmp` (GPL-3.0) noted above.
 
 ## Phase 0 confirmation
 
