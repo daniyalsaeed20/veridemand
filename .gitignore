@@ -1,8 +1,15 @@
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
 # Developer tool installs (not product)
 .tools/
 
 # Python
-**/__pycache__/
+.venv/
+venv/
+__pycache__/
 *.py[cod]
 *$py.class
 .Python
@@ -10,56 +17,45 @@
 .eggs/
 dist/
 build/
+.pytest_cache/
 .mypy_cache/
 .ruff_cache/
-.pytest_cache/
 .coverage
 htmlcov/
-.venv/
-venv/
-backend/.venv/
 
 # Node
 node_modules/
-frontend/node_modules/
 frontend/dist/
+frontend/playwright-report/
+frontend/test-results/
 *.tsbuildinfo
+coverage/
 
-# Env / secrets
-.env
-.env.*
-!.env.example
+# Runtime / session temp
+temp/*
+!temp/.gitkeep
+tmp/
+data/sessions/
 
 # Spikes (local outputs and venvs)
 spikes/**/out/
 spikes/**/.venv/
 
-# Runtime / session temp (Phase 1+)
-tmp/
-temp/
-data/sessions/
-backend/tmp/
-backend/data/
-
-# Local case samples (may contain PII) — keep out of Git
+# Local case samples (may contain PII) - keep out of Git
 docs/example/*.pdf
 docs/example/*.docx
 docs/example/**/*.pdf
 docs/example/**/*.docx
-
-# LibreOffice lock files under local case folders
 docs/example/**/.~lock.*
 
-# Private local regression fixtures (may contain PII) — keep out of Git
+# Private local regression fixtures (may contain PII) - keep out of Git
 fixtures/private/*
-!fixtures/private/README.example.md
+!fixtures/private/.gitkeep
 
-# OS / IDE
+# Logs / OS / IDE
+*.log
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
-
-# Generated local artifacts
-*.log

@@ -1,0 +1,30 @@
+{
+  "name": "veridemand",
+  "version": "0.1.0",
+  "private": true,
+  "description": "VeriDemand document-extraction platform monorepo (Phase 0 foundation).",
+  "type": "module",
+  "packageManager": "pnpm@11.15.1",
+  "engines": {
+    "node": ">=24.18.0 <25"
+  },
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c blue,green \"pnpm dev:backend\" \"pnpm dev:frontend\"",
+    "dev:backend": "uv run uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000",
+    "dev:frontend": "pnpm -C frontend dev",
+    "contracts:generate": "uv run python scripts/generate_contracts.py && pnpm -C frontend generate:contracts",
+    "contracts:check": "uv run python scripts/check_contracts.py",
+    "format": "uv run ruff format backend scripts && pnpm -C frontend format",
+    "format:check": "uv run ruff format --check backend scripts && pnpm -C frontend format:check",
+    "lint": "uv run ruff check backend scripts && pnpm -C frontend lint",
+    "typecheck": "uv run mypy backend scripts && pnpm -C frontend typecheck",
+    "test": "uv run pytest && pnpm -C frontend test",
+    "test:e2e": "pnpm -C frontend test:e2e",
+    "build": "pnpm -C frontend build",
+    "check:legacy": "uv run python scripts/check_no_legacy_scope.py",
+    "check": "uv run python scripts/check_all.py"
+  },
+  "devDependencies": {
+    "concurrently": "9.2.0"
+  }
+}
