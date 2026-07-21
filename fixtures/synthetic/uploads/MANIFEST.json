@@ -1,0 +1,161 @@
+{
+  "description": "Synthetic, non-sensitive Phase 1 upload fixtures. Regenerate with fixtures/synthetic/generate_uploads.py. No private documents are included.",
+  "fixtures": [
+    {
+      "filename": "binary_in_text.txt",
+      "outcome": "rejected",
+      "error_code": "upload_signature_mismatch",
+      "note": "Binary signature inside a .txt file."
+    },
+    {
+      "filename": "control_chars.txt",
+      "outcome": "rejected",
+      "error_code": "upload_corrupt_file",
+      "note": "Text with too many control characters."
+    },
+    {
+      "filename": "corrupt.docx",
+      "outcome": "rejected",
+      "error_code": "upload_corrupt_file",
+      "note": "ZIP signature but malformed archive."
+    },
+    {
+      "filename": "corrupt.pdf",
+      "outcome": "rejected",
+      "error_code": "upload_corrupt_file",
+      "note": "PDF marker but broken body."
+    },
+    {
+      "filename": "empty.txt",
+      "outcome": "rejected",
+      "error_code": "upload_empty_file",
+      "note": "Zero-byte file."
+    },
+    {
+      "filename": "encrypted.pdf",
+      "outcome": "rejected",
+      "error_code": "upload_encrypted_pdf",
+      "note": "Password-protected PDF."
+    },
+    {
+      "filename": "macro_content_type.docx",
+      "outcome": "rejected",
+      "error_code": "upload_macros_not_supported",
+      "note": "DOCX declaring a macro-enabled content type."
+    },
+    {
+      "filename": "macro_vba.docx",
+      "outcome": "rejected",
+      "error_code": "upload_macros_not_supported",
+      "note": "DOCX containing vbaProject.bin."
+    },
+    {
+      "filename": "not_ole.doc",
+      "outcome": "rejected",
+      "error_code": "upload_signature_mismatch",
+      "note": "Non-OLE bytes with a .doc extension."
+    },
+    {
+      "filename": "not_wordml.docx",
+      "outcome": "rejected",
+      "error_code": "upload_corrupt_file",
+      "note": "OPC ZIP that is not WordprocessingML."
+    },
+    {
+      "filename": "signature_mismatch.pdf",
+      "outcome": "rejected",
+      "error_code": "upload_signature_mismatch",
+      "note": "PNG bytes with a .pdf extension."
+    },
+    {
+      "filename": "signature_mismatch.png",
+      "outcome": "rejected",
+      "error_code": "upload_signature_mismatch",
+      "note": "JPEG bytes with a .png extension."
+    },
+    {
+      "filename": "unsafe_path.docx",
+      "outcome": "rejected",
+      "error_code": "upload_archive_unsafe",
+      "note": "DOCX with a path-traversal entry."
+    },
+    {
+      "filename": "unsupported.xyz",
+      "outcome": "rejected",
+      "error_code": "upload_unsupported_type",
+      "note": "Disallowed extension."
+    },
+    {
+      "filename": "valid.bmp",
+      "outcome": "accepted",
+      "error_code": null,
+      "note": "Small BMP."
+    },
+    {
+      "filename": "valid.doc",
+      "outcome": "accepted",
+      "error_code": null,
+      "note": "Synthetic minimal OLE2 Word document (no macros)."
+    },
+    {
+      "filename": "valid.jpeg",
+      "outcome": "accepted",
+      "error_code": null,
+      "note": "Small JPEG."
+    },
+    {
+      "filename": "valid.png",
+      "outcome": "accepted",
+      "error_code": null,
+      "note": "Small PNG."
+    },
+    {
+      "filename": "valid.webp",
+      "outcome": "accepted",
+      "error_code": null,
+      "note": "Small WebP."
+    },
+    {
+      "filename": "valid_external_rel.docx",
+      "outcome": "accepted",
+      "error_code": null,
+      "note": "Valid DOCX with an external relationship (warning marker)."
+    },
+    {
+      "filename": "valid_minimal.docx",
+      "outcome": "accepted",
+      "error_code": null,
+      "note": "Minimal valid WordprocessingML package."
+    },
+    {
+      "filename": "valid_multi_page.pdf",
+      "outcome": "accepted",
+      "error_code": null,
+      "note": "Three-page PDF (page counting)."
+    },
+    {
+      "filename": "valid_multiframe.tiff",
+      "outcome": "accepted",
+      "error_code": null,
+      "note": "Two-frame TIFF."
+    },
+    {
+      "filename": "valid_single_page.pdf",
+      "outcome": "accepted",
+      "error_code": null,
+      "note": "Single blank page PDF."
+    },
+    {
+      "filename": "valid_utf16.txt",
+      "outcome": "accepted",
+      "error_code": null,
+      "note": "UTF-16 (BOM) text."
+    },
+    {
+      "filename": "valid_utf8.txt",
+      "outcome": "accepted",
+      "error_code": null,
+      "note": "UTF-8 text."
+    }
+  ]
+}
