@@ -3,37 +3,43 @@
 VeriDemand is a **document-extraction platform**. It extracts text and structure
 from documents using a deterministic pipeline (native text and OCR, with a
 vision LLM only for handwritten or uncertain regions). This repository is at the
-**Phase 0 foundation** stage.
+**Phase 1** stage: runtime sessions, uploads, and the processing queue skeleton.
 
 > **Runtime-only product.** VeriDemand keeps uploaded files and results only for
 > the duration of a session. Refreshing, closing, or resetting the page may
-> permanently remove everything. This principle is visible from the foundation,
-> even though sessions themselves arrive in Phase 1.
+> permanently remove everything. Nothing is persisted to a database or browser
+> storage; a server restart or refresh starts a fresh session.
 
 The sole authoritative specification is
 [`docs/SOURCE_OF_TRUTH.md`](docs/SOURCE_OF_TRUTH.md).
 
-## Phase 0 scope
+## Phase 1 scope
 
-Phase 0 delivers a clean, reproducible foundation:
+Building on the Phase 0 foundation, Phase 1 adds:
 
-- pnpm + uv monorepo with pinned runtimes and lockfiles.
-- FastAPI backend with a modular application factory.
-- Typed, validated environment configuration (`pydantic-settings`).
-- Pydantic API contracts, deterministic committed OpenAPI, and generated
-  TypeScript + Zod contracts.
-- Liveness and readiness endpoints, request-ID middleware, and a canonical error
-  envelope.
-- React + TypeScript + MUI application shell that calls and validates the
-  backend health API.
-- Backend and frontend tests, an E2E smoke test, and full quality tooling.
+- **Runtime-only sessions** created per page load, in-memory with an inactivity
+  TTL and guaranteed cleanup (periodic sweep, startup sweep, graceful shutdown).
+- **Defensive multi-document uploads**: filename normalisation, extension
+  allow-list, streamed size enforcement, magic-byte and MIME checks, and
+  format-specific structural validation for PDF, images, DOCX, DOC and TXT — using
+  `pypdf`/`Pillow`/`oletools`/`defusedxml` **for validation only**.
+- **In-memory processing queue** with a single admission worker and a
+  **non-extractive** coordinator that only marks documents `ready_for_extraction`.
+- **Live progress over SSE** with stable event ids, bounded replay, resync, and a
+  per-session connection cap.
+- A responsive **upload + queue dashboard** with reset and expiration UX.
+
+**No extraction of any kind** is performed in Phase 1: no canonicalisation, PDF
+rendering, native-text reading, OCR, layout analysis, or LLM calls. See
+[`docs/architecture/phase-1-runtime-sessions.md`](docs/architecture/phase-1-runtime-sessions.md)
+and ADRs [0004](docs/decisions/0004-runtime-sessions.md)–[0007](docs/decisions/0007-sse-progress-broker.md).
 
 ### Not implemented yet (later phases)
 
-Sessions, uploads, queues, SSE, PDF inspection/rendering, OCR (PaddleOCR),
-`pdfplumber`/`pypdf`/`pypdfium2`, OpenCV/Pillow, LibreOffice conversion,
-DOC/DOCX processing, vision-model calls, handwriting routing, search, exports,
-databases, Redis, and authentication. **Phase 1 has not been implemented.**
+Canonicalisation, PDF rendering (`pypdfium2`/MuPDF), OCR (PaddleOCR), layout
+analysis, LibreOffice conversion, vision-model calls, handwriting routing,
+search, exports, databases, Redis/Celery, and authentication. **Phase 2 has not
+been implemented.**
 
 ## Repository layout
 
@@ -70,11 +76,16 @@ pnpm dev:backend
 pnpm dev:frontend
 ```
 
-## Health endpoints
+## Endpoints
 
-- `GET http://127.0.0.1:8000/health/live`
-- `GET http://127.0.0.1:8000/health/ready`
-- `GET http://127.0.0.1:8000/openapi.json`, `/docs`, `/redoc`
+- Health: `GET /health/live`, `GET /health/ready` (readiness now also checks the
+  session workspace, admission coordinator, cleanup worker, and queue).
+- Sessions: `POST/GET/DELETE /api/v1/sessions/{id}`, `GET .../events` (SSE),
+  `POST .../process`.
+- Documents: `POST/GET .../documents`, `GET/DELETE .../documents/{doc}`,
+  `POST .../documents/{doc}/cancel`.
+- Jobs: `GET .../jobs`, `GET .../jobs/{job}`.
+- `GET http://127.0.0.1:8000/openapi.json`, `/docs`, `/redoc`.
 
 ## Contracts
 
@@ -93,25 +104,30 @@ them by hand. See [ADR 0002](docs/decisions/0002-contract-generation.md).
 pnpm lint          # ruff + eslint
 pnpm typecheck     # mypy + tsc
 pnpm test          # pytest + vitest
-pnpm test:e2e      # Playwright smoke test (Chromium)
+pnpm test:e2e      # Playwright E2E (Chromium)
 pnpm build         # frontend production build
-pnpm check         # full Phase 0 validation suite (fail-fast)
+pnpm check         # full validation suite (fail-fast)
 pnpm check:legacy  # guard against reintroduced legacy scope
 ```
 
 `pnpm check` runs `scripts/check_all.py`, which validates lockfiles, legacy
 scope, contract drift, backend and frontend format/lint/type/test, the frontend
-build, and the E2E smoke test (use `--skip-e2e` to run E2E separately).
+build, the E2E tests, and a residual-session-data guard (use `--skip-e2e` to run
+E2E separately). The Playwright E2E starts two backend + dev-server stacks: a
+normal one and a "holds" one (test-only admission delay + short TTL) for
+cancellation and expiry flows.
 
 ## Current limitations
 
-- Only health endpoints exist; there is no upload, processing, or extraction.
-- Readiness checks only Phase 0 requirements; future capabilities are reported
-  as optional `not_configured` (see [ADR 0003](docs/decisions/0003-phase-0-readiness.md)).
+- Single process with exactly one queue admission worker; no horizontal scaling.
+- No extraction is performed: Phase 1 stops at `ready_for_extraction`.
+- Readiness reports future capabilities as optional `not_configured` (see
+  [ADR 0003](docs/decisions/0003-phase-0-readiness.md)).
 
 ## More documentation
 
-- Architecture: [`docs/architecture/phase-0-foundation.md`](docs/architecture/phase-0-foundation.md)
+- Architecture: [`docs/architecture/phase-1-runtime-sessions.md`](docs/architecture/phase-1-runtime-sessions.md),
+  [`docs/architecture/phase-0-foundation.md`](docs/architecture/phase-0-foundation.md)
 - Decisions: [`docs/decisions/`](docs/decisions/)
 - Dependencies & licences: [`docs/dependencies/`](docs/dependencies/)
 - Phase reports: [`docs/phases/`](docs/phases/)
