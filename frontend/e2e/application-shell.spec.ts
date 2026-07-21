@@ -1,10 +1,11 @@
 import { expect, test } from "@playwright/test";
 
+import { readSessionId } from "./utils";
+
 test.describe("VeriDemand application shell", () => {
-  test("loads, reaches the backend, and reports live and ready", async ({ page }) => {
+  test("loads, bootstraps a runtime session, and connects the live stream", async ({ page }) => {
     const consoleErrors: string[] = [];
     const pageErrors: string[] = [];
-    const failedHealthRequests: string[] = [];
 
     page.on("console", (message) => {
       if (message.type() === "error") {
@@ -14,20 +15,27 @@ test.describe("VeriDemand application shell", () => {
     page.on("pageerror", (error) => {
       pageErrors.push(error.message);
     });
-    page.on("response", (response) => {
-      if (response.url().includes("/health/") && !response.ok()) {
-        failedHealthRequests.push(`${response.status()} ${response.url()}`);
-      }
-    });
 
     await page.goto("/");
 
     await expect(page.getByRole("heading", { name: "VeriDemand" })).toBeVisible();
     await expect(page.getByText(/runtime-only/i)).toBeVisible();
-    await expect(page.getByText("Live", { exact: true })).toBeVisible();
-    await expect(page.getByText("Ready", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Upload documents" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Documents & queue/ })).toBeVisible();
 
-    expect(failedHealthRequests, failedHealthRequests.join(", ")).toEqual([]);
+    // A session id must be present and the SSE stream must report Live.
+    const sessionId = await readSessionId(page);
+    expect(sessionId).toMatch(/^ses_[0-9a-f]{32}$/);
+    await expect(page.getByText("Live", { exact: true })).toBeVisible();
+
+    // The runtime workspace must never persist state in the browser.
+    const storageCounts = await page.evaluate(() => ({
+      local: window.localStorage.length,
+      session: window.sessionStorage.length,
+      cookie: document.cookie,
+    }));
+    expect(storageCounts).toEqual({ local: 0, session: 0, cookie: "" });
+
     expect(pageErrors, pageErrors.join(", ")).toEqual([]);
     expect(consoleErrors, consoleErrors.join(", ")).toEqual([]);
   });

@@ -1,40 +1,45 @@
-import { render, screen } from "@testing-library/react";
-import { act } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "../app/App";
 import { AppProviders } from "../app/AppProviders";
+import { queryClient } from "../app/queryClient";
 import { useAppShellStore } from "../app/useAppShellStore";
 import { RUNTIME_WARNING_TEXT } from "../components/RuntimeWarning";
+import { clearBootstrap } from "../features/session/sessionBootstrap";
+import { makeSnapshot, MockEventSource } from "./testUtils";
 
-function stubHealthFetch() {
-  const headers = { get: (key: string) => (key === "X-Request-ID" ? "req-test-shell" : null) };
-  const live = {
-    status: "ok",
-    service: "veridemand-api",
-    app_name: "VeriDemand",
-    version: "0.1.0",
-    timestamp: "2026-07-21T14:53:54.484945Z",
-    request_id: "req-test-shell",
-  };
-  const ready = { ...live, status: "ready", checks: [] };
+function stubBackend() {
+  const headers = { get: () => null };
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (input: RequestInfo | URL) => {
-      const body = String(input).endsWith("/health/ready") ? ready : live;
-      return { ok: true, status: 200, headers, json: async () => body } as unknown as Response;
+    vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      return {
+        ok: true,
+        status: init?.method === "POST" ? 201 : 200,
+        headers,
+        json: async () => makeSnapshot(),
+      } as unknown as Response;
     }),
   );
+  vi.stubGlobal("EventSource", MockEventSource as unknown as typeof EventSource);
 }
+
+beforeEach(() => {
+  clearBootstrap();
+  MockEventSource.reset();
+  queryClient.clear();
+});
 
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  clearBootstrap();
 });
 
 describe("App shell", () => {
-  it("renders the product title, subtitle, runtime warning and Phase 0 status", () => {
-    stubHealthFetch();
+  it("renders the product title and runtime-only warning", async () => {
+    stubBackend();
     render(
       <AppProviders>
         <App />
@@ -42,27 +47,19 @@ describe("App shell", () => {
     );
 
     expect(screen.getByRole("heading", { name: "VeriDemand" })).toBeInTheDocument();
-    expect(screen.getByText("Document Extraction Platform")).toBeInTheDocument();
     expect(screen.getByText(RUNTIME_WARNING_TEXT)).toBeInTheDocument();
-    expect(screen.getByText("Phase 0 - Repository Foundation and Contracts")).toBeInTheDocument();
   });
 
-  it("does not present upload or extraction as operational controls", () => {
-    stubHealthFetch();
+  it("bootstraps a session and shows the upload and queue workspace", async () => {
+    stubBackend();
     render(
       <AppProviders>
         <App />
       </AppProviders>,
     );
 
-    // Later-phase capabilities appear only as "not yet available" entries.
-    expect(screen.getByText("Extraction")).toBeInTheDocument();
-    expect(screen.getByText("Upload and queue")).toBeInTheDocument();
-    expect(screen.getAllByText("Planned for a later phase").length).toBeGreaterThan(0);
-
-    // No functional upload/extraction actions exist.
-    expect(screen.queryByRole("button", { name: /upload/i })).toBeNull();
-    expect(screen.queryByRole("button", { name: /extract/i })).toBeNull();
+    expect(await screen.findByRole("heading", { name: "Upload documents" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Documents & queue/ })).toBeInTheDocument();
   });
 });
 
@@ -80,7 +77,6 @@ describe("App shell store", () => {
     expect(useAppShellStore.getState().diagnosticsExpanded).toBe(true);
     expect(useAppShellStore.getState().mobileNavOpen).toBe(true);
 
-    // Nothing is written to persistent browser storage.
     expect(window.localStorage.length).toBe(0);
     expect(document.cookie).toBe("");
   });

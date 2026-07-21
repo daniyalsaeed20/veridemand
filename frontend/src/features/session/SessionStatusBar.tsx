@@ -91,7 +91,7 @@ export function SessionStatusBar({
   };
 
   return (
-    <Card variant="outlined">
+    <Card variant="outlined" data-testid="session-id" data-session-id={snapshot.session_id}>
       <CardContent>
         <Stack
           direction={{ xs: "column", sm: "row" }}
