@@ -1,24 +1,79 @@
 """FastAPI application factory for the VeriDemand document-extraction platform.
 
 The factory performs no heavy work at import time: it initialises no future
-models, opens no network connections, and constructs no processing services.
-Only the health service (a pure settings-derived object) is created eagerly.
+extraction models, opens no network connections, and loads no OCR/vision
+dependencies. The Phase 1 runtime services (session registry, in-memory queue,
+admission coordinator, cleanup worker) are constructed and started inside the
+application lifespan and torn down on shutdown.
 """
 
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.api.router import build_api_router
+from backend.app.cleanup.service import CleanupService
+from backend.app.cleanup.worker import CleanupWorker
 from backend.app.health.service import HealthService
 from backend.app.observability.errors import register_exception_handlers
 from backend.app.observability.request_id import RequestIdMiddleware
+from backend.app.processing.admission import Phase1AdmissionProcessor
+from backend.app.processing.coordinator import ProcessingCoordinator
+from backend.app.processing.queue import InMemoryJobQueue
+from backend.app.sessions.registry import SessionRegistry
 from backend.app.settings.config import Settings, get_settings
+from backend.app.storage.file_store import FileStore
+from backend.app.uploads.service import UploadService
 
 _DESCRIPTION = "Runtime-only document extraction platform API."
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Start and stop the Phase 1 runtime services around request serving."""
+
+    settings: Settings = app.state.settings
+
+    file_store = FileStore(settings.temp_root)
+    job_queue = InMemoryJobQueue()
+    registry = SessionRegistry(settings, file_store, job_queue)
+    admission = Phase1AdmissionProcessor(file_store)
+    coordinator = ProcessingCoordinator(
+        registry, job_queue, admission, worker_count=settings.queue_admission_workers
+    )
+    upload_service = UploadService(settings, file_store)
+    cleanup_service = CleanupService(registry, file_store, settings)
+    cleanup_worker = CleanupWorker(cleanup_service, settings.session_cleanup_interval_seconds)
+
+    # Remove any session directories abandoned by a previous process, then start
+    # the single admission worker and the periodic cleanup worker.
+    cleanup_service.startup_sweep()
+    coordinator.start()
+    cleanup_worker.start()
+
+    app.state.file_store = file_store
+    app.state.job_queue = job_queue
+    app.state.session_registry = registry
+    app.state.coordinator = coordinator
+    app.state.upload_service = upload_service
+    app.state.cleanup_service = cleanup_service
+    app.state.cleanup_worker = cleanup_worker
+    health_service: HealthService = app.state.health_service
+    health_service.attach_runtime(
+        coordinator=coordinator, cleanup_worker=cleanup_worker, job_queue=job_queue
+    )
+
+    try:
+        yield
+    finally:
+        await cleanup_worker.stop()
+        await coordinator.stop()
+        await cleanup_service.shutdown_cleanup()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -38,6 +93,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         openapi_url="/openapi.json",
         docs_url="/docs",
         redoc_url="/redoc",
+        lifespan=_lifespan,
     )
 
     app.state.settings = resolved

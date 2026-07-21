@@ -129,6 +129,12 @@ class SessionRegistry:
         async with self._lock:
             return set(self._sessions.keys())
 
+    async def snapshot(self) -> list[RuntimeSession]:
+        """Return a shallow copy of current sessions for iteration."""
+
+        async with self._lock:
+            return list(self._sessions.values())
+
     async def count(self) -> int:
         async with self._lock:
             return len(self._sessions)
