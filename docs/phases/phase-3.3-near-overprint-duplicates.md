@@ -2,7 +2,7 @@
 
 **Branch:** `fix/phase-3-near-overprint-duplicates`  
 **Base tag (unchanged):** `phase-3-native-extraction-trust-gate-v1.2` (`e24358d`)  
-**Corrective tag:** `phase-3-native-extraction-trust-gate-v1.3` (after private verification)
+**Corrective tag:** `phase-3-native-extraction-trust-gate-v1.3`
 
 ## Problem
 
@@ -19,23 +19,28 @@ interleaved doubled native text.
   similarity; no fontname equality required).
 - Detect complete duplicate layers via font / size / tagged partitions
   with identical reading-order text, plus reading-order adjacent near
-  glyphs (catches interleaved `RRuunn` without flagging spaced
+  glyphs (catches interleaved doubles without flagging spaced
   `letter` / `bookkeeper` / `100.00`).
 - Safe layer selection cleans chars, rebuilds words, recalculates trust;
   ambiguous selection hard-rejects with
   `excessive_near_overprint_duplicates` and empty text.
 - High near-overprint ratio overrides a high weighted trust score.
+- UI alert for near-overprint rejection uses the required wording.
 
 ## Evidence
 
 - Synthetic fixtures for exact, cross-font, vertical/horizontal offset,
   tagged/untagged, partial bold/shadow, and legitimate repeated letters.
-- Unit + trust-gate tests green.
-- Private corpus: no accepted page with high adjacent-double ratio under
-  the new detector; opaque evaluate script pass.
+- Unit + trust-gate tests green; `scripts/check_all.py` passed.
+- Production worker/runner cleaned cross-font fixture to single-copy text
+  (accepted) without publishing doubled glyphs.
+- Private corpus: opaque evaluate script pass; scan of accepted pages
+  found **0** with high adjacent-double ratio under the new detector.
 - Exact raw count 3464 was not present in the local private corpus at
   verification time; synthetic near-overprint pages and private accepted
   pages were checked for doubled publication.
+- Real `pnpm dev` API smoke: uploaded near-overprint fixture →
+  `native_trust_complete` with cleaned single-copy provisional text.
 
 ## Out of scope
 
