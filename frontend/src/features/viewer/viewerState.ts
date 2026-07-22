@@ -23,6 +23,7 @@ export interface ViewerState {
   readonly manualScale: number;
   readonly userRotation: RotationDegrees;
   readonly overlayEnabled: boolean;
+  readonly nativeOverlayEnabled: boolean;
 
   // Selects a document for viewing, resetting every other viewer field to its
   // default (page 1, no rotation, fit-width zoom, overlay off). Passing
@@ -41,6 +42,7 @@ export interface ViewerState {
   readonly rotateCounterClockwise: () => void;
   readonly setOverlayEnabled: (enabled: boolean) => void;
   readonly toggleOverlay: () => void;
+  readonly toggleNativeOverlay: () => void;
   // Resets every field to the defaults used on a fresh document selection,
   // keeping the current selection. Used e.g. when the session itself resets.
   readonly reset: () => void;
@@ -53,6 +55,7 @@ const DEFAULTS = {
   userRotation: DEFAULT_ROTATION,
   // Synthetic alignment overlay is off in normal user mode.
   overlayEnabled: false,
+  nativeOverlayEnabled: false,
 } as const;
 
 export const useViewerStore = create<ViewerState>((set, get) => ({
@@ -91,6 +94,9 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
   setOverlayEnabled: (enabled) => set({ overlayEnabled: enabled }),
 
   toggleOverlay: () => set((state) => ({ overlayEnabled: !state.overlayEnabled })),
+
+  toggleNativeOverlay: () =>
+    set((state) => ({ nativeOverlayEnabled: !state.nativeOverlayEnabled })),
 
   reset: () => set({ ...DEFAULTS, selectedDocumentId: get().selectedDocumentId }),
 }));

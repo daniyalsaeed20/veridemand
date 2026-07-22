@@ -7,8 +7,12 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 // Synthetic, safe upload fixtures generated under the repo root. No private data.
 export const UPLOADS_DIR = path.resolve(HERE, "..", "..", "fixtures", "synthetic", "uploads");
+export const NATIVE_DIR = path.resolve(HERE, "..", "..", "fixtures", "synthetic", "native");
 
 export function fixture(name: string): string {
+  if (name.startsWith("native/")) {
+    return path.join(NATIVE_DIR, name.slice("native/".length));
+  }
   return path.join(UPLOADS_DIR, name);
 }
 

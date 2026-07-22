@@ -153,13 +153,16 @@ export type OverlayProofResponse = z.infer<typeof zOverlayProofResponse>;
 // canonical-view fields (backend/app/contracts/documents.py).
 // ---------------------------------------------------------------------------
 
-export const MAX_PHASE2_PROGRESS_PERCENT = 15;
+export const MAX_PHASE3_PROGRESS_PERCENT = 35;
 
 export const zDocumentStatus = z.enum([
   "uploaded",
   "queued",
   "canonicalising",
   "ready_for_extraction",
+  "inspecting_native",
+  "extracting_native",
+  "native_trust_complete",
   "cancelled",
   "failed",
 ]);
@@ -176,9 +179,16 @@ export const zDocumentSummary = z.object({
   page_count: z.int().gte(0).nullish(),
   page_count_status: zPageCountStatus,
   status: zDocumentStatus,
-  progress_percent: z.int().gte(0).lte(MAX_PHASE2_PROGRESS_PERCENT),
+  progress_percent: z.int().gte(0).lte(MAX_PHASE3_PROGRESS_PERCENT),
   result_available: z.boolean().default(false),
   extraction_performed: z.boolean().default(false),
+  native_extraction_performed: z.boolean().default(false),
+  native_result_available: z.boolean().default(false),
+  visual_processing_required: z.boolean().default(false),
+  document_source_policy: z
+    .enum(["native_authority", "mixed_authority", "visual_authority", "image_authority"])
+    .nullish(),
+  user_status_message: z.string().nullish(),
   warning_count: z.int().gte(0).default(0),
   queue_position: z.int().gte(1).nullish(),
   active_job_id: z.string().nullish(),
@@ -188,6 +198,7 @@ export const zDocumentSummary = z.object({
   canonical_view_available: z.boolean().default(false),
   canonical_view_url: z.string().nullish(),
   canonical_metadata_url: z.string().nullish(),
+  native_summary_url: z.string().nullish(),
 });
 export type DocumentSummary = z.infer<typeof zDocumentSummary>;
 
@@ -196,6 +207,9 @@ export const zDocumentStatusCounts = z.object({
   queued: z.int().gte(0).default(0),
   canonicalising: z.int().gte(0).default(0),
   ready_for_extraction: z.int().gte(0).default(0),
+  inspecting_native: z.int().gte(0).default(0),
+  extracting_native: z.int().gte(0).default(0),
+  native_trust_complete: z.int().gte(0).default(0),
   cancelled: z.int().gte(0).default(0),
   failed: z.int().gte(0).default(0),
 });
@@ -224,6 +238,15 @@ export const zProgressEventType = z.enum([
   "document.canonicalisation_cancelled",
   "document.canonical_ready",
   "document.ready_for_extraction",
+  "document.native_inspection_started",
+  "document.native_page_started",
+  "document.native_page_accepted",
+  "document.native_page_rejected",
+  "document.native_page_absent",
+  "document.native_page_error",
+  "document.native_document_escalated",
+  "document.native_extraction_completed",
+  "document.native_extraction_failed",
   "document.removed",
   "document.warning",
   "document.failed",

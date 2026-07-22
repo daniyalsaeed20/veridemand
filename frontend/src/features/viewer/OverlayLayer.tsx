@@ -13,9 +13,11 @@ import { Box, Typography } from "@mui/material";
 import { rotateNormalizedRect, scaleRectToPixels } from "./geometry";
 import type { RotationDegrees } from "./constants";
 import type { OverlayProofItem } from "./viewerApi";
+import type { NativeWord } from "../../contracts";
 
 export interface OverlayLayerProps {
   readonly overlays: readonly OverlayProofItem[];
+  readonly nativeWordOverlays?: readonly NativeWord[];
   readonly pageNumber: number;
   readonly pixelWidth: number;
   readonly pixelHeight: number;
@@ -25,6 +27,7 @@ export interface OverlayLayerProps {
 
 export function OverlayLayer({
   overlays,
+  nativeWordOverlays = [],
   pageNumber,
   pixelWidth,
   pixelHeight,
@@ -36,7 +39,8 @@ export function OverlayLayer({
   }
 
   const pageOverlays = overlays.filter((overlay) => overlay.page_number === pageNumber);
-  if (pageOverlays.length === 0) {
+  const nativeWords = nativeWordOverlays.filter((word) => word.page_number === pageNumber);
+  if (pageOverlays.length === 0 && nativeWords.length === 0) {
     return null;
   }
 
@@ -86,12 +90,39 @@ export function OverlayLayer({
             </g>
           );
         })}
+        {nativeWords.map((word) => {
+          const rotatedBbox = rotateNormalizedRect(word.geometry.bbox, rotation);
+          const rect = scaleRectToPixels(rotatedBbox, pixelWidth, pixelHeight);
+          return (
+            <g key={word.id}>
+              <title>{`${word.text} (native_pdf_word — Native PDF boxes)`}</title>
+              <rect
+                x={rect.left}
+                y={rect.top}
+                width={rect.width}
+                height={rect.height}
+                fill="rgba(46, 125, 50, 0.10)"
+                stroke="#2e7d32"
+                strokeWidth={1}
+              />
+              <text
+                x={rect.left + 2}
+                y={Math.max(10, rect.top - 3)}
+                fill="#2e7d32"
+                fontSize={10}
+                fontWeight={600}
+              >
+                Native PDF boxes
+              </text>
+            </g>
+          );
+        })}
       </svg>
       <Typography
         component="span"
         sx={{ position: "absolute", width: 1, height: 1, overflow: "hidden" }}
       >
-        {`${pageOverlays.length} coordinate-test alignment overlay(s) shown for page ${pageNumber}. These are not extracted facts.`}
+        {`${pageOverlays.length} coordinate-test alignment overlay(s) and ${nativeWords.length} Native PDF boxes shown for page ${pageNumber}.`}
       </Typography>
     </Box>
   );

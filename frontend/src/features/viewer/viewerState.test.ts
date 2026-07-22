@@ -17,6 +17,7 @@ describe("useViewerStore defaults", () => {
     expect(state.zoomMode).toBe("fit_width");
     expect(state.userRotation).toBe(0);
     expect(state.overlayEnabled).toBe(false);
+    expect(state.nativeOverlayEnabled).toBe(false);
   });
 });
 
@@ -131,6 +132,16 @@ describe("overlay toggle", () => {
     expect(useViewerStore.getState().overlayEnabled).toBe(true);
     useViewerStore.getState().setOverlayEnabled(false);
     expect(useViewerStore.getState().overlayEnabled).toBe(false);
+  });
+});
+
+describe("native overlay toggle", () => {
+  it("toggleNativeOverlay flips the native-word-box flag", () => {
+    expect(useViewerStore.getState().nativeOverlayEnabled).toBe(false);
+    useViewerStore.getState().toggleNativeOverlay();
+    expect(useViewerStore.getState().nativeOverlayEnabled).toBe(true);
+    useViewerStore.getState().toggleNativeOverlay();
+    expect(useViewerStore.getState().nativeOverlayEnabled).toBe(false);
   });
 });
 

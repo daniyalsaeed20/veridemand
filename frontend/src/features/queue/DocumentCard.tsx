@@ -23,6 +23,9 @@ const STATUS_LABEL: Record<DocumentStatus, string> = {
   queued: "Queued",
   canonicalising: "Canonicalising",
   ready_for_extraction: "Ready for extraction",
+  inspecting_native: "Inspecting native text",
+  extracting_native: "Extracting native text",
+  native_trust_complete: "Native trust complete",
   cancelled: "Cancelled",
   failed: "Failed",
 };
@@ -32,6 +35,9 @@ const STATUS_TONE: Record<DocumentStatus, StatusTone> = {
   queued: "caution",
   canonicalising: "caution",
   ready_for_extraction: "positive",
+  inspecting_native: "caution",
+  extracting_native: "caution",
+  native_trust_complete: "positive",
   cancelled: "neutral",
   failed: "critical",
 };
@@ -83,10 +89,15 @@ export function DocumentCard({ sessionId, document, disabled = false }: Document
     disabled || processMutation.isPending || cancelMutation.isPending || removeMutation.isPending;
 
   const canProcess = document.status === "uploaded";
-  const canCancel = document.status === "queued" || document.status === "canonicalising";
+  const canCancel =
+    document.status === "queued" ||
+    document.status === "canonicalising" ||
+    document.status === "inspecting_native" ||
+    document.status === "extracting_native";
   const canRemove =
     document.status === "uploaded" ||
     document.status === "ready_for_extraction" ||
+    document.status === "native_trust_complete" ||
     document.status === "cancelled" ||
     document.status === "failed";
   const isSelected = selectedDocumentId === document.document_id;
@@ -125,15 +136,20 @@ export function DocumentCard({ sessionId, document, disabled = false }: Document
           />
         </Stack>
 
-        {document.status === "queued" || document.status === "canonicalising" ? (
+        {document.status === "queued" ||
+        document.status === "canonicalising" ||
+        document.status === "inspecting_native" ||
+        document.status === "extracting_native" ? (
           <Box>
             <LinearProgress
               variant="determinate"
               value={document.progress_percent}
-              aria-label="Canonicalisation progress"
+              aria-label="Document processing progress"
             />
             <Typography variant="caption" color="text.secondary">
-              Canonicalising for the viewer — no extraction has been performed yet.
+              {document.status === "canonicalising"
+                ? "Canonicalising for the viewer — no extraction has been performed yet."
+                : "Inspecting native PDF text — progress is capped at 35% until visual processing."}
             </Typography>
           </Box>
         ) : null}
@@ -143,6 +159,18 @@ export function DocumentCard({ sessionId, document, disabled = false }: Document
             {document.canonical_view_available
               ? "Canonical document ready. Extraction has not started."
               : "Extraction has not started. No results are available yet."}
+          </Typography>
+        ) : null}
+
+        {document.status === "native_trust_complete" ? (
+          <Typography variant="caption" color="text.secondary">
+            Native trust inspection complete. Visual agreement and processing have not started.
+          </Typography>
+        ) : null}
+
+        {document.user_status_message ? (
+          <Typography variant="caption" color="text.secondary">
+            {document.user_status_message}
           </Typography>
         ) : null}
 

@@ -17,6 +17,8 @@ import { usePdfPage } from "./usePdfPage";
 import { ViewerEmptyState } from "./ViewerEmptyState";
 import { ViewerToolbar } from "./ViewerToolbar";
 import { canonicalPdfUrl, getOverlayProof, type DocumentSummary } from "./viewerApi";
+import { getNativePage, getNativeSummary } from "./nativeApi";
+import { NativeInspectionPanel } from "./NativeInspectionPanel";
 import { useViewerStore } from "./viewerState";
 
 export interface CanonicalViewerProps {
@@ -31,6 +33,7 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
   const manualScale = useViewerStore((state) => state.manualScale);
   const userRotation = useViewerStore((state) => state.userRotation);
   const overlayEnabled = useViewerStore((state) => state.overlayEnabled);
+  const nativeOverlayEnabled = useViewerStore((state) => state.nativeOverlayEnabled);
   const setPageNumber = useViewerStore((state) => state.setPageNumber);
   const setZoomMode = useViewerStore((state) => state.setZoomMode);
   const zoomIn = useViewerStore((state) => state.zoomIn);
@@ -38,6 +41,7 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
   const rotateClockwise = useViewerStore((state) => state.rotateClockwise);
   const rotateCounterClockwise = useViewerStore((state) => state.rotateCounterClockwise);
   const toggleOverlay = useViewerStore((state) => state.toggleOverlay);
+  const toggleNativeOverlay = useViewerStore((state) => state.toggleNativeOverlay);
   const selectDocument = useViewerStore((state) => state.selectDocument);
 
   const alignmentOverlayAvailable = isAlignmentOverlayAvailable();
@@ -91,6 +95,28 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
   const clampedPageNumber = Math.min(Math.max(1, pageNumber), pageCount);
 
   const { page } = usePdfPage(pdfDocument, clampedPageNumber);
+  const nativeTrustComplete = selectedDocument?.status === "native_trust_complete";
+  const nativeSummaryQuery = useQuery({
+    queryKey:
+      sessionId && selectedDocumentId
+        ? ["viewer", "native-summary", sessionId, selectedDocumentId]
+        : ["viewer", "native-summary", "disabled"],
+    queryFn: ({ signal }) => getNativeSummary(sessionId, selectedDocumentId as string, signal),
+    enabled: nativeTrustComplete && Boolean(selectedDocumentId),
+    staleTime: Infinity,
+    retry: false,
+  });
+  const nativePageQuery = useQuery({
+    queryKey:
+      sessionId && selectedDocumentId
+        ? ["viewer", "native-page", sessionId, selectedDocumentId, clampedPageNumber]
+        : ["viewer", "native-page", "disabled"],
+    queryFn: ({ signal }) =>
+      getNativePage(sessionId, selectedDocumentId as string, clampedPageNumber, signal),
+    enabled: nativeTrustComplete && Boolean(selectedDocumentId) && nativeSummaryQuery.isSuccess,
+    staleTime: Infinity,
+    retry: false,
+  });
 
   const overlayQuery = useQuery({
     queryKey:
@@ -161,6 +187,8 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
   const overlayDisabledReason = dimensionMismatch
     ? "Alignment overlay disabled: this page's rendered size does not match the canonical metadata within tolerance."
     : null;
+  const nativeOverlayActive =
+    nativeOverlayEnabled && nativePageQuery.data?.decision === "accepted" && !dimensionMismatch;
 
   let body: ReactNode;
   if (!selectedDocument) {
@@ -213,6 +241,15 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
         </Stack>
 
         <Divider />
+        {nativeSummaryQuery.data ? (
+          <NativeInspectionPanel
+            summary={nativeSummaryQuery.data}
+            page={nativePageQuery.data}
+            nativeOverlayEnabled={nativeOverlayEnabled}
+            onToggleNativeOverlay={toggleNativeOverlay}
+            overlaysDisabled={dimensionMismatch}
+          />
+        ) : null}
 
         <Stack
           sx={{
@@ -237,11 +274,12 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
             />
             <OverlayLayer
               overlays={overlayQuery.data?.overlays ?? []}
+              nativeWordOverlays={nativeOverlayActive ? nativePageQuery.data?.words ?? [] : []}
               pageNumber={clampedPageNumber}
               pixelWidth={renderedViewport?.widthPx ?? 0}
               pixelHeight={renderedViewport?.heightPx ?? 0}
               rotation={userRotation}
-              enabled={overlayActive && !dimensionMismatch}
+              enabled={(overlayActive || nativeOverlayActive) && !dimensionMismatch}
             />
           </div>
         </Stack>
