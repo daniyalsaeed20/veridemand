@@ -1,10 +1,8 @@
-"""Health service: evaluates Phase 0 + Phase 1 readiness checks.
+"""Health service: evaluates Phase 0-2 readiness checks.
 
-Phase 0 verifies that settings loaded and that the temporary workspace is usable.
-Phase 1 adds required checks for the session workspace, the admission coordinator,
-the cleanup worker, and the queue accepting work; any required failure returns a
-503. Future capabilities (LibreOffice, PaddleOCR, the handwriting classifier and
-the vision provider) remain optional ``not_configured`` checks.
+Phase 2 requires LibreOffice, ReportLab (with a controlled font), writable
+canonical storage, plus the Phase 1 session/coordinator/cleanup/queue checks.
+OCR and OpenAI remain optional ``not_configured`` checks.
 """
 
 from __future__ import annotations
@@ -12,16 +10,16 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Protocol
 
+from backend.app.canonical.libreoffice import LibreOfficeService
 from backend.app.contracts.health import CheckState, DependencyCheck, HealthState
 from backend.app.settings.config import Settings
 from backend.app.storage import paths
 
 _PROBE_FILENAME = ".readiness_probe"
 _SESSION_PROBE_DIRNAME = ".workspace_probe"
+_CANONICAL_PROBE_DIRNAME = ".canonical_probe"
 
-# Optional future dependencies, surfaced for visibility but not required yet.
 _FUTURE_OPTIONAL_CHECKS: tuple[str, ...] = (
-    "libreoffice",
     "paddle_ocr",
     "handwriting_classifier",
     "openai_vision",
@@ -46,6 +44,9 @@ class HealthService:
         self._coordinator: _Runnable | None = None
         self._cleanup_worker: _Runnable | None = None
         self._job_queue: _Closable | None = None
+        self._libreoffice = LibreOfficeService(settings)
+        self._cached_libreoffice: DependencyCheck | None = None
+        self._cached_reportlab: DependencyCheck | None = None
 
     def attach_runtime(
         self,
@@ -110,6 +111,29 @@ class HealthService:
             message="Session workspace exists and is writable.",
         )
 
+    def _check_canonical_storage(self) -> DependencyCheck:
+        root = paths.sessions_root(self._settings.temp_root)
+        try:
+            root.mkdir(parents=True, exist_ok=True)
+            probe = root / _CANONICAL_PROBE_DIRNAME
+            probe.mkdir(exist_ok=True)
+            (probe / "canonical").mkdir(exist_ok=True)
+            (probe / "canonical").rmdir()
+            probe.rmdir()
+        except OSError:
+            return DependencyCheck(
+                name="canonical_storage",
+                status=CheckState.FAIL,
+                required=True,
+                message="Canonical storage is not writable.",
+            )
+        return DependencyCheck(
+            name="canonical_storage",
+            status=CheckState.PASS,
+            required=True,
+            message="Canonical storage can be created and deleted.",
+        )
+
     def _check_coordinator(self) -> DependencyCheck:
         healthy = self._coordinator is not None and self._coordinator.running
         return DependencyCheck(
@@ -117,9 +141,9 @@ class HealthService:
             status=CheckState.PASS if healthy else CheckState.FAIL,
             required=True,
             message=(
-                "Admission coordinator is running."
+                "Canonicalisation coordinator is running."
                 if healthy
-                else "Admission coordinator is not running."
+                else "Canonicalisation coordinator is not running."
             ),
         )
 
@@ -145,6 +169,50 @@ class HealthService:
             ),
         )
 
+    def _check_libreoffice(self) -> DependencyCheck:
+        if self._cached_libreoffice is not None:
+            return self._cached_libreoffice
+        try:
+            runtime = self._libreoffice.resolve()
+            check = DependencyCheck(
+                name="libreoffice",
+                status=CheckState.PASS,
+                required=True,
+                message=f"LibreOffice available ({runtime.version}).",
+            )
+        except Exception:
+            check = DependencyCheck(
+                name="libreoffice",
+                status=CheckState.FAIL,
+                required=True,
+                message="LibreOffice is missing or unusable.",
+            )
+        self._cached_libreoffice = check
+        return check
+
+    def _check_reportlab(self) -> DependencyCheck:
+        if self._cached_reportlab is not None:
+            return self._cached_reportlab
+        try:
+            from reportlab.pdfbase.pdfmetrics import getFont
+
+            getFont("Helvetica")
+            check = DependencyCheck(
+                name="reportlab",
+                status=CheckState.PASS,
+                required=True,
+                message="ReportLab import succeeds and Helvetica is available.",
+            )
+        except Exception:
+            check = DependencyCheck(
+                name="reportlab",
+                status=CheckState.FAIL,
+                required=True,
+                message="ReportLab or controlled font is unavailable.",
+            )
+        self._cached_reportlab = check
+        return check
+
     @staticmethod
     def _future_checks() -> list[DependencyCheck]:
         return [
@@ -164,9 +232,12 @@ class HealthService:
             self._check_settings(),
             self._check_temp_storage(),
             self._check_session_workspace(),
+            self._check_canonical_storage(),
             self._check_coordinator(),
             self._check_cleanup(),
             self._check_queue(),
+            self._check_libreoffice(),
+            self._check_reportlab(),
         ]
         checks.extend(self._future_checks())
         return checks

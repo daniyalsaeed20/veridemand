@@ -36,6 +36,12 @@ class ProgressEventType(StrEnum):
     DOCUMENT_QUEUED = "document.queued"
     DOCUMENT_STARTED = "document.started"
     DOCUMENT_STAGE_CHANGED = "document.stage_changed"
+    DOCUMENT_CANONICALISATION_STARTED = "document.canonicalisation_started"
+    DOCUMENT_CANONICALISATION_PROGRESS = "document.canonicalisation_progress"
+    DOCUMENT_CANONICALISATION_COMPLETED = "document.canonicalisation_completed"
+    DOCUMENT_CANONICALISATION_FAILED = "document.canonicalisation_failed"
+    DOCUMENT_CANONICALISATION_CANCELLED = "document.canonicalisation_cancelled"
+    DOCUMENT_CANONICAL_READY = "document.canonical_ready"
     DOCUMENT_READY_FOR_EXTRACTION = "document.ready_for_extraction"
     DOCUMENT_REMOVED = "document.removed"
     DOCUMENT_WARNING = "document.warning"
@@ -85,4 +91,13 @@ class ProgressEvent(ApiModel):
     )
     job_status: JobStatus | None = Field(
         default=None, description="Job status at the time of the event, if relevant."
+    )
+    canonicalisation_method: str | None = Field(
+        default=None, description="Canonicalisation method when relevant."
+    )
+    canonical_page_count: int | None = Field(
+        default=None, ge=0, description="Canonical page count when known."
+    )
+    canonical_status: str | None = Field(
+        default=None, description="Canonical status when relevant."
     )

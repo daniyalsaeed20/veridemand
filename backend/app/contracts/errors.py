@@ -55,6 +55,38 @@ class ErrorCode(StrEnum):
     SSE_CONNECTION_LIMIT = "sse_connection_limit"
     SSE_STREAM_CLOSED = "sse_stream_closed"
 
+    # Canonical documents / geometry (Phase 2).
+    CANONICAL_DOCUMENT_NOT_READY = "canonical_document_not_ready"
+    CANONICAL_DOCUMENT_NOT_FOUND = "canonical_document_not_found"
+
+    CANONICALISATION_FAILED = "canonicalisation_failed"
+    CANONICALISATION_CANCELLED = "canonicalisation_cancelled"
+    CANONICALISATION_TIMEOUT = "canonicalisation_timeout"
+    CANONICALISATION_OUTPUT_MISSING = "canonicalisation_output_missing"
+    CANONICALISATION_OUTPUT_INVALID = "canonicalisation_output_invalid"
+    CANONICALISATION_PAGE_LIMIT_EXCEEDED = "canonicalisation_page_limit_exceeded"
+    CANONICALISATION_EXTERNAL_RESOURCE_NOT_SUPPORTED = (
+        "canonicalisation_external_resource_not_supported"
+    )
+    CANONICALISATION_MULTIFRAME_NOT_SUPPORTED = "canonicalisation_multiframe_not_supported"
+    CANONICALISATION_UNSUPPORTED_TEXT_GLYPH = "canonicalisation_unsupported_text_glyph"
+    CANONICALISATION_INVALID_PDF = "canonicalisation_invalid_pdf"
+
+    LIBREOFFICE_NOT_FOUND = "libreoffice_not_found"
+    LIBREOFFICE_UNAVAILABLE = "libreoffice_unavailable"
+    LIBREOFFICE_PROCESS_FAILED = "libreoffice_process_failed"
+    LIBREOFFICE_TIMEOUT = "libreoffice_timeout"
+    LIBREOFFICE_NOT_AVAILABLE = "libreoffice_not_available"  # alias for readiness
+
+    CANONICAL_PAGE_INVALID = "canonical_page_invalid"
+    CANONICAL_PAGE_DIMENSIONS_INVALID = "canonical_page_dimensions_invalid"
+    CANONICAL_PAGE_ROTATION_INVALID = "canonical_page_rotation_invalid"
+
+    GEOMETRY_INVALID = "geometry_invalid"
+    GEOMETRY_OUT_OF_BOUNDS = "geometry_out_of_bounds"
+    GEOMETRY_ZERO_AREA = "geometry_zero_area"
+    GEOMETRY_BBOX_MISMATCH = "geometry_bbox_mismatch"
+
 
 class ApiErrorDetail(ApiModel):
     """Structured, non-sensitive description of a single API error."""

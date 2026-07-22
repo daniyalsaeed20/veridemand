@@ -2,9 +2,9 @@
 
 The factory performs no heavy work at import time: it initialises no future
 extraction models, opens no network connections, and loads no OCR/vision
-dependencies. The Phase 1 runtime services (session registry, in-memory queue,
-admission coordinator, cleanup worker) are constructed and started inside the
-application lifespan and torn down on shutdown.
+dependencies. The Phase 2 runtime services (session registry, in-memory queue,
+canonicalisation coordinator, cleanup worker) are constructed and started inside
+the application lifespan and torn down on shutdown.
 """
 
 from __future__ import annotations
@@ -17,12 +17,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.api.router import build_api_router
+from backend.app.canonical.processor import DefaultCanonicalisationProcessor
 from backend.app.cleanup.service import CleanupService
 from backend.app.cleanup.worker import CleanupWorker
 from backend.app.health.service import HealthService
 from backend.app.observability.errors import register_exception_handlers
 from backend.app.observability.request_id import RequestIdMiddleware
-from backend.app.processing.admission import Phase1AdmissionProcessor
 from backend.app.processing.coordinator import ProcessingCoordinator
 from backend.app.processing.queue import InMemoryJobQueue
 from backend.app.sessions.registry import SessionRegistry
@@ -35,29 +35,31 @@ _DESCRIPTION = "Runtime-only document extraction platform API."
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Start and stop the Phase 1 runtime services around request serving."""
+    """Start and stop the Phase 2 runtime services around request serving."""
 
     settings: Settings = app.state.settings
 
     file_store = FileStore(settings.temp_root)
     job_queue = InMemoryJobQueue()
     registry = SessionRegistry(settings, file_store, job_queue)
-    admission = Phase1AdmissionProcessor(
-        file_store, test_hold_seconds=settings.queue_admission_test_delay_seconds
+    processor = DefaultCanonicalisationProcessor(
+        settings,
+        file_store,
+        thread_workers=settings.canonicalisation_thread_workers,
+        test_hold_seconds=settings.queue_admission_test_delay_seconds,
     )
     coordinator = ProcessingCoordinator(
         registry,
         job_queue,
-        admission,
+        processor,
         file_store,
-        worker_count=settings.queue_admission_workers,
+        worker_count=settings.canonicalisation_workers,
+        max_pages_per_session=settings.max_pages_per_session,
     )
     upload_service = UploadService(settings, file_store)
     cleanup_service = CleanupService(registry, file_store, settings)
     cleanup_worker = CleanupWorker(cleanup_service, settings.session_cleanup_interval_seconds)
 
-    # Remove any session directories abandoned by a previous process, then start
-    # the single admission worker and the periodic cleanup worker.
     cleanup_service.startup_sweep()
     coordinator.start()
     cleanup_worker.start()
@@ -83,11 +85,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
-    """Build and configure the FastAPI application.
-
-    A ``Settings`` instance can be injected for tests without touching global
-    process state.
-    """
+    """Build and configure the FastAPI application."""
 
     resolved = settings or get_settings()
     logging.basicConfig(level=resolved.log_level)

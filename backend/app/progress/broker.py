@@ -85,6 +85,9 @@ class EventBroker:
         queue_position: int | None,
         document_status: DocumentStatus | None,
         job_status: JobStatus | None,
+        canonicalisation_method: str | None,
+        canonical_page_count: int | None,
+        canonical_status: str | None,
     ) -> ProgressEvent:
         return ProgressEvent(
             event_id=format_event_id(sequence),
@@ -103,6 +106,9 @@ class EventBroker:
             queue_position=queue_position,
             document_status=document_status,
             job_status=job_status,
+            canonicalisation_method=canonicalisation_method,
+            canonical_page_count=canonical_page_count,
+            canonical_status=canonical_status,
         )
 
     async def publish(
@@ -117,6 +123,9 @@ class EventBroker:
         queue_position: int | None = None,
         document_status: DocumentStatus | None = None,
         job_status: JobStatus | None = None,
+        canonicalisation_method: str | None = None,
+        canonical_page_count: int | None = None,
+        canonical_status: str | None = None,
     ) -> ProgressEvent:
         """Allocate a sequence, record, and deliver an event to subscribers."""
 
@@ -135,6 +144,9 @@ class EventBroker:
                 queue_position=queue_position,
                 document_status=document_status,
                 job_status=job_status,
+                canonicalisation_method=canonicalisation_method,
+                canonical_page_count=canonical_page_count,
+                canonical_status=canonical_status,
             )
             self._replay.append(progress)
             for subscriber in self._subscribers:
@@ -207,6 +219,9 @@ class EventBroker:
                 queue_position=None,
                 document_status=None,
                 job_status=None,
+                canonicalisation_method=None,
+                canonical_page_count=None,
+                canonical_status=None,
             )
 
     async def stream(self, subscriber: Subscriber) -> AsyncIterator[ProgressEvent]:

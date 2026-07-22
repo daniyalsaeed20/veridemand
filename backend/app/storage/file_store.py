@@ -79,6 +79,12 @@ class FileStore:
     def original_path(self, session_id: str, document_id: str, extension: str) -> Path:
         return paths.original_path(self._temp_root, session_id, document_id, extension)
 
+    def canonical_path(self, session_id: str, document_id: str) -> Path:
+        return paths.canonical_path(self._temp_root, session_id, document_id)
+
+    def canonical_part_path(self, session_id: str, document_id: str) -> Path:
+        return paths.canonical_part_path(self._temp_root, session_id, document_id)
+
     async def stage_upload(
         self,
         source: AsyncByteReader,
@@ -148,6 +154,8 @@ class FileStore:
         self.remove_file(self.staging_path(session_id, document_id))
         if extension is not None:
             self.remove_file(self.original_path(session_id, document_id, extension))
+        self.remove_file(self.canonical_path(session_id, document_id))
+        self.remove_file(self.canonical_part_path(session_id, document_id))
 
     def remove_session_storage(self, session_id: str) -> None:
         """Recursively remove a session directory after proving it is safe."""
@@ -170,22 +178,35 @@ class FileStore:
 
         Applies the same path-safety checks as ordinary deletion and never
         touches unrelated contents of ``TEMP_ROOT``. Returns removed ids.
+        Also removes short LibreOffice workspaces under ``<TEMP_ROOT>/lo/``.
         """
 
         root = paths.sessions_root(self._temp_root)
         if not root.exists():
-            return []
-        removed: list[str] = []
-        for child in root.iterdir():
-            name = child.name
-            if name in active_session_ids:
-                continue
-            try:
-                paths.assert_safe_session_dir(self._temp_root, name, child)
-            except paths.UnsafePathError:
-                continue
-            if not child.is_dir() or child.is_symlink():
-                continue
-            self.remove_session_storage(name)
-            removed.append(name)
+            removed: list[str] = []
+        else:
+            removed = []
+            for child in root.iterdir():
+                name = child.name
+                if name in active_session_ids:
+                    continue
+                try:
+                    paths.assert_safe_session_dir(self._temp_root, name, child)
+                except paths.UnsafePathError:
+                    continue
+                if not child.is_dir() or child.is_symlink():
+                    continue
+                self.remove_session_storage(name)
+                removed.append(name)
+
+        lo_root = self._temp_root / "lo"
+        if lo_root.is_dir() and not lo_root.is_symlink():
+            for attempt in range(self._delete_retries):
+                try:
+                    shutil.rmtree(lo_root)
+                    break
+                except OSError:
+                    if attempt == self._delete_retries - 1:
+                        break
+                    time.sleep(self._delete_delay)
         return removed

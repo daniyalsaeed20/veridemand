@@ -77,7 +77,12 @@ def build_session_snapshot(session: RuntimeSession, settings: Settings) -> Sessi
         if job.status is JobStatus.QUEUED and job.queue_position is not None
     }
     documents = [
-        doc.to_summary(queue_positions.get(doc.document_id)) for doc in session.documents.values()
+        doc.to_summary(
+            queue_positions.get(doc.document_id),
+            session_id=session.session_id,
+            api_prefix=settings.api_prefix,
+        )
+        for doc in session.documents.values()
     ]
     jobs = [job.to_summary() for job in session.jobs.values()]
 

@@ -53,6 +53,7 @@ class StructureResult:
     page_count: int | None
     page_count_status: PageCountStatus
     warnings: list[str] = field(default_factory=list)
+    text_encoding: str | None = None
 
 
 def validate_pdf(path: Path) -> int:
@@ -130,13 +131,15 @@ def validate_image(path: Path, fmt: DocumentFormat, *, max_pixels: int) -> int:
 def _detect_txt_encoding(head: bytes) -> str:
     if head.startswith(b"\xef\xbb\xbf"):
         return "utf-8-sig"
-    if head.startswith(b"\xff\xfe") or head.startswith(b"\xfe\xff"):
-        return "utf-16"
+    if head.startswith(b"\xff\xfe"):
+        return "utf-16-le"
+    if head.startswith(b"\xfe\xff"):
+        return "utf-16-be"
     return "utf-8"
 
 
-def validate_txt(path: Path) -> None:
-    """Validate that a file is safe, decodable text (never extracts content)."""
+def validate_txt(path: Path) -> str:
+    """Validate that a file is safe, decodable text. Return its encoding key."""
 
     with path.open("rb") as handle:
         head = handle.read(4)
@@ -179,6 +182,7 @@ def validate_txt(path: Path) -> None:
         raise UploadRejected(
             ErrorCode.UPLOAD_CORRUPT_FILE, "Text contains too many control characters."
         )
+    return encoding
 
 
 def validate_structure(path: Path, fmt: DocumentFormat, settings: Settings) -> StructureResult:
@@ -190,8 +194,10 @@ def validate_structure(path: Path, fmt: DocumentFormat, settings: Settings) -> S
         frames = validate_image(path, fmt, max_pixels=settings.max_image_pixels)
         return StructureResult(frames, PageCountStatus.KNOWN)
     if fmt is DocumentFormat.TXT:
-        validate_txt(path)
-        return StructureResult(None, PageCountStatus.PENDING_CANONICALISATION)
+        encoding = validate_txt(path)
+        return StructureResult(
+            None, PageCountStatus.PENDING_CANONICALISATION, text_encoding=encoding
+        )
     if fmt is DocumentFormat.DOCX:
         found = word_validation.validate_docx(path, settings)
         return StructureResult(None, PageCountStatus.PENDING_CANONICALISATION, found)

@@ -192,6 +192,7 @@ class UploadService:
             page_count=structure.page_count,
             page_count_status=structure.page_count_status,
             warnings=list(structure.warnings),
+            text_encoding=structure.text_encoding,
         )
         session.documents[document_id] = document
         session.accepted_bytes += staged.size_bytes

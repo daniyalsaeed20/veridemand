@@ -1,9 +1,8 @@
-"""Processing coordinator: a single admission worker over the in-memory queue.
+"""Processing coordinator: a single canonicalisation worker over the in-memory queue.
 
 Owns the queue worker task, job state transitions, cancellation, session-state
 updates, event publication, and graceful shutdown. FastAPI ``BackgroundTasks``
-is deliberately not used for the queue. Phase 1 runs exactly one worker; multiple
-workers are forbidden by configuration.
+is deliberately not used for the queue. Phase 2 runs exactly one worker.
 """
 
 from __future__ import annotations
@@ -13,14 +12,16 @@ import contextlib
 import logging
 from datetime import UTC, datetime
 
-from backend.app.contracts.documents import DocumentStatus
+from backend.app.canonical.errors import CanonicalisationError
+from backend.app.canonical.processor import CanonicalisationProcessor
+from backend.app.contracts.canonical import CanonicalStatus
+from backend.app.contracts.documents import DocumentStatus, PageCountStatus
 from backend.app.contracts.errors import ErrorCode
 from backend.app.contracts.identifiers import new_job_id
 from backend.app.contracts.jobs import JobStatus, JobSummary
 from backend.app.contracts.processing import IgnoredDocument
 from backend.app.contracts.progress import ProgressEventType
 from backend.app.observability.errors import ApiException
-from backend.app.processing.admission import AdmissionProcessor
 from backend.app.processing.cancellation import JobCancelledError
 from backend.app.processing.models import ProcessingJob
 from backend.app.processing.queue import JobQueue, QueueClosedError
@@ -33,9 +34,10 @@ from backend.app.storage.file_store import FileStore
 
 logger = logging.getLogger("veridemand.processing")
 
-_ADMISSION_FAILURE_CODE = "admission_failed"
-_DOCUMENT_STAGE = "preparing"
-_MAX_PROGRESS_PERCENT = 5
+_FAILURE_CODE = "canonicalisation_failed"
+_DOCUMENT_STAGE = "canonicalising"
+_MAX_PROGRESS_PERCENT = 15
+_PROGRESS_STARTED = 6
 
 
 async def _safe_publish(broker: EventBroker, event: ProgressEventType, **fields: object) -> None:
@@ -44,23 +46,25 @@ async def _safe_publish(broker: EventBroker, event: ProgressEventType, **fields:
 
 
 class ProcessingCoordinator:
-    """Coordinates queue admission with a single cooperative worker."""
+    """Coordinates queue canonicalisation with a single cooperative worker."""
 
     def __init__(
         self,
         registry: SessionRegistry,
         job_queue: JobQueue,
-        admission: AdmissionProcessor,
+        processor: CanonicalisationProcessor,
         file_store: FileStore,
         *,
         worker_count: int = 1,
+        max_pages_per_session: int = 500,
     ) -> None:
         if worker_count != 1:
-            raise ValueError("Phase 1 requires exactly one admission worker.")
+            raise ValueError("Phase 2 requires exactly one canonicalisation worker.")
         self._registry = registry
         self._queue = job_queue
-        self._admission = admission
+        self._processor = processor
         self._file_store = file_store
+        self._max_pages_per_session = max_pages_per_session
         self._worker: asyncio.Task[None] | None = None
         self._current_job: ProcessingJob | None = None
         self._running = False
@@ -73,7 +77,7 @@ class ProcessingCoordinator:
         if self._worker is not None:
             return
         self._running = True
-        self._worker = asyncio.create_task(self._worker_loop(), name="admission-worker")
+        self._worker = asyncio.create_task(self._worker_loop(), name="canonicalisation-worker")
 
     async def stop(self) -> None:
         """Stop accepting jobs, cancel active work, and await worker termination."""
@@ -125,6 +129,7 @@ class ProcessingCoordinator:
                 )
                 session.jobs[job.job_id] = job
                 document.status = DocumentStatus.QUEUED
+                document.canonical_status = CanonicalStatus.QUEUED
                 document.active_job_id = job.job_id
                 try:
                     await self._queue.enqueue(job)
@@ -157,7 +162,7 @@ class ProcessingCoordinator:
         return queued, ignored
 
     async def cancel_document(self, session: RuntimeSession, document_id: str) -> RuntimeDocument:
-        """Cancel a queued/preparing document (see Section 27 semantics)."""
+        """Cancel a queued/canonicalising document."""
 
         async with session.state_lock:
             document = session.documents.get(document_id)
@@ -170,7 +175,7 @@ class ProcessingCoordinator:
                 )
 
             if document.status is DocumentStatus.CANCELLED:
-                return document  # idempotent
+                return document
 
             if document.status in (
                 DocumentStatus.UPLOADED,
@@ -192,6 +197,15 @@ class ProcessingCoordinator:
                     job.status = JobStatus.CANCELLED
                     job.finished_at = datetime.now(UTC)
                 document.status = DocumentStatus.CANCELLED
+                document.canonical_status = CanonicalStatus.CANCELLED
+                await _safe_publish(
+                    session.broker,
+                    ProgressEventType.DOCUMENT_CANONICALISATION_CANCELLED,
+                    document_id=document_id,
+                    job_id=job.job_id if job else None,
+                    document_status=DocumentStatus.CANCELLED,
+                    canonical_status=CanonicalStatus.CANCELLED.value,
+                )
                 await _safe_publish(
                     session.broker,
                     ProgressEventType.DOCUMENT_CANCELLED,
@@ -207,15 +221,14 @@ class ProcessingCoordinator:
                         job_id=job.job_id,
                         job_status=JobStatus.CANCELLED,
                     )
-            elif document.status is DocumentStatus.PREPARING and job is not None:
-                # Cooperative: the worker observes the token and finalises.
+            elif document.status is DocumentStatus.CANONICALISING and job is not None:
                 job.request_cancellation()
 
             recompute_session_status(session)
             return document
 
     async def remove_document(self, session: RuntimeSession, document_id: str) -> None:
-        """Remove a non-active document and its files (see Section 28)."""
+        """Remove a non-active document and its files."""
 
         async with session.state_lock:
             document = session.documents.get(document_id)
@@ -226,7 +239,7 @@ class ProcessingCoordinator:
                     message="Document not found in this session.",
                     document_id=document_id,
                 )
-            if document.status in (DocumentStatus.QUEUED, DocumentStatus.PREPARING):
+            if document.status in (DocumentStatus.QUEUED, DocumentStatus.CANONICALISING):
                 raise ApiException(
                     status_code=409,
                     code=ErrorCode.DOCUMENT_PROCESSING,
@@ -265,7 +278,7 @@ class ProcessingCoordinator:
             except asyncio.CancelledError:
                 raise
             except Exception:
-                logger.exception("Unexpected error running admission job.")
+                logger.exception("Unexpected error running canonicalisation job.")
             finally:
                 self._current_job = None
                 await self._queue.task_done(job.job_id)
@@ -288,7 +301,9 @@ class ProcessingCoordinator:
         job.status = JobStatus.RUNNING
         job.started_at = datetime.now(UTC)
         job.queue_position = None
-        document.status = DocumentStatus.PREPARING
+        document.status = DocumentStatus.CANONICALISING
+        document.canonical_status = CanonicalStatus.CANONICALISING
+        document.progress_percent = _PROGRESS_STARTED
         session.begin_admission()
         recompute_session_status(session)
         await _safe_publish(
@@ -304,27 +319,101 @@ class ProcessingCoordinator:
             document_id=document.document_id,
             job_id=job.job_id,
             stage=_DOCUMENT_STAGE,
-            percent=_MAX_PROGRESS_PERCENT,
-            document_status=DocumentStatus.PREPARING,
+            percent=_PROGRESS_STARTED,
+            document_status=DocumentStatus.CANONICALISING,
+        )
+        await _safe_publish(
+            session.broker,
+            ProgressEventType.DOCUMENT_CANONICALISATION_STARTED,
+            document_id=document.document_id,
+            job_id=job.job_id,
+            stage=_DOCUMENT_STAGE,
+            percent=_PROGRESS_STARTED,
+            document_status=DocumentStatus.CANONICALISING,
+            canonical_status=CanonicalStatus.CANONICALISING.value,
         )
 
+        previous_pages = document.page_count if document.page_count is not None else 0
         try:
-            await self._admission.prepare(session, document, job.cancellation)
+            result = await self._processor.canonicalise(session, document, job, job.cancellation)
+            new_pages = len(result.pages)
+            projected = session.known_pages - previous_pages + new_pages
+            if projected > self._max_pages_per_session:
+                self._file_store.remove_file(
+                    self._file_store.canonical_path(session.session_id, document.document_id)
+                )
+                self._file_store.remove_file(
+                    self._file_store.canonical_part_path(session.session_id, document.document_id)
+                )
+                document.canonical_view_available = False
+                document.canonical_status = CanonicalStatus.FAILED
+                document.canonical_failure_code = (
+                    ErrorCode.CANONICALISATION_PAGE_LIMIT_EXCEEDED.value
+                )
+                raise CanonicalisationError(
+                    ErrorCode.CANONICALISATION_PAGE_LIMIT_EXCEEDED,
+                    "Canonical page count would exceed the session page limit.",
+                )
+            session.known_pages = projected
+            document.page_count = new_pages
+            document.page_count_status = PageCountStatus.KNOWN
         except JobCancelledError:
             await self._finalize_cancelled(session, job, document)
-        except Exception as exc:  # translate any admission failure into a safe state
-            logger.warning("Admission failed for a document: %s", type(exc).__name__)
+        except CanonicalisationError as exc:
+            logger.warning("Canonicalisation failed: %s", exc.code.value)
+            await self._finalize_failed(session, job, document, code=exc.code.value)
+        except Exception as exc:
+            logger.warning("Canonicalisation failed for a document: %s", type(exc).__name__)
             await self._finalize_failed(session, job, document)
         else:
             job.status = JobStatus.COMPLETED
             job.finished_at = datetime.now(UTC)
             document.status = DocumentStatus.READY_FOR_EXTRACTION
+            document.progress_percent = _MAX_PROGRESS_PERCENT
+            method = (
+                document.canonicalisation_method.value
+                if document.canonicalisation_method is not None
+                else None
+            )
+            await _safe_publish(
+                session.broker,
+                ProgressEventType.DOCUMENT_CANONICALISATION_PROGRESS,
+                document_id=document.document_id,
+                job_id=job.job_id,
+                percent=_MAX_PROGRESS_PERCENT,
+                document_status=DocumentStatus.READY_FOR_EXTRACTION,
+                canonicalisation_method=method,
+                canonical_page_count=document.canonical_page_count,
+                canonical_status=CanonicalStatus.READY.value,
+            )
+            await _safe_publish(
+                session.broker,
+                ProgressEventType.DOCUMENT_CANONICALISATION_COMPLETED,
+                document_id=document.document_id,
+                job_id=job.job_id,
+                percent=_MAX_PROGRESS_PERCENT,
+                canonicalisation_method=method,
+                canonical_page_count=document.canonical_page_count,
+                canonical_status=CanonicalStatus.READY.value,
+            )
+            await _safe_publish(
+                session.broker,
+                ProgressEventType.DOCUMENT_CANONICAL_READY,
+                document_id=document.document_id,
+                job_id=job.job_id,
+                percent=_MAX_PROGRESS_PERCENT,
+                message="Canonical document ready. Extraction has not started.",
+                canonicalisation_method=method,
+                canonical_page_count=document.canonical_page_count,
+                canonical_status=CanonicalStatus.READY.value,
+            )
             await _safe_publish(
                 session.broker,
                 ProgressEventType.DOCUMENT_READY_FOR_EXTRACTION,
                 document_id=document.document_id,
                 job_id=job.job_id,
                 percent=_MAX_PROGRESS_PERCENT,
+                message="Canonical document ready. Extraction has not started.",
                 document_status=DocumentStatus.READY_FOR_EXTRACTION,
             )
             await _safe_publish(
@@ -349,6 +438,19 @@ class ProcessingCoordinator:
         job.status = JobStatus.CANCELLED
         job.finished_at = datetime.now(UTC)
         document.status = DocumentStatus.CANCELLED
+        document.canonical_status = CanonicalStatus.CANCELLED
+        document.canonical_view_available = False
+        self._file_store.remove_file(
+            self._file_store.canonical_part_path(session.session_id, document.document_id)
+        )
+        await _safe_publish(
+            session.broker,
+            ProgressEventType.DOCUMENT_CANONICALISATION_CANCELLED,
+            document_id=document.document_id,
+            job_id=job.job_id,
+            document_status=DocumentStatus.CANCELLED,
+            canonical_status=CanonicalStatus.CANCELLED.value,
+        )
         await _safe_publish(
             session.broker,
             ProgressEventType.DOCUMENT_CANCELLED,
@@ -365,13 +467,33 @@ class ProcessingCoordinator:
         )
 
     async def _finalize_failed(
-        self, session: RuntimeSession, job: ProcessingJob, document: RuntimeDocument
+        self,
+        session: RuntimeSession,
+        job: ProcessingJob,
+        document: RuntimeDocument,
+        *,
+        code: str = _FAILURE_CODE,
     ) -> None:
         job.status = JobStatus.FAILED
         job.finished_at = datetime.now(UTC)
-        job.failure_code = _ADMISSION_FAILURE_CODE
-        job.failure_message = "Queue admission could not be completed."
+        job.failure_code = code
+        job.failure_message = "Canonicalisation could not be completed."
         document.status = DocumentStatus.FAILED
+        document.canonical_status = CanonicalStatus.FAILED
+        document.canonical_view_available = False
+        document.canonical_failure_code = code
+        self._file_store.remove_file(
+            self._file_store.canonical_part_path(session.session_id, document.document_id)
+        )
+        await _safe_publish(
+            session.broker,
+            ProgressEventType.DOCUMENT_CANONICALISATION_FAILED,
+            document_id=document.document_id,
+            job_id=job.job_id,
+            message=job.failure_message,
+            document_status=DocumentStatus.FAILED,
+            canonical_status=CanonicalStatus.FAILED.value,
+        )
         await _safe_publish(
             session.broker,
             ProgressEventType.DOCUMENT_FAILED,

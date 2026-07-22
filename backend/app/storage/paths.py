@@ -13,6 +13,7 @@ from typing import Final
 
 from backend.app.contracts.identifiers import (
     DOCUMENT_ID_PATTERN,
+    JOB_ID_PATTERN,
     SESSION_ID_PATTERN,
 )
 
@@ -30,6 +31,7 @@ SESSION_SUBDIRS: Final = (
 
 _SESSION_ID_RE: Final = re.compile(SESSION_ID_PATTERN)
 _DOCUMENT_ID_RE: Final = re.compile(DOCUMENT_ID_PATTERN)
+_JOB_ID_RE: Final = re.compile(JOB_ID_PATTERN)
 # Safe lowercased extension (letters/digits only), used for on-disk file names.
 _SAFE_EXTENSION_RE: Final = re.compile(r"^[a-z0-9]{1,10}$")
 
@@ -48,6 +50,12 @@ def _require_document_id(document_id: str) -> str:
     if not _DOCUMENT_ID_RE.fullmatch(document_id):
         raise UnsafePathError("Invalid document identifier.")
     return document_id
+
+
+def _require_job_id(job_id: str) -> str:
+    if not _JOB_ID_RE.fullmatch(job_id):
+        raise UnsafePathError("Invalid job identifier.")
+    return job_id
 
 
 def _require_safe_extension(extension: str) -> str:
@@ -83,6 +91,31 @@ def original_path(temp_root: Path, session_id: str, document_id: str, extension:
 
     name = f"{_require_document_id(document_id)}.{_require_safe_extension(extension)}"
     return session_dir(temp_root, session_id) / "originals" / name
+
+
+def canonical_path(temp_root: Path, session_id: str, document_id: str) -> Path:
+    """Return the published canonical PDF path."""
+
+    name = f"{_require_document_id(document_id)}.pdf"
+    return session_dir(temp_root, session_id) / "canonical" / name
+
+
+def canonical_part_path(temp_root: Path, session_id: str, document_id: str) -> Path:
+    """Return the in-progress canonical PDF path (``.part`` suffix)."""
+
+    return canonical_path(temp_root, session_id, document_id).with_suffix(".pdf.part")
+
+
+def staging_canonical_dir(temp_root: Path, session_id: str, job_id: str) -> Path:
+    """Return per-job staging for canonical PDF production."""
+
+    return session_dir(temp_root, session_id) / "staging" / "canonical" / _require_job_id(job_id)
+
+
+def staging_libreoffice_dir(temp_root: Path, session_id: str, job_id: str) -> Path:
+    """Return per-job staging for LibreOffice conversion."""
+
+    return session_dir(temp_root, session_id) / "staging" / "libreoffice" / _require_job_id(job_id)
 
 
 def is_contained(root: Path, candidate: Path) -> bool:
