@@ -3,7 +3,7 @@
 **Date:** 2026-07-22  
 **Branch:** `phase/3-native-extraction-trust-gate`  
 **Base tag:** `phase-2-canonical-viewer-coordinates-v1.1` (`da4f4df`)  
-**Tag:** `phase-3-native-extraction-trust-gate-v1` (pending push)
+**Tag:** `phase-3-native-extraction-trust-gate-v1` (bb8d351d4d70390e8c45c0dffbd8fa65c8328937)
 
 ## Summary
 
