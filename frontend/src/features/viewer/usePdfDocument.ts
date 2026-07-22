@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 
 import { getDocument, type PDFDocumentProxy } from "./pdfjs";
+import { buildGetDocumentOptions } from "./pdfjsConfig";
 
 export interface UsePdfDocumentResult {
   readonly pdfDocument: PDFDocumentProxy | undefined;
@@ -29,19 +30,20 @@ export function usePdfDocument(url: string | null): UsePdfDocumentResult {
     }
 
     let cancelled = false;
+    let activeDocument: PDFDocumentProxy | undefined;
     setPdfDocument(undefined);
     setError(null);
     setIsLoading(true);
 
-    const loadingTask = getDocument({ url });
+    const loadingTask = getDocument(buildGetDocumentOptions(url));
 
     loadingTask.promise
       .then((doc) => {
         if (cancelled) {
-          // `loadingTask.destroy()` below already tears down the transport;
-          // nothing further to release on the document itself.
+          doc.cleanup();
           return;
         }
+        activeDocument = doc;
         setPdfDocument(doc);
         setIsLoading(false);
       })
@@ -58,6 +60,9 @@ export function usePdfDocument(url: string | null): UsePdfDocumentResult {
       // Aborts in-flight network requests and destroys the underlying
       // document/worker transport regardless of load state.
       void loadingTask.destroy().catch(() => undefined);
+      if (activeDocument) {
+        activeDocument.cleanup();
+      }
     };
   }, [url]);
 

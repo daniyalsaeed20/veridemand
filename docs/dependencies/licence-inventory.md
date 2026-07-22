@@ -13,7 +13,7 @@ runtime (not a Python/Node package).
 | Package | Version | Licence | Notes |
 |---|---|---|---|
 | reportlab | 4.5.1 | BSD-3-Clause | Permissive; deterministic PDF generation |
-| pdfjs-dist | 6.1.200 | Apache-2.0 | Permissive; patent grant |
+| pdfjs-dist | 6.1.200 | Apache-2.0 | Permissive; patent grant. Ships optional WASM codecs (JBIG2/OpenJPEG/qcms) under `wasm/` with their own licence files; served at `/pdfjs-wasm/`. |
 
 ## Phase 2 external runtime
 

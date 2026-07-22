@@ -21,6 +21,7 @@ STEPS: list[tuple[str, str]] = [
     ("Lockfile: uv", "uv lock --check"),
     ("Lockfile: pnpm", "pnpm install --frozen-lockfile"),
     ("Legacy-scope check", f"{PYTHON} scripts/check_no_legacy_scope.py"),
+    ("Private-corpus tracking guard", f"{PYTHON} scripts/check_no_private_corpus.py"),
     ("Contract generation and drift check", f"{PYTHON} scripts/check_contracts.py"),
     ("Backend format check", "uv run ruff format --check backend scripts"),
     ("Backend lint", "uv run ruff check backend scripts"),
@@ -36,7 +37,12 @@ STEPS: list[tuple[str, str]] = [
     ("Frontend lint", "pnpm -C frontend lint"),
     ("Frontend type check", "pnpm -C frontend typecheck"),
     ("Frontend unit tests", "pnpm -C frontend test"),
+    ("PDF.js WASM sync", f"{PYTHON} scripts/verify_pdfjs_wasm.py --sync --clean --http-check"),
     ("Frontend production build", "pnpm -C frontend build"),
+    (
+        "PDF.js WASM dist check",
+        f"{PYTHON} scripts/verify_pdfjs_wasm.py --require-dist --http-check",
+    ),
 ]
 
 E2E_STEP: tuple[str, str] = ("End-to-end smoke test", "pnpm -C frontend test:e2e")

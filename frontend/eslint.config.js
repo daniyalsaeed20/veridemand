@@ -6,7 +6,14 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["dist", "playwright-report", "test-results", "src/contracts/generated"],
+    ignores: [
+      "dist",
+      "playwright-report",
+      "test-results",
+      "src/contracts/generated",
+      "scripts/**",
+      "public/pdfjs-wasm/**",
+    ],
   },
   {
     files: ["**/*.{ts,tsx}"],
@@ -23,6 +30,12 @@ export default tseslint.config(
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
+    },
+  },
+  {
+    files: ["vite.config.ts", "playwright.config.ts", "openapi-ts.config.ts"],
+    languageOptions: {
+      globals: globals.node,
     },
   },
 );

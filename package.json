@@ -22,6 +22,8 @@
     "test:e2e": "pnpm -C frontend test:e2e",
     "build": "pnpm -C frontend build",
     "check:legacy": "uv run python scripts/check_no_legacy_scope.py",
+    "check:private": "uv run python scripts/check_no_private_corpus.py",
+    "check:wasm": "uv run python scripts/verify_pdfjs_wasm.py --sync --clean",
     "check": "uv run python scripts/check_all.py"
   },
   "devDependencies": {

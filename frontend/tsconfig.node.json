@@ -21,5 +21,10 @@
 
     "types": []
   },
-  "include": ["vite.config.ts", "playwright.config.ts", "openapi-ts.config.ts"]
+  "include": [
+    "vite.config.ts",
+    "playwright.config.ts",
+    "openapi-ts.config.ts",
+    "vite-node-shims.d.ts"
+  ]
 }
