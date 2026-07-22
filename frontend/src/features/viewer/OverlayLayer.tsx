@@ -47,6 +47,7 @@ export function OverlayLayer({
   return (
     <Box
       data-testid="overlay-layer"
+      data-native-word-overlay={nativeWords.length > 0 ? "true" : "false"}
       aria-hidden="true"
       sx={{
         position: "absolute",
@@ -56,6 +57,9 @@ export function OverlayLayer({
         pointerEvents: "none",
       }}
     >
+      {nativeWords.length > 0 ? (
+        <Box component="span" data-testid="native-word-overlay" sx={{ display: "none" }} />
+      ) : null}
       <svg
         width={pixelWidth}
         height={pixelHeight}

@@ -51,7 +51,9 @@ test.describe("Canonical viewer (Phase 2)", () => {
     );
 
     // valid_multi_page.pdf is intentionally blank (page-count fixture only).
-    await expect(page.getByText(/extraction has not started/i).first()).toBeVisible();
+    await expect(
+      page.getByText(/Native text accepted|requires visual processing|native text layer was rejected/i).first(),
+    ).toBeVisible();
     await expect(page.getByText(/extraction complete/i)).toHaveCount(0);
   });
 

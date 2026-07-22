@@ -28,9 +28,7 @@ async def client(tmp_path: Path) -> AsyncIterator[AsyncClient]:
         yield ac
 
 
-async def _wait_native(
-    client: AsyncClient, session_id: str, document_id: str
-) -> dict[str, object]:
+async def _wait_native(client: AsyncClient, session_id: str, document_id: str) -> dict[str, object]:
     import asyncio
 
     for _ in range(400):

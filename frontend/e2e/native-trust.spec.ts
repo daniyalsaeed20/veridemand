@@ -28,7 +28,11 @@ test.describe("Phase 3 native trust", () => {
     const toggle = page.getByLabel(/show native word boxes/i);
     if ((await toggle.count()) > 0) {
       await toggle.check();
-      await expect(page.getByText(/Native PDF boxes/i).first()).toBeVisible();
+      await expect(page.getByTestId("native-word-overlay")).toBeAttached();
+      await expect(page.getByTestId("overlay-layer")).toHaveAttribute(
+        "data-native-word-overlay",
+        "true",
+      );
     }
 
     await page.getByRole("button", { name: /zoom in/i }).click();
