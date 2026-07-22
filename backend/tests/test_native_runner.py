@@ -46,6 +46,37 @@ async def test_worker_success(tmp_path: Path) -> None:
     assert outcome.pages[0].words
 
 
+def test_worker_success_under_selector_event_loop(tmp_path: Path) -> None:
+    """Windows uvicorn --reload uses SelectorEventLoop; Popen must still work."""
+
+    import asyncio
+    import sys
+
+    pdf_resolved, pages = _resolved_good_pdf()
+    request = NativeWorkerRequest(
+        session_id="ses_" + ("a" * 32),
+        document_id="doc_" + ("b" * 32),
+        job_id="job_" + ("c" * 32),
+        canonical_pdf_path=pdf_resolved,
+        canonicalisation_method="original_pdf",
+        pages=pages,
+        policy=NativeTrustPolicyConfig(),
+    )
+    runner = NativeExtractionRunner(timeout_seconds=120, grace_seconds=2)
+    staging = tmp_path / "staging-selector"
+
+    async def _run() -> None:
+        outcome = await runner.run(request, staging_dir=staging)
+        assert outcome.exit_code == 0
+        assert outcome.summary.pages_accepted >= 1
+        assert outcome.pages[0].words
+
+    if sys.platform == "win32":
+        asyncio.run(_run(), loop_factory=asyncio.SelectorEventLoop)
+    else:
+        asyncio.run(_run())
+
+
 @pytest.mark.asyncio
 async def test_worker_timeout(tmp_path: Path) -> None:
     pdf_resolved, pages = _resolved_good_pdf()

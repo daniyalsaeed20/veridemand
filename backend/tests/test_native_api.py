@@ -17,15 +17,22 @@ IMAGE_BYTES = Path("fixtures/synthetic/native/image-only.pdf").read_bytes()
 
 
 @pytest.fixture
-async def client(tmp_path: Path) -> AsyncIterator[AsyncClient]:
+async def app_client(tmp_path: Path) -> AsyncIterator[tuple[object, AsyncClient]]:
+    from fastapi import FastAPI
+
     settings = Settings(temp_root=tmp_path / "temp")
-    app = create_app(settings)
+    app: FastAPI = create_app(settings)
     transport = ASGITransport(app=app)
     async with (
         app.router.lifespan_context(app),
         AsyncClient(transport=transport, base_url="http://test") as ac,
     ):
-        yield ac
+        yield app, ac
+
+
+@pytest.fixture
+async def client(app_client: tuple[object, AsyncClient]) -> AsyncClient:
+    return app_client[1]
 
 
 async def _wait_native(client: AsyncClient, session_id: str, document_id: str) -> dict[str, object]:
@@ -42,7 +49,23 @@ async def _wait_native(client: AsyncClient, session_id: str, document_id: str) -
     raise AssertionError("timed out waiting for native trust")
 
 
-async def test_good_native_api_flow(client: AsyncClient) -> None:
+async def test_good_native_api_flow(app_client: tuple[object, AsyncClient]) -> None:
+    # Production wiring (same factory/lifespan as pnpm dev) — not a fake native service.
+    from fastapi import FastAPI
+
+    from backend.app.extraction.native.runner import NativeExtractionRunner
+    from backend.app.extraction.native.service import NativeExtractionService
+    from backend.app.processing.coordinator import ProcessingCoordinator
+
+    app_obj, client = app_client
+    assert isinstance(app_obj, FastAPI)
+    wiring = app_obj.state.coordinator.describe_native_runtime()
+    assert wiring["native_service_class"] == NativeExtractionService.__qualname__
+    assert wiring["native_runner_class"] == NativeExtractionRunner.__qualname__
+    assert wiring["coordinator_class"] == ProcessingCoordinator.__qualname__
+    assert type(app_obj.state.native_service) is NativeExtractionService
+    assert type(app_obj.state.coordinator) is ProcessingCoordinator
+
     session = (await client.post("/api/v1/sessions")).json()
     session_id = session["session_id"]
     files = {"files": ("good.pdf", GOOD_BYTES, "application/pdf")}

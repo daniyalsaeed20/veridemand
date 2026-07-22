@@ -230,6 +230,12 @@ def build_coordinator(
         def delete_results(self, session_id: str, document_id: str) -> None:
             return None
 
+        def describe_runtime(self) -> dict[str, str]:
+            return {
+                "native_service_class": type(self).__qualname__,
+                "native_runner_class": "FakeNativeRunner",
+            }
+
     native = native_service or _FakeNativeService()
     return ProcessingCoordinator(
         registry,
