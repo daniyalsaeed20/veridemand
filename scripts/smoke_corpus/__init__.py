@@ -1,0 +1,23 @@
+"""Synthetic PDF regression smoke corpus helpers."""
+
+from __future__ import annotations
+
+__all__ = [
+    "CRITICAL_SUBSET",
+    "EXPECTED_MANIFEST_SHA256",
+    "EXPECTED_PDF_SHA256",
+]
+
+CRITICAL_SUBSET: tuple[str, ...] = (
+    "T01",
+    "T05",
+    "T10",
+    "T14",
+    "T20",
+    "T21",
+    "T41",
+)
+
+# Keep in sync with docs/smoke/README.md.
+EXPECTED_PDF_SHA256 = "373177016F10A6BA04142197F9A434AF8365493783F873C02B4E35889EC4FEA7"
+EXPECTED_MANIFEST_SHA256 = "6E899DF6154317C5F2233E4FC90F5EBC2C55E18EA0BD30B37B892B1F5538D9EC"

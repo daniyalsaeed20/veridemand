@@ -24,6 +24,11 @@
     "check:legacy": "uv run python scripts/check_no_legacy_scope.py",
     "check:private": "uv run python scripts/check_no_private_corpus.py",
     "check:wasm": "uv run python scripts/verify_pdfjs_wasm.py --sync --clean",
+    "smoke:corpus": "uv run python scripts/run_smoke_corpus.py --mode page-by-page",
+    "smoke:corpus:whole": "uv run python scripts/run_smoke_corpus.py --mode whole-document",
+    "smoke:corpus:page": "uv run python scripts/run_smoke_corpus.py --mode page-by-page",
+    "smoke:corpus:test-id": "uv run python scripts/run_smoke_corpus.py --mode page-by-page --test-id",
+    "smoke:corpus:validate": "uv run python scripts/run_smoke_corpus.py --validate-only",
     "check": "uv run python scripts/check_all.py"
   },
   "devDependencies": {

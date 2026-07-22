@@ -54,13 +54,19 @@ select = ["E", "F", "I", "UP", "B", "ASYNC", "SIM", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
 "backend/tests/*" = ["S101"]
+# Fixture PDF generator: disposable ReportLab script, not production API code.
+"scripts/generate_veridemand_regression_pdf.py" = ["ALL"]
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
 files = ["backend", "scripts"]
 plugins = ["pydantic.mypy"]
-exclude = ["^frontend/", "^\\.venv/"]
+exclude = [
+  "^frontend/",
+  "^\\.venv/",
+  "^scripts/generate_veridemand_regression_pdf\\.py$",
+]
 
 [[tool.mypy.overrides]]
 module = ["backend.tests.*"]
@@ -71,3 +77,7 @@ disallow_untyped_defs = false
 [[tool.mypy.overrides]]
 module = ["defusedxml.*", "olefile", "olefile.*", "oletools.*", "reportlab.*", "pdfplumber.*", "pdfminer.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["scripts.generate_veridemand_regression_pdf"]
+ignore_errors = true

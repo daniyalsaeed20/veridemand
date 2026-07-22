@@ -112,3 +112,76 @@ jobs:
           name: playwright-report
           path: frontend/playwright-report/
           retention-days: 7
+
+  smoke-corpus:
+    name: Synthetic smoke corpus (critical subset)
+    runs-on: ubuntu-latest
+    env:
+      OPENAI_API_KEY: ""
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv (Python 3.12)
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.18.0"
+
+      - name: Enable Corepack and pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.15.1 --activate
+
+      - name: Install dependencies (frozen)
+        run: |
+          uv sync --frozen --all-groups
+          pnpm install --frozen-lockfile
+
+      - name: Install LibreOffice Writer
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libreoffice-writer
+          libreoffice --version
+
+      - name: Validate smoke corpus PDF and manifest
+        run: pnpm smoke:corpus:validate
+
+      - name: Start backend API
+        run: |
+          uv run uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 &
+          echo $! > /tmp/veridemand-api.pid
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8000/health/live >/dev/null 2>&1; then
+              echo "API ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "API failed to become ready"
+          exit 1
+
+      - name: Run critical page-by-page subset
+        run: |
+          mkdir -p tmp/smoke
+          pnpm smoke:corpus -- --critical-subset --output-json tmp/smoke/critical-summary.json
+
+      - name: Stop backend API
+        if: always()
+        run: |
+          if [ -f /tmp/veridemand-api.pid ]; then
+            kill "$(cat /tmp/veridemand-api.pid)" || true
+          fi
+
+      - name: Upload sanitised smoke summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-corpus-critical-summary
+          path: tmp/smoke/critical-summary.json
+          retention-days: 14
+          if-no-files-found: ignore
