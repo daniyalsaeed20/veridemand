@@ -85,6 +85,14 @@ class ProcessingCoordinator:
     def running(self) -> bool:
         return self._running and self._worker is not None and not self._worker.done()
 
+    def describe_native_runtime(self) -> dict[str, str]:
+        """Return concrete native wiring classes for production-path assertions."""
+
+        described = self._native.describe_runtime()
+        described["canonical_processor_class"] = type(self._processor).__qualname__
+        described["coordinator_class"] = type(self).__qualname__
+        return described
+
     def start(self) -> None:
         if self._worker is not None:
             return
@@ -445,10 +453,37 @@ class ProcessingCoordinator:
             except JobCancelledError:
                 await self._finalize_cancelled(session, job, document)
             except NativeExtractionError as exc:
-                logger.warning("Native extraction failed: %s", exc.code.value)
+                logger.exception(
+                    "Native extraction failed",
+                    extra={
+                        "document_id": document.document_id,
+                        "job_id": job.job_id,
+                        "error_code": exc.code.value,
+                        "exception_type": type(exc).__name__,
+                        "failing_component": exc.failing_component
+                        or type(self._native).__qualname__,
+                        "operation": exc.operation or "extract_document",
+                        "worker_exit_code": exc.worker_exit_code,
+                        "processor_class": type(self._processor).__qualname__,
+                        "native_service_class": type(self._native).__qualname__,
+                    },
+                )
                 await self._finalize_native_failed(session, job, document, code=exc.code.value)
             except Exception as exc:
-                logger.warning("Native extraction failed: %s", type(exc).__name__)
+                logger.exception(
+                    "Native extraction failed",
+                    extra={
+                        "document_id": document.document_id,
+                        "job_id": job.job_id,
+                        "error_code": ErrorCode.NATIVE_EXTRACTION_FAILED.value,
+                        "exception_type": type(exc).__name__,
+                        "failing_component": type(self._native).__qualname__,
+                        "operation": "extract_document",
+                        "worker_exit_code": None,
+                        "processor_class": type(self._processor).__qualname__,
+                        "native_service_class": type(self._native).__qualname__,
+                    },
+                )
                 await self._finalize_native_failed(
                     session, job, document, code=ErrorCode.NATIVE_EXTRACTION_FAILED.value
                 )
