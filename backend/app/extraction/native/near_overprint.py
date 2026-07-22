@@ -696,9 +696,9 @@ def _quick_near_ratio(
     for key, indices in buckets.items():
         text, bx, by = key
         neighbours: list[int] = []
-        for dx in (-1, 0, 1):
-            for dy in (-1, 0, 1):
-                neighbours.extend(buckets.get((text, bx + dx, by + dy), []))
+        for cell_dx in (-1, 0, 1):
+            for cell_dy in (-1, 0, 1):
+                neighbours.extend(buckets.get((text, bx + cell_dx, by + cell_dy), []))
         for i in indices:
             for j in neighbours:
                 if j <= i:
