@@ -49,7 +49,9 @@ def draw_good_page(pdf: canvas.Canvas, page_number: int = 1) -> None:
     pdf.setFont(UNICODE_BOLD_FONT, 18)
     pdf.drawString(72, 730, f"Synthetic Native Text - Page {page_number}")
     pdf.setFont(UNICODE_FONT, 11)
-    pdf.drawString(72, 700, "This deterministic paragraph contains digits 0123456789 and punctuation: ,.;:!?")
+    pdf.drawString(
+        72, 700, "This deterministic paragraph contains digits 0123456789 and punctuation: ,.;:!?"
+    )
     pdf.drawString(72, 684, "Accented Unicode: café, naïve, résumé, jalapeño, and coöperate.")
     pdf.setFont("Courier", 10)
     pdf.drawString(72, 650, "Code: INV-2026-042 | Status: READY | Amount: 123.45")
@@ -58,14 +60,20 @@ def draw_good_page(pdf: canvas.Canvas, page_number: int = 1) -> None:
     pdf.drawString(250, 615, "Count")
     pdf.drawString(380, 615, "Note")
     pdf.setFont(UNICODE_FONT, 10)
-    rows = (("Alpha", "12", "plain text"), ("Bravo", "34", "table-like layout"), ("Café", "56", "Unicode"))
+    rows = (
+        ("Alpha", "12", "plain text"),
+        ("Bravo", "34", "table-like layout"),
+        ("Café", "56", "Unicode"),
+    )
     for index, (item, count, note) in enumerate(rows):
         y = 595 - index * 20
         pdf.drawString(72, y, item)
         pdf.drawRightString(285, y, count)
         pdf.drawString(380, y, note)
     pdf.setFont(UNICODE_FONT, 9)
-    pdf.drawString(72, 515, "All content is synthetic and contains no private or medical information.")
+    pdf.drawString(
+        72, 515, "All content is synthetic and contains no private or medical information."
+    )
 
 
 def write_good_single_page(path: Path) -> None:
@@ -187,15 +195,27 @@ def write_raw_text_layer(path: Path, codepoints: list[int], content: bytes) -> N
 
 
 def write_replacement_characters(path: Path) -> None:
-    write_raw_text_layer(path, [ord("A"), 0xFFFD, ord("B"), 0xFFFD, ord("C")], b"BT /F1 16 Tf 72 720 Td <0102030405> Tj ET")
+    write_raw_text_layer(
+        path,
+        [ord("A"), 0xFFFD, ord("B"), 0xFFFD, ord("C")],
+        b"BT /F1 16 Tf 72 720 Td <0102030405> Tj ET",
+    )
 
 
 def write_private_use(path: Path) -> None:
-    write_raw_text_layer(path, [ord("P"), 0xE001, ord("R"), 0xE002, ord("I")], b"BT /F1 16 Tf 72 720 Td <0102030405> Tj ET")
+    write_raw_text_layer(
+        path,
+        [ord("P"), 0xE001, ord("R"), 0xE002, ord("I")],
+        b"BT /F1 16 Tf 72 720 Td <0102030405> Tj ET",
+    )
 
 
 def write_control_characters(path: Path) -> None:
-    write_raw_text_layer(path, [ord("A"), 0x0001, ord("B"), 0x0002, ord("C")], b"BT /F1 16 Tf 72 720 Td <0102030405> Tj ET")
+    write_raw_text_layer(
+        path,
+        [ord("A"), 0x0001, ord("B"), 0x0002, ord("C")],
+        b"BT /F1 16 Tf 72 720 Td <0102030405> Tj ET",
+    )
 
 
 def write_duplicate_text(path: Path) -> None:
@@ -240,6 +260,62 @@ def write_corrupt_geometry(path: Path) -> None:
     )
 
 
+def write_noncharacter_layer(path: Path) -> None:
+    # U+FFFE and U+FFFF are Unicode noncharacters.
+    write_raw_text_layer(
+        path,
+        [ord("N"), 0xFFFE, ord("O"), 0xFFFF, ord("N")],
+        b"BT /F1 16 Tf 72 720 Td <0102030405> Tj ET",
+    )
+
+
+def write_parser_error_page(path: Path) -> None:
+    """Single page whose content stream is intentionally unreadable to pdfminer."""
+
+    writer = PdfWriter()
+    page = writer.add_blank_page(width=PAGE_WIDTH, height=PAGE_HEIGHT)
+    resources = DictionaryObject(
+        {
+            NameObject("/Font"): DictionaryObject(
+                {
+                    NameObject("/F1"): DictionaryObject(
+                        {
+                            NameObject("/Type"): NameObject("/Font"),
+                            NameObject("/Subtype"): NameObject("/Type1"),
+                            NameObject("/BaseFont"): NameObject("/Helvetica"),
+                        }
+                    )
+                }
+            )
+        }
+    )
+    page[NameObject("/Resources")] = resources
+    stream = DecodedStreamObject()
+    # Truncated/illegal operators commonly trip pdfminer while parsing page content.
+    stream.set_data(b"BT /F1 12 Tf 72 720 Td (broken\x00stream BI /W 1 /H 1 /BPC 8 ID <<")
+    page[NameObject("/Contents")] = writer._add_object(stream)
+    with path.open("wb") as handle:
+        writer.write(handle)
+
+
+def write_good_with_one_parser_error(path: Path) -> None:
+    """Three pages: good, parser-error, good — tests page-level containment."""
+
+    good = OUT_DIR / "_tmp_good_page.pdf"
+    bad = OUT_DIR / "_tmp_bad_page.pdf"
+    write_good_single_page(good)
+    write_parser_error_page(bad)
+    writer = PdfWriter()
+    writer.add_page(PdfReader(str(good)).pages[0])
+    writer.add_page(PdfReader(str(bad)).pages[0])
+    write_good_single_page(good)
+    writer.add_page(PdfReader(str(good)).pages[0])
+    with path.open("wb") as handle:
+        writer.write(handle)
+    good.unlink(missing_ok=True)
+    bad.unlink(missing_ok=True)
+
+
 def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     generators = {
@@ -257,10 +333,13 @@ def main() -> None:
         "cid-token-layer.pdf": write_cid_tokens,
         "symbol-noise-layer.pdf": write_symbol_noise,
         "corrupt-geometry-layer.pdf": write_corrupt_geometry,
+        "noncharacter-layer.pdf": write_noncharacter_layer,
+        "parser-error-page.pdf": write_parser_error_page,
+        "good-with-one-parser-error.pdf": write_good_with_one_parser_error,
     }
-    for filename, generate in generators.items():
-        generate(OUT_DIR / filename)
-    print(f"Generated {len(generators)} deterministic native-PDF fixtures in {OUT_DIR}")
+    for name, writer_fn in generators.items():
+        writer_fn(OUT_DIR / name)
+    print(f"Wrote {len(generators)} synthetic native fixtures to {OUT_DIR}")
 
 
 if __name__ == "__main__":

@@ -126,6 +126,59 @@ async def test_worker_cancellation(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_worker_failure_envelope_is_parsed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Infrastructure failure writes a privacy-safe envelope the runner parses."""
+
+    def _fake_spawn(self: NativeExtractionRunner, command: list[str]) -> object:
+        import subprocess
+        import sys
+
+        # Tiny child that writes the envelope and exits 1.
+        output = Path(command[command.index("--output") + 1])
+        code = (
+            "import json,sys; "
+            f"p=r'''{output}'''; "
+            "open(p,'w',encoding='utf-8').write(json.dumps({"
+            "'status':'failed',"
+            "'error':{"
+            "'code':'native_worker_failed',"
+            "'exception_type':'RuntimeError',"
+            "'component':'native_worker',"
+            "'operation':'run_worker',"
+            "'page_number':None,"
+            "'recoverable_as_visual_authority':False"
+            "}})); "
+            "sys.exit(1)"
+        )
+        return subprocess.Popen(
+            [sys.executable, "-c", code],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+    monkeypatch.setattr(NativeExtractionRunner, "_spawn", _fake_spawn)
+    pdf_resolved, pages = _resolved_good_pdf()
+    request = NativeWorkerRequest(
+        session_id="ses_" + ("a" * 32),
+        document_id="doc_" + ("b" * 32),
+        job_id="job_" + ("c" * 32),
+        canonical_pdf_path=pdf_resolved,
+        canonicalisation_method="original_pdf",
+        pages=pages,
+        policy=NativeTrustPolicyConfig(),
+    )
+    with pytest.raises(NativeExtractionError) as exc:
+        await NativeExtractionRunner(timeout_seconds=30, grace_seconds=1).run(
+            request, staging_dir=tmp_path / "staging-env"
+        )
+    assert exc.value.code is ErrorCode.NATIVE_WORKER_FAILED
+    assert exc.value.operation == "run_worker"
+    assert exc.value.exception_type == "RuntimeError"
+
+
+@pytest.mark.asyncio
 async def test_self_check(tmp_path: Path) -> None:
     runner = NativeExtractionRunner(timeout_seconds=30, grace_seconds=1)
     assert await runner.self_check(tmp_path / "self")
