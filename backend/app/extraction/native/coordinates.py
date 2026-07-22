@@ -134,27 +134,47 @@ def map_pdfplumber_box(
     nw = width / page_width
     nh = height / page_height
 
-    # Clamp tiny FP overflow into [0,1] for public Geometry validation.
+    # Clamp into [0,1] so polygon corners never exceed 1.0 (FP: nx=1 + nw=1e-9).
     nx = min(max(nx, 0.0), 1.0)
     ny = min(max(ny, 0.0), 1.0)
-    nw = min(max(nw, 0.0), max(1.0 - nx, 1e-9))
-    nh = min(max(nh, 0.0), max(1.0 - ny, 1e-9))
+    nw = min(max(nw, 0.0), 1.0 - nx)
+    nh = min(max(nh, 0.0), 1.0 - ny)
     if nw <= 0 or nh <= 0:
         invalid = True
         zero_area = True
-        nw = max(nw, 1e-6)
-        nh = max(nh, 1e-6)
+        # Schema-valid placeholder; callers use invalid/zero_area flags.
+        geom = Geometry(
+            polygon=NormalisedPolygon(
+                points=[
+                    NormalisedPoint(x=0.0, y=0.0),
+                    NormalisedPoint(x=0.01, y=0.0),
+                    NormalisedPoint(x=0.01, y=0.01),
+                    NormalisedPoint(x=0.0, y=0.01),
+                ]
+            ),
+            bbox=NormalisedBoundingBox(x=0.0, y=0.0, width=0.01, height=0.01),
+        )
+        return MappedBox(
+            pdf_point_bbox=pdf_box,
+            geometry=geom,
+            invalid=True,
+            out_of_bounds=out_of_bounds,
+            zero_area=True,
+            clamped=clamped,
+        )
 
+    right = min(nx + nw, 1.0)
+    bottom = min(ny + nh, 1.0)
     geom = Geometry(
         polygon=NormalisedPolygon(
             points=[
                 NormalisedPoint(x=nx, y=ny),
-                NormalisedPoint(x=nx + nw, y=ny),
-                NormalisedPoint(x=nx + nw, y=ny + nh),
-                NormalisedPoint(x=nx, y=ny + nh),
+                NormalisedPoint(x=right, y=ny),
+                NormalisedPoint(x=right, y=bottom),
+                NormalisedPoint(x=nx, y=bottom),
             ]
         ),
-        bbox=NormalisedBoundingBox(x=nx, y=ny, width=nw, height=nh),
+        bbox=NormalisedBoundingBox(x=nx, y=ny, width=right - nx, height=bottom - ny),
     )
     return MappedBox(
         pdf_point_bbox=pdf_box,

@@ -1355,6 +1355,20 @@
             "title": "Duplicate Layer Coverage Ratio",
             "type": "number"
           },
+          "duplicate_line_count": {
+            "default": 0,
+            "description": "Lines with severe near-overprint duplication.",
+            "minimum": 0.0,
+            "title": "Duplicate Line Count",
+            "type": "integer"
+          },
+          "duplicate_region_count": {
+            "default": 0,
+            "description": "Contiguous regions of severely duplicated lines.",
+            "minimum": 0.0,
+            "title": "Duplicate Region Count",
+            "type": "integer"
+          },
           "extraction_order_backtrack_ratio": {
             "maximum": 1.0,
             "minimum": 0.0,
@@ -1365,6 +1379,20 @@
             "minimum": 0.0,
             "title": "Font Count",
             "type": "integer"
+          },
+          "hard_rule_explanation": {
+            "description": "Dev-oriented hard-rule condition lines (no private text).",
+            "items": {
+              "type": "string"
+            },
+            "title": "Hard Rule Explanation",
+            "type": "array"
+          },
+          "hard_rule_path": {
+            "default": "none",
+            "description": "Near-overprint hard path that fired: none, A, or B.",
+            "title": "Hard Rule Path",
+            "type": "string"
           },
           "image_count": {
             "minimum": 0.0,
@@ -1430,6 +1458,13 @@
             "title": "Noncharacter Ratio",
             "type": "number"
           },
+          "offset_cluster_count": {
+            "default": 0,
+            "description": "Number of tolerant displacement clusters among matches.",
+            "minimum": 0.0,
+            "title": "Offset Cluster Count",
+            "type": "integer"
+          },
           "out_of_bounds_character_ratio": {
             "maximum": 1.0,
             "minimum": 0.0,
@@ -1440,6 +1475,22 @@
             "description": "Whether page dims match canonical metadata.",
             "title": "Page Dimension Match",
             "type": "boolean"
+          },
+          "page_horizontal_span_ratio": {
+            "default": 0.0,
+            "description": "Horizontal span of matched duplicates / page width.",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Page Horizontal Span Ratio",
+            "type": "number"
+          },
+          "page_vertical_span_ratio": {
+            "default": 0.0,
+            "description": "Vertical span of matched duplicates / page height.",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Page Vertical Span Ratio",
+            "type": "number"
           },
           "private_use_character_ratio": {
             "maximum": 1.0,
@@ -1482,6 +1533,22 @@
             "maximum": 1.0,
             "minimum": 0.0,
             "title": "Symbol Only Word Ratio",
+            "type": "number"
+          },
+          "top_k_offset_cluster_support_ratio": {
+            "default": 0.0,
+            "description": "Combined support of the top-K tolerant offset clusters.",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Top K Offset Cluster Support Ratio",
+            "type": "number"
+          },
+          "top_offset_cluster_support_ratio": {
+            "default": 0.0,
+            "description": "Support ratio of the largest tolerant offset cluster.",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Top Offset Cluster Support Ratio",
             "type": "number"
           },
           "total_clipped_image_area_ratio": {

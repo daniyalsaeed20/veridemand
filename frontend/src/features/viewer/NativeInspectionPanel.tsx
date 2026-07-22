@@ -71,8 +71,23 @@ export function NativeInspectionPanel({
           <Typography variant="body2">
             dominant_offset: ({displayValue(page.trust.metrics.dominant_duplicate_offset_x)},{" "}
             {displayValue(page.trust.metrics.dominant_duplicate_offset_y)}) · support:{" "}
-            {displayValue(page.trust.metrics.dominant_offset_support_ratio)}
+            {displayValue(page.trust.metrics.dominant_offset_support_ratio)} (informational)
           </Typography>
+          <Typography variant="body2">
+            top_k_cluster_support:{" "}
+            {displayValue(page.trust.metrics.top_k_offset_cluster_support_ratio)} · clusters:{" "}
+            {displayValue(page.trust.metrics.offset_cluster_count)} · dup_lines:{" "}
+            {displayValue(page.trust.metrics.duplicate_line_count)} · dup_regions:{" "}
+            {displayValue(page.trust.metrics.duplicate_region_count)}
+          </Typography>
+          <Typography variant="body2">
+            hard_rule_path: {displayValue(page.trust.metrics.hard_rule_path)}
+          </Typography>
+          {import.meta.env.DEV && page.trust.metrics.hard_rule_explanation?.length ? (
+            <Alert severity="info" sx={{ whiteSpace: "pre-wrap", fontFamily: "monospace" }}>
+              {page.trust.metrics.hard_rule_explanation.join("\n")}
+            </Alert>
+          ) : null}
 
           {accepted ? (
             <>

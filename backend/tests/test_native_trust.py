@@ -299,6 +299,28 @@ def test_coordinate_top_left_mapping() -> None:
     assert mapped.geometry.bbox.y == pytest.approx(50 / 792)
 
 
+def test_coordinate_edge_clamp_never_exceeds_unit_square() -> None:
+    """Right/bottom polygon corners must stay within [0,1] (FP edge case)."""
+
+    mapped = map_pdfplumber_box(
+        x0=299.999999,
+        x1=300.000002,
+        top=0.0,
+        bottom=10.0,
+        page_bbox_x0=0.0,
+        page_bbox_top=0.0,
+        page_width=300.0,
+        page_height=300.0,
+        coordinate_tolerance_points=0.5,
+    )
+    for point in mapped.geometry.polygon.points:
+        assert 0.0 <= point.x <= 1.0
+        assert 0.0 <= point.y <= 1.0
+    bbox = mapped.geometry.bbox
+    assert bbox.x + bbox.width <= 1.0 + 1e-12
+    assert bbox.y + bbox.height <= 1.0 + 1e-12
+
+
 def test_document_escalation_suppresses_text() -> None:
     from backend.app.contracts.native import (
         NativePageMetrics,

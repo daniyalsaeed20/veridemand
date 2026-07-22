@@ -210,6 +210,53 @@ class NativePageMetrics(ApiModel):
         ge=0,
         description="Approximate distinct line bins among near-duplicate matches.",
     )
+    top_offset_cluster_support_ratio: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Support ratio of the largest tolerant offset cluster.",
+    )
+    top_k_offset_cluster_support_ratio: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Combined support of the top-K tolerant offset clusters.",
+    )
+    offset_cluster_count: int = Field(
+        default=0,
+        ge=0,
+        description="Number of tolerant displacement clusters among matches.",
+    )
+    duplicate_line_count: int = Field(
+        default=0,
+        ge=0,
+        description="Lines with severe near-overprint duplication.",
+    )
+    duplicate_region_count: int = Field(
+        default=0,
+        ge=0,
+        description="Contiguous regions of severely duplicated lines.",
+    )
+    page_vertical_span_ratio: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Vertical span of matched duplicates / page height.",
+    )
+    page_horizontal_span_ratio: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Horizontal span of matched duplicates / page width.",
+    )
+    hard_rule_path: str = Field(
+        default="none",
+        description="Near-overprint hard path that fired: none, A, or B.",
+    )
+    hard_rule_explanation: list[str] = Field(
+        default_factory=list,
+        description="Dev-oriented hard-rule condition lines (no private text).",
+    )
     replacement_character_ratio: float = Field(ge=0.0, le=1.0)
     control_character_ratio: float = Field(ge=0.0, le=1.0)
     private_use_character_ratio: float = Field(ge=0.0, le=1.0)

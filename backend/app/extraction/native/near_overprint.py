@@ -1,7 +1,7 @@
-"""Near-overprint duplicate detection, composite hard evidence, and layer collapse.
+"""Near-overprint duplicate detection, multi-path hard reject, and layer collapse.
 
-Phase 3.4: soft duplication_score alone must not accept interleaved doubles.
-Composite layer evidence forces clean-or-reject.
+Phase 3.5: PATH A (widespread), PATH B (coherent partial/region), PATH C (safe
+collapse). Dominant single-offset support is informational only.
 """
 
 from __future__ import annotations
@@ -9,8 +9,8 @@ from __future__ import annotations
 import math
 import unicodedata
 from collections import Counter, defaultdict
-from collections.abc import Callable, Hashable
-from dataclasses import dataclass
+from collections.abc import Callable, Hashable, Sequence
+from dataclasses import dataclass, field
 from typing import Literal
 
 from backend.app.extraction.native.models import RawCharCandidate, RawWordCandidate
@@ -20,11 +20,21 @@ DEFAULT_CENTRE_DISTANCE_FACTOR = 0.35
 DEFAULT_CENTRE_DISTANCE_CAP_POINTS = 3.5
 DEFAULT_SIZE_SIMILARITY = 0.40
 DEFAULT_OFFSET_BIN_POINTS = 0.25
-DEFAULT_MIN_PAIR_FRACTION_FOR_LAYER = 0.15
 DEFAULT_CROSS_COVERAGE_MIN = 0.85
 DEFAULT_COVERAGE_GAP_MAX = 0.05
 DEFAULT_MIN_WORD_SPAN = 3
 DEFAULT_MIN_LINE_SPAN = 2
+DEFAULT_OFFSET_CLUSTER_ABS_TOL = 0.75
+DEFAULT_OFFSET_CLUSTER_SIZE_FACTOR = 0.08
+DEFAULT_OFFSET_CLUSTER_TOP_K = 3
+DEFAULT_PATH_B_MIN_COVERAGE = 0.90
+DEFAULT_PATH_B_MIN_MATCHES = 48
+DEFAULT_PATH_B_MIN_DUPLICATE_LINES = 2
+DEFAULT_PATH_B_MIN_DUPLICATE_REGIONS = 1
+DEFAULT_REGION_MIN_CHARS = 12
+DEFAULT_REGION_SEVERE_RATIO = 0.50
+DEFAULT_REGION_MIN_MATCHED = 8
+DEFAULT_GEOMETRIC_INTERLEAVE_RATIO = 0.12
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +52,15 @@ class NearOverprintMetrics:
     matched_word_span: int = 0
     matched_line_span: int = 0
     composite_duplicate_layer_evidence: bool = False
+    top_offset_cluster_support_ratio: float = 0.0
+    top_k_offset_cluster_support_ratio: float = 0.0
+    offset_cluster_count: int = 0
+    duplicate_line_count: int = 0
+    duplicate_region_count: int = 0
+    page_vertical_span_ratio: float = 0.0
+    page_horizontal_span_ratio: float = 0.0
+    hard_rule_path: str = "none"
+    hard_rule_explanation: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,9 +78,44 @@ class CompositeThresholds:
     max_near_overprint_ratio: float = 0.08
     max_duplicate_layer_coverage_ratio: float = 0.70
     min_near_duplicate_match_count: int = 24
-    min_dominant_offset_support_ratio: float = 0.55
+    min_dominant_offset_support_ratio: float = 0.55  # informational only
     min_word_span: int = DEFAULT_MIN_WORD_SPAN
     min_line_span: int = DEFAULT_MIN_LINE_SPAN
+    offset_cluster_abs_tol: float = DEFAULT_OFFSET_CLUSTER_ABS_TOL
+    offset_cluster_size_factor: float = DEFAULT_OFFSET_CLUSTER_SIZE_FACTOR
+    offset_cluster_top_k: int = DEFAULT_OFFSET_CLUSTER_TOP_K
+    path_b_min_coverage: float = DEFAULT_PATH_B_MIN_COVERAGE
+    path_b_min_matches: int = DEFAULT_PATH_B_MIN_MATCHES
+    path_b_min_duplicate_lines: int = DEFAULT_PATH_B_MIN_DUPLICATE_LINES
+    path_b_min_duplicate_regions: int = DEFAULT_PATH_B_MIN_DUPLICATE_REGIONS
+    region_min_chars: int = DEFAULT_REGION_MIN_CHARS
+    region_severe_ratio: float = DEFAULT_REGION_SEVERE_RATIO
+    region_min_matched: int = DEFAULT_REGION_MIN_MATCHED
+
+
+@dataclass(frozen=True, slots=True)
+class HardRuleCondition:
+    metric: str
+    value: str
+    threshold: str
+    passed: bool
+    mandatory: bool
+
+
+@dataclass(frozen=True, slots=True)
+class HardRuleExplanation:
+    path: str
+    final_hard_rejection: bool
+    conditions: tuple[HardRuleCondition, ...] = field(default_factory=tuple)
+
+    def format_lines(self) -> tuple[str, ...]:
+        lines = [f"Duplicate-layer hard rejection path={self.path}:"]
+        for c in self.conditions:
+            status = "PASS" if c.passed else "FAIL"
+            kind = "mandatory" if c.mandatory else "informational"
+            lines.append(f"- {c.metric}: {c.value} {c.threshold}: {status} ({kind})")
+        lines.append(f"- final hard rejection: {str(self.final_hard_rejection).upper()}")
+        return tuple(lines)
 
 
 class _UnionFind:
@@ -292,36 +346,396 @@ def interleaved_double_ratio(text: str) -> float:
     return doubles / max(alnum, 1)
 
 
-def composite_duplicate_layer_evidence(
-    metrics: NearOverprintMetrics,
-    thresholds: CompositeThresholds,
-) -> bool:
-    """True when generic evidence shows a substantial duplicated layer."""
+def max_consecutive_double_pair_run(text: str) -> int:
+    """Longest run of consecutive doubled alphanumeric pairs (``AABBCC…``).
 
-    span_ok = (
-        metrics.matched_word_span >= thresholds.min_word_span
-        or metrics.matched_line_span >= thresholds.min_line_span
-        # Complete near-full layer duplicates may sit on one line.
+    Distinguishes overprint ``SSYYNN`` bands from English words like ``bookkeeper``
+    (isolated legitimate double letters; run length 1).
+    """
+
+    if not text:
+        return 0
+    best = 0
+    run = 0
+    i = 0
+    while i + 1 < len(text):
+        a, b = text[i], text[i + 1]
+        if a.isalnum() and a == b:
+            run += 1
+            best = max(best, run)
+            i += 2
+            continue
+        run = 0
+        i += 1
+    return best
+
+
+def max_window_interleaved_double_ratio(text: str, *, window: int = 48) -> float:
+    """Worst-case interleaved-double ratio in any sliding window.
+
+    Prefer :func:`max_consecutive_double_pair_run` for accept/reject gates that must
+    tolerate English double letters; this helper remains for diagnostics.
+    """
+
+    if not text:
+        return 0.0
+    if window < 8:
+        window = 8
+    if len(text) <= window:
+        return interleaved_double_ratio(text)
+    best = 0.0
+    for start in range(0, len(text) - window + 1):
+        best = max(best, interleaved_double_ratio(text[start : start + window]))
+        if best >= 1.0:
+            return 1.0
+    return best
+
+
+# Dense AABB overprint bands (header/footer) vs isolated English doubles.
+_MIN_AABB_RUN_FOR_REJECT = 4
+
+
+def geometric_interleave_ratio(
+    characters: Sequence[RawCharCandidate],
+    *,
+    iou_threshold: float = DEFAULT_IOU_THRESHOLD,
+    centre_factor: float = DEFAULT_CENTRE_DISTANCE_FACTOR,
+    centre_cap: float = DEFAULT_CENTRE_DISTANCE_CAP_POINTS,
+    size_similarity: float = DEFAULT_SIZE_SIMILARITY,
+) -> float:
+    """Geometry-first interleaved overprint ratio among retained glyphs.
+
+    Legitimate repeats occupy distinct non-overlapping horizontal positions.
+    Overprint doubles share near-identical centres / high IoU.
+    """
+
+    n = len(characters)
+    if n < 2:
+        return 0.0
+    cell = max(centre_cap, 4.0)
+    buckets: dict[tuple[str, int, int], list[int]] = defaultdict(list)
+    meaningful = 0
+    for i, ch in enumerate(characters):
+        if ch.text.isspace() or not ch.text.isalnum():
+            continue
+        meaningful += 1
+        cx, cy = _centre(ch)
+        buckets[(_nfc(ch.text), int(cx // cell), int(cy // cell))].append(i)
+    if meaningful == 0:
+        return 0.0
+    interleaved: set[int] = set()
+    for key, indices in buckets.items():
+        text, bx, by = key
+        neighbours: list[int] = []
+        for cell_dx in (-1, 0, 1):
+            for cell_dy in (-1, 0, 1):
+                neighbours.extend(buckets.get((text, bx + cell_dx, by + cell_dy), []))
+        for i in indices:
+            for j in neighbours:
+                if j <= i:
+                    continue
+                a, b = characters[i], characters[j]
+                if not _are_near_overprint_pair(
+                    a,
+                    b,
+                    iou_threshold=iou_threshold,
+                    centre_factor=centre_factor,
+                    centre_cap=centre_cap,
+                    size_similarity=size_similarity,
+                ):
+                    continue
+                if (a.x1 <= b.x0 or b.x1 <= a.x0) and _iou(a, b) < 0.15:
+                    continue
+                interleaved.add(i)
+                interleaved.add(j)
+    return len(interleaved) / max(meaningful, 1)
+
+
+def _cluster_offsets(
+    pairs: list[tuple[int, int, float, float]],
+    characters: list[RawCharCandidate],
+    *,
+    abs_tol: float,
+    size_factor: float,
+    top_k: int,
+) -> tuple[float, float, int, float, float]:
+    """Return (dom_dx, dom_dy, cluster_count, top_support, top_k_support)."""
+
+    if not pairs:
+        return 0.0, 0.0, 0, 0.0, 0.0
+    sizes = [max(characters[a].size, characters[b].size, 1.0) for a, b, _, _ in pairs]
+    sizes_sorted = sorted(sizes)
+    median_size = sizes_sorted[len(sizes_sorted) // 2]
+    tol = max(abs_tol, size_factor * median_size, 1e-6)
+    bin_size = tol
+    bins: dict[tuple[int, int], list[int]] = defaultdict(list)
+    for idx, (_a, _b, dx, dy) in enumerate(pairs):
+        bins[(round(dx / bin_size), round(dy / bin_size))].append(idx)
+    keys = list(bins.keys())
+    uf = _UnionFind(len(keys))
+    key_index = {k: i for i, k in enumerate(keys)}
+    for kx, ky in keys:
+        i = key_index[(kx, ky)]
+        for nx in (kx - 1, kx, kx + 1):
+            for ny in (ky - 1, ky, ky + 1):
+                if (nx, ny) == (kx, ky):
+                    continue
+                j = key_index.get((nx, ny))
+                if j is None:
+                    continue
+                dx1 = kx * bin_size
+                dy1 = ky * bin_size
+                dx2 = nx * bin_size
+                dy2 = ny * bin_size
+                if abs(dx1 - dx2) <= tol * 1.01 and abs(dy1 - dy2) <= tol * 1.01:
+                    uf.union(i, j)
+    cluster_sizes: Counter[int] = Counter()
+    cluster_sum: dict[int, list[tuple[float, float]]] = defaultdict(list)
+    for k, member_idxs in bins.items():
+        root = uf.find(key_index[k])
+        cluster_sizes[root] += len(member_idxs)
+        for pi in member_idxs:
+            _a, _b, dx, dy = pairs[pi]
+            cluster_sum[root].append((dx, dy))
+    ranked = cluster_sizes.most_common()
+    cluster_count = len(ranked)
+    total = max(len(pairs), 1)
+    top_support = ranked[0][1] / total if ranked else 0.0
+    top_k_n = sum(c for _, c in ranked[: max(1, top_k)])
+    top_k_support = top_k_n / total
+    top_root = ranked[0][0]
+    pts = cluster_sum[top_root]
+    dom_dx = sum(p[0] for p in pts) / max(len(pts), 1)
+    dom_dy = sum(p[1] for p in pts) / max(len(pts), 1)
+    return (
+        float(dom_dx),
+        float(dom_dy),
+        cluster_count,
+        max(0.0, min(1.0, top_support)),
+        max(0.0, min(1.0, top_k_support)),
+    )
+
+
+def _line_region_stats(
+    characters: list[RawCharCandidate],
+    pairs: list[tuple[int, int, float, float]],
+    participating: set[int],
+    *,
+    page_width: float,
+    page_height: float,
+    thr: CompositeThresholds,
+) -> tuple[int, int, float, float]:
+    """Return (duplicate_line_count, duplicate_region_count, v_span, h_span)."""
+
+    if not pairs or not participating:
+        return 0, 0, 0.0, 0.0
+    matched_indices: set[int] = set()
+    for a, b, _, _ in pairs:
+        matched_indices.add(a)
+        matched_indices.add(b)
+
+    line_chars: dict[int, list[int]] = defaultdict(list)
+    for i, ch in enumerate(characters):
+        if ch.text.isspace():
+            continue
+        line_chars[round(ch.top / 4.0)].append(i)
+
+    severe_lines: list[int] = []
+    for line_key, idxs in sorted(line_chars.items()):
+        n_line = len(idxs)
+        matched = sum(1 for i in idxs if i in matched_indices)
+        if n_line < thr.region_min_chars:
+            continue
+        ratio = matched / max(n_line, 1)
+        if matched >= thr.region_min_matched and ratio >= thr.region_severe_ratio:
+            severe_lines.append(line_key)
+
+    duplicate_line_count = len(severe_lines)
+    regions = 0
+    prev: int | None = None
+    for key in severe_lines:
+        if prev is None or key - prev > 1:
+            regions += 1
+        prev = key
+    duplicate_region_count = regions
+
+    xs = [_centre(characters[i])[0] for i in participating]
+    ys = [_centre(characters[i])[1] for i in participating]
+    h_span = (max(xs) - min(xs)) / max(page_width, 1.0) if xs else 0.0
+    v_span = (max(ys) - min(ys)) / max(page_height, 1.0) if ys else 0.0
+    return (
+        duplicate_line_count,
+        duplicate_region_count,
+        max(0.0, min(1.0, v_span)),
+        max(0.0, min(1.0, h_span)),
+    )
+
+
+def _span_ok(metrics: NearOverprintMetrics, thr: CompositeThresholds) -> bool:
+    return (
+        metrics.matched_word_span >= thr.min_word_span
+        or metrics.matched_line_span >= thr.min_line_span
+        or metrics.duplicate_line_count >= thr.min_line_span
         or (
             metrics.duplicate_layer_coverage_ratio >= 0.90
             and metrics.matched_near_duplicate_count >= 8
         )
     )
-    min_matches = thresholds.min_near_duplicate_match_count
-    if (
-        metrics.duplicate_layer_coverage_ratio >= 0.90
-        and metrics.dominant_offset_support_ratio >= 0.90
-        and metrics.duplicate_layer_count >= 2
-    ):
-        # Complete cross-layer duplicates can be short pages/lines.
+
+
+def path_a_widespread_duplication(metrics: NearOverprintMetrics, thr: CompositeThresholds) -> bool:
+    """PATH A: substantial page-level near-overprint duplication."""
+
+    min_matches = thr.min_near_duplicate_match_count
+    # Complete near-full layer duplicates may sit on short pages/lines.
+    if metrics.duplicate_layer_coverage_ratio >= 0.90 and metrics.duplicate_layer_count >= 2:
         min_matches = min(min_matches, 8)
     return (
         metrics.matched_near_duplicate_count >= min_matches
-        and metrics.near_overprint_duplicate_ratio > thresholds.max_near_overprint_ratio
-        and metrics.duplicate_layer_coverage_ratio > thresholds.max_duplicate_layer_coverage_ratio
-        and metrics.dominant_offset_support_ratio >= thresholds.min_dominant_offset_support_ratio
-        and span_ok
+        and metrics.near_overprint_duplicate_ratio > thr.max_near_overprint_ratio
+        and metrics.duplicate_layer_coverage_ratio > thr.max_duplicate_layer_coverage_ratio
+        and _span_ok(metrics, thr)
     )
+
+
+def path_b_coherent_partial_layer(metrics: NearOverprintMetrics, thr: CompositeThresholds) -> bool:
+    """PATH B: high layer/region coverage even when global near-ratio is diluted."""
+
+    coverage_ok = metrics.duplicate_layer_coverage_ratio >= thr.path_b_min_coverage or (
+        metrics.duplicate_layer_coverage_ratio > thr.max_duplicate_layer_coverage_ratio
+        and metrics.duplicate_region_count >= thr.path_b_min_duplicate_regions
+    )
+    # Regional / vertically separated bands: high coverage of the smaller
+    # participating layer with modest match counts (header+footer style).
+    regional_match_floor = max(12, thr.region_min_matched * 2)
+    match_floor = thr.path_b_min_matches
+    if metrics.duplicate_layer_coverage_ratio >= 0.95:
+        match_floor = min(match_floor, thr.min_near_duplicate_match_count)
+    if metrics.duplicate_layer_coverage_ratio >= thr.path_b_min_coverage and (
+        metrics.duplicate_region_count >= thr.path_b_min_duplicate_regions
+        or metrics.page_vertical_span_ratio >= 0.15
+    ):
+        match_floor = min(match_floor, regional_match_floor)
+    matches_ok = metrics.matched_near_duplicate_count >= match_floor
+    multi_ok = (
+        metrics.matched_word_span >= thr.min_word_span
+        or metrics.matched_line_span >= thr.min_line_span
+        or metrics.duplicate_line_count >= thr.path_b_min_duplicate_lines
+        or metrics.duplicate_region_count >= thr.path_b_min_duplicate_regions
+        or (
+            metrics.page_vertical_span_ratio >= 0.15
+            and metrics.matched_near_duplicate_count >= thr.min_near_duplicate_match_count
+        )
+        or (
+            metrics.page_vertical_span_ratio >= 0.15
+            and metrics.duplicate_layer_coverage_ratio >= thr.path_b_min_coverage
+            and metrics.matched_near_duplicate_count >= regional_match_floor
+        )
+    )
+    geometry_ok = metrics.matched_near_duplicate_count > 0
+    return bool(coverage_ok and matches_ok and multi_ok and geometry_ok)
+
+
+def composite_duplicate_layer_evidence(
+    metrics: NearOverprintMetrics,
+    thresholds: CompositeThresholds,
+) -> bool:
+    """True when PATH A or PATH B fires. Dominant-offset support is not required."""
+
+    return path_a_widespread_duplication(metrics, thresholds) or path_b_coherent_partial_layer(
+        metrics, thresholds
+    )
+
+
+def explain_duplicate_layer_hard_rejection(
+    metrics: NearOverprintMetrics,
+    thresholds: CompositeThresholds,
+    *,
+    path: str | None = None,
+) -> HardRuleExplanation:
+    """Structured hard-rule explanation (no private text)."""
+
+    thr = thresholds
+    path_a = path_a_widespread_duplication(metrics, thr)
+    path_b = path_b_coherent_partial_layer(metrics, thr)
+    resolved = path or ("A" if path_a else "B" if path_b else "none")
+    final = path_a or path_b or metrics.composite_duplicate_layer_evidence
+    conditions = (
+        HardRuleCondition(
+            metric="matched_near_duplicate_count",
+            value=str(metrics.matched_near_duplicate_count),
+            threshold=f">= {thr.min_near_duplicate_match_count} (A) / {thr.path_b_min_matches} (B)",
+            passed=metrics.matched_near_duplicate_count >= thr.min_near_duplicate_match_count,
+            mandatory=True,
+        ),
+        HardRuleCondition(
+            metric="near_overprint_duplicate_ratio",
+            value=f"{metrics.near_overprint_duplicate_ratio:.4f}",
+            threshold=f"> {thr.max_near_overprint_ratio} (PATH A only)",
+            passed=metrics.near_overprint_duplicate_ratio > thr.max_near_overprint_ratio,
+            mandatory=True,
+        ),
+        HardRuleCondition(
+            metric="duplicate_layer_coverage_ratio",
+            value=f"{metrics.duplicate_layer_coverage_ratio:.4f}",
+            threshold=f"> {thr.max_duplicate_layer_coverage_ratio} / >= {thr.path_b_min_coverage}",
+            passed=(
+                metrics.duplicate_layer_coverage_ratio > thr.max_duplicate_layer_coverage_ratio
+                or metrics.duplicate_layer_coverage_ratio >= thr.path_b_min_coverage
+            ),
+            mandatory=True,
+        ),
+        HardRuleCondition(
+            metric="duplicate_line_count",
+            value=str(metrics.duplicate_line_count),
+            threshold=f">= {thr.path_b_min_duplicate_lines}",
+            passed=metrics.duplicate_line_count >= thr.path_b_min_duplicate_lines,
+            mandatory=True,
+        ),
+        HardRuleCondition(
+            metric="duplicate_region_count",
+            value=str(metrics.duplicate_region_count),
+            threshold=f">= {thr.path_b_min_duplicate_regions}",
+            passed=metrics.duplicate_region_count >= thr.path_b_min_duplicate_regions,
+            mandatory=True,
+        ),
+        HardRuleCondition(
+            metric="geometric_overlap",
+            value="present" if metrics.matched_near_duplicate_count > 0 else "absent",
+            threshold="matched pairs > 0",
+            passed=metrics.matched_near_duplicate_count > 0,
+            mandatory=True,
+        ),
+        HardRuleCondition(
+            metric="dominant_offset_support_ratio",
+            value=f"{metrics.dominant_offset_support_ratio:.4f}",
+            threshold="informational only",
+            passed=True,
+            mandatory=False,
+        ),
+        HardRuleCondition(
+            metric="top_k_offset_cluster_support_ratio",
+            value=f"{metrics.top_k_offset_cluster_support_ratio:.4f}",
+            threshold="informational / collapse aid",
+            passed=True,
+            mandatory=False,
+        ),
+        HardRuleCondition(
+            metric="path_a_widespread",
+            value=str(path_a),
+            threshold="PATH A",
+            passed=path_a,
+            mandatory=True,
+        ),
+        HardRuleCondition(
+            metric="path_b_coherent_partial",
+            value=str(path_b),
+            threshold="PATH B",
+            passed=path_b,
+            mandatory=True,
+        ),
+    )
+    return HardRuleExplanation(path=resolved, final_hard_rejection=final, conditions=conditions)
 
 
 def _reading_order_indices(characters: list[RawCharCandidate], indices: list[int]) -> list[int]:
@@ -419,7 +833,6 @@ def _span_stats(
     if not pairs:
         return 0, 0
     line_bins: set[int] = set()
-    # Approximate words by clustering pair centres with x-gap.
     centres: list[tuple[float, float]] = []
     for a, b, _, _ in pairs:
         cax, cay = _centre(characters[a])
@@ -452,7 +865,6 @@ def _layer_coverage_and_redundant(
     if not pairs:
         return 0.0, set(), 1
 
-    # Redundant = later-painted glyph in each pair (removable overprint side).
     redundant: set[int] = set()
     for _a, b, _, _ in pairs:
         redundant.add(b)
@@ -466,15 +878,10 @@ def _layer_coverage_and_redundant(
         larger = ranked[0]
         matched_smaller = {i for i in smaller if any(i in (a, b) for a, b, _, _ in pairs)}
         coverage = len(matched_smaller) / max(len(smaller), 1)
-        # Prefer redundant = members of the smaller/later layer when fonts differ.
         if smaller and larger and coverage >= 0.5:
-            # Keep larger as primary; smaller as redundant when largely paired.
             redundant = set(smaller) & participating
         layer_count = min(len(ranked), 3)
     else:
-        # Same-font: coverage = paired / participating.
-        coverage = len(participating) / max(len(participating), 1)
-        # For same-font doubles, each pair removes one → coverage of "second" layer ≈ 1.
         second = redundant
         first = participating - redundant
         smaller_size = min(len(first), len(second)) if first and second else len(second)
@@ -483,6 +890,41 @@ def _layer_coverage_and_redundant(
         layer_count = 2 if len(participating) >= 4 else 1
 
     return max(0.0, min(1.0, coverage)), redundant, layer_count
+
+
+def _replace_metrics(
+    base: NearOverprintMetrics,
+    *,
+    composite: bool | None = None,
+    hard_rule_path: str | None = None,
+    hard_rule_explanation: tuple[str, ...] | None = None,
+) -> NearOverprintMetrics:
+    return NearOverprintMetrics(
+        strict_duplicate_ratio=base.strict_duplicate_ratio,
+        near_overprint_duplicate_ratio=base.near_overprint_duplicate_ratio,
+        duplicate_layer_count=base.duplicate_layer_count,
+        dominant_duplicate_offset_x=base.dominant_duplicate_offset_x,
+        dominant_duplicate_offset_y=base.dominant_duplicate_offset_y,
+        duplicate_layer_coverage_ratio=base.duplicate_layer_coverage_ratio,
+        matched_near_duplicate_count=base.matched_near_duplicate_count,
+        dominant_offset_support_ratio=base.dominant_offset_support_ratio,
+        matched_word_span=base.matched_word_span,
+        matched_line_span=base.matched_line_span,
+        composite_duplicate_layer_evidence=(
+            base.composite_duplicate_layer_evidence if composite is None else composite
+        ),
+        top_offset_cluster_support_ratio=base.top_offset_cluster_support_ratio,
+        top_k_offset_cluster_support_ratio=base.top_k_offset_cluster_support_ratio,
+        offset_cluster_count=base.offset_cluster_count,
+        duplicate_line_count=base.duplicate_line_count,
+        duplicate_region_count=base.duplicate_region_count,
+        page_vertical_span_ratio=base.page_vertical_span_ratio,
+        page_horizontal_span_ratio=base.page_horizontal_span_ratio,
+        hard_rule_path=base.hard_rule_path if hard_rule_path is None else hard_rule_path,
+        hard_rule_explanation=(
+            base.hard_rule_explanation if hard_rule_explanation is None else hard_rule_explanation
+        ),
+    )
 
 
 def analyse_and_clean_near_overprint(
@@ -496,8 +938,10 @@ def analyse_and_clean_near_overprint(
     centre_cap: float = DEFAULT_CENTRE_DISTANCE_CAP_POINTS,
     size_similarity: float = DEFAULT_SIZE_SIMILARITY,
     offset_bin: float = DEFAULT_OFFSET_BIN_POINTS,
+    page_width: float = 612.0,
+    page_height: float = 792.0,
 ) -> NearOverprintOutcome:
-    """Detect near-overprints; clean or hard-reject when composite evidence is true."""
+    """Detect near-overprints; clean (PATH C) or hard-reject when PATH A/B fire."""
 
     thr = thresholds or CompositeThresholds()
     n = len(characters)
@@ -595,19 +1039,37 @@ def analyse_and_clean_near_overprint(
     offset_counts: Counter[tuple[float, float]] = Counter()
     for _, _, dx, dy in pairs:
         offset_counts[_bin_offset(dx, dy, offset_bin)] += 1
-    (dom_dx, dom_dy), dom_count = offset_counts.most_common(1)[0]
+    (_exact_dx, _exact_dy), exact_count = offset_counts.most_common(1)[0]
+    exact_support = exact_count / max(len(pairs), 1)
+
+    dom_dx, dom_dy, cluster_count, top_support, top_k_support = _cluster_offsets(
+        pairs,
+        characters,
+        abs_tol=thr.offset_cluster_abs_tol,
+        size_factor=thr.offset_cluster_size_factor,
+        top_k=thr.offset_cluster_top_k,
+    )
     if font_layer is not None:
         dom_dx, dom_dy = font_layer[1], font_layer[2]
         dominant_support = 1.0
+        top_support = 1.0
+        top_k_support = 1.0
     else:
-        dominant_support = dom_count / max(len(pairs), 1)
+        dominant_support = exact_support
 
     coverage, redundant, layer_count = _layer_coverage_and_redundant(
         characters, pairs, participating
     )
-    # Redundant ratio: removable overprint chars / total.
     near_ratio = len(redundant) / max(n, 1)
     word_span, line_span = _span_stats(characters, pairs)
+    dup_lines, dup_regions, v_span, h_span = _line_region_stats(
+        characters,
+        pairs,
+        participating,
+        page_width=page_width,
+        page_height=page_height,
+        thr=thr,
+    )
 
     metrics = NearOverprintMetrics(
         strict_duplicate_ratio=max(0.0, min(1.0, strict_duplicate_ratio)),
@@ -621,29 +1083,31 @@ def analyse_and_clean_near_overprint(
         matched_word_span=word_span,
         matched_line_span=line_span,
         composite_duplicate_layer_evidence=False,
+        top_offset_cluster_support_ratio=top_support,
+        top_k_offset_cluster_support_ratio=top_k_support,
+        offset_cluster_count=cluster_count,
+        duplicate_line_count=dup_lines,
+        duplicate_region_count=dup_regions,
+        page_vertical_span_ratio=v_span,
+        page_horizontal_span_ratio=h_span,
     )
-    composite = composite_duplicate_layer_evidence(metrics, thr)
-    metrics = NearOverprintMetrics(
-        strict_duplicate_ratio=metrics.strict_duplicate_ratio,
-        near_overprint_duplicate_ratio=metrics.near_overprint_duplicate_ratio,
-        duplicate_layer_count=metrics.duplicate_layer_count,
-        dominant_duplicate_offset_x=metrics.dominant_duplicate_offset_x,
-        dominant_duplicate_offset_y=metrics.dominant_duplicate_offset_y,
-        duplicate_layer_coverage_ratio=metrics.duplicate_layer_coverage_ratio,
-        matched_near_duplicate_count=metrics.matched_near_duplicate_count,
-        dominant_offset_support_ratio=metrics.dominant_offset_support_ratio,
-        matched_word_span=metrics.matched_word_span,
-        matched_line_span=metrics.matched_line_span,
-        composite_duplicate_layer_evidence=composite,
+    path_a = path_a_widespread_duplication(metrics, thr)
+    path_b = path_b_coherent_partial_layer(metrics, thr)
+    composite = path_a or path_b
+    hard_path = "A" if path_a else "B" if path_b else "none"
+    explanation = explain_duplicate_layer_hard_rejection(metrics, thr, path=hard_path)
+    metrics = _replace_metrics(
+        metrics,
+        composite=composite,
+        hard_rule_path=hard_path,
+        hard_rule_explanation=explanation.format_lines(),
     )
 
     if not composite:
-        # Soft diagnostics only — leave text (legitimate shadow / sparse pairs).
         return NearOverprintOutcome(
             metrics=metrics, selection="none", characters=characters, words=words
         )
 
-    # Composite evidence: must clean or reject — never publish doubles.
     groups: dict[int, list[int]] = defaultdict(list)
     for i in range(n):
         groups[uf.find(i)].append(i)
@@ -668,6 +1132,7 @@ def analyse_and_clean_near_overprint(
             dom_dx=dom_dx,
             dom_dy=dom_dy,
             thr=thr,
+            cluster_tol=max(thr.offset_cluster_abs_tol, thr.offset_cluster_size_factor * 12.0),
         )
 
     scored: list[tuple[float, tuple[str, int, bool | None], set[int]]] = []
@@ -725,6 +1190,37 @@ def analyse_and_clean_near_overprint(
     return _finish_clean(characters, keep, metrics=metrics, thr=thr)
 
 
+def _word_looks_overprint_garbled(text: str) -> bool:
+    """True when a single word still looks like an AABB near-overprint band.
+
+    ``bookkeeper`` has three consecutive legitimate doubles (``ookkee``) but is
+    short; residual header/footer bands are long with dense AABB runs.
+    """
+
+    if not text or len(text) < 6:
+        return False
+    run = max_consecutive_double_pair_run(text)
+    if run >= _MIN_AABB_RUN_FOR_REJECT:
+        return True
+    return run >= 3 and len(text) >= 16 and interleaved_double_ratio(text) >= 0.30
+
+
+def _strip_garbled_overprint_words(
+    characters: list[RawCharCandidate],
+) -> list[RawCharCandidate]:
+    """Drop residual AABB-corrupted words (regional header/footer salvage)."""
+
+    words = rebuild_words_from_characters(characters)
+    drop: set[int] = set()
+    for word in words:
+        if _word_looks_overprint_garbled(word.text):
+            drop.update(word.char_indices)
+    if not drop:
+        return characters
+    kept = [ch for i, ch in enumerate(characters) if i not in drop]
+    return _renumber_characters(kept)
+
+
 def _finish_clean(
     characters: list[RawCharCandidate],
     keep: set[int],
@@ -733,9 +1229,18 @@ def _finish_clean(
     thr: CompositeThresholds,
 ) -> NearOverprintOutcome:
     cleaned = _renumber_characters([characters[i] for i in sorted(keep)])
+    # Regional PATH B salvage: imperfect pairing can leave AABB header/footer
+    # bands while the body is already single-copy — strip those words first.
+    cleaned = _strip_garbled_overprint_words(cleaned)
+    if not cleaned:
+        return NearOverprintOutcome(metrics=metrics, selection="ambiguous", characters=[], words=[])
     new_words = rebuild_words_from_characters(cleaned)
     provisional = " ".join(w.text for w in new_words)
     if interleaved_double_ratio(provisional) >= 0.35:
+        return NearOverprintOutcome(metrics=metrics, selection="ambiguous", characters=[], words=[])
+    if max_consecutive_double_pair_run(provisional) >= _MIN_AABB_RUN_FOR_REJECT:
+        return NearOverprintOutcome(metrics=metrics, selection="ambiguous", characters=[], words=[])
+    if geometric_interleave_ratio(cleaned) >= DEFAULT_GEOMETRIC_INTERLEAVE_RATIO:
         return NearOverprintOutcome(metrics=metrics, selection="ambiguous", characters=[], words=[])
     residual = _quick_redundant_ratio(
         cleaned,
@@ -745,9 +1250,20 @@ def _finish_clean(
         centre_cap=DEFAULT_CENTRE_DISTANCE_CAP_POINTS,
         size_similarity=DEFAULT_SIZE_SIMILARITY,
     )
-    if residual > thr.max_near_overprint_ratio and residual > 0.15:
+    # Any residual above the hard near-overprint floor is unsafe to publish.
+    if residual > thr.max_near_overprint_ratio:
         return NearOverprintOutcome(metrics=metrics, selection="ambiguous", characters=[], words=[])
-    # Keep pre-clean diagnostics for UI; cleaned selection tells trust not to hard-reject.
+    # PATH A/B pages must clean to near-zero residual / dense AABB; otherwise
+    # prefer visual_authority over publishing garbled cross-font merges.
+    if metrics.hard_rule_path in {"A", "B"} or metrics.near_overprint_duplicate_ratio > 0.25:
+        if residual > 0.02 or geometric_interleave_ratio(cleaned) > 0.02:
+            return NearOverprintOutcome(
+                metrics=metrics, selection="ambiguous", characters=[], words=[]
+            )
+        if max_consecutive_double_pair_run(provisional) >= _MIN_AABB_RUN_FOR_REJECT:
+            return NearOverprintOutcome(
+                metrics=metrics, selection="ambiguous", characters=[], words=[]
+            )
     return NearOverprintOutcome(
         metrics=metrics, selection="cleaned", characters=cleaned, words=new_words
     )
@@ -793,7 +1309,6 @@ def _quick_redundant_ratio(
                 ):
                     later = j if characters[i].sequence_index <= characters[j].sequence_index else i
                     redundant.add(later)
-    # silence unused thr
     _ = thr
     return len(redundant) / max(n, 1)
 
@@ -810,6 +1325,7 @@ def _select_by_offset_or_ambiguous(
     dom_dx: float,
     dom_dy: float,
     thr: CompositeThresholds,
+    cluster_tol: float,
 ) -> NearOverprintOutcome:
     _ = words
     if abs(dom_dx) < 1e-6 and abs(dom_dy) < 1e-6:
@@ -820,9 +1336,8 @@ def _select_by_offset_or_ambiguous(
 
     keep_set: set[int] = set(range(len(characters)))
     drop: set[int] = set(redundant)
-    bin_eps = DEFAULT_OFFSET_BIN_POINTS
     for a, b, dx, dy in pairs:
-        if abs(dx - dom_dx) <= bin_eps * 1.5 and abs(dy - dom_dy) <= bin_eps * 1.5:
+        if abs(dx - dom_dx) <= cluster_tol and abs(dy - dom_dy) <= cluster_tol:
             drop.add(a)
             keep_set.add(b)
     keep_set -= drop

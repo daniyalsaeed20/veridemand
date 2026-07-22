@@ -45,6 +45,15 @@ class GeometryMetrics:
     dominant_offset_support_ratio: float
     matched_word_span: int
     matched_line_span: int
+    top_offset_cluster_support_ratio: float
+    top_k_offset_cluster_support_ratio: float
+    offset_cluster_count: int
+    duplicate_line_count: int
+    duplicate_region_count: int
+    page_vertical_span_ratio: float
+    page_horizontal_span_ratio: float
+    hard_rule_path: str
+    hard_rule_explanation: tuple[str, ...]
     zero_area_character_ratio: float
     invalid_geometry_ratio: float
     out_of_bounds_character_ratio: float
@@ -137,6 +146,17 @@ def analyse_geometry(
         dominant_offset_support_ratio=max(0.0, min(1.0, page.dominant_offset_support_ratio)),
         matched_word_span=max(0, page.matched_word_span),
         matched_line_span=max(0, page.matched_line_span),
+        top_offset_cluster_support_ratio=max(0.0, min(1.0, page.top_offset_cluster_support_ratio)),
+        top_k_offset_cluster_support_ratio=max(
+            0.0, min(1.0, page.top_k_offset_cluster_support_ratio)
+        ),
+        offset_cluster_count=max(0, page.offset_cluster_count),
+        duplicate_line_count=max(0, page.duplicate_line_count),
+        duplicate_region_count=max(0, page.duplicate_region_count),
+        page_vertical_span_ratio=max(0.0, min(1.0, page.page_vertical_span_ratio)),
+        page_horizontal_span_ratio=max(0.0, min(1.0, page.page_horizontal_span_ratio)),
+        hard_rule_path=page.hard_rule_path or "none",
+        hard_rule_explanation=tuple(page.hard_rule_explanation or ()),
         zero_area_character_ratio=zero_area / denom,
         invalid_geometry_ratio=invalid / denom,
         out_of_bounds_character_ratio=oob / denom,

@@ -18,9 +18,12 @@ from backend.app.extraction.native.geometry_quality import GeometryMetrics
 from backend.app.extraction.native.image_dominance import ImageDominanceMetrics
 from backend.app.extraction.native.models import NativeTrustPolicyConfig, PageExtractionCandidate
 from backend.app.extraction.native.near_overprint import (
+    DEFAULT_GEOMETRIC_INTERLEAVE_RATIO,
     CompositeThresholds,
     NearOverprintMetrics,
     composite_duplicate_layer_evidence,
+    geometric_interleave_ratio,
+    max_consecutive_double_pair_run,
 )
 from backend.app.extraction.native.text_quality import TextStructureMetrics
 from backend.app.extraction.native.unicode_quality import UnicodeMetrics
@@ -175,16 +178,53 @@ def decide_page_trust(
             matched_word_span=page.matched_word_span,
             matched_line_span=page.matched_line_span,
             composite_duplicate_layer_evidence=page.near_overprint_composite_evidence,
+            top_offset_cluster_support_ratio=geometry_m.top_offset_cluster_support_ratio,
+            top_k_offset_cluster_support_ratio=geometry_m.top_k_offset_cluster_support_ratio,
+            offset_cluster_count=geometry_m.offset_cluster_count,
+            duplicate_line_count=geometry_m.duplicate_line_count,
+            duplicate_region_count=geometry_m.duplicate_region_count,
+            page_vertical_span_ratio=geometry_m.page_vertical_span_ratio,
+            page_horizontal_span_ratio=geometry_m.page_horizontal_span_ratio,
+            hard_rule_path=geometry_m.hard_rule_path,
+            hard_rule_explanation=geometry_m.hard_rule_explanation,
         )
         thr = CompositeThresholds(
             max_near_overprint_ratio=policy.native_max_near_overprint_ratio,
             max_duplicate_layer_coverage_ratio=policy.native_max_duplicate_layer_coverage_ratio,
             min_near_duplicate_match_count=policy.native_min_near_duplicate_match_count,
             min_dominant_offset_support_ratio=policy.native_min_dominant_offset_support_ratio,
+            offset_cluster_abs_tol=policy.native_offset_cluster_abs_tol,
+            offset_cluster_size_factor=policy.native_offset_cluster_size_factor,
+            offset_cluster_top_k=policy.native_offset_cluster_top_k,
+            path_b_min_coverage=policy.native_path_b_min_coverage,
+            path_b_min_matches=policy.native_path_b_min_matches,
+            path_b_min_duplicate_lines=policy.native_path_b_min_duplicate_lines,
+            path_b_min_duplicate_regions=policy.native_path_b_min_duplicate_regions,
+            region_min_chars=policy.native_region_min_chars,
+            region_severe_ratio=policy.native_region_severe_ratio,
+            region_min_matched=policy.native_region_min_matched,
         )
         if page.near_overprint_composite_evidence or composite_duplicate_layer_evidence(
             composite_metrics, thr
         ):
+            hard = True
+            reasons.append(NativeReasonCode.EXCESSIVE_NEAR_OVERPRINT_DUPLICATES.value)
+
+    # Output-level geometric interleave invariant (before accept).
+    # Sparse bold/shadow / short header overprints must not force reject alone.
+    if (
+        page.characters
+        and not page.near_overprint_ambiguous
+        and page.matched_near_duplicate_count >= policy.native_min_near_duplicate_match_count
+        and geometric_interleave_ratio(page.characters) >= DEFAULT_GEOMETRIC_INTERLEAVE_RATIO
+    ):
+        hard = True
+        reasons.append(NativeReasonCode.EXCESSIVE_NEAR_OVERPRINT_DUPLICATES.value)
+
+    # Dense AABB runs (SSYYNN…) indicate residual overprint; ignore English doubles.
+    if page.words and not page.near_overprint_ambiguous:
+        provisional = " ".join(w.text for w in page.words)
+        if max_consecutive_double_pair_run(provisional) >= 4:
             hard = True
             reasons.append(NativeReasonCode.EXCESSIVE_NEAR_OVERPRINT_DUPLICATES.value)
 

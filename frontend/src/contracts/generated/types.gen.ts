@@ -945,6 +945,18 @@ export type NativePageMetrics = {
      */
     duplicate_layer_coverage_ratio?: number;
     /**
+     * Duplicate Line Count
+     *
+     * Lines with severe near-overprint duplication.
+     */
+    duplicate_line_count?: number;
+    /**
+     * Duplicate Region Count
+     *
+     * Contiguous regions of severely duplicated lines.
+     */
+    duplicate_region_count?: number;
+    /**
      * Extraction Order Backtrack Ratio
      */
     extraction_order_backtrack_ratio: number;
@@ -952,6 +964,18 @@ export type NativePageMetrics = {
      * Font Count
      */
     font_count: number;
+    /**
+     * Hard Rule Explanation
+     *
+     * Dev-oriented hard-rule condition lines (no private text).
+     */
+    hard_rule_explanation?: Array<string>;
+    /**
+     * Hard Rule Path
+     *
+     * Near-overprint hard path that fired: none, A, or B.
+     */
+    hard_rule_path?: string;
     /**
      * Image Count
      */
@@ -1001,6 +1025,12 @@ export type NativePageMetrics = {
      */
     noncharacter_ratio: number;
     /**
+     * Offset Cluster Count
+     *
+     * Number of tolerant displacement clusters among matches.
+     */
+    offset_cluster_count?: number;
+    /**
      * Out Of Bounds Character Ratio
      */
     out_of_bounds_character_ratio: number;
@@ -1010,6 +1040,18 @@ export type NativePageMetrics = {
      * Whether page dims match canonical metadata.
      */
     page_dimension_match: boolean;
+    /**
+     * Page Horizontal Span Ratio
+     *
+     * Horizontal span of matched duplicates / page width.
+     */
+    page_horizontal_span_ratio?: number;
+    /**
+     * Page Vertical Span Ratio
+     *
+     * Vertical span of matched duplicates / page height.
+     */
+    page_vertical_span_ratio?: number;
     /**
      * Private Use Character Ratio
      */
@@ -1040,6 +1082,18 @@ export type NativePageMetrics = {
      * Symbol Only Word Ratio
      */
     symbol_only_word_ratio: number;
+    /**
+     * Top K Offset Cluster Support Ratio
+     *
+     * Combined support of the top-K tolerant offset clusters.
+     */
+    top_k_offset_cluster_support_ratio?: number;
+    /**
+     * Top Offset Cluster Support Ratio
+     *
+     * Support ratio of the largest tolerant offset cluster.
+     */
+    top_offset_cluster_support_ratio?: number;
     /**
      * Total Clipped Image Area Ratio
      */
