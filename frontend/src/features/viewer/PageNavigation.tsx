@@ -50,7 +50,7 @@ export function PageNavigation({
   };
 
   return (
-    <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+    <Stack direction="row" spacing={1} sx={{ alignItems: "center", position: "relative" }}>
       <IconButton
         aria-label="Previous page"
         size="small"
@@ -90,9 +90,22 @@ export function PageNavigation({
         <ChevronRightIcon fontSize="small" />
       </IconButton>
 
+      {/* Screen-reader live region only; must not intercept toolbar clicks. */}
       <Typography
         aria-live="polite"
-        sx={{ position: "absolute", width: 1, height: 1, overflow: "hidden" }}
+        component="span"
+        sx={{
+          position: "absolute",
+          width: "1px",
+          height: "1px",
+          padding: 0,
+          margin: "-1px",
+          overflow: "hidden",
+          clip: "rect(0, 0, 0, 0)",
+          whiteSpace: "nowrap",
+          border: 0,
+          pointerEvents: "none",
+        }}
       >
         {`Page ${pageNumber} of ${pageCount}`}
       </Typography>

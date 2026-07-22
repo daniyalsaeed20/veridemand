@@ -324,8 +324,9 @@ def _windows_startupinfo() -> object | None:
     startupinfo_cls = getattr(subprocess, "STARTUPINFO", None)
     if startupinfo_cls is None:
         return None
+    # Resolve via getattr so Linux type-checkers do not require STARTUPINFO.
     info: object = startupinfo_cls()
-    flags = getattr(subprocess, "STARTF_USESHOWWINDOW", 0)
-    dw_flags = getattr(info, "dwFlags", 0)
-    setattr(info, "dwFlags", dw_flags | flags)
+    flags = int(getattr(subprocess, "STARTF_USESHOWWINDOW", 0) or 0)
+    dw_flags = int(getattr(info, "dwFlags", 0) or 0)
+    object.__setattr__(info, "dwFlags", dw_flags | flags)
     return info
