@@ -65,11 +65,11 @@ jobs:
       - name: Run complete page-by-page corpus
         run: |
           mkdir -p tmp/smoke
-          pnpm smoke:corpus:page -- --output-json tmp/smoke/page-by-page-summary.json
+          pnpm smoke:corpus:page --output-json tmp/smoke/page-by-page-summary.json
 
       - name: Run whole-document smoke
         run: |
-          pnpm smoke:corpus:whole -- --output-json tmp/smoke/whole-document-summary.json
+          pnpm smoke:corpus:whole --output-json tmp/smoke/whole-document-summary.json
 
       - name: Stop backend API
         if: always()

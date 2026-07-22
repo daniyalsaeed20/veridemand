@@ -168,7 +168,7 @@ jobs:
       - name: Run critical page-by-page subset
         run: |
           mkdir -p tmp/smoke
-          pnpm smoke:corpus -- --critical-subset --output-json tmp/smoke/critical-summary.json
+          pnpm smoke:corpus:critical --output-json tmp/smoke/critical-summary.json
 
       - name: Stop backend API
         if: always()
