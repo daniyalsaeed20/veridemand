@@ -30,7 +30,12 @@ def extract_page_candidates(
     """Extract candidate characters and words for each canonical page."""
 
     results: list[PageExtractionCandidate] = []
-    with pdfplumber.open(str(pdf_path), unicode_norm="NFC", strict_metadata=False) as pdf:
+    try:
+        pdf_cm = pdfplumber.open(str(pdf_path), unicode_norm="NFC", strict_metadata=False)
+    except Exception:
+        # Document-level open failure: caller may contain as all-page errors.
+        raise
+    with pdf_cm as pdf:
         if len(pdf.pages) != len(pages):
             for meta in pages:
                 results.append(

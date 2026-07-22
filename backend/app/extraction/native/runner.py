@@ -31,6 +31,7 @@ from backend.app.processing.cancellation import CancellationToken, JobCancelledE
 logger = logging.getLogger("veridemand.native.runner")
 
 ProgressCallback = Callable[[dict[str, Any]], Awaitable[None] | None]
+_STDERR_MAX_BYTES = 8_192
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,6 +39,22 @@ class NativeWorkerOutcome:
     summary: NativeDocumentSummary
     pages: list[NativePageResult]
     exit_code: int
+
+
+def _parse_error_envelope(payload: object) -> dict[str, Any] | None:
+    if not isinstance(payload, dict) or payload.get("status") != "failed":
+        return None
+    error = payload.get("error")
+    if not isinstance(error, dict):
+        return None
+    return error
+
+
+def _error_code_from_token(token: str) -> ErrorCode:
+    try:
+        return ErrorCode(token)
+    except ValueError:
+        return ErrorCode.NATIVE_WORKER_FAILED
 
 
 def _popen_kwargs() -> dict[str, Any]:
@@ -125,6 +142,8 @@ class NativeExtractionRunner:
         process = self._spawn(command)
 
         stdout_queue: asyncio.Queue[bytes | None] = asyncio.Queue()
+        stderr_chunks: list[bytes] = []
+        last_progress: dict[str, Any] | None = None
         loop = asyncio.get_running_loop()
         stdout_thread = threading.Thread(
             target=self._drain_stdout_thread,
@@ -132,9 +151,49 @@ class NativeExtractionRunner:
             name="native-worker-stdout",
             daemon=True,
         )
+        stderr_state = {"size": 0}
+
+        def _note_stderr(chunk: bytes) -> None:
+            if stderr_state["size"] >= _STDERR_MAX_BYTES:
+                return
+            remain = _STDERR_MAX_BYTES - stderr_state["size"]
+            piece = chunk[:remain]
+            stderr_chunks.append(piece)
+            stderr_state["size"] += len(piece)
+
+        stderr_thread = threading.Thread(
+            target=self._drain_stderr_thread,
+            args=(process, _note_stderr),
+            name="native-worker-stderr",
+            daemon=True,
+        )
         stdout_thread.start()
+        stderr_thread.start()
+
+        async def _track_progress(payload: dict[str, Any]) -> None:
+            nonlocal last_progress
+            last_progress = {
+                k: payload.get(k)
+                for k in (
+                    "type",
+                    "code",
+                    "exception_type",
+                    "component",
+                    "operation",
+                    "page_number",
+                    "recoverable_as_visual_authority",
+                    "decision",
+                )
+                if k in payload
+            }
+            if on_progress is not None:
+                result = on_progress(payload)
+                if asyncio.iscoroutine(result):
+                    await result
+
         stdout_task = asyncio.create_task(
-            self._consume_stdout(stdout_queue, on_progress), name="native-worker-stdout-consume"
+            self._consume_stdout(stdout_queue, _track_progress),
+            name="native-worker-stdout-consume",
         )
         cancel_watcher: asyncio.Task[None] | None = None
         if cancel_token is not None:
@@ -163,14 +222,43 @@ class NativeExtractionRunner:
 
             await stdout_task
             stdout_thread.join(timeout=2.0)
+            stderr_thread.join(timeout=2.0)
+            stderr_tail = b"".join(stderr_chunks).decode("utf-8", errors="replace")
 
             if exit_code != 0:
+                envelope = None
+                if output_path.is_file():
+                    with contextlib.suppress(Exception):
+                        envelope = _parse_error_envelope(
+                            json.loads(output_path.read_text(encoding="utf-8"))
+                        )
+                if envelope is None and last_progress and last_progress.get("type") == "error":
+                    envelope = last_progress
+                code = _error_code_from_token(
+                    str((envelope or {}).get("code") or ErrorCode.NATIVE_WORKER_FAILED.value)
+                )
                 raise NativeExtractionError(
-                    ErrorCode.NATIVE_WORKER_FAILED,
+                    code,
                     "Native extraction worker failed.",
                     worker_exit_code=exit_code,
-                    operation="worker_exit",
-                    failing_component="NativeExtractionRunner",
+                    operation=str((envelope or {}).get("operation") or "worker_exit"),
+                    failing_component=str(
+                        (envelope or {}).get("component") or "NativeExtractionRunner"
+                    ),
+                    page_number=(
+                        int(envelope["page_number"])
+                        if envelope and isinstance(envelope.get("page_number"), int)
+                        else None
+                    ),
+                    exception_type=(
+                        str(envelope["exception_type"])
+                        if envelope and envelope.get("exception_type")
+                        else None
+                    ),
+                    recoverable_as_visual_authority=bool(
+                        (envelope or {}).get("recoverable_as_visual_authority")
+                    ),
+                    stderr_tail=stderr_tail or None,
                 )
             if not output_path.is_file():
                 raise NativeExtractionError(
@@ -179,9 +267,12 @@ class NativeExtractionRunner:
                     worker_exit_code=exit_code,
                     operation="read_worker_output",
                     failing_component="NativeExtractionRunner",
+                    stderr_tail=stderr_tail or None,
                 )
             try:
                 payload = json.loads(output_path.read_text(encoding="utf-8"))
+                if _parse_error_envelope(payload) is not None:
+                    raise ValueError("worker wrote failure envelope instead of results")
                 summary = NativeDocumentSummary.model_validate(payload["summary"])
                 pages = [NativePageResult.model_validate(p) for p in payload["pages"]]
             except Exception as exc:
@@ -191,6 +282,7 @@ class NativeExtractionRunner:
                     worker_exit_code=exit_code,
                     operation="validate_worker_output",
                     failing_component="NativeExtractionRunner",
+                    stderr_tail=stderr_tail or None,
                 ) from exc
 
             for page in pages:
@@ -270,6 +362,18 @@ class NativeExtractionRunner:
                 loop.call_soon_threadsafe(queue.put_nowait, line)
         finally:
             loop.call_soon_threadsafe(queue.put_nowait, None)
+
+    def _drain_stderr_thread(
+        self,
+        process: subprocess.Popen[bytes],
+        on_chunk: Callable[[bytes], None],
+    ) -> None:
+        assert process.stderr is not None
+        while True:
+            chunk = process.stderr.read(1024)
+            if not chunk:
+                break
+            on_chunk(chunk)
 
     async def _consume_stdout(
         self,

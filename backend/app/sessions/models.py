@@ -102,6 +102,10 @@ class RuntimeDocument:
     visual_processing_required: bool = False
     document_source_policy: DocumentSourcePolicy | None = None
     user_status_message: str | None = None
+    failure_stage: str | None = None
+    failure_code: str | None = None
+    failure_message: str | None = None
+    failure_page_number: int | None = None
 
     def to_summary(
         self,
@@ -136,6 +140,10 @@ class RuntimeDocument:
             visual_processing_required=self.visual_processing_required,
             document_source_policy=self.document_source_policy,
             user_status_message=self.user_status_message,
+            failure_stage=self.failure_stage,
+            failure_code=self.failure_code,
+            failure_message=self.failure_message,
+            failure_page_number=self.failure_page_number,
             warning_count=len(self.warnings),
             queue_position=queue_position if self.status is DocumentStatus.QUEUED else None,
             active_job_id=self.active_job_id,

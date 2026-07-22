@@ -100,6 +100,19 @@ class DocumentSummary(ApiModel):
     user_status_message: str | None = Field(
         default=None, description="Safe user-facing status for the native trust stage."
     )
+    failure_stage: str | None = Field(
+        default=None,
+        description="Safe stage name when processing failed (e.g. extracting_native).",
+    )
+    failure_code: str | None = Field(
+        default=None, description="Stable machine-readable failure code when status is failed."
+    )
+    failure_message: str | None = Field(
+        default=None, description="Safe, non-sensitive failure message for operators."
+    )
+    failure_page_number: int | None = Field(
+        default=None, ge=1, description="Affected page number when known."
+    )
     warning_count: int = Field(default=0, ge=0, description="Number of non-fatal upload warnings.")
     queue_position: int | None = Field(
         default=None, ge=1, description="Dynamic 1-based queue position while queued."

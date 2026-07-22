@@ -459,16 +459,24 @@ class ProcessingCoordinator:
                         "document_id": document.document_id,
                         "job_id": job.job_id,
                         "error_code": exc.code.value,
-                        "exception_type": type(exc).__name__,
+                        "exception_type": exc.exception_type or type(exc).__name__,
                         "failing_component": exc.failing_component
                         or type(self._native).__qualname__,
                         "operation": exc.operation or "extract_document",
                         "worker_exit_code": exc.worker_exit_code,
+                        "page_number": exc.page_number,
                         "processor_class": type(self._processor).__qualname__,
                         "native_service_class": type(self._native).__qualname__,
                     },
                 )
-                await self._finalize_native_failed(session, job, document, code=exc.code.value)
+                await self._finalize_native_failed(
+                    session,
+                    job,
+                    document,
+                    code=exc.code.value,
+                    page_number=exc.page_number,
+                    operation=exc.operation,
+                )
             except Exception as exc:
                 logger.exception(
                     "Native extraction failed",
@@ -485,7 +493,10 @@ class ProcessingCoordinator:
                     },
                 )
                 await self._finalize_native_failed(
-                    session, job, document, code=ErrorCode.NATIVE_EXTRACTION_FAILED.value
+                    session,
+                    job,
+                    document,
+                    code=ErrorCode.NATIVE_EXTRACTION_FAILED.value,
                 )
             else:
                 job.status = JobStatus.COMPLETED
@@ -636,14 +647,43 @@ class ProcessingCoordinator:
         document: RuntimeDocument,
         *,
         code: str,
+        page_number: int | None = None,
+        operation: str | None = None,
     ) -> None:
+        infra_codes = {
+            ErrorCode.NATIVE_WORKER_START_FAILED.value,
+            ErrorCode.NATIVE_WORKER_NOT_CONFIGURED.value,
+            ErrorCode.NATIVE_WORKER_FAILED.value,
+            ErrorCode.NATIVE_WORKER_OUTPUT_INVALID.value,
+            ErrorCode.NATIVE_RESULT_PUBLISH_FAILED.value,
+            ErrorCode.NATIVE_EXTRACTION_TIMEOUT.value,
+            ErrorCode.NATIVE_EXTRACTION_FAILED.value,
+        }
+        safe_message = (
+            "Native processing could not start or publish its result."
+            if code in infra_codes
+            else (
+                "Native text processing could not read the embedded text on one or more "
+                "pages. The canonical document is still available and visual processing "
+                "is required."
+            )
+        )
         job.status = JobStatus.FAILED
         job.finished_at = datetime.now(UTC)
         job.failure_code = code
-        job.failure_message = "Native extraction could not be completed."
+        job.failure_message = safe_message
         document.status = DocumentStatus.FAILED
         document.native_extraction_performed = False
         document.native_result_available = False
+        document.visual_processing_required = True
+        document.failure_stage = "extracting_native"
+        document.failure_code = code
+        document.failure_message = safe_message
+        document.failure_page_number = page_number
+        document.user_status_message = safe_message
+        if operation:
+            # Keep operation out of user message; available in structured logs only.
+            pass
         self._native.cleanup_staging(session.session_id, job.job_id)
         self._native.delete_results(session.session_id, document.document_id)
         await _safe_publish(
@@ -668,6 +708,7 @@ class ProcessingCoordinator:
             document_id=document.document_id,
             job_id=job.job_id,
             job_status=JobStatus.FAILED,
+            message=job.failure_message,
         )
 
     @staticmethod
