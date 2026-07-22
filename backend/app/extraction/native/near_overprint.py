@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 import unicodedata
 from collections import Counter, defaultdict
+from collections.abc import Callable, Hashable
 from dataclasses import dataclass
 from typing import Literal
 
@@ -271,7 +272,7 @@ def _reading_order_indices(characters: list[RawCharCandidate], indices: list[int
 def _complete_partition_layer_pairs(
     characters: list[RawCharCandidate],
     *,
-    key_fn,
+    key_fn: Callable[[RawCharCandidate], Hashable],
     min_chars: int = 4,
 ) -> tuple[list[tuple[int, int, float, float]], float, float] | None:
     """Detect complete duplicate layers under an arbitrary partition key."""
@@ -421,9 +422,9 @@ def analyse_and_clean_near_overprint(
     for key, indices in buckets.items():
         text, bx, by = key
         neighbours: list[int] = []
-        for dx in (-1, 0, 1):
-            for dy in (-1, 0, 1):
-                neighbours.extend(buckets.get((text, bx + dx, by + dy), []))
+        for cell_dx in (-1, 0, 1):
+            for cell_dy in (-1, 0, 1):
+                neighbours.extend(buckets.get((text, bx + cell_dx, by + cell_dy), []))
         for i in indices:
             for j in neighbours:
                 if j > i:
