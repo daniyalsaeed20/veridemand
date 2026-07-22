@@ -120,14 +120,18 @@ def main(argv: list[str] | None = None) -> int:
         try:
             row = _evaluate(label, pdf_path, policy)
             # Expected directional outcomes by opaque label convention.
+            accepted = row["accepted"]
+            document_policy = row["document_policy"]
+            if not isinstance(accepted, int) or not isinstance(document_policy, str):
+                raise TypeError("unexpected evaluation row shape")
             ok = True
             if label.startswith("bad_"):
-                ok = row["accepted"] == 0 and row["document_policy"] in {
+                ok = accepted == 0 and document_policy in {
                     "visual_authority",
                     "mixed_authority",
                 }
             elif label.startswith("good_"):
-                ok = row["accepted"] > 0 and row["document_policy"] == "native_authority"
+                ok = accepted > 0 and document_policy == "native_authority"
             row["pass"] = ok
             results.append(row)
         except Exception:
