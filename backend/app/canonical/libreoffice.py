@@ -324,7 +324,8 @@ def _windows_startupinfo() -> object | None:
     startupinfo_cls = getattr(subprocess, "STARTUPINFO", None)
     if startupinfo_cls is None:
         return None
-    info = startupinfo_cls()
+    info: object = startupinfo_cls()
     flags = getattr(subprocess, "STARTF_USESHOWWINDOW", 0)
-    info.dwFlags |= flags
+    dw_flags = getattr(info, "dwFlags", 0)
+    setattr(info, "dwFlags", dw_flags | flags)
     return info
