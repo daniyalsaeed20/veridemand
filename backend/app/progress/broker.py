@@ -88,6 +88,13 @@ class EventBroker:
         canonicalisation_method: str | None,
         canonical_page_count: int | None,
         canonical_status: str | None,
+        page_number: int | None = None,
+        pages_completed: int | None = None,
+        pages_total: int | None = None,
+        decision: str | None = None,
+        source_mode: str | None = None,
+        native_trust_score: float | None = None,
+        reason_codes: list[str] | None = None,
     ) -> ProgressEvent:
         return ProgressEvent(
             event_id=format_event_id(sequence),
@@ -99,9 +106,9 @@ class EventBroker:
             timestamp=datetime.now(UTC),
             stage=stage,
             percent=percent,
-            page_number=None,
-            pages_completed=None,
-            pages_total=None,
+            page_number=page_number,
+            pages_completed=pages_completed,
+            pages_total=pages_total,
             message=message,
             queue_position=queue_position,
             document_status=document_status,
@@ -109,6 +116,10 @@ class EventBroker:
             canonicalisation_method=canonicalisation_method,
             canonical_page_count=canonical_page_count,
             canonical_status=canonical_status,
+            decision=decision,
+            source_mode=source_mode,
+            native_trust_score=native_trust_score,
+            reason_codes=reason_codes,
         )
 
     async def publish(
@@ -126,6 +137,13 @@ class EventBroker:
         canonicalisation_method: str | None = None,
         canonical_page_count: int | None = None,
         canonical_status: str | None = None,
+        page_number: int | None = None,
+        pages_completed: int | None = None,
+        pages_total: int | None = None,
+        decision: str | None = None,
+        source_mode: str | None = None,
+        native_trust_score: float | None = None,
+        reason_codes: list[str] | None = None,
     ) -> ProgressEvent:
         """Allocate a sequence, record, and deliver an event to subscribers."""
 
@@ -147,6 +165,13 @@ class EventBroker:
                 canonicalisation_method=canonicalisation_method,
                 canonical_page_count=canonical_page_count,
                 canonical_status=canonical_status,
+                page_number=page_number,
+                pages_completed=pages_completed,
+                pages_total=pages_total,
+                decision=decision,
+                source_mode=source_mode,
+                native_trust_score=native_trust_score,
+                reason_codes=reason_codes,
             )
             self._replay.append(progress)
             for subscriber in self._subscribers:

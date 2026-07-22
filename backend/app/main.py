@@ -20,6 +20,7 @@ from backend.app.api.router import build_api_router
 from backend.app.canonical.processor import DefaultCanonicalisationProcessor
 from backend.app.cleanup.service import CleanupService
 from backend.app.cleanup.worker import CleanupWorker
+from backend.app.extraction.native.service import NativeExtractionService
 from backend.app.health.service import HealthService
 from backend.app.observability.errors import register_exception_handlers
 from backend.app.observability.request_id import RequestIdMiddleware
@@ -48,11 +49,13 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         thread_workers=settings.canonicalisation_thread_workers,
         test_hold_seconds=settings.queue_admission_test_delay_seconds,
     )
+    native_service = NativeExtractionService(settings)
     coordinator = ProcessingCoordinator(
         registry,
         job_queue,
         processor,
         file_store,
+        native_service,
         worker_count=settings.canonicalisation_workers,
         max_pages_per_session=settings.max_pages_per_session,
     )
@@ -68,6 +71,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.job_queue = job_queue
     app.state.session_registry = registry
     app.state.coordinator = coordinator
+    app.state.native_service = native_service
     app.state.upload_service = upload_service
     app.state.cleanup_service = cleanup_service
     app.state.cleanup_worker = cleanup_worker

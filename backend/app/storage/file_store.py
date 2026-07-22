@@ -156,6 +156,14 @@ class FileStore:
             self.remove_file(self.original_path(session_id, document_id, extension))
         self.remove_file(self.canonical_path(session_id, document_id))
         self.remove_file(self.canonical_part_path(session_id, document_id))
+        shutil.rmtree(
+            paths.native_results_dir(self._temp_root, session_id, document_id),
+            ignore_errors=True,
+        )
+        shutil.rmtree(
+            paths.native_results_part_dir(self._temp_root, session_id, document_id),
+            ignore_errors=True,
+        )
 
     def remove_session_storage(self, session_id: str) -> None:
         """Recursively remove a session directory after proving it is safe."""

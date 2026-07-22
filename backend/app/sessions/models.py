@@ -19,13 +19,14 @@ from backend.app.contracts.canonical import (
     CanonicalStatus,
 )
 from backend.app.contracts.documents import (
-    MAX_PHASE2_PROGRESS_PERCENT,
+    MAX_PHASE3_PROGRESS_PERCENT,
     DocumentFormat,
     DocumentStatus,
     DocumentStatusCounts,
     DocumentSummary,
     PageCountStatus,
 )
+from backend.app.contracts.native import DocumentSourcePolicy
 from backend.app.contracts.sessions import SessionStatus
 from backend.app.processing.models import ProcessingJob
 from backend.app.progress.broker import EventBroker
@@ -35,7 +36,7 @@ _DEFAULT_PROGRESS_PERCENT = 5
 
 def _document_progress_percent(document: RuntimeDocument) -> int:
     if document.progress_percent != _DEFAULT_PROGRESS_PERCENT:
-        return min(document.progress_percent, MAX_PHASE2_PROGRESS_PERCENT)
+        return min(document.progress_percent, MAX_PHASE3_PROGRESS_PERCENT)
     match document.status:
         case DocumentStatus.UPLOADED | DocumentStatus.QUEUED:
             return 5
@@ -43,6 +44,12 @@ def _document_progress_percent(document: RuntimeDocument) -> int:
             return 6
         case DocumentStatus.READY_FOR_EXTRACTION:
             return 15 if document.canonical_view_available else 5
+        case DocumentStatus.INSPECTING_NATIVE:
+            return 16
+        case DocumentStatus.EXTRACTING_NATIVE:
+            return 20
+        case DocumentStatus.NATIVE_TRUST_COMPLETE:
+            return 35
         case _:
             return 5
 
@@ -52,11 +59,12 @@ def _canonical_urls(
     session_id: str,
     *,
     api_prefix: str,
-) -> tuple[str | None, str | None]:
+) -> tuple[str | None, str | None, str | None]:
     if not document.canonical_view_available:
-        return None, None
+        return None, None, None
     base = f"{api_prefix}/sessions/{session_id}/documents/{document.document_id}"
-    return f"{base}/canonical", f"{base}/canonical/metadata"
+    native_url = f"{base}/native/summary" if document.native_extraction_performed else None
+    return f"{base}/canonical", f"{base}/canonical/metadata", native_url
 
 
 @dataclass
@@ -89,6 +97,11 @@ class RuntimeDocument:
     canonical_pages: list[CanonicalPageMetadata] = field(default_factory=list)
     progress_percent: int = _DEFAULT_PROGRESS_PERCENT
     libreoffice_version: str | None = None
+    native_extraction_performed: bool = False
+    native_result_available: bool = False
+    visual_processing_required: bool = False
+    document_source_policy: DocumentSourcePolicy | None = None
+    user_status_message: str | None = None
 
     def to_summary(
         self,
@@ -99,8 +112,9 @@ class RuntimeDocument:
     ) -> DocumentSummary:
         canonical_view_url: str | None = None
         canonical_metadata_url: str | None = None
+        native_summary_url: str | None = None
         if session_id is not None and api_prefix is not None:
-            canonical_view_url, canonical_metadata_url = _canonical_urls(
+            canonical_view_url, canonical_metadata_url, native_summary_url = _canonical_urls(
                 self, session_id, api_prefix=api_prefix
             )
         return DocumentSummary(
@@ -117,6 +131,11 @@ class RuntimeDocument:
             progress_percent=_document_progress_percent(self),
             result_available=False,
             extraction_performed=False,
+            native_extraction_performed=self.native_extraction_performed,
+            native_result_available=self.native_result_available,
+            visual_processing_required=self.visual_processing_required,
+            document_source_policy=self.document_source_policy,
+            user_status_message=self.user_status_message,
             warning_count=len(self.warnings),
             queue_position=queue_position if self.status is DocumentStatus.QUEUED else None,
             active_job_id=self.active_job_id,
@@ -128,6 +147,7 @@ class RuntimeDocument:
             canonical_view_available=self.canonical_view_available,
             canonical_view_url=canonical_view_url,
             canonical_metadata_url=canonical_metadata_url,
+            native_summary_url=native_summary_url,
         )
 
 
@@ -156,25 +176,18 @@ class RuntimeSession:
     idle_event: asyncio.Event = field(default_factory=asyncio.Event)
 
     def __post_init__(self) -> None:
-        # No admission is running initially, so the session starts idle.
         self.idle_event.set()
 
     def begin_admission(self) -> None:
-        """Mark that an admission worker started reading this session's metadata."""
-
         self.active_admissions += 1
         self.idle_event.clear()
 
     def end_admission(self) -> None:
-        """Mark that an admission worker finished; signal idle when none remain."""
-
         self.active_admissions = max(0, self.active_admissions - 1)
         if self.active_admissions == 0:
             self.idle_event.set()
 
     def touch(self, now_monotonic: float) -> None:
-        """Record activity: refresh last-activity and extend the TTL deadline."""
-
         now = datetime.now(UTC)
         self.last_activity_at = now
         self.expires_at = now + timedelta(seconds=self.ttl_seconds)
@@ -210,6 +223,12 @@ class RuntimeSession:
                     counts.canonicalising += 1
                 case DocumentStatus.READY_FOR_EXTRACTION:
                     counts.ready_for_extraction += 1
+                case DocumentStatus.INSPECTING_NATIVE:
+                    counts.inspecting_native += 1
+                case DocumentStatus.EXTRACTING_NATIVE:
+                    counts.extracting_native += 1
+                case DocumentStatus.NATIVE_TRUST_COMPLETE:
+                    counts.native_trust_complete += 1
                 case DocumentStatus.CANCELLED:
                     counts.cancelled += 1
                 case DocumentStatus.FAILED:

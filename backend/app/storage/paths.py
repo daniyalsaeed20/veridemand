@@ -118,6 +118,31 @@ def staging_libreoffice_dir(temp_root: Path, session_id: str, job_id: str) -> Pa
     return session_dir(temp_root, session_id) / "staging" / "libreoffice" / _require_job_id(job_id)
 
 
+def staging_native_dir(temp_root: Path, session_id: str, job_id: str) -> Path:
+    """Return per-job staging for native extraction."""
+
+    return session_dir(temp_root, session_id) / "staging" / "native" / _require_job_id(job_id)
+
+
+def native_results_dir(temp_root: Path, session_id: str, document_id: str) -> Path:
+    """Return published native results directory for a document."""
+
+    return (
+        session_dir(temp_root, session_id)
+        / "results"
+        / "native"
+        / _require_document_id(document_id)
+    )
+
+
+def native_results_part_dir(temp_root: Path, session_id: str, document_id: str) -> Path:
+    """Return in-progress native results directory (``.part`` suffix)."""
+
+    return native_results_dir(temp_root, session_id, document_id).with_name(
+        f"{_require_document_id(document_id)}.part"
+    )
+
+
 def is_contained(root: Path, candidate: Path) -> bool:
     """Return True only when ``candidate`` resolves strictly inside ``root``."""
 

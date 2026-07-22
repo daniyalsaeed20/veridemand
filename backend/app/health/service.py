@@ -47,6 +47,10 @@ class HealthService:
         self._libreoffice = LibreOfficeService(settings)
         self._cached_libreoffice: DependencyCheck | None = None
         self._cached_reportlab: DependencyCheck | None = None
+        self._cached_pdfplumber: DependencyCheck | None = None
+        self._cached_native_worker: DependencyCheck | None = None
+        self._cached_native_storage: DependencyCheck | None = None
+        self._cached_native_policy: DependencyCheck | None = None
 
     def attach_runtime(
         self,
@@ -213,6 +217,158 @@ class HealthService:
         self._cached_reportlab = check
         return check
 
+    def _check_pdfplumber(self) -> DependencyCheck:
+        if self._cached_pdfplumber is not None:
+            return self._cached_pdfplumber
+        try:
+            import pdfplumber  # noqa: F401
+
+            check = DependencyCheck(
+                name="pdfplumber",
+                status=CheckState.PASS,
+                required=True,
+                message="pdfplumber import succeeds.",
+            )
+        except Exception:
+            check = DependencyCheck(
+                name="pdfplumber",
+                status=CheckState.FAIL,
+                required=True,
+                message="pdfplumber cannot be imported.",
+            )
+        self._cached_pdfplumber = check
+        return check
+
+    def _check_native_policy(self) -> DependencyCheck:
+        if self._cached_native_policy is not None:
+            return self._cached_native_policy
+        try:
+            # Instantiating Settings already validates; re-check key invariants.
+            assert self._settings.native_workers == 1
+            assert self._settings.native_trust_policy_version.strip()
+            assert (
+                self._settings.native_termination_grace_seconds
+                < self._settings.native_extraction_timeout_seconds
+            )
+            check = DependencyCheck(
+                name="native_trust_policy",
+                status=CheckState.PASS,
+                required=True,
+                message="Native trust policy configuration is valid.",
+            )
+        except Exception:
+            check = DependencyCheck(
+                name="native_trust_policy",
+                status=CheckState.FAIL,
+                required=True,
+                message="Native trust policy configuration is invalid.",
+            )
+        self._cached_native_policy = check
+        return check
+
+    def _check_native_storage(self) -> DependencyCheck:
+        if self._cached_native_storage is not None:
+            return self._cached_native_storage
+        root = paths.sessions_root(self._settings.temp_root)
+        try:
+            root.mkdir(parents=True, exist_ok=True)
+            probe = root / ".native_probe"
+            probe.mkdir(exist_ok=True)
+            staging = probe / "staging" / "native"
+            results = probe / "results" / "native"
+            staging.mkdir(parents=True, exist_ok=True)
+            results.mkdir(parents=True, exist_ok=True)
+            staging.rmdir()
+            results.rmdir()
+            (probe / "staging").rmdir()
+            (probe / "results").rmdir()
+            probe.rmdir()
+            check = DependencyCheck(
+                name="native_result_storage",
+                status=CheckState.PASS,
+                required=True,
+                message="Native result staging can be created and deleted.",
+            )
+        except OSError:
+            check = DependencyCheck(
+                name="native_result_storage",
+                status=CheckState.FAIL,
+                required=True,
+                message="Native result storage is not writable.",
+            )
+        self._cached_native_storage = check
+        return check
+
+    def _check_native_worker(self) -> DependencyCheck:
+        if self._cached_native_worker is not None:
+            return self._cached_native_worker
+        import json
+        import subprocess
+        import sys
+        import tempfile
+        from pathlib import Path
+
+        from backend.app.extraction.native.models import (
+            NativeTrustPolicyConfig,
+            NativeWorkerRequest,
+        )
+
+        try:
+            with tempfile.TemporaryDirectory(prefix="vd-native-selfcheck-") as tmp:
+                staging = Path(tmp)
+                request = NativeWorkerRequest(
+                    session_id="ses_" + ("0" * 32),
+                    document_id="doc_" + ("0" * 32),
+                    job_id="job_" + ("0" * 32),
+                    canonical_pdf_path="",
+                    canonicalisation_method="original_pdf",
+                    pages=[],
+                    policy=NativeTrustPolicyConfig(),
+                    self_check=True,
+                )
+                request_path = staging / "request.json"
+                output_path = staging / "result.json.part"
+                request_path.write_text(
+                    json.dumps(request.to_dict(), separators=(",", ":")), encoding="utf-8"
+                )
+                repo_root = str(Path(__file__).resolve().parents[3])
+                completed = subprocess.run(
+                    [
+                        sys.executable,
+                        "-m",
+                        "backend.app.extraction.native.worker",
+                        "--request",
+                        str(request_path),
+                        "--output",
+                        str(output_path),
+                    ],
+                    check=False,
+                    capture_output=True,
+                    timeout=30,
+                    cwd=repo_root,
+                    env={**dict(**__import__("os").environ), "PYTHONPATH": repo_root},
+                )
+                ok = completed.returncode == 0 and output_path.is_file()
+            check = DependencyCheck(
+                name="native_worker",
+                status=CheckState.PASS if ok else CheckState.FAIL,
+                required=True,
+                message=(
+                    "Native worker self-check succeeded."
+                    if ok
+                    else "Native worker self-check failed."
+                ),
+            )
+        except Exception:
+            check = DependencyCheck(
+                name="native_worker",
+                status=CheckState.FAIL,
+                required=True,
+                message="Native worker self-check failed.",
+            )
+        self._cached_native_worker = check
+        return check
+
     @staticmethod
     def _future_checks() -> list[DependencyCheck]:
         return [
@@ -233,11 +389,15 @@ class HealthService:
             self._check_temp_storage(),
             self._check_session_workspace(),
             self._check_canonical_storage(),
+            self._check_native_storage(),
             self._check_coordinator(),
             self._check_cleanup(),
             self._check_queue(),
             self._check_libreoffice(),
             self._check_reportlab(),
+            self._check_pdfplumber(),
+            self._check_native_policy(),
+            self._check_native_worker(),
         ]
         checks.extend(self._future_checks())
         return checks

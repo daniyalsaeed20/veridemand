@@ -1,8 +1,9 @@
-"""Processing coordinator: a single canonicalisation worker over the in-memory queue.
+"""Processing coordinator: a single worker over the in-memory queue.
 
 Owns the queue worker task, job state transitions, cancellation, session-state
-updates, event publication, and graceful shutdown. FastAPI ``BackgroundTasks``
-is deliberately not used for the queue. Phase 2 runs exactly one worker.
+updates, event publication, and graceful shutdown. Each job runs canonicalisation
+then native extraction sequentially. FastAPI ``BackgroundTasks`` is deliberately
+not used for the queue.
 """
 
 from __future__ import annotations
@@ -19,8 +20,11 @@ from backend.app.contracts.documents import DocumentStatus, PageCountStatus
 from backend.app.contracts.errors import ErrorCode
 from backend.app.contracts.identifiers import new_job_id
 from backend.app.contracts.jobs import JobStatus, JobSummary
+from backend.app.contracts.native import NativePageDecision
 from backend.app.contracts.processing import IgnoredDocument
 from backend.app.contracts.progress import ProgressEventType
+from backend.app.extraction.native.errors import NativeExtractionError
+from backend.app.extraction.native.service import NativeExtractionService
 from backend.app.observability.errors import ApiException
 from backend.app.processing.cancellation import JobCancelledError
 from backend.app.processing.models import ProcessingJob
@@ -36,7 +40,13 @@ logger = logging.getLogger("veridemand.processing")
 
 _FAILURE_CODE = "canonicalisation_failed"
 _DOCUMENT_STAGE = "canonicalising"
-_MAX_PROGRESS_PERCENT = 15
+_NATIVE_STAGE = "extracting_native"
+_MAX_CANONICAL_PROGRESS = 15
+_NATIVE_INSPECT_PROGRESS = 16
+_NATIVE_PAGE_START = 20
+_NATIVE_PAGE_END = 32
+_NATIVE_POLICY_PROGRESS = 34
+_MAX_PROGRESS_PERCENT = 35
 _PROGRESS_STARTED = 6
 
 
@@ -46,7 +56,7 @@ async def _safe_publish(broker: EventBroker, event: ProgressEventType, **fields:
 
 
 class ProcessingCoordinator:
-    """Coordinates queue canonicalisation with a single cooperative worker."""
+    """Coordinates canonicalisation and native extraction with one worker."""
 
     def __init__(
         self,
@@ -54,16 +64,18 @@ class ProcessingCoordinator:
         job_queue: JobQueue,
         processor: CanonicalisationProcessor,
         file_store: FileStore,
+        native_service: NativeExtractionService,
         *,
         worker_count: int = 1,
         max_pages_per_session: int = 500,
     ) -> None:
         if worker_count != 1:
-            raise ValueError("Phase 2 requires exactly one canonicalisation worker.")
+            raise ValueError("Phase 3 requires exactly one processing worker.")
         self._registry = registry
         self._queue = job_queue
         self._processor = processor
         self._file_store = file_store
+        self._native = native_service
         self._max_pages_per_session = max_pages_per_session
         self._worker: asyncio.Task[None] | None = None
         self._current_job: ProcessingJob | None = None
@@ -179,7 +191,7 @@ class ProcessingCoordinator:
 
             if document.status in (
                 DocumentStatus.UPLOADED,
-                DocumentStatus.READY_FOR_EXTRACTION,
+                DocumentStatus.NATIVE_TRUST_COMPLETE,
                 DocumentStatus.FAILED,
             ):
                 raise ApiException(
@@ -221,7 +233,16 @@ class ProcessingCoordinator:
                         job_id=job.job_id,
                         job_status=JobStatus.CANCELLED,
                     )
-            elif document.status is DocumentStatus.CANONICALISING and job is not None:
+            elif (
+                document.status
+                in (
+                    DocumentStatus.CANONICALISING,
+                    DocumentStatus.READY_FOR_EXTRACTION,
+                    DocumentStatus.INSPECTING_NATIVE,
+                    DocumentStatus.EXTRACTING_NATIVE,
+                )
+                and job is not None
+            ):
                 job.request_cancellation()
 
             recompute_session_status(session)
@@ -239,7 +260,12 @@ class ProcessingCoordinator:
                     message="Document not found in this session.",
                     document_id=document_id,
                 )
-            if document.status in (DocumentStatus.QUEUED, DocumentStatus.CANONICALISING):
+            if document.status in (
+                DocumentStatus.QUEUED,
+                DocumentStatus.CANONICALISING,
+                DocumentStatus.INSPECTING_NATIVE,
+                DocumentStatus.EXTRACTING_NATIVE,
+            ):
                 raise ApiException(
                     status_code=409,
                     code=ErrorCode.DOCUMENT_PROCESSING,
@@ -366,21 +392,19 @@ class ProcessingCoordinator:
             logger.warning("Canonicalisation failed for a document: %s", type(exc).__name__)
             await self._finalize_failed(session, job, document)
         else:
-            job.status = JobStatus.COMPLETED
-            job.finished_at = datetime.now(UTC)
-            document.status = DocumentStatus.READY_FOR_EXTRACTION
-            document.progress_percent = _MAX_PROGRESS_PERCENT
             method = (
                 document.canonicalisation_method.value
                 if document.canonicalisation_method is not None
                 else None
             )
+            document.status = DocumentStatus.READY_FOR_EXTRACTION
+            document.progress_percent = _MAX_CANONICAL_PROGRESS
             await _safe_publish(
                 session.broker,
                 ProgressEventType.DOCUMENT_CANONICALISATION_PROGRESS,
                 document_id=document.document_id,
                 job_id=job.job_id,
-                percent=_MAX_PROGRESS_PERCENT,
+                percent=_MAX_CANONICAL_PROGRESS,
                 document_status=DocumentStatus.READY_FOR_EXTRACTION,
                 canonicalisation_method=method,
                 canonical_page_count=document.canonical_page_count,
@@ -391,7 +415,7 @@ class ProcessingCoordinator:
                 ProgressEventType.DOCUMENT_CANONICALISATION_COMPLETED,
                 document_id=document.document_id,
                 job_id=job.job_id,
-                percent=_MAX_PROGRESS_PERCENT,
+                percent=_MAX_CANONICAL_PROGRESS,
                 canonicalisation_method=method,
                 canonical_page_count=document.canonical_page_count,
                 canonical_status=CanonicalStatus.READY.value,
@@ -401,8 +425,8 @@ class ProcessingCoordinator:
                 ProgressEventType.DOCUMENT_CANONICAL_READY,
                 document_id=document.document_id,
                 job_id=job.job_id,
-                percent=_MAX_PROGRESS_PERCENT,
-                message="Canonical document ready. Extraction has not started.",
+                percent=_MAX_CANONICAL_PROGRESS,
+                message="Canonical document ready.",
                 canonicalisation_method=method,
                 canonical_page_count=document.canonical_page_count,
                 canonical_status=CanonicalStatus.READY.value,
@@ -412,20 +436,204 @@ class ProcessingCoordinator:
                 ProgressEventType.DOCUMENT_READY_FOR_EXTRACTION,
                 document_id=document.document_id,
                 job_id=job.job_id,
-                percent=_MAX_PROGRESS_PERCENT,
-                message="Canonical document ready. Extraction has not started.",
+                percent=_MAX_CANONICAL_PROGRESS,
+                message="Canonical document ready. Native inspection starting.",
                 document_status=DocumentStatus.READY_FOR_EXTRACTION,
             )
-            await _safe_publish(
-                session.broker,
-                ProgressEventType.JOB_COMPLETED,
-                document_id=document.document_id,
-                job_id=job.job_id,
-                job_status=JobStatus.COMPLETED,
-            )
+            try:
+                await self._run_native(session, job, document)
+            except JobCancelledError:
+                await self._finalize_cancelled(session, job, document)
+            except NativeExtractionError as exc:
+                logger.warning("Native extraction failed: %s", exc.code.value)
+                await self._finalize_native_failed(session, job, document, code=exc.code.value)
+            except Exception as exc:
+                logger.warning("Native extraction failed: %s", type(exc).__name__)
+                await self._finalize_native_failed(
+                    session, job, document, code=ErrorCode.NATIVE_EXTRACTION_FAILED.value
+                )
+            else:
+                job.status = JobStatus.COMPLETED
+                job.finished_at = datetime.now(UTC)
+                await _safe_publish(
+                    session.broker,
+                    ProgressEventType.JOB_COMPLETED,
+                    document_id=document.document_id,
+                    job_id=job.job_id,
+                    job_status=JobStatus.COMPLETED,
+                )
         finally:
             session.end_admission()
             recompute_session_status(session)
+
+    async def _run_native(
+        self,
+        session: RuntimeSession,
+        job: ProcessingJob,
+        document: RuntimeDocument,
+    ) -> None:
+        if document.canonicalisation_method is None or not document.canonical_pages:
+            raise NativeExtractionError(
+                ErrorCode.NATIVE_EXTRACTION_FAILED,
+                "Canonical metadata is incomplete for native extraction.",
+            )
+        if job.cancellation.cancelled:
+            raise JobCancelledError()
+
+        document.status = DocumentStatus.INSPECTING_NATIVE
+        document.progress_percent = _NATIVE_INSPECT_PROGRESS
+        await _safe_publish(
+            session.broker,
+            ProgressEventType.DOCUMENT_NATIVE_INSPECTION_STARTED,
+            document_id=document.document_id,
+            job_id=job.job_id,
+            stage=_NATIVE_STAGE,
+            percent=_NATIVE_INSPECT_PROGRESS,
+            document_status=DocumentStatus.INSPECTING_NATIVE,
+            pages_total=len(document.canonical_pages),
+        )
+
+        document.status = DocumentStatus.EXTRACTING_NATIVE
+        document.progress_percent = _NATIVE_PAGE_START
+        pages_total = max(len(document.canonical_pages), 1)
+        pages_completed = 0
+
+        async def on_progress(payload: dict[str, object]) -> None:
+            nonlocal pages_completed
+            event_type = str(payload.get("type", ""))
+            if event_type != "page_completed":
+                return
+            pages_completed += 1
+            raw_page = payload.get("page_number", pages_completed)
+            page_number = (
+                int(raw_page) if isinstance(raw_page, (int, float, str)) else pages_completed
+            )
+            decision = str(payload.get("decision", ""))
+            fraction = pages_completed / pages_total
+            percent = int(_NATIVE_PAGE_START + (_NATIVE_PAGE_END - _NATIVE_PAGE_START) * fraction)
+            percent = min(percent, _NATIVE_PAGE_END)
+            document.progress_percent = percent
+            event = ProgressEventType.DOCUMENT_NATIVE_PAGE_ACCEPTED
+            if decision == NativePageDecision.REJECTED.value:
+                event = ProgressEventType.DOCUMENT_NATIVE_PAGE_REJECTED
+            elif decision == NativePageDecision.ABSENT.value:
+                event = ProgressEventType.DOCUMENT_NATIVE_PAGE_ABSENT
+            elif decision == NativePageDecision.ERROR.value:
+                event = ProgressEventType.DOCUMENT_NATIVE_PAGE_ERROR
+            score_raw = payload.get("native_trust_score")
+            score = float(score_raw) if isinstance(score_raw, (int, float)) else None
+            reasons_raw = payload.get("reason_codes")
+            reasons = [str(item) for item in reasons_raw] if isinstance(reasons_raw, list) else []
+            await _safe_publish(
+                session.broker,
+                ProgressEventType.DOCUMENT_NATIVE_PAGE_STARTED,
+                document_id=document.document_id,
+                job_id=job.job_id,
+                page_number=page_number,
+                pages_completed=pages_completed,
+                pages_total=pages_total,
+                percent=percent,
+            )
+            await _safe_publish(
+                session.broker,
+                event,
+                document_id=document.document_id,
+                job_id=job.job_id,
+                page_number=page_number,
+                decision=decision,
+                source_mode=str(payload.get("source_mode")) if payload.get("source_mode") else None,
+                native_trust_score=score,
+                reason_codes=reasons,
+                pages_completed=pages_completed,
+                pages_total=pages_total,
+                percent=percent,
+            )
+
+        canonical_pdf = self._file_store.canonical_path(session.session_id, document.document_id)
+        outcome = await self._native.extract_document(
+            session_id=session.session_id,
+            document_id=document.document_id,
+            job_id=job.job_id,
+            canonical_pdf=canonical_pdf,
+            canonical_pages=document.canonical_pages,
+            canonicalisation_method=document.canonicalisation_method,
+            cancel_token=job.cancellation,
+            on_progress=on_progress,
+        )
+
+        document.progress_percent = _NATIVE_POLICY_PROGRESS
+        if outcome.summary.document_source_policy is not None:
+            policy = outcome.summary.document_source_policy
+            if policy.value == "visual_authority" and outcome.summary.pages_suppressed > 0:
+                await _safe_publish(
+                    session.broker,
+                    ProgressEventType.DOCUMENT_NATIVE_DOCUMENT_ESCALATED,
+                    document_id=document.document_id,
+                    job_id=job.job_id,
+                    percent=_NATIVE_POLICY_PROGRESS,
+                    reason_codes=["document_visual_authority_escalation"],
+                )
+
+        document.status = DocumentStatus.NATIVE_TRUST_COMPLETE
+        document.progress_percent = _MAX_PROGRESS_PERCENT
+        document.native_extraction_performed = True
+        document.native_result_available = outcome.summary.native_result_available
+        document.visual_processing_required = outcome.summary.visual_processing_required
+        document.document_source_policy = outcome.summary.document_source_policy
+        document.user_status_message = outcome.summary.user_status_message
+
+        await _safe_publish(
+            session.broker,
+            ProgressEventType.DOCUMENT_NATIVE_EXTRACTION_COMPLETED,
+            document_id=document.document_id,
+            job_id=job.job_id,
+            percent=_MAX_PROGRESS_PERCENT,
+            document_status=DocumentStatus.NATIVE_TRUST_COMPLETE,
+            pages_completed=pages_total,
+            pages_total=pages_total,
+            message=document.user_status_message,
+        )
+
+    async def _finalize_native_failed(
+        self,
+        session: RuntimeSession,
+        job: ProcessingJob,
+        document: RuntimeDocument,
+        *,
+        code: str,
+    ) -> None:
+        job.status = JobStatus.FAILED
+        job.finished_at = datetime.now(UTC)
+        job.failure_code = code
+        job.failure_message = "Native extraction could not be completed."
+        document.status = DocumentStatus.FAILED
+        document.native_extraction_performed = False
+        document.native_result_available = False
+        self._native.cleanup_staging(session.session_id, job.job_id)
+        self._native.delete_results(session.session_id, document.document_id)
+        await _safe_publish(
+            session.broker,
+            ProgressEventType.DOCUMENT_NATIVE_EXTRACTION_FAILED,
+            document_id=document.document_id,
+            job_id=job.job_id,
+            message=job.failure_message,
+            document_status=DocumentStatus.FAILED,
+        )
+        await _safe_publish(
+            session.broker,
+            ProgressEventType.DOCUMENT_FAILED,
+            document_id=document.document_id,
+            job_id=job.job_id,
+            message=job.failure_message,
+            document_status=DocumentStatus.FAILED,
+        )
+        await _safe_publish(
+            session.broker,
+            ProgressEventType.JOB_FAILED,
+            document_id=document.document_id,
+            job_id=job.job_id,
+            job_status=JobStatus.FAILED,
+        )
 
     @staticmethod
     def _finalize_orphan(job: ProcessingJob) -> None:
@@ -437,19 +645,29 @@ class ProcessingCoordinator:
     ) -> None:
         job.status = JobStatus.CANCELLED
         job.finished_at = datetime.now(UTC)
+        had_canonical = document.canonical_view_available
         document.status = DocumentStatus.CANCELLED
-        document.canonical_status = CanonicalStatus.CANCELLED
-        document.canonical_view_available = False
+        if not had_canonical:
+            document.canonical_status = CanonicalStatus.CANCELLED
+            document.canonical_view_available = False
         self._file_store.remove_file(
             self._file_store.canonical_part_path(session.session_id, document.document_id)
         )
+        self._native.cleanup_staging(session.session_id, job.job_id)
+        self._native.delete_results(session.session_id, document.document_id)
+        document.native_extraction_performed = False
+        document.native_result_available = False
         await _safe_publish(
             session.broker,
             ProgressEventType.DOCUMENT_CANONICALISATION_CANCELLED,
             document_id=document.document_id,
             job_id=job.job_id,
             document_status=DocumentStatus.CANCELLED,
-            canonical_status=CanonicalStatus.CANCELLED.value,
+            canonical_status=(
+                document.canonical_status.value
+                if document.canonical_status is not None
+                else CanonicalStatus.CANCELLED.value
+            ),
         )
         await _safe_publish(
             session.broker,
