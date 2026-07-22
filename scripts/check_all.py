@@ -22,6 +22,7 @@ STEPS: list[tuple[str, str]] = [
     ("Lockfile: pnpm", "pnpm install --frozen-lockfile"),
     ("Legacy-scope check", f"{PYTHON} scripts/check_no_legacy_scope.py"),
     ("Private-corpus tracking guard", f"{PYTHON} scripts/check_no_private_corpus.py"),
+    ("Dependency-boundary guard", f"{PYTHON} scripts/check_dependency_boundary.py"),
     ("Contract generation and drift check", f"{PYTHON} scripts/check_contracts.py"),
     ("Backend format check", "uv run ruff format --check backend scripts"),
     ("Backend lint", "uv run ruff check backend scripts"),

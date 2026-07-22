@@ -1,0 +1,75 @@
+{
+  "description": "Deterministic, non-sensitive Phase 3 native PDF extraction and trust-gate fixtures. Regenerate with fixtures/synthetic/native/generate_native.py.",
+  "fixtures": [
+    {
+      "filename": "good-native-single-page.pdf",
+      "expected_native_status": "trusted",
+      "note": "One page of paragraphs, digits, punctuation, accented Latin text, table-like columns, and multiple built-in fonts/sizes."
+    },
+    {
+      "filename": "good-native-multipage.pdf",
+      "expected_native_status": "trusted",
+      "note": "Three pages of good native text."
+    },
+    {
+      "filename": "good-native-rotated.pdf",
+      "expected_native_status": "trusted",
+      "note": "Good native page with /Rotate 90."
+    },
+    {
+      "filename": "good-native-cropbox.pdf",
+      "expected_native_status": "trusted",
+      "note": "Good native page whose CropBox is inset from its MediaBox."
+    },
+    {
+      "filename": "image-only.pdf",
+      "expected_native_status": "absent",
+      "note": "Full-page PNG image only; no PDF text-drawing operators."
+    },
+    {
+      "filename": "mixed-native-image.pdf",
+      "expected_native_status": "mixed",
+      "note": "Page 1 has good native text; page 2 is a full-page image only."
+    },
+    {
+      "filename": "replacement-character-layer.pdf",
+      "expected_native_status": "rejected",
+      "note": "Raw ToUnicode CMap emits U+FFFD replacement characters."
+    },
+    {
+      "filename": "private-use-layer.pdf",
+      "expected_native_status": "rejected",
+      "note": "Raw ToUnicode CMap emits private-use codepoints U+E001 and U+E002."
+    },
+    {
+      "filename": "control-character-layer.pdf",
+      "expected_native_status": "rejected",
+      "note": "Raw ToUnicode CMap emits C0 control characters U+0001 and U+0002."
+    },
+    {
+      "filename": "duplicate-text-layer.pdf",
+      "expected_native_status": "rejected",
+      "note": "Identical text is drawn 50 times at the same coordinates."
+    },
+    {
+      "filename": "out-of-bounds-text-layer.pdf",
+      "expected_native_status": "rejected",
+      "note": "Two text lines are placed outside page bounds; one visible anchor remains."
+    },
+    {
+      "filename": "cid-token-layer.pdf",
+      "expected_native_status": "rejected",
+      "note": "Literal visible (cid:123)-style tokens."
+    },
+    {
+      "filename": "symbol-noise-layer.pdf",
+      "expected_native_status": "rejected",
+      "note": "Twelve mostly punctuation-only text lines."
+    },
+    {
+      "filename": "corrupt-geometry-layer.pdf",
+      "expected_native_status": "rejected",
+      "note": "Raw text matrices with zero text scale and negative horizontal scale approximate zero-size and inverted boxes."
+    }
+  ]
+}

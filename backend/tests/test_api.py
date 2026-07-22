@@ -93,14 +93,15 @@ def test_process_and_reach_ready(client: TestClient, uploads_dir: Path) -> None:
     body = _poll_snapshot(
         client,
         session_id,
-        lambda s: s["counts"].get("ready_for_extraction", 0) == 2,
+        lambda s: s["counts"].get("native_trust_complete", 0) == 2,
     )
-    assert body["counts"]["ready_for_extraction"] == 2
+    assert body["counts"]["native_trust_complete"] == 2
     for document in body["documents"]:
-        assert document["progress_percent"] <= 15
+        assert document["progress_percent"] <= 35
         assert document["result_available"] is False
         assert document["extraction_performed"] is False
         assert document["canonical_view_available"] is True
+        assert document["status"] == "native_trust_complete"
 
 
 def test_jobs_listed_after_process(client: TestClient, uploads_dir: Path) -> None:

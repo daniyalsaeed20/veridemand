@@ -22,11 +22,27 @@ content is described or tracked here.
 | Table-heavy document | `tables_dense.pdf` | Table and cell structure detection |
 | Single-page image input | `single_page_image.png` | Image-authority source mode |
 
-## Rules
+## Native trust local manifest (Phase 3)
 
-- Files here are ignored by Git (see `.gitignore`: `fixtures/private/**`, with
-  `.gitkeep` and this README allow-listed).
-- Do not add real client names, case numbers, medical details, or any PII to the repository.
-- Keep only synthetic or properly de-identified material if anything must ever be shared;
+Create a **gitignored** file:
+
+`fixtures/private/native-trust-manifest.local.json`
+
+Example shape (opaque relative paths only; no patient names in keys):
+
+```json
+{
+  "bad_native_primary": "opaque-relative-path.pdf",
+  "bad_native_billing": "opaque-relative-path.pdf",
+  "good_native_reference": "opaque-relative-path.pdf"
+}
+```
+
+Evaluate locally with:
+
+`uv run python scripts/evaluate_private_native_trust.py`
+
+The script prints only opaque labels, counts, policies, score stats, reason-code
+counts, duration, and pass/fail — never text or filenames.
   shareable synthetic fixtures live under `fixtures/extraction_acceptance/` instead.
 - Never place private medical PDFs under `docs/example/`; that tree is for local notes only.
