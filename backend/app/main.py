@@ -110,7 +110,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["*"],
-        expose_headers=["X-Request-ID"],
+        # PDF.js (cross-origin from the Vite origin) must read range headers
+        # to stream canonical PDFs; omitting them causes blank pages on large files.
+        expose_headers=[
+            "X-Request-ID",
+            "Accept-Ranges",
+            "Content-Range",
+            "Content-Length",
+            "Content-Type",
+        ],
     )
 
     register_exception_handlers(app)

@@ -25,6 +25,8 @@ export interface ViewerToolbarProps {
   readonly zoomMode: ZoomMode;
   readonly effectiveScale: number;
   readonly overlayEnabled: boolean;
+  /** When false, the coordinate-test overlay toggle is hidden entirely. */
+  readonly showOverlayControls?: boolean;
   readonly overlayDisabledReason?: string | null;
   readonly disabled?: boolean;
   readonly onZoomModeChange: (mode: ZoomMode) => void;
@@ -39,6 +41,7 @@ export function ViewerToolbar({
   zoomMode,
   effectiveScale,
   overlayEnabled,
+  showOverlayControls = false,
   overlayDisabledReason = null,
   disabled = false,
   onZoomModeChange,
@@ -55,13 +58,13 @@ export function ViewerToolbar({
     <FormControlLabel
       control={
         <Switch
-          slotProps={{ input: { "aria-label": "Show synthetic alignment overlay" } }}
+          slotProps={{ input: { "aria-label": "Show coordinate-test alignment overlay" } }}
           checked={overlayEnabled && !overlayDisabledReason}
           disabled={overlayControlDisabled}
           onChange={onToggleOverlay}
         />
       }
-      label="Alignment overlay"
+      label="Coordinate test overlay"
     />
   );
 
@@ -137,13 +140,15 @@ export function ViewerToolbar({
         </IconButton>
       </Stack>
 
-      {overlayDisabledReason ? (
-        <Tooltip title={overlayDisabledReason}>
-          <span>{overlaySwitch}</span>
-        </Tooltip>
-      ) : (
-        overlaySwitch
-      )}
+      {showOverlayControls ? (
+        overlayDisabledReason ? (
+          <Tooltip title={overlayDisabledReason}>
+            <span>{overlaySwitch}</span>
+          </Tooltip>
+        ) : (
+          overlaySwitch
+        )
+      ) : null}
     </Stack>
   );
 }

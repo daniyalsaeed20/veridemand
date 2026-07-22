@@ -16,7 +16,7 @@ describe("useViewerStore defaults", () => {
     expect(state.pageNumber).toBe(1);
     expect(state.zoomMode).toBe("fit_width");
     expect(state.userRotation).toBe(0);
-    expect(state.overlayEnabled).toBe(true);
+    expect(state.overlayEnabled).toBe(false);
   });
 });
 
@@ -27,7 +27,7 @@ describe("selectDocument (document reset)", () => {
       zoomMode: "manual",
       manualScale: 2.5,
       userRotation: 180,
-      overlayEnabled: false,
+      overlayEnabled: true,
     });
 
     useViewerStore.getState().selectDocument("doc_" + "1".repeat(32));
@@ -37,7 +37,7 @@ describe("selectDocument (document reset)", () => {
     expect(state.pageNumber).toBe(1);
     expect(state.zoomMode).toBe("fit_width");
     expect(state.userRotation).toBe(0);
-    expect(state.overlayEnabled).toBe(true);
+    expect(state.overlayEnabled).toBe(false);
   });
 
   it("selecting a different document resets state again, even mid-session", () => {
@@ -119,16 +119,16 @@ describe("rotation", () => {
 
 describe("overlay toggle", () => {
   it("toggleOverlay flips the overlay flag", () => {
-    expect(useViewerStore.getState().overlayEnabled).toBe(true);
-    useViewerStore.getState().toggleOverlay();
     expect(useViewerStore.getState().overlayEnabled).toBe(false);
     useViewerStore.getState().toggleOverlay();
     expect(useViewerStore.getState().overlayEnabled).toBe(true);
+    useViewerStore.getState().toggleOverlay();
+    expect(useViewerStore.getState().overlayEnabled).toBe(false);
   });
 
   it("setOverlayEnabled sets an explicit value", () => {
-    useViewerStore.getState().setOverlayEnabled(false);
-    expect(useViewerStore.getState().overlayEnabled).toBe(false);
+    useViewerStore.getState().setOverlayEnabled(true);
+    expect(useViewerStore.getState().overlayEnabled).toBe(true);
     useViewerStore.getState().setOverlayEnabled(false);
     expect(useViewerStore.getState().overlayEnabled).toBe(false);
   });
@@ -139,7 +139,7 @@ describe("reset", () => {
     useViewerStore.getState().selectDocument("doc_" + "3".repeat(32));
     useViewerStore.getState().setPageNumber(5);
     useViewerStore.getState().rotateClockwise();
-    useViewerStore.getState().setOverlayEnabled(false);
+    useViewerStore.getState().setOverlayEnabled(true);
 
     useViewerStore.getState().reset();
 
@@ -147,6 +147,6 @@ describe("reset", () => {
     expect(state.selectedDocumentId).toBe("doc_" + "3".repeat(32));
     expect(state.pageNumber).toBe(1);
     expect(state.userRotation).toBe(0);
-    expect(state.overlayEnabled).toBe(true);
+    expect(state.overlayEnabled).toBe(false);
   });
 });

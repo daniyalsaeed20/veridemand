@@ -25,7 +25,7 @@ export interface ViewerState {
   readonly overlayEnabled: boolean;
 
   // Selects a document for viewing, resetting every other viewer field to its
-  // default (page 1, no rotation, fit-width zoom, overlay enabled). Passing
+  // default (page 1, no rotation, fit-width zoom, overlay off). Passing
   // `null` clears the selection (returns to the empty state).
   readonly selectDocument: (documentId: string | null) => void;
   readonly setPageNumber: (pageNumber: number) => void;
@@ -51,7 +51,8 @@ const DEFAULTS = {
   zoomMode: DEFAULT_ZOOM_MODE,
   manualScale: DEFAULT_MANUAL_SCALE,
   userRotation: DEFAULT_ROTATION,
-  overlayEnabled: true,
+  // Synthetic alignment overlay is off in normal user mode.
+  overlayEnabled: false,
 } as const;
 
 export const useViewerStore = create<ViewerState>((set, get) => ({

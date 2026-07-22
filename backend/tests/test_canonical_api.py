@@ -83,7 +83,46 @@ def test_get_canonical_pdf_range_returns_206(client: TestClient, uploads_dir: Pa
     )
     assert response.status_code == 206
     assert response.content == full[:16]
-    assert "content-range" in response.headers
+    assert response.headers["content-range"] == f"bytes 0-15/{len(full)}"
+    assert response.headers["content-length"] == "16"
+    assert response.headers.get("accept-ranges") == "bytes"
+
+
+def test_get_canonical_pdf_open_ended_range(client: TestClient, uploads_dir: Path) -> None:
+    session_id, document_id = _process_pdf_to_ready(client, uploads_dir)
+    full = client.get(f"{_API}/sessions/{session_id}/documents/{document_id}/canonical").content
+    start = max(0, len(full) - 32)
+    response = client.get(
+        f"{_API}/sessions/{session_id}/documents/{document_id}/canonical",
+        headers={"Range": f"bytes={start}-"},
+    )
+    assert response.status_code == 206
+    expected = full[start:]
+    assert response.content == expected
+    assert len(response.content) == len(expected)
+    assert response.headers["content-length"] == str(len(expected))
+    assert response.headers["content-range"] == f"bytes {start}-{len(full) - 1}/{len(full)}"
+
+
+def test_get_canonical_pdf_range_bytes_must_match_slice(
+    client: TestClient, uploads_dir: Path
+) -> None:
+    """Regression: a 206 with wrong payload length or wrong slice must fail."""
+
+    session_id, document_id = _process_pdf_to_ready(client, uploads_dir)
+    full = client.get(f"{_API}/sessions/{session_id}/documents/{document_id}/canonical").content
+    assert len(full) > 64
+    response = client.get(
+        f"{_API}/sessions/{session_id}/documents/{document_id}/canonical",
+        headers={"Range": "bytes=10-41"},
+    )
+    assert response.status_code == 206
+    assert response.content == full[10:42]
+    assert int(response.headers["content-length"]) == len(response.content)
+    # Deliberately assert inequality against a wrong slice so the test fails
+    # if the server ever returns the wrong window.
+    assert response.content != full[0:32]
+    assert response.content != full[11:43]
 
 
 def test_get_canonical_pdf_bad_range_returns_416(client: TestClient, uploads_dir: Path) -> None:

@@ -63,7 +63,7 @@ export function OverlayLayer({
           const rect = scaleRectToPixels(rotatedBbox, pixelWidth, pixelHeight);
           return (
             <g key={overlay.id}>
-              <title>{`${overlay.label} (synthetic — Phase 2 alignment proof, not extracted data)`}</title>
+              <title>{`${overlay.label} (coordinate test — synthetic alignment, not extracted data)`}</title>
               <rect
                 x={rect.left}
                 y={rect.top}
@@ -81,7 +81,7 @@ export function OverlayLayer({
                 fontSize={12}
                 fontWeight={600}
               >
-                {overlay.label} (synthetic)
+                {overlay.label} (coordinate test)
               </text>
             </g>
           );
@@ -91,7 +91,7 @@ export function OverlayLayer({
         component="span"
         sx={{ position: "absolute", width: 1, height: 1, overflow: "hidden" }}
       >
-        {`${pageOverlays.length} synthetic alignment overlay(s) shown for page ${pageNumber}. These are not extracted facts.`}
+        {`${pageOverlays.length} coordinate-test alignment overlay(s) shown for page ${pageNumber}. These are not extracted facts.`}
       </Typography>
     </Box>
   );

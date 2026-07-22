@@ -10,6 +10,7 @@ import { clampScale, computeFitPageScale, computeFitWidthScale } from "./geometr
 import { OverlayLayer } from "./OverlayLayer";
 import { PageNavigation } from "./PageNavigation";
 import { PdfCanvas, type PdfCanvasRenderedViewport } from "./PdfCanvas";
+import { isAlignmentOverlayAvailable } from "./pdfjsConfig";
 import { useCanonicalDocument, viewerKeys } from "./useCanonicalDocument";
 import { usePdfDocument } from "./usePdfDocument";
 import { usePdfPage } from "./usePdfPage";
@@ -38,6 +39,9 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
   const rotateCounterClockwise = useViewerStore((state) => state.rotateCounterClockwise);
   const toggleOverlay = useViewerStore((state) => state.toggleOverlay);
   const selectDocument = useViewerStore((state) => state.selectDocument);
+
+  const alignmentOverlayAvailable = isAlignmentOverlayAvailable();
+  const overlayActive = alignmentOverlayAvailable && overlayEnabled;
 
   const selectedDocument = useMemo(
     () => documents.find((document) => document.document_id === selectedDocumentId) ?? null,
@@ -94,7 +98,7 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
         ? viewerKeys.overlayProof(sessionId, selectedDocumentId)
         : ["viewer", "overlay-proof", "disabled"],
     queryFn: ({ signal }) => getOverlayProof(sessionId, selectedDocumentId as string, signal),
-    enabled: canonicalReady && Boolean(selectedDocumentId) && overlayEnabled,
+    enabled: canonicalReady && Boolean(selectedDocumentId) && overlayActive,
     staleTime: Infinity,
     retry: false,
   });
@@ -122,6 +126,14 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
   const effectiveScale = useMemo(() => {
     if (!backendPage) {
       return clampScale(manualScale);
+    }
+    if (
+      (zoomMode === "fit_width" || zoomMode === "fit_page") &&
+      (containerSize.width < 1 || (zoomMode === "fit_page" && containerSize.height < 1))
+    ) {
+      // Wait for ResizeObserver before painting fit modes — avoids a min-scale
+      // render that is immediately cancelled when the container measures.
+      return 0;
     }
     switch (zoomMode) {
       case "manual":
@@ -183,7 +195,8 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
           <ViewerToolbar
             zoomMode={zoomMode}
             effectiveScale={effectiveScale}
-            overlayEnabled={overlayEnabled}
+            overlayEnabled={overlayActive}
+            showOverlayControls={alignmentOverlayAvailable}
             overlayDisabledReason={overlayDisabledReason}
             onZoomModeChange={setZoomMode}
             onZoomIn={() => zoomIn(effectiveScale)}
@@ -213,6 +226,7 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
           <div style={{ position: "relative" }}>
             <PdfCanvas
               page={page}
+              pdfDocument={pdfDocument}
               pageNumber={clampedPageNumber}
               pageCount={pageCount}
               scale={effectiveScale}
@@ -227,7 +241,7 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
               pixelWidth={renderedViewport?.widthPx ?? 0}
               pixelHeight={renderedViewport?.heightPx ?? 0}
               rotation={userRotation}
-              enabled={overlayEnabled && !dimensionMismatch}
+              enabled={overlayActive && !dimensionMismatch}
             />
           </div>
         </Stack>

@@ -1,27 +1,49 @@
 // Renders a single canonical PDF page onto a high-DPI <canvas>.
 //
-// - `canvas.width`/`canvas.height` are set to the CSS viewport size multiplied
-//   by `devicePixelRatio` so the page stays sharp on high-DPI displays; the
-//   CSS box size is set separately to the un-scaled viewport dimensions.
-// - Any in-flight `RenderTask` is cancelled before starting a new one or on
-//   unmount, so rapid page/scale/rotation changes never race.
-// - No `react-pdf`, no iframe: this talks to `pdfjs-dist` directly.
+// Render lifecycle (Phase 2 blank-page fix):
+// - One active RenderTask per canvas; prior task is cancelled and awaited
+//   before the canvas backing store is resized (resize clears pixels).
+// - Monotonic render-generation tokens discard stale completions.
+// - Cleanup cancels work but does not clear the canvas from a stale effect.
+// - Failures surface an explicit error + retry instead of a silent white page.
 
-import { Box } from "@mui/material";
-import { useEffect, useRef } from "react";
+import { Alert, Box, Button, Stack, Typography } from "@mui/material";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { CanonicalPageMetadata } from "./viewerApi";
 import { computeEffectivePageDimensions, dimensionsExceedTolerance } from "./geometry";
 import { DIMENSION_TOLERANCE_POINTS, type RotationDegrees } from "./constants";
-import type { PDFPageProxy, RenderTask } from "./pdfjs";
+import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from "./pdfjs";
+import {
+  isRenderingCancelledError,
+  resolveDevicePixelRatio,
+  type PdfRenderDiagnosticCode,
+  type PdfRenderStatus,
+} from "./pdfjsConfig";
 
-// Normalises an arbitrary rotation sum (e.g. page.rotate + userRotation) back
-// into the 0/90/180/270 range PDF.js and this feature always use.
 function normalizeRotation(value: number): RotationDegrees {
   const wrapped = ((value % 360) + 360) % 360;
   return (
     wrapped === 0 || wrapped === 90 || wrapped === 180 || wrapped === 270 ? wrapped : 0
   ) as RotationDegrees;
+}
+
+async function cancelRenderTask(task: RenderTask | null): Promise<void> {
+  if (!task) {
+    return;
+  }
+  try {
+    task.cancel();
+  } catch {
+    // cancel() is idempotent on settled tasks in practice.
+  }
+  try {
+    await task.promise;
+  } catch (cause: unknown) {
+    if (!isRenderingCancelledError(cause)) {
+      // Ignore non-cancel failures from a task we intentionally abandoned.
+    }
+  }
 }
 
 export interface PdfCanvasRenderedViewport {
@@ -32,6 +54,7 @@ export interface PdfCanvasRenderedViewport {
 
 export interface PdfCanvasProps {
   readonly page: PDFPageProxy | undefined;
+  readonly pdfDocument?: PDFDocumentProxy;
   readonly pageNumber: number;
   readonly pageCount: number;
   readonly scale: number;
@@ -39,10 +62,12 @@ export interface PdfCanvasProps {
   readonly backendPage?: CanonicalPageMetadata;
   readonly onViewportChange?: (viewport: PdfCanvasRenderedViewport) => void;
   readonly onDimensionMismatchChange?: (mismatch: boolean) => void;
+  readonly onRenderStatusChange?: (status: PdfRenderStatus) => void;
 }
 
 export function PdfCanvas({
   page,
+  pdfDocument,
   pageNumber,
   pageCount,
   scale,
@@ -50,14 +75,23 @@ export function PdfCanvas({
   backendPage,
   onViewportChange,
   onDimensionMismatchChange,
+  onRenderStatusChange,
 }: PdfCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const renderTaskRef = useRef<RenderTask | null>(null);
+  const renderGenerationRef = useRef(0);
+  const [renderStatus, setRenderStatus] = useState<PdfRenderStatus>("idle");
+  const [diagnosticCode, setDiagnosticCode] = useState<PdfRenderDiagnosticCode>(null);
+  const [retryToken, setRetryToken] = useState(0);
 
-  // Dimension-tolerance check: compares PDF.js's own page geometry (accounting
-  // for intrinsic rotation) against the backend canonical metadata for this
-  // page. Runs independently of scale/rotation, which never affect the
-  // page's intrinsic size.
+  const updateStatus = useCallback(
+    (status: PdfRenderStatus) => {
+      setRenderStatus(status);
+      onRenderStatusChange?.(status);
+    },
+    [onRenderStatusChange],
+  );
+
   useEffect(() => {
     if (!page || !backendPage) {
       onDimensionMismatchChange?.(false);
@@ -81,55 +115,181 @@ export function PdfCanvas({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!page || !canvas) {
+      updateStatus("idle");
       return;
     }
 
-    // Cancel any render still in flight before starting a new one.
-    renderTaskRef.current?.cancel();
-    renderTaskRef.current = null;
+    const generation = ++renderGenerationRef.current;
+    let effectActive = true;
 
-    const totalRotation = normalizeRotation(page.rotate + rotation);
-    const viewport = page.getViewport({ scale, rotation: totalRotation });
-    const context = canvas.getContext("2d");
-    if (!context) {
-      return;
-    }
+    const run = async () => {
+      updateStatus("rendering");
+      setDiagnosticCode(null);
 
-    const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
-    canvas.width = Math.max(1, Math.floor(viewport.width * dpr));
-    canvas.height = Math.max(1, Math.floor(viewport.height * dpr));
-    canvas.style.width = `${viewport.width}px`;
-    canvas.style.height = `${viewport.height}px`;
+      await cancelRenderTask(renderTaskRef.current);
+      renderTaskRef.current = null;
 
-    const transform = dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined;
-    const renderTask = page.render({ canvas, canvasContext: context, viewport, transform });
-    renderTaskRef.current = renderTask;
+      if (!effectActive || renderGenerationRef.current !== generation) {
+        return;
+      }
 
-    let cancelled = false;
-    renderTask.promise
-      .then(() => {
-        if (!cancelled) {
-          onViewportChange?.({ widthPx: viewport.width, heightPx: viewport.height, totalRotation });
-        }
-      })
-      .catch(() => {
-        // Expected when the render is cancelled below (RenderingCancelledException).
+      if (!Number.isFinite(scale) || scale <= 0) {
+        // Fit modes may briefly report scale 0 until the container is measured.
+        updateStatus("idle");
+        return;
+      }
+
+      const totalRotation = normalizeRotation(page.rotate + rotation);
+      const viewport = page.getViewport({ scale, rotation: totalRotation });
+      const context = canvas.getContext("2d");
+      if (!context) {
+        setDiagnosticCode("PDFJS_NO_CONTEXT");
+        updateStatus("error");
+        return;
+      }
+
+      const dpr = resolveDevicePixelRatio(
+        typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1,
+      );
+      const cssWidth = viewport.width;
+      const cssHeight = viewport.height;
+      const backingWidth = Math.max(1, Math.floor(cssWidth * dpr));
+      const backingHeight = Math.max(1, Math.floor(cssHeight * dpr));
+
+      if (
+        !Number.isFinite(cssWidth) ||
+        !Number.isFinite(cssHeight) ||
+        cssWidth <= 0 ||
+        cssHeight <= 0 ||
+        backingWidth < 1 ||
+        backingHeight < 1
+      ) {
+        setDiagnosticCode("PDFJS_INVALID_VIEWPORT");
+        updateStatus("error");
+        return;
+      }
+
+      if (!effectActive || renderGenerationRef.current !== generation) {
+        return;
+      }
+
+      // Resize only after the prior task has settled — this clears pixels.
+      canvas.width = backingWidth;
+      canvas.height = backingHeight;
+      canvas.style.width = `${cssWidth}px`;
+      canvas.style.height = `${cssHeight}px`;
+
+      const transform = dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined;
+      const intent = "display";
+      const optionalContentConfigPromise = pdfDocument
+        ? pdfDocument.getOptionalContentConfig({ intent })
+        : undefined;
+
+      // pdfjs-dist 6 recommends the `canvas` parameter (not canvasContext).
+      const renderTask = page.render({
+        canvas,
+        viewport,
+        transform,
+        intent,
+        background: "rgb(255,255,255)",
+        ...(optionalContentConfigPromise ? { optionalContentConfigPromise } : {}),
       });
+      renderTaskRef.current = renderTask;
+
+      try {
+        await renderTask.promise;
+        if (!effectActive || renderGenerationRef.current !== generation) {
+          return;
+        }
+        updateStatus("rendered");
+        onViewportChange?.({
+          widthPx: cssWidth,
+          heightPx: cssHeight,
+          totalRotation,
+        });
+      } catch (cause: unknown) {
+        if (isRenderingCancelledError(cause)) {
+          return;
+        }
+        if (!effectActive || renderGenerationRef.current !== generation) {
+          return;
+        }
+        setDiagnosticCode("PDFJS_RENDER_FAILED");
+        updateStatus("error");
+      } finally {
+        if (renderTaskRef.current === renderTask) {
+          renderTaskRef.current = null;
+        }
+      }
+    };
+
+    void run();
 
     return () => {
-      cancelled = true;
-      renderTask.cancel();
-      renderTaskRef.current = null;
+      effectActive = false;
+      // Abandon this generation so a late await cannot update UI/canvas sizing.
+      if (renderGenerationRef.current === generation) {
+        renderGenerationRef.current += 1;
+      }
+      const task = renderTaskRef.current;
+      if (task) {
+        try {
+          task.cancel();
+        } catch {
+          // ignore
+        }
+      }
+      // Intentionally do not clear canvas.width/height here.
     };
-  }, [page, scale, rotation, onViewportChange]);
+  }, [page, pdfDocument, scale, rotation, onViewportChange, updateStatus, retryToken]);
+
+  const handleRetry = () => {
+    setRetryToken((token) => token + 1);
+  };
 
   return (
-    <Box sx={{ display: "inline-block", boxShadow: 1, bgcolor: "background.paper" }}>
-      <canvas
-        ref={canvasRef}
-        role="img"
-        aria-label={`Page ${pageNumber} of ${pageCount} of the canonical document.`}
-      />
-    </Box>
+    <Stack spacing={1} sx={{ alignItems: "center" }}>
+      <Box sx={{ display: "inline-block", boxShadow: 1, bgcolor: "background.paper" }}>
+        <canvas
+          ref={canvasRef}
+          role="img"
+          aria-busy={renderStatus === "rendering"}
+          aria-label={
+            renderStatus === "rendered"
+              ? `Page ${pageNumber} of ${pageCount} of the canonical document.`
+              : renderStatus === "error"
+                ? `Page ${pageNumber} of ${pageCount} failed to render.`
+                : `Page ${pageNumber} of ${pageCount} is rendering.`
+          }
+          data-render-status={renderStatus}
+        />
+      </Box>
+      {renderStatus === "error" ? (
+        <Alert
+          severity="error"
+          action={
+            <Button color="inherit" size="small" onClick={handleRetry}>
+              Retry
+            </Button>
+          }
+          sx={{ maxWidth: 480 }}
+        >
+          <Typography component="div" variant="body2">
+            This page could not be rendered.
+          </Typography>
+          {diagnosticCode ? (
+            <Typography component="div" variant="caption" sx={{ display: "block", mt: 0.5 }}>
+              Diagnostic code: {diagnosticCode}
+            </Typography>
+          ) : null}
+        </Alert>
+      ) : null}
+    </Stack>
   );
 }
+
+/** Test helper: cancel + await a RenderTask without touching the canvas. */
+export const __testables = {
+  cancelRenderTask,
+  normalizeRotation,
+};
