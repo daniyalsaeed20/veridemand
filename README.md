@@ -3,8 +3,8 @@
 VeriDemand is a **document-extraction platform**. It extracts text and structure
 from documents using a deterministic pipeline (native text and OCR, with a
 vision LLM only for handwritten or uncertain regions). This repository is at the
-**Phase 2** stage: runtime sessions, uploads, canonical PDF production, and the
-PDF.js viewer with normalised coordinates.
+**Phase 3** stage: native PDF extraction with a conservative trust gate on top of
+Phase 2 canonical viewing.
 
 > **Runtime-only product.** VeriDemand keeps uploaded files and results only for
 > the duration of a session. Refreshing, closing, or resetting the page may
@@ -14,24 +14,26 @@ PDF.js viewer with normalised coordinates.
 The sole authoritative specification is
 [`docs/SOURCE_OF_TRUTH.md`](docs/SOURCE_OF_TRUTH.md).
 
-## Phase 2 scope
+## Phase 3 scope
 
-Building on Phase 1, Phase 2 adds:
+Building on Phase 2, Phase 3 adds:
 
-- **Canonical PDF production** for PDF (byte-identical publish), TXT (deterministic
-  ReportLab render), images (Pillow + ReportLab), and Word (LibreOffice headless).
-- **Canonical HTTP delivery**: inline PDF with byte ranges, page metadata, and a
-  synthetic overlay-proof endpoint.
-- **Normalised coordinate contracts** (top-left origin, `[0, 1]`) and rotation
-  helpers for viewer alignment.
-- **PDF.js viewer** in the frontend with scale controls and synthetic overlay proof.
-- Extended **readiness** checks for LibreOffice, ReportLab, and canonical storage.
+- **Native PDF extraction** with pdfplumber (characters, words, coordinates).
+- **pypdf structural inspection** against canonical metadata.
+- **Native trust scoring** with hard rejection rules and document escalation.
+- **Accepted-only APIs** (`/native/summary`, `/native/pages/{n}`) and viewer
+  inspection with optional native word boxes.
+- Progress capped at **35%** (`native_trust_complete`). Visual agreement is
+  **not evaluated** in Phase 3.
 
-**No extraction of any kind** is performed in Phase 2: no native-text trust,
-OCR, layout analysis, or LLM calls. Documents reach `ready_for_extraction` with
-`canonical_view_available: true` but `result_available: false`. See
-[`docs/architecture/phase-2-canonical-documents.md`](docs/architecture/phase-2-canonical-documents.md)
-and ADRs [0008](docs/decisions/0008-canonical-pdf-policy.md)–[0011](docs/decisions/0011-pdfjs-viewer.md).
+Rejected candidate text is never returned, logged, or written to disk. See
+[`docs/architecture/phase-3-native-extraction.md`](docs/architecture/phase-3-native-extraction.md)
+and ADRs [0013](docs/decisions/0013-native-extraction-with-pdfplumber.md)–[0016](docs/decisions/0016-native-worker-isolation.md).
+
+### Phase 2 (complete)
+
+Canonical PDF production, PDF.js viewer, normalised coordinates. See
+[`docs/architecture/phase-2-canonical-documents.md`](docs/architecture/phase-2-canonical-documents.md).
 
 ### Phase 1 (complete)
 
@@ -41,8 +43,8 @@ upload + queue dashboard. See
 
 ### Not implemented yet (later phases)
 
-Native-text trust gate, OCR (PaddleOCR), layout analysis, handwriting routing,
-vision-model calls, search, exports, databases, Redis/Celery, and authentication.
+OCR (PaddleOCR), layout analysis, handwriting routing, vision-model calls,
+search, exports, databases, Redis/Celery, and authentication.
 
 ## Repository layout
 
