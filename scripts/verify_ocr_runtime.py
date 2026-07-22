@@ -52,6 +52,8 @@ def main() -> int:
     sys.path.insert(0, str(ROOT))
     os.environ.setdefault("FLAGS_use_mkldnn", "0")
     os.environ.setdefault("FLAGS_onednn", "0")
+    os.environ.setdefault("FLAGS_enable_pir_api", "0")
+    os.environ.setdefault("PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT", "0")
 
     # Block silent downloads during verify — models must already exist.
     os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "True"
@@ -103,6 +105,7 @@ def main() -> int:
             return_word_box=True,
             device=settings.ocr_device,
             enable_hpi=False,
+            enable_mkldnn=False,
             text_recognition_batch_size=1,
         )
         _ = ocr.predict(_synthetic_image())

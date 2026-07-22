@@ -70,6 +70,8 @@ class PaddleOcrAdapter:
 
         os.environ.setdefault("FLAGS_use_mkldnn", "0")
         os.environ.setdefault("FLAGS_onednn", "0")
+        os.environ.setdefault("FLAGS_enable_pir_api", "0")
+        os.environ.setdefault("PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT", "0")
 
         try:
             import paddle
@@ -111,6 +113,7 @@ class PaddleOcrAdapter:
             "return_word_box": True,
             "device": self._config.ocr_device,
             "enable_hpi": False,
+            "enable_mkldnn": False,
             "text_recognition_batch_size": self._config.ocr_recognition_batch_size,
             "text_det_limit_side_len": self._config.ocr_text_det_limit_side_len,
             "text_det_limit_type": self._config.ocr_text_det_limit_type,

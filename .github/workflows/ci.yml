@@ -19,6 +19,8 @@ jobs:
       OCR_DEVICE: cpu
       FLAGS_use_mkldnn: "0"
       FLAGS_onednn: "0"
+      FLAGS_enable_pir_api: "0"
+      PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT: "0"
       PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK: "True"
       PADDLE_PDX_MODEL_SOURCE: BOS
     steps:
@@ -107,6 +109,8 @@ jobs:
       OCR_DEVICE: cpu
       FLAGS_use_mkldnn: "0"
       FLAGS_onednn: "0"
+      FLAGS_enable_pir_api: "0"
+      PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT: "0"
       PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK: "True"
       PADDLE_PDX_MODEL_SOURCE: BOS
     steps:
@@ -182,6 +186,8 @@ jobs:
       OCR_DEVICE: cpu
       FLAGS_use_mkldnn: "0"
       FLAGS_onednn: "0"
+      FLAGS_enable_pir_api: "0"
+      PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT: "0"
       PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK: "True"
       PADDLE_PDX_MODEL_SOURCE: BOS
     steps:

@@ -74,6 +74,8 @@ def main() -> int:
     # Linux CPU runners hit OneDNN PIR conversion errors on PP-OCRv6; force plain CPU.
     os.environ.setdefault("FLAGS_use_mkldnn", "0")
     os.environ.setdefault("FLAGS_onednn", "0")
+    os.environ.setdefault("FLAGS_enable_pir_api", "0")
+    os.environ.setdefault("PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT", "0")
     os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
 
     try:
@@ -115,6 +117,7 @@ def main() -> int:
             return_word_box=True,
             device=settings.ocr_device,
             enable_hpi=False,
+            enable_mkldnn=False,
             text_recognition_batch_size=settings.ocr_recognition_batch_size,
             text_det_limit_side_len=settings.ocr_text_det_limit_side_len,
             text_det_limit_type=settings.ocr_text_det_limit_type,
@@ -137,6 +140,7 @@ def main() -> int:
             return_word_box=True,
             device=settings.ocr_device,
             enable_hpi=False,
+            enable_mkldnn=False,
             text_recognition_batch_size=settings.ocr_recognition_batch_size,
         )
         with contextlib.suppress(Exception):
@@ -216,6 +220,7 @@ def main() -> int:
             return_word_box=True,
             device=settings.ocr_device,
             enable_hpi=False,
+            enable_mkldnn=False,
             text_recognition_batch_size=settings.ocr_recognition_batch_size,
         )
         _ = ocr.predict(_synthetic_image())
