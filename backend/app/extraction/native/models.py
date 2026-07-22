@@ -25,7 +25,10 @@ class NativeTrustPolicyConfig:
     native_max_invalid_geometry_ratio: float = 0.01
     native_max_out_of_bounds_ratio: float = 0.01
     native_max_duplicate_ratio: float = 0.20
-    native_max_near_overprint_ratio: float = 0.20
+    native_max_near_overprint_ratio: float = 0.08
+    native_max_duplicate_layer_coverage_ratio: float = 0.70
+    native_min_near_duplicate_match_count: int = 24
+    native_min_dominant_offset_support_ratio: float = 0.55
     native_near_overprint_iou_threshold: float = 0.35
     native_near_overprint_centre_factor: float = 0.35
     native_near_overprint_centre_cap_points: float = 3.5
@@ -161,4 +164,11 @@ class PageExtractionCandidate:
     duplicate_layer_count: int = 1
     dominant_duplicate_offset_x: float = 0.0
     dominant_duplicate_offset_y: float = 0.0
+    duplicate_layer_coverage_ratio: float = 0.0
+    matched_near_duplicate_count: int = 0
+    dominant_offset_support_ratio: float = 0.0
+    matched_word_span: int = 0
+    matched_line_span: int = 0
+    near_overprint_composite_evidence: bool = False
+    near_overprint_cleaned: bool = False
     near_overprint_ambiguous: bool = False

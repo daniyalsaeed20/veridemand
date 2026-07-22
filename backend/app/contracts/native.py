@@ -168,7 +168,7 @@ class NativePageMetrics(ApiModel):
         default=0.0,
         ge=0.0,
         le=1.0,
-        description="Fraction of characters participating in near-overprint pairs.",
+        description="Redundant overprint characters / total characters.",
     )
     duplicate_layer_count: int = Field(
         default=1,
@@ -182,6 +182,33 @@ class NativePageMetrics(ApiModel):
     dominant_duplicate_offset_y: float = Field(
         default=0.0,
         description="Dominant near-overprint offset Y in PDF points.",
+    )
+    duplicate_layer_coverage_ratio: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Matched chars in smaller layer / smaller layer size.",
+    )
+    matched_near_duplicate_count: int = Field(
+        default=0,
+        ge=0,
+        description="Number of near-duplicate glyph matches.",
+    )
+    dominant_offset_support_ratio: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Matches supporting the dominant offset / all matches.",
+    )
+    matched_word_span: int = Field(
+        default=0,
+        ge=0,
+        description="Approximate distinct word clusters among near-duplicate matches.",
+    )
+    matched_line_span: int = Field(
+        default=0,
+        ge=0,
+        description="Approximate distinct line bins among near-duplicate matches.",
     )
     replacement_character_ratio: float = Field(ge=0.0, le=1.0)
     control_character_ratio: float = Field(ge=0.0, le=1.0)

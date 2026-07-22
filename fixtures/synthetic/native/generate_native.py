@@ -238,6 +238,44 @@ def write_near_overprint_cross_font(path: Path) -> None:
     pdf.save()
 
 
+def write_partial_duplicate_header_footer(path: Path) -> None:
+    """Only header/footer lines are duplicated — must not strip body text."""
+
+    pdf = pdf_canvas(path)
+    pdf.setFont("Helvetica", 10)
+    pdf.drawString(72, 750, "HEADER LINE DUPLICATE")
+    pdf.setFont("Times-Roman", 9.5)
+    pdf.drawString(73, 748.5, "HEADER LINE DUPLICATE")
+    pdf.setFont("Helvetica", 12)
+    pdf.drawString(72, 700, "Unique body paragraph with letter bookkeeper and 100.00 values.")
+    pdf.drawString(72, 680, "Second body line remains single-copy native text.")
+    pdf.setFont("Helvetica", 10)
+    pdf.drawString(72, 72, "FOOTER LINE DUPLICATE")
+    pdf.setFont("Times-Roman", 9.5)
+    pdf.drawString(73, 70.5, "FOOTER LINE DUPLICATE")
+    pdf.save()
+
+
+def write_full_page_duplicate_layers(path: Path) -> None:
+    """Multiple lines fully duplicated across fonts — clean or reject, never interleaved."""
+
+    pdf = pdf_canvas(path)
+    lines = (
+        "Line one full duplicate layer SAMPLE",
+        "Line two full duplicate layer values",
+        "Line three Patient Run Date 04/08/2026",
+        "Line four amount due 100.00 exactly",
+    )
+    y = 720
+    for line in lines:
+        pdf.setFont("Helvetica", 12)
+        pdf.drawString(72, y, line)
+        pdf.setFont("Courier", 11.5)
+        pdf.drawString(73.5, y - 1.5, line)
+        y -= 28
+    pdf.save()
+
+
 def write_near_overprint_vertical(path: Path) -> None:
     pdf = pdf_canvas(path)
     text = "Vertical offset duplicate layer TEXT"
@@ -429,6 +467,8 @@ def main() -> None:
         "control-character-layer.pdf": write_control_characters,
         "duplicate-text-layer.pdf": write_duplicate_text,
         "near-overprint-cross-font.pdf": write_near_overprint_cross_font,
+        "partial-duplicate-header-footer.pdf": write_partial_duplicate_header_footer,
+        "full-page-duplicate-layers.pdf": write_full_page_duplicate_layers,
         "near-overprint-vertical.pdf": write_near_overprint_vertical,
         "near-overprint-horizontal.pdf": write_near_overprint_horizontal,
         "near-overprint-tagged-untagged.pdf": write_near_overprint_tagged_untagged,

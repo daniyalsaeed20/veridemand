@@ -40,6 +40,11 @@ class GeometryMetrics:
     duplicate_layer_count: int
     dominant_duplicate_offset_x: float
     dominant_duplicate_offset_y: float
+    duplicate_layer_coverage_ratio: float
+    matched_near_duplicate_count: int
+    dominant_offset_support_ratio: float
+    matched_word_span: int
+    matched_line_span: int
     zero_area_character_ratio: float
     invalid_geometry_ratio: float
     out_of_bounds_character_ratio: float
@@ -127,6 +132,11 @@ def analyse_geometry(
         duplicate_layer_count=max(1, page.duplicate_layer_count),
         dominant_duplicate_offset_x=page.dominant_duplicate_offset_x,
         dominant_duplicate_offset_y=page.dominant_duplicate_offset_y,
+        duplicate_layer_coverage_ratio=max(0.0, min(1.0, page.duplicate_layer_coverage_ratio)),
+        matched_near_duplicate_count=max(0, page.matched_near_duplicate_count),
+        dominant_offset_support_ratio=max(0.0, min(1.0, page.dominant_offset_support_ratio)),
+        matched_word_span=max(0, page.matched_word_span),
+        matched_line_span=max(0, page.matched_line_span),
         zero_area_character_ratio=zero_area / denom,
         invalid_geometry_ratio=invalid / denom,
         out_of_bounds_character_ratio=oob / denom,

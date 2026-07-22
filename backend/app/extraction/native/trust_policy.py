@@ -17,6 +17,11 @@ from backend.app.contracts.warnings import NativeReasonCode
 from backend.app.extraction.native.geometry_quality import GeometryMetrics
 from backend.app.extraction.native.image_dominance import ImageDominanceMetrics
 from backend.app.extraction.native.models import NativeTrustPolicyConfig, PageExtractionCandidate
+from backend.app.extraction.native.near_overprint import (
+    CompositeThresholds,
+    NearOverprintMetrics,
+    composite_duplicate_layer_evidence,
+)
 from backend.app.extraction.native.text_quality import TextStructureMetrics
 from backend.app.extraction.native.unicode_quality import UnicodeMetrics
 
@@ -51,6 +56,7 @@ def compute_components(
     image_m: ImageDominanceMetrics,
     *,
     policy: NativeTrustPolicyConfig,
+    near_overprint_ratio_for_score: float | None = None,
 ) -> NativeTrustComponents:
     char_validity = 1.0 - max(
         unicode_m.replacement_character_ratio / max(policy.native_max_replacement_ratio, 1e-9),
@@ -66,10 +72,14 @@ def compute_components(
         geometry_m.zero_area_character_ratio,
         geometry_m.invalid_word_geometry_ratio,
     )
+    near_ratio = (
+        geometry_m.near_overprint_duplicate_ratio
+        if near_overprint_ratio_for_score is None
+        else near_overprint_ratio_for_score
+    )
     duplication = 1.0 - max(
         geometry_m.duplicate_character_ratio / max(policy.native_max_duplicate_ratio, 1e-9),
-        geometry_m.near_overprint_duplicate_ratio
-        / max(policy.native_max_near_overprint_ratio, 1e-9),
+        near_ratio / max(policy.native_max_near_overprint_ratio, 1e-9),
     )
     token = 1.0 - max(
         text_m.cid_token_ratio / max(policy.native_max_cid_token_ratio, 1e-9),
@@ -150,6 +160,34 @@ def decide_page_trust(
         hard = True
         reasons.append(NativeReasonCode.EXCESSIVE_NEAR_OVERPRINT_DUPLICATES.value)
 
+    # Composite duplicate-layer hard rule — independent of weighted trust score.
+    # Cleaned pages keep pre-clean diagnostics for UI but must not hard-reject.
+    if not page.near_overprint_cleaned:
+        composite_metrics = NearOverprintMetrics(
+            strict_duplicate_ratio=geometry_m.strict_duplicate_ratio,
+            near_overprint_duplicate_ratio=geometry_m.near_overprint_duplicate_ratio,
+            duplicate_layer_count=geometry_m.duplicate_layer_count,
+            dominant_duplicate_offset_x=geometry_m.dominant_duplicate_offset_x,
+            dominant_duplicate_offset_y=geometry_m.dominant_duplicate_offset_y,
+            duplicate_layer_coverage_ratio=geometry_m.duplicate_layer_coverage_ratio,
+            matched_near_duplicate_count=geometry_m.matched_near_duplicate_count,
+            dominant_offset_support_ratio=geometry_m.dominant_offset_support_ratio,
+            matched_word_span=page.matched_word_span,
+            matched_line_span=page.matched_line_span,
+            composite_duplicate_layer_evidence=page.near_overprint_composite_evidence,
+        )
+        thr = CompositeThresholds(
+            max_near_overprint_ratio=policy.native_max_near_overprint_ratio,
+            max_duplicate_layer_coverage_ratio=policy.native_max_duplicate_layer_coverage_ratio,
+            min_near_duplicate_match_count=policy.native_min_near_duplicate_match_count,
+            min_dominant_offset_support_ratio=policy.native_min_dominant_offset_support_ratio,
+        )
+        if page.near_overprint_composite_evidence or composite_duplicate_layer_evidence(
+            composite_metrics, thr
+        ):
+            hard = True
+            reasons.append(NativeReasonCode.EXCESSIVE_NEAR_OVERPRINT_DUPLICATES.value)
+
     if len(page.characters) > policy.native_max_characters_per_page:
         hard = True
         reasons.append(NativeReasonCode.NATIVE_CHARACTER_LIMIT_EXCEEDED.value)
@@ -199,11 +237,6 @@ def decide_page_trust(
             NativeReasonCode.EXCESSIVE_DUPLICATE_CHARACTERS,
         ),
         (
-            geometry_m.near_overprint_duplicate_ratio,
-            policy.native_max_near_overprint_ratio,
-            NativeReasonCode.EXCESSIVE_NEAR_OVERPRINT_DUPLICATES,
-        ),
-        (
             text_m.symbol_only_word_ratio,
             policy.native_max_symbol_only_word_ratio,
             NativeReasonCode.HIGH_SYMBOL_ONLY_WORD_RATIO,
@@ -242,7 +275,17 @@ def decide_page_trust(
         hard = True
         reasons.append(NativeReasonCode.IMAGE_DOMINANT_PAGE.value)
 
-    components = compute_components(unicode_m, geometry_m, text_m, image_m, policy=policy)
+    near_for_score = (
+        0.0 if page.near_overprint_cleaned else geometry_m.near_overprint_duplicate_ratio
+    )
+    components = compute_components(
+        unicode_m,
+        geometry_m,
+        text_m,
+        image_m,
+        policy=policy,
+        near_overprint_ratio_for_score=near_for_score,
+    )
     score = weighted_trust_score(components)
     metrics_with = metrics.model_copy(update={"components": components})
 

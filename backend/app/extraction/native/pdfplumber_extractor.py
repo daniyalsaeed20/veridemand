@@ -13,7 +13,10 @@ from backend.app.extraction.native.models import (
     RawCharCandidate,
     RawWordCandidate,
 )
-from backend.app.extraction.native.near_overprint import analyse_and_clean_near_overprint
+from backend.app.extraction.native.near_overprint import (
+    CompositeThresholds,
+    analyse_and_clean_near_overprint,
+)
 
 
 def _safe_float(value: object, default: float = 0.0) -> float:
@@ -210,7 +213,12 @@ def _extract_one_page(
         characters,
         strict_duplicate_ratio=strict_duplicate_ratio,
         words=words,
-        max_near_overprint_ratio=policy.native_max_near_overprint_ratio,
+        thresholds=CompositeThresholds(
+            max_near_overprint_ratio=policy.native_max_near_overprint_ratio,
+            max_duplicate_layer_coverage_ratio=policy.native_max_duplicate_layer_coverage_ratio,
+            min_near_duplicate_match_count=policy.native_min_near_duplicate_match_count,
+            min_dominant_offset_support_ratio=policy.native_min_dominant_offset_support_ratio,
+        ),
         iou_threshold=policy.native_near_overprint_iou_threshold,
         centre_factor=policy.native_near_overprint_centre_factor,
         centre_cap=policy.native_near_overprint_centre_cap_points,
@@ -219,6 +227,7 @@ def _extract_one_page(
     characters = overprint.characters
     words = overprint.words
     near_overprint_ambiguous = overprint.selection == "ambiguous"
+    near_overprint_cleaned = overprint.selection == "cleaned"
 
     images: list[ImageGeom] = []
     for img in page.images or []:
@@ -247,6 +256,13 @@ def _extract_one_page(
         duplicate_layer_count=overprint.metrics.duplicate_layer_count,
         dominant_duplicate_offset_x=overprint.metrics.dominant_duplicate_offset_x,
         dominant_duplicate_offset_y=overprint.metrics.dominant_duplicate_offset_y,
+        duplicate_layer_coverage_ratio=overprint.metrics.duplicate_layer_coverage_ratio,
+        matched_near_duplicate_count=overprint.metrics.matched_near_duplicate_count,
+        dominant_offset_support_ratio=overprint.metrics.dominant_offset_support_ratio,
+        matched_word_span=overprint.metrics.matched_word_span,
+        matched_line_span=overprint.metrics.matched_line_span,
+        near_overprint_composite_evidence=overprint.metrics.composite_duplicate_layer_evidence,
+        near_overprint_cleaned=near_overprint_cleaned,
         near_overprint_ambiguous=near_overprint_ambiguous,
     )
 

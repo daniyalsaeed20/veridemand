@@ -53,6 +53,26 @@ export function NativeInspectionPanel({
             native_result_available: {String(page.trust.native_result_available)} ·
             visual_processing_required: {String(page.trust.visual_processing_required)}
           </Typography>
+          <Typography variant="body2">
+            hard_rejection: {String(page.trust.hard_rejection)} · duplication_score:{" "}
+            {displayValue(page.trust.metrics.components?.duplication_score)}
+          </Typography>
+          <Typography variant="body2">
+            strict_duplicate_ratio: {displayValue(page.trust.metrics.strict_duplicate_ratio)} ·
+            near_overprint_duplicate_ratio:{" "}
+            {displayValue(page.trust.metrics.near_overprint_duplicate_ratio)}
+          </Typography>
+          <Typography variant="body2">
+            duplicate_layer_coverage_ratio:{" "}
+            {displayValue(page.trust.metrics.duplicate_layer_coverage_ratio)} ·
+            matched_near_duplicate_count:{" "}
+            {displayValue(page.trust.metrics.matched_near_duplicate_count)}
+          </Typography>
+          <Typography variant="body2">
+            dominant_offset: ({displayValue(page.trust.metrics.dominant_duplicate_offset_x)},{" "}
+            {displayValue(page.trust.metrics.dominant_duplicate_offset_y)}) · support:{" "}
+            {displayValue(page.trust.metrics.dominant_offset_support_ratio)}
+          </Typography>
 
           {accepted ? (
             <>

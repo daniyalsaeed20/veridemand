@@ -92,6 +92,16 @@
       "note": "Cross-font near-overprint (~1.5pt). Must never publish doubled text."
     },
     {
+      "filename": "partial-duplicate-header-footer.pdf",
+      "expected_native_status": "trusted",
+      "note": "Only header/footer duplicated; body with letter/bookkeeper/100.00 must remain."
+    },
+    {
+      "filename": "full-page-duplicate-layers.pdf",
+      "expected_native_status": "trusted_or_rejected_near_overprint",
+      "note": "Multiple fully duplicated lines. Clean or reject; never interleaved."
+    },
+    {
       "filename": "near-overprint-vertical.pdf",
       "expected_native_status": "trusted_or_rejected_near_overprint",
       "note": "Vertically offset cross-font duplicate layer."

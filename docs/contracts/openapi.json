@@ -1326,6 +1326,14 @@
             "title": "Dominant Duplicate Offset Y",
             "type": "number"
           },
+          "dominant_offset_support_ratio": {
+            "default": 0.0,
+            "description": "Matches supporting the dominant offset / all matches.",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Dominant Offset Support Ratio",
+            "type": "number"
+          },
           "duplicate_character_ratio": {
             "maximum": 1.0,
             "minimum": 0.0,
@@ -1338,6 +1346,14 @@
             "minimum": 1.0,
             "title": "Duplicate Layer Count",
             "type": "integer"
+          },
+          "duplicate_layer_coverage_ratio": {
+            "default": 0.0,
+            "description": "Matched chars in smaller layer / smaller layer size.",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Duplicate Layer Coverage Ratio",
+            "type": "number"
           },
           "extraction_order_backtrack_ratio": {
             "maximum": 1.0,
@@ -1373,6 +1389,27 @@
             "title": "Largest Image Area Ratio",
             "type": "number"
           },
+          "matched_line_span": {
+            "default": 0,
+            "description": "Approximate distinct line bins among near-duplicate matches.",
+            "minimum": 0.0,
+            "title": "Matched Line Span",
+            "type": "integer"
+          },
+          "matched_near_duplicate_count": {
+            "default": 0,
+            "description": "Number of near-duplicate glyph matches.",
+            "minimum": 0.0,
+            "title": "Matched Near Duplicate Count",
+            "type": "integer"
+          },
+          "matched_word_span": {
+            "default": 0,
+            "description": "Approximate distinct word clusters among near-duplicate matches.",
+            "minimum": 0.0,
+            "title": "Matched Word Span",
+            "type": "integer"
+          },
           "missing_font_ratio": {
             "maximum": 1.0,
             "minimum": 0.0,
@@ -1381,7 +1418,7 @@
           },
           "near_overprint_duplicate_ratio": {
             "default": 0.0,
-            "description": "Fraction of characters participating in near-overprint pairs.",
+            "description": "Redundant overprint characters / total characters.",
             "maximum": 1.0,
             "minimum": 0.0,
             "title": "Near Overprint Duplicate Ratio",

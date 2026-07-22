@@ -923,6 +923,12 @@ export type NativePageMetrics = {
      */
     dominant_duplicate_offset_y?: number;
     /**
+     * Dominant Offset Support Ratio
+     *
+     * Matches supporting the dominant offset / all matches.
+     */
+    dominant_offset_support_ratio?: number;
+    /**
      * Duplicate Character Ratio
      */
     duplicate_character_ratio: number;
@@ -932,6 +938,12 @@ export type NativePageMetrics = {
      * Estimated distinct near-overprint text layers.
      */
     duplicate_layer_count?: number;
+    /**
+     * Duplicate Layer Coverage Ratio
+     *
+     * Matched chars in smaller layer / smaller layer size.
+     */
+    duplicate_layer_coverage_ratio?: number;
     /**
      * Extraction Order Backtrack Ratio
      */
@@ -957,13 +969,31 @@ export type NativePageMetrics = {
      */
     largest_image_area_ratio: number;
     /**
+     * Matched Line Span
+     *
+     * Approximate distinct line bins among near-duplicate matches.
+     */
+    matched_line_span?: number;
+    /**
+     * Matched Near Duplicate Count
+     *
+     * Number of near-duplicate glyph matches.
+     */
+    matched_near_duplicate_count?: number;
+    /**
+     * Matched Word Span
+     *
+     * Approximate distinct word clusters among near-duplicate matches.
+     */
+    matched_word_span?: number;
+    /**
      * Missing Font Ratio
      */
     missing_font_ratio: number;
     /**
      * Near Overprint Duplicate Ratio
      *
-     * Fraction of characters participating in near-overprint pairs.
+     * Redundant overprint characters / total characters.
      */
     near_overprint_duplicate_ratio?: number;
     /**

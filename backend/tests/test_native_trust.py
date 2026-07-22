@@ -107,6 +107,31 @@ def _assert_no_doubled_adjacent_letters(text: str) -> None:
     assert doubles / max(len(text.replace(" ", "")), 1) < 0.35
 
 
+def test_partial_header_footer_keeps_body() -> None:
+    bundle = _decide("partial-duplicate-header-footer.pdf")
+    result = build_page_result(bundle, canonicalisation_method="original_pdf")
+    assert bundle.trust.decision is NativePageDecision.ACCEPTED
+    text = result.provisional_native_text or ""
+    assert "bookkeeper" in text
+    assert "100.00" in text
+    assert "Unique body" in text
+
+
+def test_full_page_duplicate_layers_never_doubled() -> None:
+    bundle = _decide("full-page-duplicate-layers.pdf")
+    result = build_page_result(bundle, canonicalisation_method="original_pdf")
+    if bundle.accept_text:
+        text = result.provisional_native_text or ""
+        assert "LLiinnee" not in text
+        assert "Line one" in text or "SAMPLE" in text
+    else:
+        assert (
+            NativeReasonCode.EXCESSIVE_NEAR_OVERPRINT_DUPLICATES.value in bundle.trust.reason_codes
+        )
+        assert result.words == []
+        assert bundle.trust.hard_rejection
+
+
 def test_near_overprint_cross_font_never_doubled() -> None:
     bundle = _decide("near-overprint-cross-font.pdf")
     result = build_page_result(bundle, canonicalisation_method="original_pdf")
