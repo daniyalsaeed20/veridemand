@@ -592,6 +592,55 @@
             "title": "Extraction Performed",
             "type": "boolean"
           },
+          "failure_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Stable machine-readable failure code when status is failed.",
+            "title": "Failure Code"
+          },
+          "failure_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Safe, non-sensitive failure message for operators.",
+            "title": "Failure Message"
+          },
+          "failure_page_number": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Affected page number when known.",
+            "title": "Failure Page Number"
+          },
+          "failure_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Safe stage name when processing failed (e.g. extracting_native).",
+            "title": "Failure Stage"
+          },
           "format": {
             "$ref": "#/components/schemas/DocumentFormat",
             "description": "Canonical internal format key."

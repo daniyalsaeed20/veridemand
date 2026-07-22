@@ -168,7 +168,33 @@ export function DocumentCard({ sessionId, document, disabled = false }: Document
           </Typography>
         ) : null}
 
-        {document.user_status_message ? (
+        {document.status === "failed" ? (
+          <Stack spacing={0.5}>
+            <Typography variant="caption" color="error.main">
+              {document.failure_message ?? document.user_status_message ?? "Processing failed."}
+            </Typography>
+            {document.failure_stage || document.failure_code ? (
+              <Typography variant="caption" color="text.secondary">
+                Stage: {document.failure_stage ?? "—"}
+                {document.failure_code ? ` · Code: ${document.failure_code}` : ""}
+                {document.failure_page_number != null
+                  ? ` · Page: ${document.failure_page_number}`
+                  : ""}
+              </Typography>
+            ) : null}
+            <Typography variant="caption" color="text.secondary">
+              Canonical document{" "}
+              {document.canonical_view_available
+                ? "remains available for viewing."
+                : "is not available."}
+              {document.visual_processing_required
+                ? " Visual processing can recover this document in a later phase."
+                : ""}
+            </Typography>
+          </Stack>
+        ) : null}
+
+        {document.status !== "failed" && document.user_status_message ? (
           <Typography variant="caption" color="text.secondary">
             {document.user_status_message}
           </Typography>

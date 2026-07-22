@@ -189,6 +189,10 @@ export const zDocumentSummary = z.object({
     .enum(["native_authority", "mixed_authority", "visual_authority", "image_authority"])
     .nullish(),
   user_status_message: z.string().nullish(),
+  failure_stage: z.string().nullish(),
+  failure_code: z.string().nullish(),
+  failure_message: z.string().nullish(),
+  failure_page_number: z.int().gte(1).nullish(),
   warning_count: z.int().gte(0).default(0),
   queue_position: z.int().gte(1).nullish(),
   active_job_id: z.string().nullish(),

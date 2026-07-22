@@ -412,6 +412,30 @@ export type DocumentSummary = {
      */
     extraction_performed?: boolean;
     /**
+     * Failure Code
+     *
+     * Stable machine-readable failure code when status is failed.
+     */
+    failure_code?: string | null;
+    /**
+     * Failure Message
+     *
+     * Safe, non-sensitive failure message for operators.
+     */
+    failure_message?: string | null;
+    /**
+     * Failure Page Number
+     *
+     * Affected page number when known.
+     */
+    failure_page_number?: number | null;
+    /**
+     * Failure Stage
+     *
+     * Safe stage name when processing failed (e.g. extracting_native).
+     */
+    failure_stage?: string | null;
+    /**
      * Canonical internal format key.
      */
     format: DocumentFormat;

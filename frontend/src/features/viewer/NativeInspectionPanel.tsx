@@ -82,6 +82,12 @@ export function NativeInspectionPanel({
               The native text layer was rejected. This page requires visual processing in Phase 4.
             </Alert>
           ) : null}
+          {page.decision === "error" ? (
+            <Alert severity="warning">
+              Native text processing could not read the embedded text on this page. The canonical
+              document is still available and visual processing is required.
+            </Alert>
+          ) : null}
           {page.source_mode === "image_authority" || page.decision === "absent" ? (
             <Alert severity="info">
               No native text is available. This page requires visual processing.
