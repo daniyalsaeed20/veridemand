@@ -14,14 +14,13 @@ jobs:
     name: Lint, type-check, test, contracts
     runs-on: ubuntu-latest
     env:
+      OPENAI_API_KEY: ""
+      OCR_ENABLED: "true"
+      OCR_DEVICE: cpu
       FLAGS_use_mkldnn: "0"
       FLAGS_onednn: "0"
       PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK: "True"
       PADDLE_PDX_MODEL_SOURCE: BOS
-    env:
-      OPENAI_API_KEY: ""
-      OCR_ENABLED: "true"
-      OCR_DEVICE: cpu
     steps:
       - uses: actions/checkout@v4
 
