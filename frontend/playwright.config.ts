@@ -13,9 +13,12 @@ const HOLDS_BACKEND = "http://127.0.0.1:8010";
 const HOLDS_SPECS = /\.holds\.spec\.ts$/;
 
 // Read CI without pulling in @types/node (no new frontend dependencies).
-const isCI = Boolean(
-  (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.CI,
-);
+const nodeProcess = (
+  globalThis as { process?: { env?: Record<string, string | undefined>; platform?: string } }
+).process;
+const isCI = Boolean(nodeProcess?.env?.CI);
+const pythonBin =
+  nodeProcess?.platform === "win32" ? ".venv\\Scripts\\python.exe" : ".venv/bin/python";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -42,7 +45,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: "uv run uvicorn backend.app.main:app --host 127.0.0.1 --port 8000",
+      command: `${pythonBin} -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000`,
       cwd: "..",
       url: `${NORMAL_BACKEND}/health/live`,
       reuseExistingServer: true,
@@ -55,7 +58,7 @@ export default defineConfig({
       timeout: 120_000,
     },
     {
-      command: "uv run uvicorn backend.app.main:app --host 127.0.0.1 --port 8010",
+      command: `${pythonBin} -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8010`,
       cwd: "..",
       url: `${HOLDS_BACKEND}/health/live`,
       reuseExistingServer: true,

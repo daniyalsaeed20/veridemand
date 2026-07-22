@@ -45,13 +45,25 @@ spikes/**/.venv/
 # Local case samples (may contain PII) - keep out of Git
 docs/example/*.pdf
 docs/example/*.docx
+docs/example/*.doc
 docs/example/**/*.pdf
 docs/example/**/*.docx
+docs/example/**/*.doc
+docs/example/**/*.tif
+docs/example/**/*.tiff
+docs/example/**/*.png
+docs/example/**/*.jpg
+docs/example/**/*.jpeg
+docs/example/**/*.webp
 docs/example/**/.~lock.*
 
 # Private local regression fixtures (may contain PII) - keep out of Git
-fixtures/private/*
+fixtures/private/**
 !fixtures/private/.gitkeep
+!fixtures/private/README.example.md
+
+# Copied from pdfjs-dist/wasm by Vite (dev/build); do not commit binaries
+frontend/public/pdfjs-wasm/
 
 # Logs / OS / IDE
 *.log

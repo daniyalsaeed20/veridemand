@@ -24,7 +24,9 @@ content is described or tracked here.
 
 ## Rules
 
-- Files here are ignored by Git (see `.gitignore`: `fixtures/private/*`).
+- Files here are ignored by Git (see `.gitignore`: `fixtures/private/**`, with
+  `.gitkeep` and this README allow-listed).
 - Do not add real client names, case numbers, medical details, or any PII to the repository.
 - Keep only synthetic or properly de-identified material if anything must ever be shared;
   shareable synthetic fixtures live under `fixtures/extraction_acceptance/` instead.
+- Never place private medical PDFs under `docs/example/`; that tree is for local notes only.
