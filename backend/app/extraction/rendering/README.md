@@ -1,4 +1,4 @@
 # extraction/rendering (Phase 4)
 
-Deterministic page rendering to images for visually authoritative documents.
-Not implemented in Phase 0.
+Page rendering for visually authoritative documents is implemented in
+`backend/app/extraction/visual/renderer.py` (pypdfium2, one page at a time).

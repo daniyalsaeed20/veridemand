@@ -110,6 +110,11 @@ export function makeSnapshot(overrides: Partial<SessionSnapshot> = {}): SessionS
       inspecting_native: 0,
       extracting_native: 0,
       native_trust_complete: 0,
+      visual_pending: 0,
+      visual_processing: 0,
+      visual_processing_complete: 0,
+      visual_processing_partial: 0,
+      visual_processing_failed: 0,
       cancelled: 0,
       failed: 0,
     },
@@ -144,6 +149,8 @@ export function makeDocument(
     native_extraction_performed: false,
     native_result_available: false,
     visual_processing_required: false,
+    visual_processing_performed: false,
+    visual_result_available: false,
     document_source_policy: null,
     user_status_message: null,
     warning_count: 0,
@@ -156,6 +163,7 @@ export function makeDocument(
     canonical_view_url: null,
     canonical_metadata_url: null,
     native_summary_url: null,
+    visual_summary_url: null,
     ...overrides,
   };
 }

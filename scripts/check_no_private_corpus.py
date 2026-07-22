@@ -17,6 +17,7 @@ _ALLOWED_PRIVATE = frozenset(
     {
         "fixtures/private/.gitkeep",
         "fixtures/private/README.example.md",
+        "fixtures/private/visual-ocr-manifest.local.json.example",
     }
 )
 

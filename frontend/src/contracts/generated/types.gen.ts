@@ -291,9 +291,9 @@ export type DocumentSourcePolicy = 'native_authority' | 'mixed_authority' | 'vis
 /**
  * DocumentStatus
  *
- * Lifecycle state of an accepted document during Phase 3.
+ * Lifecycle state of an accepted document during Phase 4.
  */
-export type DocumentStatus = 'uploaded' | 'queued' | 'canonicalising' | 'ready_for_extraction' | 'inspecting_native' | 'extracting_native' | 'native_trust_complete' | 'cancelled' | 'failed';
+export type DocumentStatus = 'uploaded' | 'queued' | 'canonicalising' | 'ready_for_extraction' | 'inspecting_native' | 'extracting_native' | 'native_trust_complete' | 'visual_pending' | 'visual_processing' | 'visual_processing_complete' | 'visual_processing_partial' | 'visual_processing_failed' | 'cancelled' | 'failed';
 
 /**
  * DocumentStatusCounts
@@ -337,6 +337,26 @@ export type DocumentStatusCounts = {
      * Uploaded
      */
     uploaded?: number;
+    /**
+     * Visual Pending
+     */
+    visual_pending?: number;
+    /**
+     * Visual Processing
+     */
+    visual_processing?: number;
+    /**
+     * Visual Processing Complete
+     */
+    visual_processing_complete?: number;
+    /**
+     * Visual Processing Failed
+     */
+    visual_processing_failed?: number;
+    /**
+     * Visual Processing Partial
+     */
+    visual_processing_partial?: number;
 };
 
 /**
@@ -396,7 +416,7 @@ export type DocumentSummary = {
      */
     document_id: string;
     /**
-     * Document-level source authority after native trust.
+     * Document-level source authority after native/visual stages.
      */
     document_source_policy?: DocumentSourcePolicy | null;
     /**
@@ -474,9 +494,21 @@ export type DocumentSummary = {
      */
     page_count_status: PageCountStatus;
     /**
+     * Pages Completed
+     *
+     * Visual pages completed when processing.
+     */
+    pages_completed?: number | null;
+    /**
+     * Pages Total
+     *
+     * Visual pages selected for processing.
+     */
+    pages_total?: number | null;
+    /**
      * Progress Percent
      *
-     * Honest Phase 3 progress; capped at 35% (native trust complete).
+     * Honest Phase 4 progress; capped at 65% (printed visual OCR complete).
      */
     progress_percent: number;
     /**
@@ -510,15 +542,33 @@ export type DocumentSummary = {
     /**
      * User Status Message
      *
-     * Safe user-facing status for the native trust stage.
+     * Safe user-facing status for the current processing stage.
      */
     user_status_message?: string | null;
+    /**
+     * Visual Processing Performed
+     *
+     * True when Phase 4 visual OCR ran for selected pages.
+     */
+    visual_processing_performed?: boolean;
     /**
      * Visual Processing Required
      *
      * True when one or more pages require visual processing.
      */
     visual_processing_required?: boolean;
+    /**
+     * Visual Result Available
+     *
+     * True when at least one visual OCR page result is published.
+     */
+    visual_result_available?: boolean;
+    /**
+     * Visual Summary Url
+     *
+     * Relative URL for the visual OCR summary.
+     */
+    visual_summary_url?: string | null;
     /**
      * Warning Count
      *
@@ -546,6 +596,13 @@ export type HttpValidationError = {
      */
     detail?: Array<ValidationError>;
 };
+
+/**
+ * HandwritingAssessment
+ *
+ * Handwriting is not assessed until Phase 5.
+ */
+export type HandwritingAssessment = 'pending_phase_5';
 
 /**
  * IgnoredDocument
@@ -1282,6 +1339,47 @@ export type NativeTrustComponents = {
 };
 
 /**
+ * NativeVisibilityDecision
+ *
+ * Outcome of the Phase 4 native-text visibility probe.
+ */
+export type NativeVisibilityDecision = 'native_text_visually_supported' | 'native_text_not_visually_present' | 'native_text_visibility_uncertain' | 'not_evaluated' | 'insufficient_words';
+
+/**
+ * NativeVisibilityResult
+ *
+ * Safe visibility-probe diagnostics (no native or OCR text).
+ */
+export type NativeVisibilityResult = {
+    /**
+     * Downgraded
+     */
+    downgraded?: boolean;
+    /**
+     * Native Blank Like Word Ratio
+     */
+    native_blank_like_word_ratio?: number | null;
+    native_visibility_decision: NativeVisibilityDecision;
+    /**
+     * Native Visibility Score
+     */
+    native_visibility_score?: number | null;
+    /**
+     * Native Visible Word Ratio
+     */
+    native_visible_word_ratio?: number | null;
+    /**
+     * Reason Codes
+     */
+    reason_codes?: Array<string>;
+    /**
+     * Sampled Word Count
+     */
+    sampled_word_count?: number;
+    visual_agreement_status: VisualAgreementStatusPhase4;
+};
+
+/**
  * NativeWarning
  *
  * Safe diagnostic warning without extracted text.
@@ -1440,6 +1538,27 @@ export type NormalisedPolygon = {
 };
 
 /**
+ * OcrRecognitionMethod
+ *
+ * How printed OCR text was obtained.
+ */
+export type OcrRecognitionMethod = 'paddleocr_printed';
+
+/**
+ * OcrRecognitionStatus
+ *
+ * Public recognition status for an OCR line or word.
+ */
+export type OcrRecognitionStatus = 'accepted' | 'low_confidence' | 'empty';
+
+/**
+ * OcrSourceMode
+ *
+ * Page text authority for Phase 4 OCR results.
+ */
+export type OcrSourceMode = 'visual_authority';
+
+/**
  * OverlayProofItem
  *
  * A single synthetic overlay used only for Phase 2 alignment verification.
@@ -1556,6 +1675,161 @@ export type PdfPointBox = {
      * Top edge in PDF points (top-left origin).
      */
     y: number;
+};
+
+/**
+ * PixelBoundingBox
+ *
+ * Axis-aligned box in rendered pixel space (top-left origin).
+ */
+export type PixelBoundingBox = {
+    /**
+     * Height
+     */
+    height: number;
+    /**
+     * Width
+     */
+    width: number;
+    /**
+     * X
+     */
+    x: number;
+    /**
+     * Y
+     */
+    y: number;
+};
+
+/**
+ * PixelPolygon
+ *
+ * Polygon in rendered pixel space.
+ */
+export type PixelPolygon = {
+    /**
+     * Points
+     */
+    points: Array<[
+        number,
+        number
+    ]>;
+};
+
+/**
+ * PreprocessingVariant
+ *
+ * Conservative preprocessing variants used before OCR.
+ */
+export type PreprocessingVariant = 'original_rgb' | 'grayscale_autocontrast';
+
+/**
+ * PrintedOcrLine
+ *
+ * One printed OCR text line with geometry and confidence.
+ */
+export type PrintedOcrLine = {
+    bbox: NormalisedBoundingBox;
+    /**
+     * Detection Score
+     */
+    detection_score: number;
+    /**
+     * Combined normalised geometry.
+     */
+    geometry?: Geometry | null;
+    handwriting_assessment?: HandwritingAssessment;
+    /**
+     * Id
+     *
+     * Deterministic id, e.g. ocrline_p0001_000001.
+     */
+    id: string;
+    /**
+     * Normalised Text
+     *
+     * NFC-normalised OCR text.
+     */
+    normalised_text: string;
+    /**
+     * Page Number
+     */
+    page_number: number;
+    pixel_bbox: PixelBoundingBox;
+    pixel_polygon: PixelPolygon;
+    polygon: NormalisedPolygon;
+    preprocessing_variant: PreprocessingVariant;
+    recognition_method?: OcrRecognitionMethod;
+    /**
+     * Recognition Score
+     */
+    recognition_score: number;
+    recognition_status: OcrRecognitionStatus;
+    /**
+     * Sequence Index
+     */
+    sequence_index: number;
+    source_mode?: OcrSourceMode;
+    /**
+     * Text
+     *
+     * Exact OCR string (NFC applied separately).
+     */
+    text: string;
+};
+
+/**
+ * PrintedOcrWord
+ *
+ * One printed OCR word/token with geometry and confidence.
+ */
+export type PrintedOcrWord = {
+    bbox: NormalisedBoundingBox;
+    geometry?: Geometry | null;
+    /**
+     * Geometry Precision
+     *
+     * detector when paddle_word_box; approximate when derived.
+     */
+    geometry_precision?: string;
+    geometry_source: WordGeometrySource;
+    handwriting_assessment?: HandwritingAssessment;
+    /**
+     * Id
+     *
+     * Deterministic id, e.g. ocrword_p0001_000001.
+     */
+    id: string;
+    /**
+     * Line Id
+     */
+    line_id: string;
+    /**
+     * Normalised Text
+     */
+    normalised_text: string;
+    /**
+     * Page Number
+     */
+    page_number: number;
+    pixel_bbox: PixelBoundingBox;
+    pixel_polygon: PixelPolygon;
+    polygon: NormalisedPolygon;
+    recognition_method?: OcrRecognitionMethod;
+    /**
+     * Recognition Score
+     */
+    recognition_score: number;
+    recognition_status: OcrRecognitionStatus;
+    score_source: WordScoreSource;
+    /**
+     * Sequence Index
+     */
+    sequence_index: number;
+    /**
+     * Text
+     */
+    text: string;
 };
 
 /**
@@ -1748,7 +2022,7 @@ export type ProgressEvent = {
  * Extraction-stage types are reserved for later phases and are never emitted in
  * Phase 1.
  */
-export type ProgressEventType = 'session.created' | 'session.snapshot' | 'session.expiring' | 'session.deleted' | 'document.uploaded' | 'document.rejected' | 'document.queued' | 'document.started' | 'document.stage_changed' | 'document.canonicalisation_started' | 'document.canonicalisation_progress' | 'document.canonicalisation_completed' | 'document.canonicalisation_failed' | 'document.canonicalisation_cancelled' | 'document.canonical_ready' | 'document.ready_for_extraction' | 'document.native_inspection_started' | 'document.native_page_started' | 'document.native_page_accepted' | 'document.native_page_rejected' | 'document.native_page_absent' | 'document.native_page_error' | 'document.native_document_escalated' | 'document.native_extraction_completed' | 'document.native_extraction_failed' | 'document.removed' | 'document.warning' | 'document.failed' | 'document.cancelled' | 'job.queued' | 'job.started' | 'job.completed' | 'job.failed' | 'job.cancelled' | 'stream.resync_required' | 'heartbeat' | 'document.page_started' | 'document.page_completed' | 'document.completed';
+export type ProgressEventType = 'session.created' | 'session.snapshot' | 'session.expiring' | 'session.deleted' | 'document.uploaded' | 'document.rejected' | 'document.queued' | 'document.started' | 'document.stage_changed' | 'document.canonicalisation_started' | 'document.canonicalisation_progress' | 'document.canonicalisation_completed' | 'document.canonicalisation_failed' | 'document.canonicalisation_cancelled' | 'document.canonical_ready' | 'document.ready_for_extraction' | 'document.native_inspection_started' | 'document.native_page_started' | 'document.native_page_accepted' | 'document.native_page_rejected' | 'document.native_page_absent' | 'document.native_page_error' | 'document.native_document_escalated' | 'document.native_extraction_completed' | 'document.native_extraction_failed' | 'document.visual_processing_started' | 'document.visual_pages_selected' | 'document.native_visibility_started' | 'document.native_visibility_supported' | 'document.native_visibility_rejected' | 'document.visual_page_started' | 'document.visual_page_rendered' | 'document.visual_page_ocr_started' | 'document.visual_page_ocr_completed' | 'document.visual_page_no_text' | 'document.visual_page_failed' | 'document.visual_grouping_completed' | 'document.visual_processing_completed' | 'document.visual_processing_partial' | 'document.visual_processing_failed' | 'document.removed' | 'document.warning' | 'document.failed' | 'document.cancelled' | 'job.queued' | 'job.started' | 'job.completed' | 'job.failed' | 'job.cancelled' | 'stream.resync_required' | 'heartbeat' | 'document.page_started' | 'document.page_completed' | 'document.completed';
 
 /**
  * ProvisionalOrderStatus
@@ -1838,6 +2112,20 @@ export type ReadinessResponse = {
      */
     version: string;
 };
+
+/**
+ * ReadingOrderMethod
+ *
+ * How provisional reading order was produced.
+ */
+export type ReadingOrderMethod = 'geometric_columns_phase_4';
+
+/**
+ * ReadingOrderStatus
+ *
+ * Reading order is provisional in Phase 4.
+ */
+export type ReadingOrderStatus = 'provisional_phase_4';
 
 /**
  * RecognitionMethod
@@ -2105,9 +2393,409 @@ export type ValidationError = {
 /**
  * VisualAgreementStatus
  *
- * Visual agreement is deferred until Phase 4 rendering/OCR exist.
+ * Visual agreement status across Phase 3 and Phase 4.
  */
-export type VisualAgreementStatus = 'not_evaluated_phase_3';
+export type VisualAgreementStatus = 'not_evaluated_phase_3' | 'evaluated_phase_4_visibility';
+
+/**
+ * VisualAgreementStatusPhase4
+ *
+ * Visual agreement status after Phase 4 visibility probing.
+ */
+export type VisualAgreementStatusPhase4 = 'not_evaluated_phase_3' | 'evaluated_phase_4_visibility';
+
+/**
+ * VisualBlockType
+ *
+ * Block type — semantic labels are deferred.
+ */
+export type VisualBlockType = 'text_unknown';
+
+/**
+ * VisualDocumentSummary
+ *
+ * Public visual-processing summary for a document.
+ */
+export type VisualDocumentSummary = {
+    /**
+     * Completed At
+     */
+    completed_at?: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Document Id
+     */
+    document_id: string;
+    document_source_policy?: DocumentSourcePolicy | null;
+    /**
+     * Final Result Available
+     */
+    final_result_available?: boolean;
+    /**
+     * Handwriting Assessment Pending
+     */
+    handwriting_assessment_pending?: boolean;
+    model_info?: VisualModelInfo | null;
+    /**
+     * Native Pages Downgraded
+     */
+    native_pages_downgraded: number;
+    /**
+     * Native Pages Retained
+     */
+    native_pages_retained: number;
+    /**
+     * Page Count
+     */
+    page_count: number;
+    /**
+     * Page Summaries
+     */
+    page_summaries?: Array<VisualPageSummary>;
+    /**
+     * Pages Cancelled
+     */
+    pages_cancelled: number;
+    /**
+     * Pages Completed
+     */
+    pages_completed: number;
+    /**
+     * Pages Failed
+     */
+    pages_failed: number;
+    /**
+     * Pages No Text
+     */
+    pages_no_text: number;
+    /**
+     * Pages Selected
+     */
+    pages_selected: number;
+    progress: VisualProgress;
+    /**
+     * User Status Message
+     */
+    user_status_message?: string | null;
+    visual_processing_status: VisualProcessingStatus;
+    /**
+     * Visual Result Available
+     */
+    visual_result_available?: boolean;
+    /**
+     * Warnings
+     */
+    warnings?: Array<VisualWarning>;
+};
+
+/**
+ * VisualModelInfo
+ *
+ * Model identifiers exposed in summaries (no filesystem paths).
+ */
+export type VisualModelInfo = {
+    /**
+     * Detection Model Name
+     */
+    detection_model_name: string;
+    /**
+     * Device
+     */
+    device?: string;
+    /**
+     * Engine
+     */
+    engine?: string;
+    /**
+     * Model Tree Hash
+     */
+    model_tree_hash?: string | null;
+    /**
+     * Paddleocr Version
+     */
+    paddleocr_version?: string | null;
+    /**
+     * Paddlepaddle Version
+     */
+    paddlepaddle_version?: string | null;
+    /**
+     * Pypdfium2 Version
+     */
+    pypdfium2_version?: string | null;
+    /**
+     * Recognition Model Name
+     */
+    recognition_model_name: string;
+};
+
+/**
+ * VisualPageResult
+ *
+ * Published per-page visual/OCR result.
+ */
+export type VisualPageResult = {
+    /**
+     * Average Detection Score
+     */
+    average_detection_score?: number | null;
+    /**
+     * Average Recognition Score
+     */
+    average_recognition_score?: number | null;
+    /**
+     * Blocks
+     */
+    blocks?: Array<VisualTextBlock>;
+    /**
+     * Duration Ms
+     */
+    duration_ms?: number | null;
+    /**
+     * Error Code
+     */
+    error_code?: string | null;
+    /**
+     * Fallback Used
+     */
+    fallback_used?: boolean;
+    handwriting_assessment?: HandwritingAssessment;
+    /**
+     * Line Count
+     */
+    line_count?: number;
+    /**
+     * Lines
+     */
+    lines?: Array<PrintedOcrLine>;
+    /**
+     * Low Confidence Line Count
+     */
+    low_confidence_line_count?: number;
+    native_visibility_result?: NativeVisibilityResult | null;
+    /**
+     * Page Number
+     */
+    page_number: number;
+    /**
+     * Peak Rss Mb
+     */
+    peak_rss_mb?: number | null;
+    preprocessing_variant?: PreprocessingVariant | null;
+    reading_order?: VisualReadingOrder | null;
+    /**
+     * Render Dpi
+     */
+    render_dpi?: number | null;
+    /**
+     * Render Height Pixels
+     */
+    render_height_pixels?: number | null;
+    /**
+     * Render Width Pixels
+     */
+    render_width_pixels?: number | null;
+    source_mode: SourceMode;
+    status: VisualPageStatus;
+    /**
+     * Visual Processing Attempted
+     */
+    visual_processing_attempted?: boolean;
+    /**
+     * Visual Result Available
+     */
+    visual_result_available?: boolean;
+    /**
+     * Warnings
+     */
+    warnings?: Array<VisualWarning>;
+    /**
+     * Word Count
+     */
+    word_count?: number;
+    /**
+     * Words
+     */
+    words?: Array<PrintedOcrWord>;
+};
+
+/**
+ * VisualPageStatus
+ *
+ * Lifecycle of visual/OCR processing for one page.
+ */
+export type VisualPageStatus = 'pending' | 'rendering' | 'detecting' | 'recognising' | 'grouping' | 'completed' | 'completed_no_text' | 'failed' | 'cancelled' | 'skipped_native_retained';
+
+/**
+ * VisualPageSummary
+ *
+ * Compact per-page row for document visual summaries.
+ */
+export type VisualPageSummary = {
+    /**
+     * Average Recognition Score
+     */
+    average_recognition_score?: number | null;
+    /**
+     * Error Code
+     */
+    error_code?: string | null;
+    /**
+     * Line Count
+     */
+    line_count?: number;
+    /**
+     * Native Downgraded
+     */
+    native_downgraded?: boolean;
+    /**
+     * Native Retained
+     */
+    native_retained?: boolean;
+    /**
+     * Page Number
+     */
+    page_number: number;
+    source_mode: SourceMode;
+    status: VisualPageStatus;
+    /**
+     * Visual Result Available
+     */
+    visual_result_available?: boolean;
+    /**
+     * Word Count
+     */
+    word_count?: number;
+};
+
+/**
+ * VisualProcessingStatus
+ *
+ * Document-level visual processing lifecycle.
+ */
+export type VisualProcessingStatus = 'visual_pending' | 'visual_processing' | 'visual_processing_complete' | 'visual_processing_partial' | 'visual_processing_failed' | 'cancelled' | 'not_required';
+
+/**
+ * VisualProgress
+ *
+ * Monotonic visual-stage progress (capped at Phase 4 maximum of 65).
+ */
+export type VisualProgress = {
+    /**
+     * Current Page
+     */
+    current_page?: number | null;
+    /**
+     * Current Page Stage
+     */
+    current_page_stage?: string | null;
+    /**
+     * Pages Completed
+     */
+    pages_completed: number;
+    /**
+     * Pages Total
+     */
+    pages_total: number;
+    /**
+     * Percent
+     */
+    percent: number;
+};
+
+/**
+ * VisualReadingOrder
+ *
+ * Provisional page-local reading order.
+ */
+export type VisualReadingOrder = {
+    /**
+     * Block Ids
+     */
+    block_ids?: Array<string>;
+    /**
+     * Diagnostic Ocr Sequence Line Ids
+     *
+     * Original OCR detection sequence (diagnostic only).
+     */
+    diagnostic_ocr_sequence_line_ids?: Array<string>;
+    /**
+     * Line Ids
+     */
+    line_ids?: Array<string>;
+    order_method?: ReadingOrderMethod;
+    order_status?: ReadingOrderStatus;
+};
+
+/**
+ * VisualTextBlock
+ *
+ * Geometrically grouped OCR lines (no semantic table/header labels).
+ */
+export type VisualTextBlock = {
+    bbox: NormalisedBoundingBox;
+    block_type?: VisualBlockType;
+    /**
+     * Id
+     *
+     * Deterministic id, e.g. ocrblock_p0001_000001.
+     */
+    id: string;
+    /**
+     * Line Ids
+     */
+    line_ids: Array<string>;
+    /**
+     * Page Number
+     */
+    page_number: number;
+    polygon: NormalisedPolygon;
+    /**
+     * Reading Order Index
+     */
+    reading_order_index: number;
+    reading_order_status?: ReadingOrderStatus;
+    /**
+     * Sequence Index
+     */
+    sequence_index: number;
+};
+
+/**
+ * VisualWarning
+ *
+ * Safe visual/OCR warning without text payloads.
+ */
+export type VisualWarning = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Page Number
+     */
+    page_number?: number | null;
+};
+
+/**
+ * WordGeometrySource
+ *
+ * Whether word boxes came from Paddle or were derived.
+ */
+export type WordGeometrySource = 'paddle_word_box' | 'derived_from_line_polygon';
+
+/**
+ * WordScoreSource
+ *
+ * Origin of the word recognition score.
+ */
+export type WordScoreSource = 'paddle_recognition' | 'inherited_from_line';
 
 export type CreateSessionApiV1SessionsPostData = {
     body?: never;
@@ -2575,6 +3263,91 @@ export type GetNativeSummaryApiV1SessionsSessionIdDocumentsDocumentIdNativeSumma
 };
 
 export type GetNativeSummaryApiV1SessionsSessionIdDocumentsDocumentIdNativeSummaryGetResponse = GetNativeSummaryApiV1SessionsSessionIdDocumentsDocumentIdNativeSummaryGetResponses[keyof GetNativeSummaryApiV1SessionsSessionIdDocumentsDocumentIdNativeSummaryGetResponses];
+
+export type GetVisualPageApiV1SessionsSessionIdDocumentsDocumentIdVisualPagesPageNumberGetData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+        /**
+         * Document Id
+         */
+        document_id: string;
+        /**
+         * Page Number
+         */
+        page_number: number;
+    };
+    query?: {
+        /**
+         * Include Lines
+         */
+        include_lines?: boolean;
+        /**
+         * Include Words
+         */
+        include_words?: boolean;
+        /**
+         * Include Blocks
+         */
+        include_blocks?: boolean;
+    };
+    url: '/api/v1/sessions/{session_id}/documents/{document_id}/visual/pages/{page_number}';
+};
+
+export type GetVisualPageApiV1SessionsSessionIdDocumentsDocumentIdVisualPagesPageNumberGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetVisualPageApiV1SessionsSessionIdDocumentsDocumentIdVisualPagesPageNumberGetError = GetVisualPageApiV1SessionsSessionIdDocumentsDocumentIdVisualPagesPageNumberGetErrors[keyof GetVisualPageApiV1SessionsSessionIdDocumentsDocumentIdVisualPagesPageNumberGetErrors];
+
+export type GetVisualPageApiV1SessionsSessionIdDocumentsDocumentIdVisualPagesPageNumberGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: VisualPageResult;
+};
+
+export type GetVisualPageApiV1SessionsSessionIdDocumentsDocumentIdVisualPagesPageNumberGetResponse = GetVisualPageApiV1SessionsSessionIdDocumentsDocumentIdVisualPagesPageNumberGetResponses[keyof GetVisualPageApiV1SessionsSessionIdDocumentsDocumentIdVisualPagesPageNumberGetResponses];
+
+export type GetVisualSummaryApiV1SessionsSessionIdDocumentsDocumentIdVisualSummaryGetData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+        /**
+         * Document Id
+         */
+        document_id: string;
+    };
+    query?: never;
+    url: '/api/v1/sessions/{session_id}/documents/{document_id}/visual/summary';
+};
+
+export type GetVisualSummaryApiV1SessionsSessionIdDocumentsDocumentIdVisualSummaryGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetVisualSummaryApiV1SessionsSessionIdDocumentsDocumentIdVisualSummaryGetError = GetVisualSummaryApiV1SessionsSessionIdDocumentsDocumentIdVisualSummaryGetErrors[keyof GetVisualSummaryApiV1SessionsSessionIdDocumentsDocumentIdVisualSummaryGetErrors];
+
+export type GetVisualSummaryApiV1SessionsSessionIdDocumentsDocumentIdVisualSummaryGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: VisualDocumentSummary;
+};
+
+export type GetVisualSummaryApiV1SessionsSessionIdDocumentsDocumentIdVisualSummaryGetResponse = GetVisualSummaryApiV1SessionsSessionIdDocumentsDocumentIdVisualSummaryGetResponses[keyof GetVisualSummaryApiV1SessionsSessionIdDocumentsDocumentIdVisualSummaryGetResponses];
 
 export type SessionEventsApiV1SessionsSessionIdEventsGetData = {
     body?: never;

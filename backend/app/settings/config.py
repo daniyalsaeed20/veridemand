@@ -113,14 +113,10 @@ class Settings(BaseSettings):
     viewer_max_scale: float = Field(default=4.0, gt=0)
     viewer_scale_step: float = Field(default=0.25, gt=0)
 
-    # Concurrency (future processing pipeline).
+    # Concurrency (document queue remains single-worker).
     heavy_document_workers: int = Field(default=1, gt=0)
-    render_concurrency: int = Field(default=2, gt=0)
-    ocr_concurrency: int = Field(default=1, gt=0)
-
-    # Rendering (future).
-    pdf_render_dpi: int = Field(default=300, gt=0)
-    pdf_render_retry_dpi: int = Field(default=400, gt=0)
+    render_concurrency: int = Field(default=1, ge=1, le=1)
+    ocr_concurrency: int = Field(default=1, ge=1, le=1)
 
     # Trust and routing thresholds (Phase 3+).
     native_trust_threshold: float = Field(default=0.75, ge=0.0, le=1.0)
@@ -175,12 +171,51 @@ class Settings(BaseSettings):
     # Test-only hold during native extraction for cancellation E2E.
     native_extraction_test_delay_seconds: float = Field(default=0.0, ge=0.0, le=60.0)
 
-    # OCR / layout (future).
-    paddle_device: str = "cpu"
-    paddle_ocr_model: str = "PP-OCRv5_mobile"
-    paddle_layout_enabled: bool = True
+    # Phase 4 — printed OCR / visual processing.
+    ocr_enabled: bool = True
+    ocr_device: str = "cpu"
+    ocr_engine: str = "paddle_static"
+    ocr_detection_model_name: str = "PP-OCRv6_medium_det"
+    ocr_recognition_model_name: str = "PP-OCRv6_medium_rec"
+    model_root: Path = Path("./.models")
+    ocr_model_root: Path = Path("./.models/paddleocr")
+    ocr_workers: int = Field(default=1, ge=1, le=1)
+    ocr_cpu_threads: int = Field(default=4, ge=1, le=32)
+    ocr_recognition_batch_size: int = Field(default=1, ge=1, le=1)
+    ocr_render_dpi: int = Field(default=200, gt=0)
+    ocr_visibility_probe_dpi: int = Field(default=96, gt=0)
+    ocr_min_effective_dpi: int = Field(default=120, gt=0)
+    ocr_max_render_pixels: int = Field(default=40_000_000, gt=0)
+    ocr_max_render_side_pixels: int = Field(default=6000, gt=0)
+    ocr_text_det_limit_side_len: int = Field(default=2400, gt=0)
+    ocr_text_det_limit_type: str = "max"
+    ocr_text_det_thresh: float = Field(default=0.30, ge=0.0, le=1.0)
+    ocr_text_det_box_thresh: float = Field(default=0.60, ge=0.0, le=1.0)
+    ocr_text_det_unclip_ratio: float = Field(default=1.50, gt=0)
+    ocr_min_recognition_score: float = Field(default=0.30, ge=0.0, le=1.0)
+    ocr_low_confidence_score: float = Field(default=0.75, ge=0.0, le=1.0)
+    ocr_enable_grayscale_fallback: bool = True
+    ocr_fallback_max_attempts: int = Field(default=1, ge=0, le=1)
+    ocr_page_timeout_seconds: float = Field(default=180.0, gt=0)
+    ocr_document_timeout_seconds: float = Field(default=3600.0, gt=0)
+    ocr_worker_startup_timeout_seconds: float = Field(default=180.0, gt=0)
+    ocr_termination_grace_seconds: float = Field(default=10.0, gt=0)
+    ocr_max_worker_restarts: int = Field(default=2, ge=0, le=10)
+    ocr_worker_recycle_after_pages: int = Field(default=500, gt=0)
+    ocr_max_worker_rss_mb: int = Field(default=4096, gt=0)
+    ocr_save_rendered_pages: bool = False
+    ocr_keep_failed_render: bool = False
+    ocr_allow_save_rendered_in_production: bool = False
+    native_visibility_probe_enabled: bool = True
+    native_visibility_min_words: int = Field(default=8, ge=1)
+    native_visibility_min_visible_word_ratio: float = Field(default=0.55, ge=0.0, le=1.0)
+    native_visibility_min_region_variance: float = Field(default=4.0, ge=0.0)
+    native_visibility_min_edge_density: float = Field(default=0.01, ge=0.0, le=1.0)
+    ocr_layout_max_vertical_gap_ratio: float = Field(default=0.035, ge=0.0, le=1.0)
+    ocr_layout_min_horizontal_overlap_ratio: float = Field(default=0.25, ge=0.0, le=1.0)
+    ocr_column_gap_ratio: float = Field(default=0.08, ge=0.0, le=1.0)
 
-    # Handwriting classifier (future).
+    # Handwriting classifier (Phase 5 — path reserved only).
     handwriting_classifier_path: Path = Path("./models/handwriting_classifier/model.onnx")
 
     # Vision provider (future). The key is never exposed in repr/logs/responses.
@@ -251,6 +286,29 @@ class Settings(BaseSettings):
             raise ValueError("VIEWER_MAX_SCALE must be greater than VIEWER_MIN_SCALE.")
         if self.canonical_file_cache_control.strip().lower() != "no-store":
             raise ValueError("CANONICAL_FILE_CACHE_CONTROL must be 'no-store'.")
+        if self.ocr_workers != 1:
+            raise ValueError("OCR_WORKERS must equal 1.")
+        if self.ocr_device.strip().lower() != "cpu":
+            raise ValueError("OCR_DEVICE must be 'cpu' for the reproducible Phase 4 baseline.")
+        if self.ocr_engine.strip().lower() != "paddle_static":
+            raise ValueError("OCR_ENGINE must be 'paddle_static'.")
+        if self.ocr_min_effective_dpi > self.ocr_render_dpi:
+            raise ValueError("OCR_MIN_EFFECTIVE_DPI must not exceed OCR_RENDER_DPI.")
+        if self.ocr_termination_grace_seconds >= self.ocr_page_timeout_seconds:
+            raise ValueError(
+                "OCR_TERMINATION_GRACE_SECONDS must be less than OCR_PAGE_TIMEOUT_SECONDS."
+            )
+        if self.ocr_text_det_limit_type.strip().lower() not in {"max", "min"}:
+            raise ValueError("OCR_TEXT_DET_LIMIT_TYPE must be 'max' or 'min'.")
+        if (
+            self.app_env.strip().lower() == "production"
+            and self.ocr_save_rendered_pages
+            and not self.ocr_allow_save_rendered_in_production
+        ):
+            raise ValueError(
+                "OCR_SAVE_RENDERED_PAGES cannot be true in production without "
+                "OCR_ALLOW_SAVE_RENDERED_IN_PRODUCTION."
+            )
         return self
 
 

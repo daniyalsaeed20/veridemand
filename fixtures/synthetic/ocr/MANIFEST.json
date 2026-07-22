@@ -1,0 +1,22 @@
+{
+  "version": "phase-4-synthetic-ocr-v1",
+  "cases": [
+    "clean_200dpi",
+    "clean_300dpi",
+    "low_resolution_96dpi",
+    "light_noise",
+    "low_contrast",
+    "grayscale_fax",
+    "two_columns",
+    "simple_table",
+    "empty_page",
+    "handwriting_pending",
+    "clean_printable",
+    "rotated_canonical"
+  ],
+  "gates": {
+    "clean_cer_max": 0.03,
+    "degraded_cer_max": 0.15,
+    "median_line_iou_min": 0.7
+  }
+}

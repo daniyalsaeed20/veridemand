@@ -1,0 +1,10 @@
+{
+  "id": "handwriting_pending",
+  "kind": "image",
+  "file": "handwriting_pending.png",
+  "dpi": 200,
+  "transcript": "",
+  "lines": [],
+  "phase5_pending": true,
+  "gate": "phase5_pending"
+}

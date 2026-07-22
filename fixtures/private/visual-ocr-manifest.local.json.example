@@ -1,0 +1,26 @@
+{
+  "cases": {
+    "printed_scan_long": {
+      "file": "opaque-relative-path.pdf",
+      "pages": [1, 2, 3]
+    },
+    "image_only_scan": {
+      "file": "opaque-relative-path.pdf"
+    },
+    "mixed_native_scan": {
+      "file": "opaque-relative-path.pdf",
+      "pages": [1, 5]
+    },
+    "reviewed_transcript_sample": {
+      "file": "opaque-relative-path.pdf",
+      "pages": [1],
+      "reviewed_transcript_available": true
+    },
+    "handwriting_page": {
+      "file": "opaque-relative-path.pdf",
+      "pages": [1],
+      "phase5_pending": true,
+      "handwriting": true
+    }
+  }
+}

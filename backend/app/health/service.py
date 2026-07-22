@@ -1,8 +1,8 @@
-"""Health service: evaluates Phase 0-2 readiness checks.
+"""Health service: evaluates Phase 0-4 readiness checks.
 
-Phase 2 requires LibreOffice, ReportLab (with a controlled font), writable
-canonical storage, plus the Phase 1 session/coordinator/cleanup/queue checks.
-OCR and OpenAI remain optional ``not_configured`` checks.
+Phase 4 promotes PaddleOCR to a required check when OCR_ENABLED is true, and
+always requires pypdfium2 for page rendering. Handwriting and OpenAI remain
+optional ``not_configured`` checks.
 """
 
 from __future__ import annotations
@@ -20,7 +20,6 @@ _SESSION_PROBE_DIRNAME = ".workspace_probe"
 _CANONICAL_PROBE_DIRNAME = ".canonical_probe"
 
 _FUTURE_OPTIONAL_CHECKS: tuple[str, ...] = (
-    "paddle_ocr",
     "handwriting_classifier",
     "openai_vision",
 )
@@ -34,6 +33,11 @@ class _Runnable(Protocol):
 class _Closable(Protocol):
     @property
     def closed(self) -> bool: ...
+
+
+class _OcrWorkerReady(Protocol):
+    @property
+    def ready(self) -> bool: ...
 
 
 class HealthService:
@@ -51,6 +55,10 @@ class HealthService:
         self._cached_native_worker: DependencyCheck | None = None
         self._cached_native_storage: DependencyCheck | None = None
         self._cached_native_policy: DependencyCheck | None = None
+        self._ocr_worker_manager: _OcrWorkerReady | None = None
+        self._cached_paddle: DependencyCheck | None = None
+        self._cached_pypdfium2: DependencyCheck | None = None
+        self._cached_visual_storage: DependencyCheck | None = None
 
     def attach_runtime(
         self,
@@ -58,12 +66,14 @@ class HealthService:
         coordinator: _Runnable,
         cleanup_worker: _Runnable,
         job_queue: _Closable,
+        ocr_worker_manager: _OcrWorkerReady | None = None,
     ) -> None:
         """Bind runtime components started during application lifespan."""
 
         self._coordinator = coordinator
         self._cleanup_worker = cleanup_worker
         self._job_queue = job_queue
+        self._ocr_worker_manager = ocr_worker_manager
 
     def _check_settings(self) -> DependencyCheck:
         return DependencyCheck(
@@ -381,6 +391,153 @@ class HealthService:
             for name in _FUTURE_OPTIONAL_CHECKS
         ]
 
+    def _check_pypdfium2(self) -> DependencyCheck:
+        if self._cached_pypdfium2 is not None:
+            return self._cached_pypdfium2
+        try:
+            import pypdfium2  # noqa: F401
+        except ImportError:
+            check = DependencyCheck(
+                name="pypdfium2",
+                status=CheckState.FAIL,
+                required=True,
+                message="pypdfium2 is not importable.",
+            )
+        else:
+            check = DependencyCheck(
+                name="pypdfium2",
+                status=CheckState.PASS,
+                required=True,
+                message="pypdfium2 is available for page rendering.",
+            )
+        self._cached_pypdfium2 = check
+        return check
+
+    def _check_visual_storage(self) -> DependencyCheck:
+        if self._cached_visual_storage is not None:
+            return self._cached_visual_storage
+        root = self._settings.temp_root / "sessions"
+        try:
+            root.mkdir(parents=True, exist_ok=True)
+            probe_dir = root / ".visual_probe"
+            probe_dir.mkdir(parents=True, exist_ok=True)
+            probe = probe_dir / "probe.json"
+            probe.write_text("{}", encoding="utf-8")
+            probe.unlink()
+            probe_dir.rmdir()
+        except OSError:
+            check = DependencyCheck(
+                name="visual_result_storage",
+                status=CheckState.FAIL,
+                required=True,
+                message="Visual result storage is not writable.",
+            )
+        else:
+            check = DependencyCheck(
+                name="visual_result_storage",
+                status=CheckState.PASS,
+                required=True,
+                message="Visual result storage is writable.",
+            )
+        self._cached_visual_storage = check
+        return check
+
+    def _check_paddle_ocr(self) -> DependencyCheck:
+        if not self._settings.ocr_enabled:
+            return DependencyCheck(
+                name="paddle_ocr",
+                status=CheckState.NOT_CONFIGURED,
+                required=False,
+                message="OCR is disabled.",
+            )
+        if self._cached_paddle is not None:
+            # Still refresh worker-alive portion.
+            pass
+        try:
+            import paddle  # noqa: F401
+            import paddleocr  # noqa: F401
+        except ImportError:
+            return DependencyCheck(
+                name="paddle_ocr",
+                status=CheckState.FAIL,
+                required=True,
+                message="PaddleOCR runtime is not installed.",
+            )
+
+        model_root = self._settings.ocr_model_root
+        record_path = model_root / "model-record.json"
+        det = model_root / self._settings.ocr_detection_model_name
+        rec = model_root / self._settings.ocr_recognition_model_name
+        if not record_path.is_file() or not det.is_dir() or not rec.is_dir():
+            return DependencyCheck(
+                name="paddle_ocr",
+                status=CheckState.FAIL,
+                required=True,
+                message="OCR model directories or model-record.json are missing.",
+            )
+
+        try:
+            import hashlib
+            import json
+            from pathlib import Path
+
+            record = json.loads(record_path.read_text(encoding="utf-8"))
+
+            def _tree_hash(directory: Path) -> str:
+                digest = hashlib.sha256()
+                for path in sorted(directory.rglob("*")):
+                    if path.is_file():
+                        rel = path.relative_to(directory).as_posix().encode("utf-8")
+                        digest.update(rel)
+                        digest.update(b"\0")
+                        with path.open("rb") as handle:
+                            while True:
+                                chunk = handle.read(1024 * 1024)
+                                if not chunk:
+                                    break
+                                digest.update(chunk)
+                return digest.hexdigest()
+
+            if _tree_hash(det) != record.get("detection_tree_hash"):
+                return DependencyCheck(
+                    name="paddle_ocr",
+                    status=CheckState.FAIL,
+                    required=True,
+                    message="Detection model tree hash does not match model-record.json.",
+                )
+            if _tree_hash(rec) != record.get("recognition_tree_hash"):
+                return DependencyCheck(
+                    name="paddle_ocr",
+                    status=CheckState.FAIL,
+                    required=True,
+                    message="Recognition model tree hash does not match model-record.json.",
+                )
+        except Exception:
+            return DependencyCheck(
+                name="paddle_ocr",
+                status=CheckState.FAIL,
+                required=True,
+                message="OCR model-record.json could not be validated.",
+            )
+
+        worker = self._ocr_worker_manager
+        ready = bool(worker is not None and worker.ready)
+        if not ready:
+            return DependencyCheck(
+                name="paddle_ocr",
+                status=CheckState.FAIL,
+                required=True,
+                message="OCR worker is not ready.",
+            )
+        check = DependencyCheck(
+            name="paddle_ocr",
+            status=CheckState.PASS,
+            required=True,
+            message="PaddleOCR models and worker are ready.",
+        )
+        self._cached_paddle = check
+        return check
+
     def readiness_checks(self) -> list[DependencyCheck]:
         """Run all readiness checks and return them in a stable order."""
 
@@ -390,14 +547,17 @@ class HealthService:
             self._check_session_workspace(),
             self._check_canonical_storage(),
             self._check_native_storage(),
+            self._check_visual_storage(),
             self._check_coordinator(),
             self._check_cleanup(),
             self._check_queue(),
             self._check_libreoffice(),
             self._check_reportlab(),
             self._check_pdfplumber(),
+            self._check_pypdfium2(),
             self._check_native_policy(),
             self._check_native_worker(),
+            self._check_paddle_ocr(),
         ]
         checks.extend(self._future_checks())
         return checks

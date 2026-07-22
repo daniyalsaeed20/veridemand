@@ -41,6 +41,12 @@ class NativeReasonCode(StrEnum):
     VISUAL_AGREEMENT_NOT_EVALUATED_PHASE_3 = "visual_agreement_not_evaluated_phase_3"
     DOCUMENT_VISUAL_AUTHORITY_ESCALATION = "document_visual_authority_escalation"
     NATIVE_TEXT_REJECTED = "native_text_rejected"
+    NATIVE_TEXT_NOT_VISUALLY_PRESENT = "native_text_not_visually_present"
+    NATIVE_TEXT_VISIBILITY_UNCERTAIN = "native_text_visibility_uncertain"
+    NATIVE_TEXT_VISUALLY_SUPPORTED = "native_text_visually_supported"
+    OCR_NO_TEXT_DETECTED = "ocr_no_text_detected"
+    OCR_LOW_CONFIDENCE = "ocr_low_confidence"
+    VISUAL_PAGE_RESOURCE_LIMIT = "visual_page_resource_limit"
 
 
 REASON_MESSAGES: dict[NativeReasonCode, str] = {
@@ -100,6 +106,20 @@ REASON_MESSAGES: dict[NativeReasonCode, str] = {
         "The document was escalated to visual authority."
     ),
     NativeReasonCode.NATIVE_TEXT_REJECTED: "The native text layer was rejected.",
+    NativeReasonCode.NATIVE_TEXT_NOT_VISUALLY_PRESENT: (
+        "Accepted native text was not visually present on the rendered page."
+    ),
+    NativeReasonCode.NATIVE_TEXT_VISIBILITY_UNCERTAIN: (
+        "Native text visibility could not be confirmed on the rendered page."
+    ),
+    NativeReasonCode.NATIVE_TEXT_VISUALLY_SUPPORTED: (
+        "Accepted native text is supported by the rendered page."
+    ),
+    NativeReasonCode.OCR_NO_TEXT_DETECTED: "No printed text was detected.",
+    NativeReasonCode.OCR_LOW_CONFIDENCE: "Printed OCR confidence was low for this page.",
+    NativeReasonCode.VISUAL_PAGE_RESOURCE_LIMIT: (
+        "The page exceeded visual rendering resource limits."
+    ),
 }
 
 

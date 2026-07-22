@@ -124,6 +124,12 @@ def staging_native_dir(temp_root: Path, session_id: str, job_id: str) -> Path:
     return session_dir(temp_root, session_id) / "staging" / "native" / _require_job_id(job_id)
 
 
+def staging_visual_dir(temp_root: Path, session_id: str, job_id: str) -> Path:
+    """Return per-job staging for visual OCR."""
+
+    return session_dir(temp_root, session_id) / "staging" / "visual" / _require_job_id(job_id)
+
+
 def native_results_dir(temp_root: Path, session_id: str, document_id: str) -> Path:
     """Return published native results directory for a document."""
 
@@ -139,6 +145,25 @@ def native_results_part_dir(temp_root: Path, session_id: str, document_id: str) 
     """Return in-progress native results directory (``.part`` suffix)."""
 
     return native_results_dir(temp_root, session_id, document_id).with_name(
+        f"{_require_document_id(document_id)}.part"
+    )
+
+
+def visual_results_dir(temp_root: Path, session_id: str, document_id: str) -> Path:
+    """Return published visual OCR results directory for a document."""
+
+    return (
+        session_dir(temp_root, session_id)
+        / "results"
+        / "visual"
+        / _require_document_id(document_id)
+    )
+
+
+def visual_results_part_dir(temp_root: Path, session_id: str, document_id: str) -> Path:
+    """Return in-progress visual results directory (``.part`` suffix)."""
+
+    return visual_results_dir(temp_root, session_id, document_id).with_name(
         f"{_require_document_id(document_id)}.part"
     )
 

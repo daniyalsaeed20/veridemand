@@ -125,7 +125,7 @@ export const zDocumentSourcePolicy = z.enum([
 /**
  * DocumentStatus
  *
- * Lifecycle state of an accepted document during Phase 3.
+ * Lifecycle state of an accepted document during Phase 4.
  */
 export const zDocumentStatus = z.enum([
     'uploaded',
@@ -135,6 +135,11 @@ export const zDocumentStatus = z.enum([
     'inspecting_native',
     'extracting_native',
     'native_trust_complete',
+    'visual_pending',
+    'visual_processing',
+    'visual_processing_complete',
+    'visual_processing_partial',
+    'visual_processing_failed',
     'cancelled',
     'failed'
 ]);
@@ -153,8 +158,20 @@ export const zDocumentStatusCounts = z.object({
     native_trust_complete: z.int().gte(0).optional().default(0),
     queued: z.int().gte(0).optional().default(0),
     ready_for_extraction: z.int().gte(0).optional().default(0),
-    uploaded: z.int().gte(0).optional().default(0)
+    uploaded: z.int().gte(0).optional().default(0),
+    visual_pending: z.int().gte(0).optional().default(0),
+    visual_processing: z.int().gte(0).optional().default(0),
+    visual_processing_complete: z.int().gte(0).optional().default(0),
+    visual_processing_failed: z.int().gte(0).optional().default(0),
+    visual_processing_partial: z.int().gte(0).optional().default(0)
 });
+
+/**
+ * HandwritingAssessment
+ *
+ * Handwriting is not assessed until Phase 5.
+ */
+export const zHandwritingAssessment = z.enum(['pending_phase_5']);
 
 /**
  * IgnoredDocument
@@ -336,6 +353,19 @@ export const zNativePageMetrics = z.object({
 });
 
 /**
+ * NativeVisibilityDecision
+ *
+ * Outcome of the Phase 4 native-text visibility probe.
+ */
+export const zNativeVisibilityDecision = z.enum([
+    'native_text_visually_supported',
+    'native_text_not_visually_present',
+    'native_text_visibility_uncertain',
+    'not_evaluated',
+    'insufficient_words'
+]);
+
+/**
  * NativeWarning
  *
  * Safe diagnostic warning without extracted text.
@@ -424,6 +454,31 @@ export const zGeometry = z.object({
 });
 
 /**
+ * OcrRecognitionMethod
+ *
+ * How printed OCR text was obtained.
+ */
+export const zOcrRecognitionMethod = z.enum(['paddleocr_printed']);
+
+/**
+ * OcrRecognitionStatus
+ *
+ * Public recognition status for an OCR line or word.
+ */
+export const zOcrRecognitionStatus = z.enum([
+    'accepted',
+    'low_confidence',
+    'empty'
+]);
+
+/**
+ * OcrSourceMode
+ *
+ * Page text authority for Phase 4 OCR results.
+ */
+export const zOcrSourceMode = z.enum(['visual_authority']);
+
+/**
  * OverlayProofItem
  *
  * A single synthetic overlay used only for Phase 2 alignment verification.
@@ -484,14 +539,19 @@ export const zDocumentSummary = z.object({
     native_summary_url: z.string().nullish(),
     page_count: z.int().gte(0).nullish(),
     page_count_status: zPageCountStatus,
-    progress_percent: z.int().gte(0).lte(35),
+    pages_completed: z.int().gte(0).nullish(),
+    pages_total: z.int().gte(0).nullish(),
+    progress_percent: z.int().gte(0).lte(65),
     queue_position: z.int().gte(1).nullish(),
     result_available: z.boolean().optional().default(false),
     sha256: z.string().length(64),
     size_bytes: z.int().gte(0),
     status: zDocumentStatus,
     user_status_message: z.string().nullish(),
+    visual_processing_performed: z.boolean().optional().default(false),
     visual_processing_required: z.boolean().optional().default(false),
+    visual_result_available: z.boolean().optional().default(false),
+    visual_summary_url: z.string().nullish(),
     warning_count: z.int().gte(0).optional().default(0)
 });
 
@@ -537,6 +597,59 @@ export const zNativeCharacter = z.object({
     text: z.string().min(1),
     unicode_category: z.string(),
     upright: z.boolean()
+});
+
+/**
+ * PixelBoundingBox
+ *
+ * Axis-aligned box in rendered pixel space (top-left origin).
+ */
+export const zPixelBoundingBox = z.object({
+    height: z.number().gt(0),
+    width: z.number().gt(0),
+    x: z.number().gte(0),
+    y: z.number().gte(0)
+});
+
+/**
+ * PixelPolygon
+ *
+ * Polygon in rendered pixel space.
+ */
+export const zPixelPolygon = z.object({
+    points: z.array(z.tuple([z.number(), z.number()])).min(3).max(64)
+});
+
+/**
+ * PreprocessingVariant
+ *
+ * Conservative preprocessing variants used before OCR.
+ */
+export const zPreprocessingVariant = z.enum(['original_rgb', 'grayscale_autocontrast']);
+
+/**
+ * PrintedOcrLine
+ *
+ * One printed OCR text line with geometry and confidence.
+ */
+export const zPrintedOcrLine = z.object({
+    bbox: zNormalisedBoundingBox,
+    detection_score: z.number().gte(0).lte(1),
+    geometry: zGeometry.nullish(),
+    handwriting_assessment: zHandwritingAssessment.optional().default('pending_phase_5'),
+    id: z.string(),
+    normalised_text: z.string().min(1),
+    page_number: z.int().gte(1),
+    pixel_bbox: zPixelBoundingBox,
+    pixel_polygon: zPixelPolygon,
+    polygon: zNormalisedPolygon,
+    preprocessing_variant: zPreprocessingVariant,
+    recognition_method: zOcrRecognitionMethod.optional().default('paddleocr_printed'),
+    recognition_score: z.number().gte(0).lte(1),
+    recognition_status: zOcrRecognitionStatus,
+    sequence_index: z.int().gte(0),
+    source_mode: zOcrSourceMode.optional().default('visual_authority'),
+    text: z.string().min(1)
 });
 
 /**
@@ -586,6 +699,21 @@ export const zProgressEventType = z.enum([
     'document.native_document_escalated',
     'document.native_extraction_completed',
     'document.native_extraction_failed',
+    'document.visual_processing_started',
+    'document.visual_pages_selected',
+    'document.native_visibility_started',
+    'document.native_visibility_supported',
+    'document.native_visibility_rejected',
+    'document.visual_page_started',
+    'document.visual_page_rendered',
+    'document.visual_page_ocr_started',
+    'document.visual_page_ocr_completed',
+    'document.visual_page_no_text',
+    'document.visual_page_failed',
+    'document.visual_grouping_completed',
+    'document.visual_processing_completed',
+    'document.visual_processing_partial',
+    'document.visual_processing_failed',
     'document.removed',
     'document.warning',
     'document.failed',
@@ -670,6 +798,20 @@ export const zReadinessResponse = z.object({
     timestamp: z.iso.datetime(),
     version: z.string()
 });
+
+/**
+ * ReadingOrderMethod
+ *
+ * How provisional reading order was produced.
+ */
+export const zReadingOrderMethod = z.enum(['geometric_columns_phase_4']);
+
+/**
+ * ReadingOrderStatus
+ *
+ * Reading order is provisional in Phase 4.
+ */
+export const zReadingOrderStatus = z.enum(['provisional_phase_4']);
 
 /**
  * RecognitionMethod
@@ -834,9 +976,9 @@ export const zHttpValidationError = z.object({
 /**
  * VisualAgreementStatus
  *
- * Visual agreement is deferred until Phase 4 rendering/OCR exist.
+ * Visual agreement status across Phase 3 and Phase 4.
  */
-export const zVisualAgreementStatus = z.enum(['not_evaluated_phase_3']);
+export const zVisualAgreementStatus = z.enum(['not_evaluated_phase_3', 'evaluated_phase_4_visibility']);
 
 /**
  * NativePageTrustResult
@@ -902,6 +1044,259 @@ export const zNativePageResult = z.object({
     trust: zNativePageTrustResult,
     warnings: z.array(zNativeWarning).optional(),
     words: z.array(zNativeWord).optional()
+});
+
+/**
+ * VisualAgreementStatusPhase4
+ *
+ * Visual agreement status after Phase 4 visibility probing.
+ */
+export const zVisualAgreementStatusPhase4 = z.enum(['not_evaluated_phase_3', 'evaluated_phase_4_visibility']);
+
+/**
+ * NativeVisibilityResult
+ *
+ * Safe visibility-probe diagnostics (no native or OCR text).
+ */
+export const zNativeVisibilityResult = z.object({
+    downgraded: z.boolean().optional().default(false),
+    native_blank_like_word_ratio: z.number().gte(0).lte(1).nullish(),
+    native_visibility_decision: zNativeVisibilityDecision,
+    native_visibility_score: z.number().gte(0).lte(1).nullish(),
+    native_visible_word_ratio: z.number().gte(0).lte(1).nullish(),
+    reason_codes: z.array(z.string()).optional(),
+    sampled_word_count: z.int().gte(0).optional().default(0),
+    visual_agreement_status: zVisualAgreementStatusPhase4
+});
+
+/**
+ * VisualBlockType
+ *
+ * Block type — semantic labels are deferred.
+ */
+export const zVisualBlockType = z.enum(['text_unknown']);
+
+/**
+ * VisualModelInfo
+ *
+ * Model identifiers exposed in summaries (no filesystem paths).
+ */
+export const zVisualModelInfo = z.object({
+    detection_model_name: z.string(),
+    device: z.string().optional().default('cpu'),
+    engine: z.string().optional().default('paddle_static'),
+    model_tree_hash: z.string().nullish(),
+    paddleocr_version: z.string().nullish(),
+    paddlepaddle_version: z.string().nullish(),
+    pypdfium2_version: z.string().nullish(),
+    recognition_model_name: z.string()
+});
+
+/**
+ * VisualPageStatus
+ *
+ * Lifecycle of visual/OCR processing for one page.
+ */
+export const zVisualPageStatus = z.enum([
+    'pending',
+    'rendering',
+    'detecting',
+    'recognising',
+    'grouping',
+    'completed',
+    'completed_no_text',
+    'failed',
+    'cancelled',
+    'skipped_native_retained'
+]);
+
+/**
+ * VisualPageSummary
+ *
+ * Compact per-page row for document visual summaries.
+ */
+export const zVisualPageSummary = z.object({
+    average_recognition_score: z.number().gte(0).lte(1).nullish(),
+    error_code: z.string().nullish(),
+    line_count: z.int().gte(0).optional().default(0),
+    native_downgraded: z.boolean().optional().default(false),
+    native_retained: z.boolean().optional().default(false),
+    page_number: z.int().gte(1),
+    source_mode: zSourceMode,
+    status: zVisualPageStatus,
+    visual_result_available: z.boolean().optional().default(false),
+    word_count: z.int().gte(0).optional().default(0)
+});
+
+/**
+ * VisualProcessingStatus
+ *
+ * Document-level visual processing lifecycle.
+ */
+export const zVisualProcessingStatus = z.enum([
+    'visual_pending',
+    'visual_processing',
+    'visual_processing_complete',
+    'visual_processing_partial',
+    'visual_processing_failed',
+    'cancelled',
+    'not_required'
+]);
+
+/**
+ * VisualProgress
+ *
+ * Monotonic visual-stage progress (capped at Phase 4 maximum of 65).
+ */
+export const zVisualProgress = z.object({
+    current_page: z.int().gte(1).nullish(),
+    current_page_stage: z.string().nullish(),
+    pages_completed: z.int().gte(0),
+    pages_total: z.int().gte(0),
+    percent: z.int().gte(0).lte(65)
+});
+
+/**
+ * VisualReadingOrder
+ *
+ * Provisional page-local reading order.
+ */
+export const zVisualReadingOrder = z.object({
+    block_ids: z.array(z.string()).optional(),
+    diagnostic_ocr_sequence_line_ids: z.array(z.string()).optional(),
+    line_ids: z.array(z.string()).optional(),
+    order_method: zReadingOrderMethod.optional().default('geometric_columns_phase_4'),
+    order_status: zReadingOrderStatus.optional().default('provisional_phase_4')
+});
+
+/**
+ * VisualTextBlock
+ *
+ * Geometrically grouped OCR lines (no semantic table/header labels).
+ */
+export const zVisualTextBlock = z.object({
+    bbox: zNormalisedBoundingBox,
+    block_type: zVisualBlockType.optional().default('text_unknown'),
+    id: z.string(),
+    line_ids: z.array(z.string()).min(1),
+    page_number: z.int().gte(1),
+    polygon: zNormalisedPolygon,
+    reading_order_index: z.int().gte(0),
+    reading_order_status: zReadingOrderStatus.optional().default('provisional_phase_4'),
+    sequence_index: z.int().gte(0)
+});
+
+/**
+ * VisualWarning
+ *
+ * Safe visual/OCR warning without text payloads.
+ */
+export const zVisualWarning = z.object({
+    code: z.string(),
+    message: z.string(),
+    page_number: z.int().gte(1).nullish()
+});
+
+/**
+ * VisualDocumentSummary
+ *
+ * Public visual-processing summary for a document.
+ */
+export const zVisualDocumentSummary = z.object({
+    completed_at: z.iso.datetime().nullish(),
+    created_at: z.iso.datetime(),
+    document_id: z.string().regex(/^doc_[0-9a-f]{32}$/),
+    document_source_policy: zDocumentSourcePolicy.nullish(),
+    final_result_available: z.boolean().optional().default(false),
+    handwriting_assessment_pending: z.boolean().optional().default(true),
+    model_info: zVisualModelInfo.nullish(),
+    native_pages_downgraded: z.int().gte(0),
+    native_pages_retained: z.int().gte(0),
+    page_count: z.int().gte(0),
+    page_summaries: z.array(zVisualPageSummary).optional(),
+    pages_cancelled: z.int().gte(0),
+    pages_completed: z.int().gte(0),
+    pages_failed: z.int().gte(0),
+    pages_no_text: z.int().gte(0),
+    pages_selected: z.int().gte(0),
+    progress: zVisualProgress,
+    user_status_message: z.string().nullish(),
+    visual_processing_status: zVisualProcessingStatus,
+    visual_result_available: z.boolean().optional().default(false),
+    warnings: z.array(zVisualWarning).optional()
+});
+
+/**
+ * WordGeometrySource
+ *
+ * Whether word boxes came from Paddle or were derived.
+ */
+export const zWordGeometrySource = z.enum(['paddle_word_box', 'derived_from_line_polygon']);
+
+/**
+ * WordScoreSource
+ *
+ * Origin of the word recognition score.
+ */
+export const zWordScoreSource = z.enum(['paddle_recognition', 'inherited_from_line']);
+
+/**
+ * PrintedOcrWord
+ *
+ * One printed OCR word/token with geometry and confidence.
+ */
+export const zPrintedOcrWord = z.object({
+    bbox: zNormalisedBoundingBox,
+    geometry: zGeometry.nullish(),
+    geometry_precision: z.string().optional().default('detector'),
+    geometry_source: zWordGeometrySource,
+    handwriting_assessment: zHandwritingAssessment.optional().default('pending_phase_5'),
+    id: z.string(),
+    line_id: z.string(),
+    normalised_text: z.string().min(1),
+    page_number: z.int().gte(1),
+    pixel_bbox: zPixelBoundingBox,
+    pixel_polygon: zPixelPolygon,
+    polygon: zNormalisedPolygon,
+    recognition_method: zOcrRecognitionMethod.optional().default('paddleocr_printed'),
+    recognition_score: z.number().gte(0).lte(1),
+    recognition_status: zOcrRecognitionStatus,
+    score_source: zWordScoreSource,
+    sequence_index: z.int().gte(0),
+    text: z.string().min(1)
+});
+
+/**
+ * VisualPageResult
+ *
+ * Published per-page visual/OCR result.
+ */
+export const zVisualPageResult = z.object({
+    average_detection_score: z.number().gte(0).lte(1).nullish(),
+    average_recognition_score: z.number().gte(0).lte(1).nullish(),
+    blocks: z.array(zVisualTextBlock).optional(),
+    duration_ms: z.int().gte(0).nullish(),
+    error_code: z.string().nullish(),
+    fallback_used: z.boolean().optional().default(false),
+    handwriting_assessment: zHandwritingAssessment.optional().default('pending_phase_5'),
+    line_count: z.int().gte(0).optional().default(0),
+    lines: z.array(zPrintedOcrLine).optional(),
+    low_confidence_line_count: z.int().gte(0).optional().default(0),
+    native_visibility_result: zNativeVisibilityResult.nullish(),
+    page_number: z.int().gte(1),
+    peak_rss_mb: z.number().gte(0).nullish(),
+    preprocessing_variant: zPreprocessingVariant.nullish(),
+    reading_order: zVisualReadingOrder.nullish(),
+    render_dpi: z.number().gt(0).nullish(),
+    render_height_pixels: z.int().gte(0).nullish(),
+    render_width_pixels: z.int().gte(0).nullish(),
+    source_mode: zSourceMode,
+    status: zVisualPageStatus,
+    visual_processing_attempted: z.boolean().optional().default(false),
+    visual_result_available: z.boolean().optional().default(false),
+    warnings: z.array(zVisualWarning).optional(),
+    word_count: z.int().gte(0).optional().default(0),
+    words: z.array(zPrintedOcrWord).optional()
 });
 
 /**
@@ -1026,6 +1421,33 @@ export const zGetNativeSummaryApiV1SessionsSessionIdDocumentsDocumentIdNativeSum
  * Successful Response
  */
 export const zGetNativeSummaryApiV1SessionsSessionIdDocumentsDocumentIdNativeSummaryGetResponse = zNativeDocumentSummary;
+
+export const zGetVisualPageApiV1SessionsSessionIdDocumentsDocumentIdVisualPagesPageNumberGetPath = z.object({
+    session_id: z.string(),
+    document_id: z.string(),
+    page_number: z.int()
+});
+
+export const zGetVisualPageApiV1SessionsSessionIdDocumentsDocumentIdVisualPagesPageNumberGetQuery = z.object({
+    include_lines: z.boolean().optional().default(true),
+    include_words: z.boolean().optional().default(true),
+    include_blocks: z.boolean().optional().default(true)
+});
+
+/**
+ * Successful Response
+ */
+export const zGetVisualPageApiV1SessionsSessionIdDocumentsDocumentIdVisualPagesPageNumberGetResponse = zVisualPageResult;
+
+export const zGetVisualSummaryApiV1SessionsSessionIdDocumentsDocumentIdVisualSummaryGetPath = z.object({
+    session_id: z.string(),
+    document_id: z.string()
+});
+
+/**
+ * Successful Response
+ */
+export const zGetVisualSummaryApiV1SessionsSessionIdDocumentsDocumentIdVisualSummaryGetResponse = zVisualDocumentSummary;
 
 export const zSessionEventsApiV1SessionsSessionIdEventsGetPath = z.object({
     session_id: z.string()

@@ -1,9 +1,9 @@
 """Document domain contracts.
 
-Phase 3 advances through canonicalisation then native extraction and trust.
+Phase 4 advances through canonicalisation, native trust, then printed visual OCR.
 Public summaries always report ``result_available: false`` and
 ``extraction_performed: false`` (final extraction is not complete). Progress is
-capped at 35% after native trust completes.
+capped at 65% after visual OCR completes.
 """
 
 from __future__ import annotations
@@ -18,7 +18,8 @@ from backend.app.contracts.canonical import CanonicalisationMethod, CanonicalSta
 from backend.app.contracts.identifiers import DocumentId, JobId
 from backend.app.contracts.native import DocumentSourcePolicy
 
-# Progress never exceeds this in Phase 3: visual/OCR stages have not started.
+# Progress never exceeds this in Phase 4: handwriting/LLM/structure remain later.
+MAX_PHASE4_PROGRESS_PERCENT = 65
 MAX_PHASE3_PROGRESS_PERCENT = 35
 MAX_PHASE2_PROGRESS_PERCENT = 15
 # Backward-compatible alias for Phase 1 references in tests/docs.
@@ -47,7 +48,7 @@ class PageCountStatus(StrEnum):
 
 
 class DocumentStatus(StrEnum):
-    """Lifecycle state of an accepted document during Phase 3."""
+    """Lifecycle state of an accepted document during Phase 4."""
 
     UPLOADED = "uploaded"
     QUEUED = "queued"
@@ -56,6 +57,11 @@ class DocumentStatus(StrEnum):
     INSPECTING_NATIVE = "inspecting_native"
     EXTRACTING_NATIVE = "extracting_native"
     NATIVE_TRUST_COMPLETE = "native_trust_complete"
+    VISUAL_PENDING = "visual_pending"
+    VISUAL_PROCESSING = "visual_processing"
+    VISUAL_PROCESSING_COMPLETE = "visual_processing_complete"
+    VISUAL_PROCESSING_PARTIAL = "visual_processing_partial"
+    VISUAL_PROCESSING_FAILED = "visual_processing_failed"
     CANCELLED = "cancelled"
     FAILED = "failed"
 
@@ -75,8 +81,8 @@ class DocumentSummary(ApiModel):
     status: DocumentStatus = Field(description="Current document lifecycle status.")
     progress_percent: int = Field(
         ge=0,
-        le=MAX_PHASE3_PROGRESS_PERCENT,
-        description="Honest Phase 3 progress; capped at 35% (native trust complete).",
+        le=MAX_PHASE4_PROGRESS_PERCENT,
+        description="Honest Phase 4 progress; capped at 65% (printed visual OCR complete).",
     )
     result_available: bool = Field(
         default=False, description="Always false until final extraction exists."
@@ -94,11 +100,17 @@ class DocumentSummary(ApiModel):
     visual_processing_required: bool = Field(
         default=False, description="True when one or more pages require visual processing."
     )
+    visual_processing_performed: bool = Field(
+        default=False, description="True when Phase 4 visual OCR ran for selected pages."
+    )
+    visual_result_available: bool = Field(
+        default=False, description="True when at least one visual OCR page result is published."
+    )
     document_source_policy: DocumentSourcePolicy | None = Field(
-        default=None, description="Document-level source authority after native trust."
+        default=None, description="Document-level source authority after native/visual stages."
     )
     user_status_message: str | None = Field(
-        default=None, description="Safe user-facing status for the native trust stage."
+        default=None, description="Safe user-facing status for the current processing stage."
     )
     failure_stage: str | None = Field(
         default=None,
@@ -139,6 +151,15 @@ class DocumentSummary(ApiModel):
     native_summary_url: str | None = Field(
         default=None, description="Relative URL for the native extraction summary."
     )
+    visual_summary_url: str | None = Field(
+        default=None, description="Relative URL for the visual OCR summary."
+    )
+    pages_completed: int | None = Field(
+        default=None, ge=0, description="Visual pages completed when processing."
+    )
+    pages_total: int | None = Field(
+        default=None, ge=0, description="Visual pages selected for processing."
+    )
 
 
 class DocumentStatusCounts(ApiModel):
@@ -151,6 +172,11 @@ class DocumentStatusCounts(ApiModel):
     inspecting_native: int = Field(default=0, ge=0)
     extracting_native: int = Field(default=0, ge=0)
     native_trust_complete: int = Field(default=0, ge=0)
+    visual_pending: int = Field(default=0, ge=0)
+    visual_processing: int = Field(default=0, ge=0)
+    visual_processing_complete: int = Field(default=0, ge=0)
+    visual_processing_partial: int = Field(default=0, ge=0)
+    visual_processing_failed: int = Field(default=0, ge=0)
     cancelled: int = Field(default=0, ge=0)
     failed: int = Field(default=0, ge=0)
 

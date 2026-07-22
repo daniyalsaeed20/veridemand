@@ -1,0 +1,10 @@
+{
+  "id": "empty_page",
+  "kind": "image",
+  "file": "empty_page.png",
+  "dpi": 200,
+  "transcript": "",
+  "lines": [],
+  "phase5_pending": false,
+  "gate": "empty"
+}

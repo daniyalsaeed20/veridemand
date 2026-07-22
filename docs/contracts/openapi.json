@@ -407,7 +407,7 @@
         "type": "string"
       },
       "DocumentStatus": {
-        "description": "Lifecycle state of an accepted document during Phase 3.",
+        "description": "Lifecycle state of an accepted document during Phase 4.",
         "enum": [
           "uploaded",
           "queued",
@@ -416,6 +416,11 @@
           "inspecting_native",
           "extracting_native",
           "native_trust_complete",
+          "visual_pending",
+          "visual_processing",
+          "visual_processing_complete",
+          "visual_processing_partial",
+          "visual_processing_failed",
           "cancelled",
           "failed"
         ],
@@ -478,6 +483,36 @@
             "default": 0,
             "minimum": 0.0,
             "title": "Uploaded",
+            "type": "integer"
+          },
+          "visual_pending": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Visual Pending",
+            "type": "integer"
+          },
+          "visual_processing": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Visual Processing",
+            "type": "integer"
+          },
+          "visual_processing_complete": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Visual Processing Complete",
+            "type": "integer"
+          },
+          "visual_processing_failed": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Visual Processing Failed",
+            "type": "integer"
+          },
+          "visual_processing_partial": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Visual Processing Partial",
             "type": "integer"
           }
         },
@@ -579,7 +614,7 @@
                 "type": "null"
               }
             ],
-            "description": "Document-level source authority after native trust."
+            "description": "Document-level source authority after native/visual stages."
           },
           "extension": {
             "description": "Lowercased, validated file extension without the dot.",
@@ -691,9 +726,35 @@
             "$ref": "#/components/schemas/PageCountStatus",
             "description": "Whether the page count is known."
           },
+          "pages_completed": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Visual pages completed when processing.",
+            "title": "Pages Completed"
+          },
+          "pages_total": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Visual pages selected for processing.",
+            "title": "Pages Total"
+          },
           "progress_percent": {
-            "description": "Honest Phase 3 progress; capped at 35% (native trust complete).",
-            "maximum": 35.0,
+            "description": "Honest Phase 4 progress; capped at 65% (printed visual OCR complete).",
+            "maximum": 65.0,
             "minimum": 0.0,
             "title": "Progress Percent",
             "type": "integer"
@@ -743,14 +804,38 @@
                 "type": "null"
               }
             ],
-            "description": "Safe user-facing status for the native trust stage.",
+            "description": "Safe user-facing status for the current processing stage.",
             "title": "User Status Message"
+          },
+          "visual_processing_performed": {
+            "default": false,
+            "description": "True when Phase 4 visual OCR ran for selected pages.",
+            "title": "Visual Processing Performed",
+            "type": "boolean"
           },
           "visual_processing_required": {
             "default": false,
             "description": "True when one or more pages require visual processing.",
             "title": "Visual Processing Required",
             "type": "boolean"
+          },
+          "visual_result_available": {
+            "default": false,
+            "description": "True when at least one visual OCR page result is published.",
+            "title": "Visual Result Available",
+            "type": "boolean"
+          },
+          "visual_summary_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Relative URL for the visual OCR summary.",
+            "title": "Visual Summary Url"
           },
           "warning_count": {
             "default": 0,
@@ -806,6 +891,14 @@
         },
         "title": "HTTPValidationError",
         "type": "object"
+      },
+      "HandwritingAssessment": {
+        "description": "Handwriting is not assessed until Phase 5.",
+        "enum": [
+          "pending_phase_5"
+        ],
+        "title": "HandwritingAssessment",
+        "type": "string"
       },
       "IgnoredDocument": {
         "additionalProperties": false,
@@ -1902,6 +1995,93 @@
         "title": "NativeTrustComponents",
         "type": "object"
       },
+      "NativeVisibilityDecision": {
+        "description": "Outcome of the Phase 4 native-text visibility probe.",
+        "enum": [
+          "native_text_visually_supported",
+          "native_text_not_visually_present",
+          "native_text_visibility_uncertain",
+          "not_evaluated",
+          "insufficient_words"
+        ],
+        "title": "NativeVisibilityDecision",
+        "type": "string"
+      },
+      "NativeVisibilityResult": {
+        "additionalProperties": false,
+        "description": "Safe visibility-probe diagnostics (no native or OCR text).",
+        "properties": {
+          "downgraded": {
+            "default": false,
+            "title": "Downgraded",
+            "type": "boolean"
+          },
+          "native_blank_like_word_ratio": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Native Blank Like Word Ratio"
+          },
+          "native_visibility_decision": {
+            "$ref": "#/components/schemas/NativeVisibilityDecision"
+          },
+          "native_visibility_score": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Native Visibility Score"
+          },
+          "native_visible_word_ratio": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Native Visible Word Ratio"
+          },
+          "reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reason Codes",
+            "type": "array"
+          },
+          "sampled_word_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Sampled Word Count",
+            "type": "integer"
+          },
+          "visual_agreement_status": {
+            "$ref": "#/components/schemas/VisualAgreementStatusPhase4"
+          }
+        },
+        "required": [
+          "visual_agreement_status",
+          "native_visibility_decision"
+        ],
+        "title": "NativeVisibilityResult",
+        "type": "object"
+      },
       "NativeWarning": {
         "additionalProperties": false,
         "description": "Safe diagnostic warning without extracted text.",
@@ -2118,6 +2298,32 @@
         "title": "NormalisedPolygon",
         "type": "object"
       },
+      "OcrRecognitionMethod": {
+        "description": "How printed OCR text was obtained.",
+        "enum": [
+          "paddleocr_printed"
+        ],
+        "title": "OcrRecognitionMethod",
+        "type": "string"
+      },
+      "OcrRecognitionStatus": {
+        "description": "Public recognition status for an OCR line or word.",
+        "enum": [
+          "accepted",
+          "low_confidence",
+          "empty"
+        ],
+        "title": "OcrRecognitionStatus",
+        "type": "string"
+      },
+      "OcrSourceMode": {
+        "description": "Page text authority for Phase 4 OCR results.",
+        "enum": [
+          "visual_authority"
+        ],
+        "title": "OcrSourceMode",
+        "type": "string"
+      },
       "OverlayProofItem": {
         "additionalProperties": false,
         "description": "A single synthetic overlay used only for Phase 2 alignment verification.",
@@ -2251,6 +2457,286 @@
           "height"
         ],
         "title": "PdfPointBox",
+        "type": "object"
+      },
+      "PixelBoundingBox": {
+        "additionalProperties": false,
+        "description": "Axis-aligned box in rendered pixel space (top-left origin).",
+        "properties": {
+          "height": {
+            "exclusiveMinimum": 0.0,
+            "title": "Height",
+            "type": "number"
+          },
+          "width": {
+            "exclusiveMinimum": 0.0,
+            "title": "Width",
+            "type": "number"
+          },
+          "x": {
+            "minimum": 0.0,
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "minimum": 0.0,
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
+        "title": "PixelBoundingBox",
+        "type": "object"
+      },
+      "PixelPolygon": {
+        "additionalProperties": false,
+        "description": "Polygon in rendered pixel space.",
+        "properties": {
+          "points": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "maxItems": 64,
+            "minItems": 3,
+            "title": "Points",
+            "type": "array"
+          }
+        },
+        "required": [
+          "points"
+        ],
+        "title": "PixelPolygon",
+        "type": "object"
+      },
+      "PreprocessingVariant": {
+        "description": "Conservative preprocessing variants used before OCR.",
+        "enum": [
+          "original_rgb",
+          "grayscale_autocontrast"
+        ],
+        "title": "PreprocessingVariant",
+        "type": "string"
+      },
+      "PrintedOcrLine": {
+        "additionalProperties": false,
+        "description": "One printed OCR text line with geometry and confidence.",
+        "properties": {
+          "bbox": {
+            "$ref": "#/components/schemas/NormalisedBoundingBox"
+          },
+          "detection_score": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Detection Score",
+            "type": "number"
+          },
+          "geometry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Geometry"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Combined normalised geometry."
+          },
+          "handwriting_assessment": {
+            "$ref": "#/components/schemas/HandwritingAssessment",
+            "default": "pending_phase_5"
+          },
+          "id": {
+            "description": "Deterministic id, e.g. ocrline_p0001_000001.",
+            "title": "Id",
+            "type": "string"
+          },
+          "normalised_text": {
+            "description": "NFC-normalised OCR text.",
+            "minLength": 1,
+            "title": "Normalised Text",
+            "type": "string"
+          },
+          "page_number": {
+            "minimum": 1.0,
+            "title": "Page Number",
+            "type": "integer"
+          },
+          "pixel_bbox": {
+            "$ref": "#/components/schemas/PixelBoundingBox"
+          },
+          "pixel_polygon": {
+            "$ref": "#/components/schemas/PixelPolygon"
+          },
+          "polygon": {
+            "$ref": "#/components/schemas/NormalisedPolygon"
+          },
+          "preprocessing_variant": {
+            "$ref": "#/components/schemas/PreprocessingVariant"
+          },
+          "recognition_method": {
+            "$ref": "#/components/schemas/OcrRecognitionMethod",
+            "default": "paddleocr_printed"
+          },
+          "recognition_score": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Recognition Score",
+            "type": "number"
+          },
+          "recognition_status": {
+            "$ref": "#/components/schemas/OcrRecognitionStatus"
+          },
+          "sequence_index": {
+            "minimum": 0.0,
+            "title": "Sequence Index",
+            "type": "integer"
+          },
+          "source_mode": {
+            "$ref": "#/components/schemas/OcrSourceMode",
+            "default": "visual_authority"
+          },
+          "text": {
+            "description": "Exact OCR string (NFC applied separately).",
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "page_number",
+          "sequence_index",
+          "text",
+          "normalised_text",
+          "detection_score",
+          "recognition_score",
+          "recognition_status",
+          "polygon",
+          "bbox",
+          "pixel_polygon",
+          "pixel_bbox",
+          "preprocessing_variant"
+        ],
+        "title": "PrintedOcrLine",
+        "type": "object"
+      },
+      "PrintedOcrWord": {
+        "additionalProperties": false,
+        "description": "One printed OCR word/token with geometry and confidence.",
+        "properties": {
+          "bbox": {
+            "$ref": "#/components/schemas/NormalisedBoundingBox"
+          },
+          "geometry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Geometry"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "geometry_precision": {
+            "default": "detector",
+            "description": "detector when paddle_word_box; approximate when derived.",
+            "title": "Geometry Precision",
+            "type": "string"
+          },
+          "geometry_source": {
+            "$ref": "#/components/schemas/WordGeometrySource"
+          },
+          "handwriting_assessment": {
+            "$ref": "#/components/schemas/HandwritingAssessment",
+            "default": "pending_phase_5"
+          },
+          "id": {
+            "description": "Deterministic id, e.g. ocrword_p0001_000001.",
+            "title": "Id",
+            "type": "string"
+          },
+          "line_id": {
+            "title": "Line Id",
+            "type": "string"
+          },
+          "normalised_text": {
+            "minLength": 1,
+            "title": "Normalised Text",
+            "type": "string"
+          },
+          "page_number": {
+            "minimum": 1.0,
+            "title": "Page Number",
+            "type": "integer"
+          },
+          "pixel_bbox": {
+            "$ref": "#/components/schemas/PixelBoundingBox"
+          },
+          "pixel_polygon": {
+            "$ref": "#/components/schemas/PixelPolygon"
+          },
+          "polygon": {
+            "$ref": "#/components/schemas/NormalisedPolygon"
+          },
+          "recognition_method": {
+            "$ref": "#/components/schemas/OcrRecognitionMethod",
+            "default": "paddleocr_printed"
+          },
+          "recognition_score": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Recognition Score",
+            "type": "number"
+          },
+          "recognition_status": {
+            "$ref": "#/components/schemas/OcrRecognitionStatus"
+          },
+          "score_source": {
+            "$ref": "#/components/schemas/WordScoreSource"
+          },
+          "sequence_index": {
+            "minimum": 0.0,
+            "title": "Sequence Index",
+            "type": "integer"
+          },
+          "text": {
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "page_number",
+          "line_id",
+          "sequence_index",
+          "text",
+          "normalised_text",
+          "recognition_score",
+          "score_source",
+          "polygon",
+          "bbox",
+          "pixel_polygon",
+          "pixel_bbox",
+          "geometry_source",
+          "recognition_status"
+        ],
+        "title": "PrintedOcrWord",
         "type": "object"
       },
       "ProcessRequest": {
@@ -2609,6 +3095,21 @@
           "document.native_document_escalated",
           "document.native_extraction_completed",
           "document.native_extraction_failed",
+          "document.visual_processing_started",
+          "document.visual_pages_selected",
+          "document.native_visibility_started",
+          "document.native_visibility_supported",
+          "document.native_visibility_rejected",
+          "document.visual_page_started",
+          "document.visual_page_rendered",
+          "document.visual_page_ocr_started",
+          "document.visual_page_ocr_completed",
+          "document.visual_page_no_text",
+          "document.visual_page_failed",
+          "document.visual_grouping_completed",
+          "document.visual_processing_completed",
+          "document.visual_processing_partial",
+          "document.visual_processing_failed",
           "document.removed",
           "document.warning",
           "document.failed",
@@ -2744,6 +3245,22 @@
         ],
         "title": "ReadinessResponse",
         "type": "object"
+      },
+      "ReadingOrderMethod": {
+        "description": "How provisional reading order was produced.",
+        "enum": [
+          "geometric_columns_phase_4"
+        ],
+        "title": "ReadingOrderMethod",
+        "type": "string"
+      },
+      "ReadingOrderStatus": {
+        "description": "Reading order is provisional in Phase 4.",
+        "enum": [
+          "provisional_phase_4"
+        ],
+        "title": "ReadingOrderStatus",
+        "type": "string"
       },
       "RecognitionMethod": {
         "description": "How accepted native text was obtained.",
@@ -3101,11 +3618,774 @@
         "type": "object"
       },
       "VisualAgreementStatus": {
-        "description": "Visual agreement is deferred until Phase 4 rendering/OCR exist.",
+        "description": "Visual agreement status across Phase 3 and Phase 4.",
         "enum": [
-          "not_evaluated_phase_3"
+          "not_evaluated_phase_3",
+          "evaluated_phase_4_visibility"
         ],
         "title": "VisualAgreementStatus",
+        "type": "string"
+      },
+      "VisualAgreementStatusPhase4": {
+        "description": "Visual agreement status after Phase 4 visibility probing.",
+        "enum": [
+          "not_evaluated_phase_3",
+          "evaluated_phase_4_visibility"
+        ],
+        "title": "VisualAgreementStatusPhase4",
+        "type": "string"
+      },
+      "VisualBlockType": {
+        "description": "Block type — semantic labels are deferred.",
+        "enum": [
+          "text_unknown"
+        ],
+        "title": "VisualBlockType",
+        "type": "string"
+      },
+      "VisualDocumentSummary": {
+        "additionalProperties": false,
+        "description": "Public visual-processing summary for a document.",
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "document_id": {
+            "pattern": "^doc_[0-9a-f]{32}$",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "document_source_policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DocumentSourcePolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "final_result_available": {
+            "default": false,
+            "title": "Final Result Available",
+            "type": "boolean"
+          },
+          "handwriting_assessment_pending": {
+            "default": true,
+            "title": "Handwriting Assessment Pending",
+            "type": "boolean"
+          },
+          "model_info": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VisualModelInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "native_pages_downgraded": {
+            "minimum": 0.0,
+            "title": "Native Pages Downgraded",
+            "type": "integer"
+          },
+          "native_pages_retained": {
+            "minimum": 0.0,
+            "title": "Native Pages Retained",
+            "type": "integer"
+          },
+          "page_count": {
+            "minimum": 0.0,
+            "title": "Page Count",
+            "type": "integer"
+          },
+          "page_summaries": {
+            "items": {
+              "$ref": "#/components/schemas/VisualPageSummary"
+            },
+            "title": "Page Summaries",
+            "type": "array"
+          },
+          "pages_cancelled": {
+            "minimum": 0.0,
+            "title": "Pages Cancelled",
+            "type": "integer"
+          },
+          "pages_completed": {
+            "minimum": 0.0,
+            "title": "Pages Completed",
+            "type": "integer"
+          },
+          "pages_failed": {
+            "minimum": 0.0,
+            "title": "Pages Failed",
+            "type": "integer"
+          },
+          "pages_no_text": {
+            "minimum": 0.0,
+            "title": "Pages No Text",
+            "type": "integer"
+          },
+          "pages_selected": {
+            "minimum": 0.0,
+            "title": "Pages Selected",
+            "type": "integer"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/VisualProgress"
+          },
+          "user_status_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Status Message"
+          },
+          "visual_processing_status": {
+            "$ref": "#/components/schemas/VisualProcessingStatus"
+          },
+          "visual_result_available": {
+            "default": false,
+            "title": "Visual Result Available",
+            "type": "boolean"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/VisualWarning"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "document_id",
+          "visual_processing_status",
+          "page_count",
+          "pages_selected",
+          "pages_completed",
+          "pages_no_text",
+          "pages_failed",
+          "pages_cancelled",
+          "native_pages_retained",
+          "native_pages_downgraded",
+          "progress",
+          "created_at"
+        ],
+        "title": "VisualDocumentSummary",
+        "type": "object"
+      },
+      "VisualModelInfo": {
+        "additionalProperties": false,
+        "description": "Model identifiers exposed in summaries (no filesystem paths).",
+        "properties": {
+          "detection_model_name": {
+            "title": "Detection Model Name",
+            "type": "string"
+          },
+          "device": {
+            "default": "cpu",
+            "title": "Device",
+            "type": "string"
+          },
+          "engine": {
+            "default": "paddle_static",
+            "title": "Engine",
+            "type": "string"
+          },
+          "model_tree_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Tree Hash"
+          },
+          "paddleocr_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paddleocr Version"
+          },
+          "paddlepaddle_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paddlepaddle Version"
+          },
+          "pypdfium2_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pypdfium2 Version"
+          },
+          "recognition_model_name": {
+            "title": "Recognition Model Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "detection_model_name",
+          "recognition_model_name"
+        ],
+        "title": "VisualModelInfo",
+        "type": "object"
+      },
+      "VisualPageResult": {
+        "additionalProperties": false,
+        "description": "Published per-page visual/OCR result.",
+        "properties": {
+          "average_detection_score": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Detection Score"
+          },
+          "average_recognition_score": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Recognition Score"
+          },
+          "blocks": {
+            "items": {
+              "$ref": "#/components/schemas/VisualTextBlock"
+            },
+            "title": "Blocks",
+            "type": "array"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "fallback_used": {
+            "default": false,
+            "title": "Fallback Used",
+            "type": "boolean"
+          },
+          "handwriting_assessment": {
+            "$ref": "#/components/schemas/HandwritingAssessment",
+            "default": "pending_phase_5"
+          },
+          "line_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Line Count",
+            "type": "integer"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PrintedOcrLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "low_confidence_line_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Low Confidence Line Count",
+            "type": "integer"
+          },
+          "native_visibility_result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NativeVisibilityResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "page_number": {
+            "minimum": 1.0,
+            "title": "Page Number",
+            "type": "integer"
+          },
+          "peak_rss_mb": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Peak Rss Mb"
+          },
+          "preprocessing_variant": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreprocessingVariant"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reading_order": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VisualReadingOrder"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "render_dpi": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Render Dpi"
+          },
+          "render_height_pixels": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Render Height Pixels"
+          },
+          "render_width_pixels": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Render Width Pixels"
+          },
+          "source_mode": {
+            "$ref": "#/components/schemas/SourceMode"
+          },
+          "status": {
+            "$ref": "#/components/schemas/VisualPageStatus"
+          },
+          "visual_processing_attempted": {
+            "default": false,
+            "title": "Visual Processing Attempted",
+            "type": "boolean"
+          },
+          "visual_result_available": {
+            "default": false,
+            "title": "Visual Result Available",
+            "type": "boolean"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/VisualWarning"
+            },
+            "title": "Warnings",
+            "type": "array"
+          },
+          "word_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Word Count",
+            "type": "integer"
+          },
+          "words": {
+            "items": {
+              "$ref": "#/components/schemas/PrintedOcrWord"
+            },
+            "title": "Words",
+            "type": "array"
+          }
+        },
+        "required": [
+          "page_number",
+          "status",
+          "source_mode"
+        ],
+        "title": "VisualPageResult",
+        "type": "object"
+      },
+      "VisualPageStatus": {
+        "description": "Lifecycle of visual/OCR processing for one page.",
+        "enum": [
+          "pending",
+          "rendering",
+          "detecting",
+          "recognising",
+          "grouping",
+          "completed",
+          "completed_no_text",
+          "failed",
+          "cancelled",
+          "skipped_native_retained"
+        ],
+        "title": "VisualPageStatus",
+        "type": "string"
+      },
+      "VisualPageSummary": {
+        "additionalProperties": false,
+        "description": "Compact per-page row for document visual summaries.",
+        "properties": {
+          "average_recognition_score": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Recognition Score"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "line_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Line Count",
+            "type": "integer"
+          },
+          "native_downgraded": {
+            "default": false,
+            "title": "Native Downgraded",
+            "type": "boolean"
+          },
+          "native_retained": {
+            "default": false,
+            "title": "Native Retained",
+            "type": "boolean"
+          },
+          "page_number": {
+            "minimum": 1.0,
+            "title": "Page Number",
+            "type": "integer"
+          },
+          "source_mode": {
+            "$ref": "#/components/schemas/SourceMode"
+          },
+          "status": {
+            "$ref": "#/components/schemas/VisualPageStatus"
+          },
+          "visual_result_available": {
+            "default": false,
+            "title": "Visual Result Available",
+            "type": "boolean"
+          },
+          "word_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Word Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "page_number",
+          "status",
+          "source_mode"
+        ],
+        "title": "VisualPageSummary",
+        "type": "object"
+      },
+      "VisualProcessingStatus": {
+        "description": "Document-level visual processing lifecycle.",
+        "enum": [
+          "visual_pending",
+          "visual_processing",
+          "visual_processing_complete",
+          "visual_processing_partial",
+          "visual_processing_failed",
+          "cancelled",
+          "not_required"
+        ],
+        "title": "VisualProcessingStatus",
+        "type": "string"
+      },
+      "VisualProgress": {
+        "additionalProperties": false,
+        "description": "Monotonic visual-stage progress (capped at Phase 4 maximum of 65).",
+        "properties": {
+          "current_page": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Page"
+          },
+          "current_page_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Page Stage"
+          },
+          "pages_completed": {
+            "minimum": 0.0,
+            "title": "Pages Completed",
+            "type": "integer"
+          },
+          "pages_total": {
+            "minimum": 0.0,
+            "title": "Pages Total",
+            "type": "integer"
+          },
+          "percent": {
+            "maximum": 65.0,
+            "minimum": 0.0,
+            "title": "Percent",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "percent",
+          "pages_completed",
+          "pages_total"
+        ],
+        "title": "VisualProgress",
+        "type": "object"
+      },
+      "VisualReadingOrder": {
+        "additionalProperties": false,
+        "description": "Provisional page-local reading order.",
+        "properties": {
+          "block_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Block Ids",
+            "type": "array"
+          },
+          "diagnostic_ocr_sequence_line_ids": {
+            "description": "Original OCR detection sequence (diagnostic only).",
+            "items": {
+              "type": "string"
+            },
+            "title": "Diagnostic Ocr Sequence Line Ids",
+            "type": "array"
+          },
+          "line_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Line Ids",
+            "type": "array"
+          },
+          "order_method": {
+            "$ref": "#/components/schemas/ReadingOrderMethod",
+            "default": "geometric_columns_phase_4"
+          },
+          "order_status": {
+            "$ref": "#/components/schemas/ReadingOrderStatus",
+            "default": "provisional_phase_4"
+          }
+        },
+        "title": "VisualReadingOrder",
+        "type": "object"
+      },
+      "VisualTextBlock": {
+        "additionalProperties": false,
+        "description": "Geometrically grouped OCR lines (no semantic table/header labels).",
+        "properties": {
+          "bbox": {
+            "$ref": "#/components/schemas/NormalisedBoundingBox"
+          },
+          "block_type": {
+            "$ref": "#/components/schemas/VisualBlockType",
+            "default": "text_unknown"
+          },
+          "id": {
+            "description": "Deterministic id, e.g. ocrblock_p0001_000001.",
+            "title": "Id",
+            "type": "string"
+          },
+          "line_ids": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Line Ids",
+            "type": "array"
+          },
+          "page_number": {
+            "minimum": 1.0,
+            "title": "Page Number",
+            "type": "integer"
+          },
+          "polygon": {
+            "$ref": "#/components/schemas/NormalisedPolygon"
+          },
+          "reading_order_index": {
+            "minimum": 0.0,
+            "title": "Reading Order Index",
+            "type": "integer"
+          },
+          "reading_order_status": {
+            "$ref": "#/components/schemas/ReadingOrderStatus",
+            "default": "provisional_phase_4"
+          },
+          "sequence_index": {
+            "minimum": 0.0,
+            "title": "Sequence Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "page_number",
+          "sequence_index",
+          "line_ids",
+          "polygon",
+          "bbox",
+          "reading_order_index"
+        ],
+        "title": "VisualTextBlock",
+        "type": "object"
+      },
+      "VisualWarning": {
+        "additionalProperties": false,
+        "description": "Safe visual/OCR warning without text payloads.",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "page_number": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Number"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "VisualWarning",
+        "type": "object"
+      },
+      "WordGeometrySource": {
+        "description": "Whether word boxes came from Paddle or were derived.",
+        "enum": [
+          "paddle_word_box",
+          "derived_from_line_polygon"
+        ],
+        "title": "WordGeometrySource",
+        "type": "string"
+      },
+      "WordScoreSource": {
+        "description": "Origin of the word recognition score.",
+        "enum": [
+          "paddle_recognition",
+          "inherited_from_line"
+        ],
+        "title": "WordScoreSource",
         "type": "string"
       }
     }
@@ -3848,6 +5128,147 @@
         "summary": "Get Native Summary",
         "tags": [
           "native"
+        ]
+      }
+    },
+    "/api/v1/sessions/{session_id}/documents/{document_id}/visual/pages/{page_number}": {
+      "get": {
+        "operationId": "get_visual_page_api_v1_sessions__session_id__documents__document_id__visual_pages__page_number__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "page_number",
+            "required": true,
+            "schema": {
+              "title": "Page Number",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_lines",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Include Lines",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_words",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Include Words",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_blocks",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Include Blocks",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisualPageResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Visual Page",
+        "tags": [
+          "visual"
+        ]
+      }
+    },
+    "/api/v1/sessions/{session_id}/documents/{document_id}/visual/summary": {
+      "get": {
+        "operationId": "get_visual_summary_api_v1_sessions__session_id__documents__document_id__visual_summary_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisualDocumentSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Visual Summary",
+        "tags": [
+          "visual"
         ]
       }
     },

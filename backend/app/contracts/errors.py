@@ -106,6 +106,33 @@ class ErrorCode(StrEnum):
     NATIVE_TEXT_REJECTED = "native_text_rejected"
     NATIVE_DOCUMENT_ESCALATED = "native_document_escalated"
 
+    # Visual / printed OCR (Phase 4).
+    VISUAL_RESULT_NOT_READY = "visual_result_not_ready"
+    VISUAL_RESULT_NOT_FOUND = "visual_result_not_found"
+    VISUAL_PAGE_NOT_FOUND = "visual_page_not_found"
+    VISUAL_RENDER_FAILED = "visual_render_failed"
+    VISUAL_RENDER_DIMENSION_MISMATCH = "visual_render_dimension_mismatch"
+    VISUAL_PAGE_RESOURCE_LIMIT = "visual_page_resource_limit"
+    OCR_WORKER_NOT_READY = "ocr_worker_not_ready"
+    OCR_WORKER_START_FAILED = "ocr_worker_start_failed"
+    OCR_WORKER_CRASHED = "ocr_worker_crashed"
+    OCR_WORKER_RESTART_LIMIT = "ocr_worker_restart_limit"
+    OCR_MODEL_NOT_FOUND = "ocr_model_not_found"
+    OCR_MODEL_LOAD_FAILED = "ocr_model_load_failed"
+    OCR_RUNTIME_UNAVAILABLE = "ocr_runtime_unavailable"
+    OCR_PAGE_TIMEOUT = "ocr_page_timeout"
+    OCR_DOCUMENT_TIMEOUT = "ocr_document_timeout"
+    OCR_DETECTION_FAILED = "ocr_detection_failed"
+    OCR_RECOGNITION_FAILED = "ocr_recognition_failed"
+    OCR_RESULT_INVALID = "ocr_result_invalid"
+    OCR_NO_TEXT_DETECTED = "ocr_no_text_detected"
+    OCR_LOW_CONFIDENCE = "ocr_low_confidence"
+    NATIVE_TEXT_NOT_VISUALLY_PRESENT = "native_text_not_visually_present"
+    NATIVE_TEXT_VISIBILITY_UNCERTAIN = "native_text_visibility_uncertain"
+    NATIVE_TEXT_VISUALLY_SUPPORTED = "native_text_visually_supported"
+    VISUAL_GEOMETRY_INVALID = "visual_geometry_invalid"
+    VISUAL_RESULT_PUBLISH_FAILED = "visual_result_publish_failed"
+
 
 class ApiErrorDetail(ApiModel):
     """Structured, non-sensitive description of a single API error."""

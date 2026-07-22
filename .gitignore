@@ -38,6 +38,10 @@ temp-e2e/
 tmp/
 data/sessions/
 
+# Phase 4 local OCR model cache (never commit binaries)
+.models/
+.paddleocr/
+
 # Smoke corpus generator work files (single-page rebuilds; not corpus SoT)
 fixtures/synthetic/smoke/_veridemand_fixture_work/
 
@@ -64,6 +68,7 @@ docs/example/**/.~lock.*
 fixtures/private/**
 !fixtures/private/.gitkeep
 !fixtures/private/README.example.md
+!fixtures/private/visual-ocr-manifest.local.json.example
 
 # Copied from pdfjs-dist/wasm by Vite (dev/build); do not commit binaries
 frontend/public/pdfjs-wasm/

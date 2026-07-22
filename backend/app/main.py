@@ -21,6 +21,8 @@ from backend.app.canonical.processor import DefaultCanonicalisationProcessor
 from backend.app.cleanup.service import CleanupService
 from backend.app.cleanup.worker import CleanupWorker
 from backend.app.extraction.native.service import NativeExtractionService
+from backend.app.extraction.visual.service import VisualOcrService
+from backend.app.extraction.visual.worker_manager import OcrWorkerManager
 from backend.app.health.service import HealthService
 from backend.app.observability.errors import register_exception_handlers
 from backend.app.observability.request_id import RequestIdMiddleware
@@ -50,12 +52,15 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         test_hold_seconds=settings.queue_admission_test_delay_seconds,
     )
     native_service = NativeExtractionService(settings)
+    ocr_worker_manager = OcrWorkerManager(settings)
+    visual_service = VisualOcrService(settings, ocr_worker_manager)
     coordinator = ProcessingCoordinator(
         registry,
         job_queue,
         processor,
         file_store,
         native_service,
+        visual_service,
         worker_count=settings.canonicalisation_workers,
         max_pages_per_session=settings.max_pages_per_session,
     )
@@ -64,6 +69,11 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     cleanup_worker = CleanupWorker(cleanup_service, settings.session_cleanup_interval_seconds)
 
     cleanup_service.startup_sweep()
+    if settings.ocr_enabled:
+        try:
+            await ocr_worker_manager.start()
+        except Exception:
+            logging.getLogger("veridemand").exception("OCR worker failed to start")
     coordinator.start()
     cleanup_worker.start()
 
@@ -72,12 +82,17 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.session_registry = registry
     app.state.coordinator = coordinator
     app.state.native_service = native_service
+    app.state.visual_service = visual_service
+    app.state.ocr_worker_manager = ocr_worker_manager
     app.state.upload_service = upload_service
     app.state.cleanup_service = cleanup_service
     app.state.cleanup_worker = cleanup_worker
     health_service: HealthService = app.state.health_service
     health_service.attach_runtime(
-        coordinator=coordinator, cleanup_worker=cleanup_worker, job_queue=job_queue
+        coordinator=coordinator,
+        cleanup_worker=cleanup_worker,
+        job_queue=job_queue,
+        ocr_worker_manager=ocr_worker_manager,
     )
 
     try:
@@ -85,6 +100,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     finally:
         await cleanup_worker.stop()
         await coordinator.stop()
+        await ocr_worker_manager.stop()
         await cleanup_service.shutdown_cleanup()
 
 

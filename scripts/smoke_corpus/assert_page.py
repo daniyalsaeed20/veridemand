@@ -263,6 +263,155 @@ def _check_acceptable_outcome(
     return failures
 
 
+def _check_phase4_visual(
+    manifest_page: dict[str, Any],
+    *,
+    visual_page: dict[str, Any] | None,
+    visual_summary: dict[str, Any] | None,
+    document_status: str,
+) -> list[AssertionFailure]:
+    """Assert Phase 4 visual OCR expectations from the manifest ``phase4_visual`` block."""
+
+    spec = manifest_page.get("phase4_visual")
+    if not isinstance(spec, dict):
+        return []
+
+    # Whole-document smoke does not fetch per-page visual payloads; skip OCR
+    # geometry assertions in that mode (page-by-page subset covers them).
+    if visual_page is None and visual_summary is None and not document_status:
+        return []
+
+    failures: list[AssertionFailure] = []
+    if spec.get("require_document_visual_complete") and document_status not in {
+        "visual_processing_complete",
+        "visual_processing_partial",
+    }:
+        failures.append(
+            AssertionFailure(
+                "visual_document_incomplete",
+                f"expected visual-complete status, got {document_status!r}",
+            )
+        )
+
+    if visual_page is None:
+        if spec.get("require_visual_page") or spec.get("require_visual_result"):
+            failures.append(
+                AssertionFailure("visual_page_missing", "No visual page result was returned.")
+            )
+        return failures
+
+    if spec.get("require_visual_result") and not visual_page.get("visual_result_available"):
+        failures.append(
+            AssertionFailure(
+                "visual_result_unavailable",
+                "phase4_visual.require_visual_result but visual_result_available is false.",
+            )
+        )
+
+    status = str(visual_page.get("status") or "")
+    allowed_statuses = [str(s) for s in (spec.get("allowed_statuses") or [])]
+    if allowed_statuses and status not in allowed_statuses:
+        failures.append(
+            AssertionFailure(
+                "visual_status_mismatch",
+                f"visual status {status!r} not in {allowed_statuses}",
+            )
+        )
+
+    min_lines = spec.get("min_line_count")
+    if isinstance(min_lines, int):
+        line_count = int(visual_page.get("line_count") or 0)
+        if line_count < min_lines:
+            failures.append(
+                AssertionFailure(
+                    "visual_line_count_low",
+                    f"line_count {line_count} < min_line_count {min_lines}",
+                )
+            )
+
+    min_words = spec.get("min_word_count")
+    if isinstance(min_words, int):
+        word_count = int(visual_page.get("word_count") or 0)
+        if word_count < min_words:
+            failures.append(
+                AssertionFailure(
+                    "visual_word_count_low",
+                    f"word_count {word_count} < min_word_count {min_words}",
+                )
+            )
+
+    min_conf = spec.get("min_average_recognition_score")
+    if isinstance(min_conf, (int, float)):
+        score = visual_page.get("average_recognition_score")
+        if not isinstance(score, (int, float)) or float(score) < float(min_conf):
+            failures.append(
+                AssertionFailure(
+                    "visual_confidence_low",
+                    f"average_recognition_score {score!r} < {min_conf}",
+                )
+            )
+
+    expected_mode = spec.get("require_source_mode")
+    if expected_mode and str(visual_page.get("source_mode") or "") != str(expected_mode):
+        failures.append(
+            AssertionFailure(
+                "visual_source_mode_mismatch",
+                f"visual source_mode={visual_page.get('source_mode')!r} expected {expected_mode!r}",
+            )
+        )
+
+    expected_vis = spec.get("native_visibility_decision")
+    if expected_vis:
+        vis = visual_page.get("native_visibility_result") or {}
+        actual = vis.get("native_visibility_decision") if isinstance(vis, dict) else None
+        if actual != expected_vis:
+            failures.append(
+                AssertionFailure(
+                    "native_visibility_mismatch",
+                    f"visibility decision {actual!r} != {expected_vis!r}",
+                )
+            )
+
+    if spec.get("require_native_downgraded"):
+        vis = visual_page.get("native_visibility_result") or {}
+        if not isinstance(vis, dict) or not vis.get("downgraded"):
+            failures.append(
+                AssertionFailure(
+                    "native_not_downgraded",
+                    "Expected visibility probe to downgrade native text.",
+                )
+            )
+
+    if (
+        spec.get("require_no_native_leakage")
+        and visual_page.get("source_mode") == "native_authority"
+        and visual_page.get("visual_result_available")
+    ):
+        # Native page publication is checked elsewhere; here ensure visual page
+        # does not claim native authority after OCR.
+        failures.append(
+            AssertionFailure(
+                "native_ocr_mode_conflict",
+                "Visual page claims native_authority while OCR result is available.",
+            )
+        )
+
+    if (
+        visual_summary is not None
+        and spec.get("require_visual_summary")
+        and not visual_summary.get("visual_result_available")
+        and spec.get("require_visual_result")
+    ):
+        failures.append(
+            AssertionFailure(
+                "visual_summary_unavailable",
+                "Document visual summary reports no visual result.",
+            )
+        )
+
+    return failures
+
+
 def assert_page(
     *,
     manifest_page: dict[str, Any],
@@ -273,6 +422,9 @@ def assert_page(
     document_escalated: bool = False,
     sse_blobs: list[str] | None = None,
     public_file_blobs: list[str] | None = None,
+    visual_page: dict[str, Any] | None = None,
+    visual_summary: dict[str, Any] | None = None,
+    document_status: str = "",
 ) -> PageAssertionResult:
     phase = str(manifest_page.get("phase_expectation") or "current_phase_expected")
     failures: list[AssertionFailure] = []
@@ -611,6 +763,16 @@ def assert_page(
 
     if failures:
         return PageAssertionResult(status="failed", failures=failures, notes=notes)
+
+    phase4_failures = _check_phase4_visual(
+        manifest_page,
+        visual_page=visual_page,
+        visual_summary=visual_summary,
+        document_status=document_status,
+    )
+    if phase4_failures:
+        return PageAssertionResult(status="failed", failures=phase4_failures, notes=notes)
+
     if phase == "viewer_only":
         return PageAssertionResult(status="passed", failures=[], notes=notes)
     return PageAssertionResult(status="passed", failures=[], notes=notes)

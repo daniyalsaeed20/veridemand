@@ -56,8 +56,13 @@ def test_readiness_reports_future_dependencies_as_not_configured(client: TestCli
     assert by_name["libreoffice"].status == "pass"
     assert by_name["reportlab"].required is True
     assert by_name["reportlab"].status == "pass"
+    assert by_name["pypdfium2"].required is True
+    assert by_name["pypdfium2"].status == "pass"
+    # Default test settings disable OCR, so paddle remains optional/not configured.
+    assert by_name["paddle_ocr"].required is False
+    assert by_name["paddle_ocr"].status == "not_configured"
     future = {c.name: c for c in model.checks if not c.required}
-    for name in ("paddle_ocr", "handwriting_classifier", "openai_vision"):
+    for name in ("handwriting_classifier", "openai_vision"):
         assert future[name].status == "not_configured"
 
 

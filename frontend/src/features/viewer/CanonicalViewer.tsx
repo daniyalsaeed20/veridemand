@@ -1,12 +1,17 @@
-// Two-column viewer body (Phase 2): orchestrates canonical metadata, the
-// PDF.js document/page, the synthetic overlay proof and the ephemeral viewer
-// UI state into one panel. Rendered by `SessionWorkspace` alongside the queue.
+// Two-column viewer body (Phase 2+4): orchestrates canonical metadata, the
+// PDF.js document/page, native/OCR overlays and ephemeral viewer UI state.
 
 import { Card, CardContent, Divider, Stack, Typography } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { OcrOverlayLayer } from "../visual/OcrOverlayLayer";
+import { useVisualPage } from "../visual/useVisualPage";
+import { useVisualSummary } from "../visual/useVisualSummary";
+import { VisualInspectionPanel } from "../visual/VisualInspectionPanel";
 import { clampScale, computeFitPageScale, computeFitWidthScale } from "./geometry";
+import { getNativePage, getNativeSummary } from "./nativeApi";
+import { NativeInspectionPanel } from "./NativeInspectionPanel";
 import { OverlayLayer } from "./OverlayLayer";
 import { PageNavigation } from "./PageNavigation";
 import { PdfCanvas, type PdfCanvasRenderedViewport } from "./PdfCanvas";
@@ -17,8 +22,6 @@ import { usePdfPage } from "./usePdfPage";
 import { ViewerEmptyState } from "./ViewerEmptyState";
 import { ViewerToolbar } from "./ViewerToolbar";
 import { canonicalPdfUrl, getOverlayProof, type DocumentSummary } from "./viewerApi";
-import { getNativePage, getNativeSummary } from "./nativeApi";
-import { NativeInspectionPanel } from "./NativeInspectionPanel";
 import { useViewerStore } from "./viewerState";
 
 export interface CanonicalViewerProps {
@@ -34,6 +37,8 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
   const userRotation = useViewerStore((state) => state.userRotation);
   const overlayEnabled = useViewerStore((state) => state.overlayEnabled);
   const nativeOverlayEnabled = useViewerStore((state) => state.nativeOverlayEnabled);
+  const ocrLineOverlayEnabled = useViewerStore((state) => state.ocrLineOverlayEnabled);
+  const ocrWordOverlayEnabled = useViewerStore((state) => state.ocrWordOverlayEnabled);
   const setPageNumber = useViewerStore((state) => state.setPageNumber);
   const setZoomMode = useViewerStore((state) => state.setZoomMode);
   const zoomIn = useViewerStore((state) => state.zoomIn);
@@ -42,6 +47,8 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
   const rotateCounterClockwise = useViewerStore((state) => state.rotateCounterClockwise);
   const toggleOverlay = useViewerStore((state) => state.toggleOverlay);
   const toggleNativeOverlay = useViewerStore((state) => state.toggleNativeOverlay);
+  const toggleOcrLineOverlay = useViewerStore((state) => state.toggleOcrLineOverlay);
+  const toggleOcrWordOverlay = useViewerStore((state) => state.toggleOcrWordOverlay);
   const selectDocument = useViewerStore((state) => state.selectDocument);
 
   const alignmentOverlayAvailable = isAlignmentOverlayAvailable();
@@ -52,15 +59,12 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
     [documents, selectedDocumentId],
   );
 
-  // If the selected document disappears from the queue (removed/session
-  // reset), fall back to the empty state instead of pointing at nothing.
   useEffect(() => {
     if (selectedDocumentId && !selectedDocument) {
       selectDocument(null);
     }
   }, [selectedDocumentId, selectedDocument, selectDocument]);
 
-  // Fit-width/fit-page measure the *viewer container*, never window width.
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
 
@@ -95,14 +99,25 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
   const clampedPageNumber = Math.min(Math.max(1, pageNumber), pageCount);
 
   const { page } = usePdfPage(pdfDocument, clampedPageNumber);
-  const nativeTrustComplete = selectedDocument?.status === "native_trust_complete";
+  const nativeReady =
+    selectedDocument?.native_extraction_performed === true ||
+    selectedDocument?.status === "native_trust_complete" ||
+    selectedDocument?.status === "visual_processing_complete" ||
+    selectedDocument?.status === "visual_processing_partial" ||
+    selectedDocument?.status === "visual_processing_failed";
+  const visualReady =
+    selectedDocument?.visual_processing_performed === true ||
+    selectedDocument?.status === "visual_processing_complete" ||
+    selectedDocument?.status === "visual_processing_partial" ||
+    selectedDocument?.status === "visual_processing_failed";
+
   const nativeSummaryQuery = useQuery({
     queryKey:
       sessionId && selectedDocumentId
         ? ["viewer", "native-summary", sessionId, selectedDocumentId]
         : ["viewer", "native-summary", "disabled"],
     queryFn: ({ signal }) => getNativeSummary(sessionId, selectedDocumentId as string, signal),
-    enabled: nativeTrustComplete && Boolean(selectedDocumentId),
+    enabled: nativeReady && Boolean(selectedDocumentId),
     staleTime: Infinity,
     retry: false,
   });
@@ -113,10 +128,18 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
         : ["viewer", "native-page", "disabled"],
     queryFn: ({ signal }) =>
       getNativePage(sessionId, selectedDocumentId as string, clampedPageNumber, signal),
-    enabled: nativeTrustComplete && Boolean(selectedDocumentId) && nativeSummaryQuery.isSuccess,
+    enabled: nativeReady && Boolean(selectedDocumentId) && nativeSummaryQuery.isSuccess,
     staleTime: Infinity,
     retry: false,
   });
+
+  const visualSummaryQuery = useVisualSummary(sessionId, selectedDocumentId, visualReady);
+  const visualPageQuery = useVisualPage(
+    sessionId,
+    selectedDocumentId,
+    clampedPageNumber,
+    visualReady && visualSummaryQuery.isSuccess,
+  );
 
   const overlayQuery = useQuery({
     queryKey:
@@ -137,8 +160,6 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
   const [renderedViewport, setRenderedViewport] = useState<PdfCanvasRenderedViewport | null>(null);
 
   useEffect(() => {
-    // A new page is loading; discard the last rendered pixel size so the
-    // overlay never briefly shows at the previous page's dimensions.
     setRenderedViewport(null);
   }, [page]);
 
@@ -157,8 +178,6 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
       (zoomMode === "fit_width" || zoomMode === "fit_page") &&
       (containerSize.width < 1 || (zoomMode === "fit_page" && containerSize.height < 1))
     ) {
-      // Wait for ResizeObserver before painting fit modes — avoids a min-scale
-      // render that is immediately cancelled when the container measures.
       return 0;
     }
     switch (zoomMode) {
@@ -189,6 +208,10 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
     : null;
   const nativeOverlayActive =
     nativeOverlayEnabled && nativePageQuery.data?.decision === "accepted" && !dimensionMismatch;
+  const ocrOverlayActive =
+    (ocrLineOverlayEnabled || ocrWordOverlayEnabled) &&
+    Boolean(visualPageQuery.data) &&
+    !dimensionMismatch;
 
   let body: ReactNode;
   if (!selectedDocument) {
@@ -250,6 +273,17 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
             overlaysDisabled={dimensionMismatch}
           />
         ) : null}
+        {visualSummaryQuery.data ? (
+          <VisualInspectionPanel
+            summary={visualSummaryQuery.data}
+            page={visualPageQuery.data}
+            ocrLineOverlayEnabled={ocrLineOverlayEnabled}
+            ocrWordOverlayEnabled={ocrWordOverlayEnabled}
+            onToggleOcrLineOverlay={toggleOcrLineOverlay}
+            onToggleOcrWordOverlay={toggleOcrWordOverlay}
+            overlaysDisabled={dimensionMismatch}
+          />
+        ) : null}
 
         <Stack
           sx={{
@@ -280,6 +314,17 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
               pixelHeight={renderedViewport?.heightPx ?? 0}
               rotation={userRotation}
               enabled={(overlayActive || nativeOverlayActive) && !dimensionMismatch}
+            />
+            <OcrOverlayLayer
+              lines={visualPageQuery.data?.lines ?? []}
+              words={visualPageQuery.data?.words ?? []}
+              showLines={ocrLineOverlayEnabled}
+              showWords={ocrWordOverlayEnabled}
+              pageNumber={clampedPageNumber}
+              pixelWidth={renderedViewport?.widthPx ?? 0}
+              pixelHeight={renderedViewport?.heightPx ?? 0}
+              rotation={userRotation}
+              enabled={ocrOverlayActive}
             />
           </div>
         </Stack>

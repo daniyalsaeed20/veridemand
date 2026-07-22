@@ -65,10 +65,50 @@ def residual_short_libreoffice_workspaces(temp_root: Path) -> list[Path]:
     return [child for child in lo_root.iterdir()]
 
 
+def residual_visual_staging(temp_root: Path) -> list[Path]:
+    """Return leftover ``staging/visual`` trees after cleanup."""
+
+    sessions = temp_root / "sessions"
+    if not sessions.is_dir():
+        return []
+    leftovers: list[Path] = []
+    for session_dir in sessions.iterdir():
+        if not session_dir.is_dir():
+            continue
+        visual_root = session_dir / "staging" / "visual"
+        if visual_root.is_dir():
+            leftovers.append(visual_root)
+    return leftovers
+
+
+def residual_visual_results(temp_root: Path) -> list[Path]:
+    """Return leftover ``results/visual`` trees after cleanup."""
+
+    sessions = temp_root / "sessions"
+    if not sessions.is_dir():
+        return []
+    leftovers: list[Path] = []
+    for session_dir in sessions.iterdir():
+        if not session_dir.is_dir():
+            continue
+        visual_root = session_dir / "results" / "visual"
+        if visual_root.is_dir():
+            leftovers.append(visual_root)
+    return leftovers
+
+
+def residual_render_artifacts(temp_root: Path) -> list[Path]:
+    """Return leftover OCR render artifacts (``*.render.*``)."""
+
+    if not temp_root.is_dir():
+        return []
+    return [path for path in temp_root.rglob("*.render.*") if path.is_file()]
+
+
 def run_clean_lifecycle(temp_root: Path) -> None:
     """Enter and exit the app lifespan so startup + shutdown cleanup both run."""
 
-    settings = Settings(temp_root=temp_root)
+    settings = Settings(temp_root=temp_root, ocr_enabled=False)
     with TestClient(create_app(settings)):
         pass
 
@@ -82,11 +122,17 @@ def main() -> int:
     residual_parts: list[Path] = []
     residual_libreoffice: list[Path] = []
     residual_short_lo: list[Path] = []
+    residual_visual_stage: list[Path] = []
+    residual_visual_res: list[Path] = []
+    residual_renders: list[Path] = []
     for temp_root in TEMP_ROOTS:
         residual_sessions.extend(residual_session_dirs(temp_root))
         residual_parts.extend(residual_canonical_part_files(temp_root))
         residual_libreoffice.extend(residual_libreoffice_staging(temp_root))
         residual_short_lo.extend(residual_short_libreoffice_workspaces(temp_root))
+        residual_visual_stage.extend(residual_visual_staging(temp_root))
+        residual_visual_res.extend(residual_visual_results(temp_root))
+        residual_renders.extend(residual_render_artifacts(temp_root))
 
     failed = False
     if residual_sessions:
@@ -108,6 +154,21 @@ def main() -> int:
         failed = True
         print("FAILED: short LibreOffice workspaces survived cleanup:")
         for path in residual_short_lo:
+            print(f"  - {path}")
+    if residual_visual_stage:
+        failed = True
+        print("FAILED: visual OCR staging leftovers survived cleanup:")
+        for path in residual_visual_stage:
+            print(f"  - {path}")
+    if residual_visual_res:
+        failed = True
+        print("FAILED: visual OCR result leftovers survived cleanup:")
+        for path in residual_visual_res:
+            print(f"  - {path}")
+    if residual_renders:
+        failed = True
+        print("FAILED: OCR render artifacts survived cleanup:")
+        for path in residual_renders:
             print(f"  - {path}")
 
     if failed:

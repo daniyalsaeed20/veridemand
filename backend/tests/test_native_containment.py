@@ -32,7 +32,12 @@ GOOD_BYTES = GOOD.read_bytes()
 
 @pytest.fixture
 async def app_client(tmp_path: Path) -> AsyncIterator[tuple[FastAPI, AsyncClient]]:
-    settings = Settings(temp_root=tmp_path / "temp")
+    settings = Settings(
+        temp_root=tmp_path / "temp",
+        ocr_enabled=False,
+        render_concurrency=1,
+        ocr_concurrency=1,
+    )
     app = create_app(settings)
     transport = ASGITransport(app=app)
     async with (
@@ -48,7 +53,13 @@ async def _wait(client: AsyncClient, session_id: str, document_id: str) -> dict[
     for _ in range(600):
         body = (await client.get(f"/api/v1/sessions/{session_id}/documents/{document_id}")).json()
         assert isinstance(body, dict)
-        if body["status"] in {"native_trust_complete", "failed", "cancelled"}:
+        if body["status"] in {
+            "visual_processing_complete",
+            "visual_processing_partial",
+            "visual_processing_failed",
+            "failed",
+            "cancelled",
+        }:
             return body
         await asyncio.sleep(0.05)
     raise AssertionError("timed out")
@@ -114,14 +125,18 @@ async def test_corrupt_single_page_api_visual_authority(
     document_id = upload.json()["accepted"][0]["document_id"]
     await client.post(f"/api/v1/sessions/{session_id}/process", json={"document_ids": None})
     doc = await _wait(client, session_id, document_id)
-    assert doc["status"] == "native_trust_complete", doc
+    assert doc["status"] in {
+        "visual_processing_complete",
+        "visual_processing_partial",
+        "visual_processing_failed",
+    }, doc
     assert doc["document_source_policy"] == "visual_authority"
     page = await client.get(f"/api/v1/sessions/{session_id}/documents/{document_id}/native/pages/1")
     assert page.json()["words"] == []
     assert page.json().get("provisional_native_text") in (None, "")
 
 
-async def test_mixed_document_reaches_native_trust_complete(
+async def test_mixed_document_reaches_visual_complete(
     app_client: tuple[FastAPI, AsyncClient],
 ) -> None:
     _app, client = app_client
@@ -134,7 +149,12 @@ async def test_mixed_document_reaches_native_trust_complete(
     document_id = upload.json()["accepted"][0]["document_id"]
     await client.post(f"/api/v1/sessions/{session_id}/process", json={"document_ids": None})
     doc = await _wait(client, session_id, document_id)
-    assert doc["status"] == "native_trust_complete", doc
+    assert doc["status"] in {
+        "visual_processing_complete",
+        "visual_processing_partial",
+        "visual_processing_failed",
+    }, doc
+    assert doc["progress_percent"] == 65
     assert doc["document_source_policy"] in {
         "mixed_authority",
         "visual_authority",

@@ -1,0 +1,27 @@
+{
+  "id": "clean_printable",
+  "kind": "pdf",
+  "file": "clean_printable.pdf",
+  "dpi": 200,
+  "transcript": "VeriDemand Printable OCR PDF\nClaim ID: CLM-2026-0042\nBalance due: \\.65\nDate: 2026-07-23",
+  "lines": [
+    {
+      "text": "VeriDemand Printable OCR PDF",
+      "bbox": null
+    },
+    {
+      "text": "Claim ID: CLM-2026-0042",
+      "bbox": null
+    },
+    {
+      "text": "Balance due: \\.65",
+      "bbox": null
+    },
+    {
+      "text": "Date: 2026-07-23",
+      "bbox": null
+    }
+  ],
+  "phase5_pending": false,
+  "gate": "clean"
+}

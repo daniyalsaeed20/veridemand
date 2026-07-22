@@ -321,7 +321,7 @@
       ],
       "expected_native_text": false,
       "expected_viewer": "renders as readable scan",
-      "notes": "No native text layer exists. Phase 3 routes image-dominant empty native pages as visual_authority/absent (not a separate image_authority enum value).",
+      "notes": "Image-only scan; Phase 4 printed OCR should recover visible scan text.",
       "postprocess": {},
       "page_number": 11,
       "page_size_points": [
@@ -339,7 +339,20 @@
       "native_result_available": false,
       "visual_processing_required": true,
       "expected_rotation": 0,
-      "forbidden_reason_codes": []
+      "forbidden_reason_codes": [],
+      "phase4_visual": {
+        "require_visual_page": true,
+        "require_visual_result": true,
+        "require_document_visual_complete": true,
+        "allowed_statuses": [
+          "completed",
+          "completed_no_text"
+        ],
+        "min_line_count": 1,
+        "min_word_count": 1,
+        "require_source_mode": "visual_authority",
+        "require_no_native_leakage": true
+      }
     },
     {
       "test_id": "T11",
@@ -352,7 +365,7 @@
       ],
       "expected_native_text": false,
       "expected_viewer": "scan looks normal",
-      "notes": "Invisible native OCR agrees with the image but Phase 3 should be conservative.",
+      "notes": "Hidden accurate native OCR is ignored; Phase 4 OCR comes from the rendered scan.",
       "postprocess": {},
       "page_number": 12,
       "page_size_points": [
@@ -362,7 +375,7 @@
       "phase3_reason_codes": [
         "image_dominant_page"
       ],
-      "phase_expectation": "future_phase_expected",
+      "phase_expectation": "current_phase_expected",
       "hard_rejection": true,
       "canonical_viewer_success": true,
       "word_publication": "forbidden",
@@ -370,7 +383,20 @@
       "native_result_available": false,
       "visual_processing_required": true,
       "expected_rotation": 0,
-      "forbidden_reason_codes": []
+      "forbidden_reason_codes": [],
+      "phase4_visual": {
+        "require_visual_page": true,
+        "require_visual_result": true,
+        "require_document_visual_complete": true,
+        "allowed_statuses": [
+          "completed",
+          "completed_no_text"
+        ],
+        "min_line_count": 1,
+        "min_word_count": 1,
+        "require_source_mode": "visual_authority",
+        "require_no_native_leakage": true
+      }
     },
     {
       "test_id": "T12",
@@ -384,7 +410,7 @@
       ],
       "expected_native_text": false,
       "expected_viewer": "scan shows correct values",
-      "notes": "Invisible OCR changes dates and money while remaining plausible.",
+      "notes": "Wrong hidden native OCR must not be used; Phase 4 OCR is from the rendered page.",
       "postprocess": {},
       "page_number": 13,
       "page_size_points": [
@@ -397,7 +423,7 @@
       "future_phase_reason_codes": [
         "visual_mismatch_expected"
       ],
-      "phase_expectation": "future_phase_expected",
+      "phase_expectation": "current_phase_expected",
       "hard_rejection": true,
       "canonical_viewer_success": true,
       "word_publication": "forbidden",
@@ -405,7 +431,20 @@
       "native_result_available": false,
       "visual_processing_required": true,
       "expected_rotation": 0,
-      "forbidden_reason_codes": []
+      "forbidden_reason_codes": [],
+      "phase4_visual": {
+        "require_visual_page": true,
+        "require_visual_result": true,
+        "require_document_visual_complete": true,
+        "allowed_statuses": [
+          "completed",
+          "completed_no_text"
+        ],
+        "min_line_count": 1,
+        "min_word_count": 1,
+        "require_source_mode": "visual_authority",
+        "require_no_native_leakage": true
+      }
     },
     {
       "test_id": "T13",
@@ -419,7 +458,7 @@
       ],
       "expected_native_text": false,
       "expected_viewer": "scan looks normal",
-      "notes": "Invisible OCR text is displaced from the visual lines.",
+      "notes": "Shifted hidden native OCR is ignored; Phase 4 OCR uses rendered geometry.",
       "postprocess": {},
       "page_number": 14,
       "page_size_points": [
@@ -432,7 +471,7 @@
       "future_phase_reason_codes": [
         "visual_geometry_mismatch_expected"
       ],
-      "phase_expectation": "future_phase_expected",
+      "phase_expectation": "current_phase_expected",
       "hard_rejection": true,
       "canonical_viewer_success": true,
       "word_publication": "forbidden",
@@ -440,7 +479,20 @@
       "native_result_available": false,
       "visual_processing_required": true,
       "expected_rotation": 0,
-      "forbidden_reason_codes": []
+      "forbidden_reason_codes": [],
+      "phase4_visual": {
+        "require_visual_page": true,
+        "require_visual_result": true,
+        "require_document_visual_complete": true,
+        "allowed_statuses": [
+          "completed",
+          "completed_no_text"
+        ],
+        "min_line_count": 1,
+        "min_word_count": 1,
+        "require_source_mode": "visual_authority",
+        "require_no_native_leakage": true
+      }
     },
     {
       "test_id": "T14",
@@ -576,7 +628,7 @@
       ],
       "expected_native_text": false,
       "expected_viewer": "visible page has little text",
-      "notes": "White native text is extractable but invisible on a white background. Soft-pass (not_yet_implemented): Phase 3 cannot detect invisible/white-on-white native text without visual agreement.",
+      "notes": "White-on-white native text is downgraded by the Phase 4 visibility probe.",
       "postprocess": {},
       "page_number": 19,
       "page_size_points": [
@@ -587,7 +639,7 @@
       "future_phase_reason_codes": [
         "visual_agreement_required"
       ],
-      "phase_expectation": "not_yet_implemented",
+      "phase_expectation": "current_phase_expected",
       "hard_rejection": true,
       "canonical_viewer_success": true,
       "word_publication": "forbidden",
@@ -595,7 +647,30 @@
       "native_result_available": false,
       "visual_processing_required": true,
       "expected_rotation": 0,
-      "forbidden_reason_codes": []
+      "forbidden_reason_codes": [],
+      "phase4_visual": {
+        "require_visual_page": true,
+        "require_document_visual_complete": true,
+        "require_native_downgraded": true,
+        "allowed_statuses": [
+          "completed",
+          "completed_no_text",
+          "failed"
+        ],
+        "require_no_native_leakage": true
+      },
+      "acceptable_outcomes": [
+        {
+          "decision": "rejected",
+          "source_mode": "visual_authority",
+          "require_empty_publication": true
+        },
+        {
+          "decision": "absent",
+          "source_mode": "visual_authority",
+          "require_empty_publication": true
+        }
+      ]
     },
     {
       "test_id": "T19",
@@ -608,7 +683,7 @@
       ],
       "expected_native_text": false,
       "expected_viewer": "visible page has a reference box",
-      "notes": "Render mode 3 creates extractable text with no visible glyphs. Soft-pass (not_yet_implemented): Phase 3 cannot detect invisible/white-on-white native text without visual agreement.",
+      "notes": "Invisible render-mode text is downgraded by the Phase 4 visibility probe.",
       "postprocess": {},
       "page_number": 20,
       "page_size_points": [
@@ -619,7 +694,7 @@
       "future_phase_reason_codes": [
         "visual_agreement_required"
       ],
-      "phase_expectation": "not_yet_implemented",
+      "phase_expectation": "current_phase_expected",
       "hard_rejection": true,
       "canonical_viewer_success": true,
       "word_publication": "forbidden",
@@ -627,7 +702,30 @@
       "native_result_available": false,
       "visual_processing_required": true,
       "expected_rotation": 0,
-      "forbidden_reason_codes": []
+      "forbidden_reason_codes": [],
+      "phase4_visual": {
+        "require_visual_page": true,
+        "require_document_visual_complete": true,
+        "require_native_downgraded": true,
+        "allowed_statuses": [
+          "completed",
+          "completed_no_text",
+          "failed"
+        ],
+        "require_no_native_leakage": true
+      },
+      "acceptable_outcomes": [
+        {
+          "decision": "rejected",
+          "source_mode": "visual_authority",
+          "require_empty_publication": true
+        },
+        {
+          "decision": "absent",
+          "source_mode": "visual_authority",
+          "require_empty_publication": true
+        }
+      ]
     },
     {
       "test_id": "T20",
@@ -1579,7 +1677,7 @@
       ],
       "expected_native_text": false,
       "expected_viewer": "text is readable but not selectable",
-      "notes": "Raster-only page; Phase 3 routes empty native as visual_authority/absent.",
+      "notes": "Raster-only visible text; Phase 4 OCR recovers printed content.",
       "postprocess": {},
       "page_number": 51,
       "page_size_points": [
@@ -1597,7 +1695,18 @@
       "native_result_available": false,
       "visual_processing_required": true,
       "expected_rotation": 0,
-      "forbidden_reason_codes": []
+      "forbidden_reason_codes": [],
+      "phase4_visual": {
+        "require_visual_page": true,
+        "require_visual_result": true,
+        "require_document_visual_complete": true,
+        "allowed_statuses": [
+          "completed",
+          "completed_no_text"
+        ],
+        "min_line_count": 1,
+        "require_source_mode": "visual_authority"
+      }
     },
     {
       "test_id": "T51",
@@ -1639,14 +1748,14 @@
       "title": "Low-resolution scan",
       "category": "image_quality",
       "expected_source_mode": "visual_authority",
-      "expected_decision": "rejected",
+      "expected_decision": "absent",
       "expected_reason_codes": [
         "low_resolution_image",
         "native_text_absent"
       ],
       "expected_native_text": false,
       "expected_viewer": "pixelated scan",
-      "notes": "A 75-DPI page is scaled to full size.",
+      "notes": "Low-resolution scan routes to visual OCR; CER may be degraded (calibration only).",
       "postprocess": {},
       "page_number": 53,
       "page_size_points": [
@@ -1659,7 +1768,7 @@
       "future_phase_reason_codes": [
         "low_resolution_image"
       ],
-      "phase_expectation": "future_phase_expected",
+      "phase_expectation": "current_phase_expected",
       "hard_rejection": true,
       "canonical_viewer_success": true,
       "word_publication": "forbidden",
@@ -1667,7 +1776,29 @@
       "native_result_available": false,
       "visual_processing_required": true,
       "expected_rotation": 0,
-      "forbidden_reason_codes": []
+      "forbidden_reason_codes": [],
+      "phase4_visual": {
+        "require_visual_page": true,
+        "require_document_visual_complete": true,
+        "allowed_statuses": [
+          "completed",
+          "completed_no_text",
+          "failed"
+        ],
+        "require_source_mode": "visual_authority"
+      },
+      "acceptable_outcomes": [
+        {
+          "decision": "absent",
+          "source_mode": "visual_authority",
+          "require_empty_publication": true
+        },
+        {
+          "decision": "rejected",
+          "source_mode": "visual_authority",
+          "require_empty_publication": true
+        }
+      ]
     },
     {
       "test_id": "T53",

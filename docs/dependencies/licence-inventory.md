@@ -8,16 +8,30 @@ introduces one **transitive** GPL-3.0 package (`pcodedmp`, via `oletools`) that
 is flagged for review below. Phase 2 adds **LibreOffice** as an external MPL-2.0
 runtime (not a Python/Node package).
 
+## Phase 4 direct dependency additions
+
+| Package | Version | Licence | Notes |
+|---|---|---|---|
+| pypdfium2 | 5.12.1 | Apache-2.0 / BSD-3-Clause | Direct runtime dep for page rendering |
+| numpy | 2.x | BSD-3-Clause | Visibility probes + OCR array ops |
+| paddleocr | 3.7.0 | Apache-2.0 | Optional `ocr` group — printed OCR only |
+| paddlepaddle | 3.3.0 | Apache-2.0 | Optional `ocr` group — CPU inference |
+| psutil | 6.x–7.x | BSD-3-Clause | Optional `ocr` group — worker RSS monitoring |
+| opencv-contrib-python (transitive) | via paddleocr | Apache-2.0 | Not imported by VeriDemand app code |
+
+Confirmed: no handwriting/HTR classifiers, no ONNX Runtime vision packages, and
+no OpenAI / vision-LLM client libraries were added in Phase 4.
+
 ## Phase 3 direct dependency additions
 
 | Package | Version | Licence | Notes |
 |---|---|---|---|
 | pdfplumber | 0.11.9 | MIT | Native text/geometry only; no OCR/HTR/LLM |
 | pdfminer.six (transitive) | 20251230 | MIT | Pulled by pdfplumber |
-| pypdfium2 (transitive) | 5.12.1 | Apache-2.0 / BSD-3-Clause | Pulled by pdfplumber; **not imported or used for rendering in Phase 3** |
+| pypdfium2 (transitive in Phase 3) | 5.12.1 | Apache-2.0 / BSD-3-Clause | Pulled by pdfplumber; promoted to direct use in Phase 4 |
 
-Confirmed: no OCR (Paddle/Tesseract), ONNX, OpenAI, OpenCV, or backend rasterisation
-packages were added as direct dependencies.
+Confirmed for Phase 3 exit: no OCR (Paddle/Tesseract), ONNX, OpenAI, or OpenCV
+packages were added as direct dependencies at that time.
 
 ## Phase 2 direct dependency additions
 

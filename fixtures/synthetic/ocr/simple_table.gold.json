@@ -1,0 +1,23 @@
+{
+  "id": "simple_table",
+  "kind": "image",
+  "file": "simple_table.png",
+  "dpi": 200,
+  "transcript": "Item | Qty | Amount\nEval | 1 | \\.00\nFollow-up | 2 | \\.00",
+  "lines": [
+    {
+      "text": "Item | Qty | Amount",
+      "bbox": null
+    },
+    {
+      "text": "Eval | 1 | \\.00",
+      "bbox": null
+    },
+    {
+      "text": "Follow-up | 2 | \\.00",
+      "bbox": null
+    }
+  ],
+  "phase5_pending": false,
+  "gate": "clean"
+}

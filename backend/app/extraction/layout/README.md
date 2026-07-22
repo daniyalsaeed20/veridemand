@@ -1,3 +1,5 @@
 # extraction/layout (Phase 4)
 
-Layout grouping of detected text regions. Not implemented in Phase 0.
+Geometric layout grouping and provisional reading order are implemented in
+`backend/app/extraction/visual/layout.py` and
+`backend/app/extraction/visual/reading_order.py`.

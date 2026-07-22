@@ -1,0 +1,23 @@
+{
+  "cases": [
+    {
+      "id": "printed-hello-pdf",
+      "source": "printed-hello.pdf",
+      "page_number": 1,
+      "expected_lines": [
+        "Hello VeriDemand OCR",
+        "Line two printed text"
+      ],
+      "notes": "Calibration fixture; CER/WER measured against expected_lines."
+    },
+    {
+      "id": "printed-line-png",
+      "source": "printed-line.png",
+      "page_number": 1,
+      "expected_lines": [
+        "SYNTHETIC OCR LINE"
+      ],
+      "notes": "Raster-only printed line."
+    }
+  ]
+}

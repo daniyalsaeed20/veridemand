@@ -46,12 +46,27 @@ STEPS: list[tuple[str, str]] = [
     ),
 ]
 
+OCR_VERIFY_STEP: tuple[str, str] = (
+    "OCR model verify",
+    "uv run --group ocr python scripts/verify_ocr_runtime.py",
+)
+
+OCR_INTEGRATION_STEP: tuple[str, str] = (
+    "OCR integration smoke",
+    "uv run --group ocr pytest backend/tests/test_ocr_integration.py -v",
+)
+
 E2E_STEP: tuple[str, str] = ("End-to-end smoke test", "pnpm -C frontend test:e2e")
 
 RESIDUAL_STEP: tuple[str, str] = (
     "Residual session-data check",
     f"{PYTHON} scripts/check_no_residual_sessions.py",
 )
+
+
+def _ocr_models_present() -> bool:
+    record = ROOT / ".models" / "paddleocr" / "model-record.json"
+    return record.is_file()
 
 
 def run_step(label: str, command: str) -> int:
@@ -71,6 +86,15 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     steps = list(STEPS)
+    if _ocr_models_present():
+        print("\n=== OCR models detected; including verify + integration ===")
+        steps.append(OCR_VERIFY_STEP)
+        steps.append(OCR_INTEGRATION_STEP)
+    else:
+        print(
+            "\n=== OCR models absent "
+            "(.models/paddleocr/model-record.json); skipping OCR verify/integration ==="
+        )
     if not args.skip_e2e:
         steps.append(E2E_STEP)
     # Always verify no runtime session data was left on disk.

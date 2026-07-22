@@ -154,6 +154,7 @@ export type OverlayProofResponse = z.infer<typeof zOverlayProofResponse>;
 // ---------------------------------------------------------------------------
 
 export const MAX_PHASE3_PROGRESS_PERCENT = 35;
+export const MAX_PHASE4_PROGRESS_PERCENT = 65;
 
 export const zDocumentStatus = z.enum([
   "uploaded",
@@ -163,6 +164,11 @@ export const zDocumentStatus = z.enum([
   "inspecting_native",
   "extracting_native",
   "native_trust_complete",
+  "visual_pending",
+  "visual_processing",
+  "visual_processing_complete",
+  "visual_processing_partial",
+  "visual_processing_failed",
   "cancelled",
   "failed",
 ]);
@@ -179,12 +185,14 @@ export const zDocumentSummary = z.object({
   page_count: z.int().gte(0).nullish(),
   page_count_status: zPageCountStatus,
   status: zDocumentStatus,
-  progress_percent: z.int().gte(0).lte(MAX_PHASE3_PROGRESS_PERCENT),
+  progress_percent: z.int().gte(0).lte(MAX_PHASE4_PROGRESS_PERCENT),
   result_available: z.boolean().default(false),
   extraction_performed: z.boolean().default(false),
   native_extraction_performed: z.boolean().default(false),
   native_result_available: z.boolean().default(false),
   visual_processing_required: z.boolean().default(false),
+  visual_processing_performed: z.boolean().default(false),
+  visual_result_available: z.boolean().default(false),
   document_source_policy: z
     .enum(["native_authority", "mixed_authority", "visual_authority", "image_authority"])
     .nullish(),
@@ -203,6 +211,9 @@ export const zDocumentSummary = z.object({
   canonical_view_url: z.string().nullish(),
   canonical_metadata_url: z.string().nullish(),
   native_summary_url: z.string().nullish(),
+  visual_summary_url: z.string().nullish(),
+  pages_completed: z.int().gte(0).nullish(),
+  pages_total: z.int().gte(0).nullish(),
 });
 export type DocumentSummary = z.infer<typeof zDocumentSummary>;
 
@@ -214,6 +225,11 @@ export const zDocumentStatusCounts = z.object({
   inspecting_native: z.int().gte(0).default(0),
   extracting_native: z.int().gte(0).default(0),
   native_trust_complete: z.int().gte(0).default(0),
+  visual_pending: z.int().gte(0).default(0),
+  visual_processing: z.int().gte(0).default(0),
+  visual_processing_complete: z.int().gte(0).default(0),
+  visual_processing_partial: z.int().gte(0).default(0),
+  visual_processing_failed: z.int().gte(0).default(0),
   cancelled: z.int().gte(0).default(0),
   failed: z.int().gte(0).default(0),
 });

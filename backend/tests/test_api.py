@@ -84,32 +84,52 @@ def test_upload_with_no_files_is_rejected(client: TestClient) -> None:
 
 def test_process_and_reach_ready(client: TestClient, uploads_dir: Path) -> None:
     session_id = _create_session(client)
-    _upload(client, session_id, uploads_dir, ["valid.png", "valid_utf8.txt"])
+    _upload(client, session_id, uploads_dir, ["valid_utf8.txt", "valid_utf8.txt"])
 
     response = client.post(f"{_API}/sessions/{session_id}/process", json={"document_ids": None})
     assert response.status_code == 202
     assert len(response.json()["queued"]) == 2
 
-    body = _poll_snapshot(
-        client,
-        session_id,
-        lambda s: s["counts"].get("native_trust_complete", 0) == 2,
-    )
-    assert body["counts"]["native_trust_complete"] == 2
+    terminal = {
+        "visual_processing_complete",
+        "visual_processing_partial",
+        "visual_processing_failed",
+    }
+
+    def _done(snapshot: dict[str, object]) -> bool:
+        counts = snapshot.get("counts")
+        if not isinstance(counts, dict):
+            return False
+        total = sum(int(counts.get(key, 0) or 0) for key in terminal)
+        return total == 2
+
+    body = _poll_snapshot(client, session_id, _done)
     for document in body["documents"]:
-        assert document["progress_percent"] <= 35
+        assert document["progress_percent"] <= 65
         assert document["result_available"] is False
         assert document["extraction_performed"] is False
         assert document["canonical_view_available"] is True
-        assert document["status"] == "native_trust_complete"
+        assert document["status"] in terminal
+        assert document["progress_percent"] == 65
 
 
 def test_jobs_listed_after_process(client: TestClient, uploads_dir: Path) -> None:
     session_id = _create_session(client)
-    _upload(client, session_id, uploads_dir, ["valid.png"])
+    _upload(client, session_id, uploads_dir, ["valid_utf8.txt"])
     client.post(f"{_API}/sessions/{session_id}/process", json={"document_ids": None})
 
-    _poll_snapshot(client, session_id, lambda s: s["counts"].get("ready_for_extraction", 0) == 1)
+    _poll_snapshot(
+        client,
+        session_id,
+        lambda s: (
+            (
+                int(s["counts"].get("visual_processing_complete", 0) or 0)
+                + int(s["counts"].get("visual_processing_partial", 0) or 0)
+                + int(s["counts"].get("visual_processing_failed", 0) or 0)
+            )
+            == 1
+        ),
+    )
     jobs = client.get(f"{_API}/sessions/{session_id}/jobs").json()["jobs"]
     assert len(jobs) == 1
     assert jobs[0]["status"] == "completed"

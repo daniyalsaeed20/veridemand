@@ -831,8 +831,8 @@ def t17(c, case):
         False,
         "visible page has little text",
         "White native text is extractable but invisible on a white background. "
-        "Phase 3 does not evaluate visual agreement yet.",
-        phase_expectation="not_yet_implemented",
+        "Phase 4 visibility probe must downgrade it.",
+        phase_expectation="current_phase_expected",
     )
 )
 def t18(c, case):
@@ -859,8 +859,8 @@ def t18(c, case):
         False,
         "visible page has a reference box",
         "Render mode 3 creates extractable text with no visible glyphs. "
-        "Phase 3 does not evaluate visual agreement yet.",
-        phase_expectation="not_yet_implemented",
+        "Phase 4 visibility probe must downgrade it.",
+        phase_expectation="current_phase_expected",
     )
 )
 def t19(c, case):

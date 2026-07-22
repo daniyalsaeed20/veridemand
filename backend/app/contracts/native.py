@@ -57,9 +57,10 @@ class NativeProcessingStatus(StrEnum):
 
 
 class VisualAgreementStatus(StrEnum):
-    """Visual agreement is deferred until Phase 4 rendering/OCR exist."""
+    """Visual agreement status across Phase 3 and Phase 4."""
 
     NOT_EVALUATED_PHASE_3 = "not_evaluated_phase_3"
+    EVALUATED_PHASE_4_VISIBILITY = "evaluated_phase_4_visibility"
 
 
 class RecognitionMethod(StrEnum):

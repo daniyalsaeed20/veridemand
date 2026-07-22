@@ -1,0 +1,35 @@
+{
+  "id": "two_columns",
+  "kind": "image",
+  "file": "two_columns.png",
+  "dpi": 200,
+  "transcript": "Column A line 1\nColumn A line 2\nColumn A line 3\nColumn B line 1\nColumn B line 2\nColumn B line 3",
+  "lines": [
+    {
+      "text": "Column A line 1",
+      "bbox": null
+    },
+    {
+      "text": "Column A line 2",
+      "bbox": null
+    },
+    {
+      "text": "Column A line 3",
+      "bbox": null
+    },
+    {
+      "text": "Column B line 1",
+      "bbox": null
+    },
+    {
+      "text": "Column B line 2",
+      "bbox": null
+    },
+    {
+      "text": "Column B line 3",
+      "bbox": null
+    }
+  ],
+  "phase5_pending": false,
+  "gate": "clean"
+}

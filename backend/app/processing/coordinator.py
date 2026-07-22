@@ -20,11 +20,13 @@ from backend.app.contracts.documents import DocumentStatus, PageCountStatus
 from backend.app.contracts.errors import ErrorCode
 from backend.app.contracts.identifiers import new_job_id
 from backend.app.contracts.jobs import JobStatus, JobSummary
-from backend.app.contracts.native import NativePageDecision
+from backend.app.contracts.native import NativeDocumentSummary, NativePageDecision
 from backend.app.contracts.processing import IgnoredDocument
 from backend.app.contracts.progress import ProgressEventType
 from backend.app.extraction.native.errors import NativeExtractionError
 from backend.app.extraction.native.service import NativeExtractionService
+from backend.app.extraction.visual.errors import VisualOcrError
+from backend.app.extraction.visual.service import VisualOcrService
 from backend.app.observability.errors import ApiException
 from backend.app.processing.cancellation import JobCancelledError
 from backend.app.processing.models import ProcessingJob
@@ -41,13 +43,22 @@ logger = logging.getLogger("veridemand.processing")
 _FAILURE_CODE = "canonicalisation_failed"
 _DOCUMENT_STAGE = "canonicalising"
 _NATIVE_STAGE = "extracting_native"
+_VISUAL_STAGE = "visual_ocr"
 _MAX_CANONICAL_PROGRESS = 15
 _NATIVE_INSPECT_PROGRESS = 16
 _NATIVE_PAGE_START = 20
 _NATIVE_PAGE_END = 32
 _NATIVE_POLICY_PROGRESS = 34
-_MAX_PROGRESS_PERCENT = 35
+_MAX_NATIVE_PROGRESS_PERCENT = 35
+_VISUAL_SELECT_PROGRESS = 36
+_VISUAL_PAGE_START = 40
+_VISUAL_PAGE_END = 60
+_VISUAL_GROUP_PROGRESS = 64
+_MAX_PROGRESS_PERCENT = 65
 _PROGRESS_STARTED = 6
+_PHASE4_COMPLETE_MESSAGE = (
+    "Printed visual OCR complete. Handwriting and final document structure have not been evaluated."
+)
 
 
 async def _safe_publish(broker: EventBroker, event: ProgressEventType, **fields: object) -> None:
@@ -56,7 +67,7 @@ async def _safe_publish(broker: EventBroker, event: ProgressEventType, **fields:
 
 
 class ProcessingCoordinator:
-    """Coordinates canonicalisation and native extraction with one worker."""
+    """Coordinates canonicalisation, native trust, and visual OCR with one worker."""
 
     def __init__(
         self,
@@ -65,17 +76,19 @@ class ProcessingCoordinator:
         processor: CanonicalisationProcessor,
         file_store: FileStore,
         native_service: NativeExtractionService,
+        visual_service: VisualOcrService | None = None,
         *,
         worker_count: int = 1,
         max_pages_per_session: int = 500,
     ) -> None:
         if worker_count != 1:
-            raise ValueError("Phase 3 requires exactly one processing worker.")
+            raise ValueError("Phase 4 requires exactly one processing worker.")
         self._registry = registry
         self._queue = job_queue
         self._processor = processor
         self._file_store = file_store
         self._native = native_service
+        self._visual = visual_service
         self._max_pages_per_session = max_pages_per_session
         self._worker: asyncio.Task[None] | None = None
         self._current_job: ProcessingJob | None = None
@@ -91,6 +104,8 @@ class ProcessingCoordinator:
         described = self._native.describe_runtime()
         described["canonical_processor_class"] = type(self._processor).__qualname__
         described["coordinator_class"] = type(self).__qualname__
+        if self._visual is not None:
+            described["visual_service_class"] = type(self._visual).__qualname__
         return described
 
     def start(self) -> None:
@@ -200,6 +215,9 @@ class ProcessingCoordinator:
             if document.status in (
                 DocumentStatus.UPLOADED,
                 DocumentStatus.NATIVE_TRUST_COMPLETE,
+                DocumentStatus.VISUAL_PROCESSING_COMPLETE,
+                DocumentStatus.VISUAL_PROCESSING_PARTIAL,
+                DocumentStatus.VISUAL_PROCESSING_FAILED,
                 DocumentStatus.FAILED,
             ):
                 raise ApiException(
@@ -248,6 +266,8 @@ class ProcessingCoordinator:
                     DocumentStatus.READY_FOR_EXTRACTION,
                     DocumentStatus.INSPECTING_NATIVE,
                     DocumentStatus.EXTRACTING_NATIVE,
+                    DocumentStatus.VISUAL_PENDING,
+                    DocumentStatus.VISUAL_PROCESSING,
                 )
                 and job is not None
             ):
@@ -273,6 +293,8 @@ class ProcessingCoordinator:
                 DocumentStatus.CANONICALISING,
                 DocumentStatus.INSPECTING_NATIVE,
                 DocumentStatus.EXTRACTING_NATIVE,
+                DocumentStatus.VISUAL_PENDING,
+                DocumentStatus.VISUAL_PROCESSING,
             ):
                 raise ApiException(
                     status_code=409,
@@ -449,7 +471,7 @@ class ProcessingCoordinator:
                 document_status=DocumentStatus.READY_FOR_EXTRACTION,
             )
             try:
-                await self._run_native(session, job, document)
+                native_summary = await self._run_native(session, job, document)
             except JobCancelledError:
                 await self._finalize_cancelled(session, job, document)
             except NativeExtractionError as exc:
@@ -499,15 +521,43 @@ class ProcessingCoordinator:
                     code=ErrorCode.NATIVE_EXTRACTION_FAILED.value,
                 )
             else:
-                job.status = JobStatus.COMPLETED
-                job.finished_at = datetime.now(UTC)
-                await _safe_publish(
-                    session.broker,
-                    ProgressEventType.JOB_COMPLETED,
-                    document_id=document.document_id,
-                    job_id=job.job_id,
-                    job_status=JobStatus.COMPLETED,
-                )
+                try:
+                    await self._run_visual(session, job, document, native_summary)
+                except JobCancelledError:
+                    await self._finalize_cancelled(session, job, document)
+                except Exception:
+                    logger.exception(
+                        "Visual OCR failed",
+                        extra={
+                            "document_id": document.document_id,
+                            "job_id": job.job_id,
+                        },
+                    )
+                    document.status = DocumentStatus.VISUAL_PROCESSING_FAILED
+                    document.progress_percent = _MAX_PROGRESS_PERCENT
+                    document.failure_stage = _VISUAL_STAGE
+                    document.failure_code = ErrorCode.OCR_RUNTIME_UNAVAILABLE.value
+                    document.failure_message = "The OCR service failed to process this document."
+                    document.visual_processing_performed = True
+                    await _safe_publish(
+                        session.broker,
+                        ProgressEventType.DOCUMENT_VISUAL_PROCESSING_FAILED,
+                        document_id=document.document_id,
+                        job_id=job.job_id,
+                        percent=_MAX_PROGRESS_PERCENT,
+                        document_status=DocumentStatus.VISUAL_PROCESSING_FAILED,
+                        message=document.failure_message,
+                    )
+                else:
+                    job.status = JobStatus.COMPLETED
+                    job.finished_at = datetime.now(UTC)
+                    await _safe_publish(
+                        session.broker,
+                        ProgressEventType.JOB_COMPLETED,
+                        document_id=document.document_id,
+                        job_id=job.job_id,
+                        job_status=JobStatus.COMPLETED,
+                    )
         finally:
             session.end_admission()
             recompute_session_status(session)
@@ -517,7 +567,7 @@ class ProcessingCoordinator:
         session: RuntimeSession,
         job: ProcessingJob,
         document: RuntimeDocument,
-    ) -> None:
+    ) -> NativeDocumentSummary:
         if document.canonicalisation_method is None or not document.canonical_pages:
             raise NativeExtractionError(
                 ErrorCode.NATIVE_EXTRACTION_FAILED,
@@ -621,7 +671,7 @@ class ProcessingCoordinator:
                 )
 
         document.status = DocumentStatus.NATIVE_TRUST_COMPLETE
-        document.progress_percent = _MAX_PROGRESS_PERCENT
+        document.progress_percent = _MAX_NATIVE_PROGRESS_PERCENT
         document.native_extraction_performed = True
         document.native_result_available = outcome.summary.native_result_available
         document.visual_processing_required = outcome.summary.visual_processing_required
@@ -633,10 +683,174 @@ class ProcessingCoordinator:
             ProgressEventType.DOCUMENT_NATIVE_EXTRACTION_COMPLETED,
             document_id=document.document_id,
             job_id=job.job_id,
-            percent=_MAX_PROGRESS_PERCENT,
+            percent=_MAX_NATIVE_PROGRESS_PERCENT,
             document_status=DocumentStatus.NATIVE_TRUST_COMPLETE,
             pages_completed=pages_total,
             pages_total=pages_total,
+            message=document.user_status_message,
+        )
+        return outcome.summary
+
+    async def _run_visual(
+        self,
+        session: RuntimeSession,
+        job: ProcessingJob,
+        document: RuntimeDocument,
+        native_summary: object,
+    ) -> None:
+        if self._visual is None:
+            document.status = DocumentStatus.VISUAL_PROCESSING_COMPLETE
+            document.progress_percent = _MAX_PROGRESS_PERCENT
+            document.user_status_message = _PHASE4_COMPLETE_MESSAGE
+            return
+
+        if job.cancellation.cancelled:
+            raise JobCancelledError()
+
+        document.status = DocumentStatus.VISUAL_PENDING
+        document.progress_percent = _VISUAL_SELECT_PROGRESS
+        await _safe_publish(
+            session.broker,
+            ProgressEventType.DOCUMENT_VISUAL_PROCESSING_STARTED,
+            document_id=document.document_id,
+            job_id=job.job_id,
+            stage=_VISUAL_STAGE,
+            percent=_VISUAL_SELECT_PROGRESS,
+            document_status=DocumentStatus.VISUAL_PENDING,
+        )
+
+        native_pages = {}
+        page_count = len(document.canonical_pages)
+        for page_number in range(1, page_count + 1):
+            page = self._native.load_page(session.session_id, document.document_id, page_number)
+            if page is not None:
+                native_pages[page_number] = page
+
+        document.status = DocumentStatus.VISUAL_PROCESSING
+        pages_completed = 0
+
+        async def on_visual_progress(payload: dict[str, object]) -> None:
+            nonlocal pages_completed
+            event_type = str(payload.get("type", ""))
+            raw_page = payload.get("page_number")
+            page_number = int(raw_page) if isinstance(raw_page, (int, float, str)) else None
+            if event_type in {"page.completed", "page.failed", "visual_page_ocr_completed"}:
+                pages_completed += 1
+            fraction = pages_completed / max(page_count, 1)
+            percent = int(_VISUAL_PAGE_START + (_VISUAL_PAGE_END - _VISUAL_PAGE_START) * fraction)
+            percent = min(max(percent, _VISUAL_SELECT_PROGRESS), _VISUAL_PAGE_END)
+            document.progress_percent = percent
+            document.pages_completed = pages_completed
+            document.pages_total = page_count
+
+            event_map = {
+                "visual_pages_selected": ProgressEventType.DOCUMENT_VISUAL_PAGES_SELECTED,
+                "native_visibility_started": (ProgressEventType.DOCUMENT_NATIVE_VISIBILITY_STARTED),
+                "native_visibility_supported": (
+                    ProgressEventType.DOCUMENT_NATIVE_VISIBILITY_SUPPORTED
+                ),
+                "native_visibility_rejected": (
+                    ProgressEventType.DOCUMENT_NATIVE_VISIBILITY_REJECTED
+                ),
+                "page.started": ProgressEventType.DOCUMENT_VISUAL_PAGE_STARTED,
+                "page.rendered": ProgressEventType.DOCUMENT_VISUAL_PAGE_RENDERED,
+                "page.ocr_started": ProgressEventType.DOCUMENT_VISUAL_PAGE_OCR_STARTED,
+                "page.failed": ProgressEventType.DOCUMENT_VISUAL_PAGE_FAILED,
+            }
+            event = event_map.get(event_type)
+            if event is None and event_type == "page.completed":
+                status = str(payload.get("status", ""))
+                if status == "completed_no_text":
+                    event = ProgressEventType.DOCUMENT_VISUAL_PAGE_NO_TEXT
+                else:
+                    event = ProgressEventType.DOCUMENT_VISUAL_PAGE_OCR_COMPLETED
+            if event is None:
+                return
+            reasons_raw = payload.get("reason_codes")
+            reasons = [str(item) for item in reasons_raw] if isinstance(reasons_raw, list) else None
+            await _safe_publish(
+                session.broker,
+                event,
+                document_id=document.document_id,
+                job_id=job.job_id,
+                page_number=page_number,
+                pages_completed=pages_completed,
+                pages_total=page_count,
+                percent=percent,
+                reason_codes=reasons,
+            )
+
+        canonical_pdf = self._file_store.canonical_path(session.session_id, document.document_id)
+        try:
+            summary = await self._visual.process_document(
+                session_id=session.session_id,
+                document_id=document.document_id,
+                job_id=job.job_id,
+                canonical_pdf=canonical_pdf,
+                canonical_pages=document.canonical_pages,
+                native_summary=native_summary,  # type: ignore[arg-type]
+                native_pages=native_pages,
+                cancel_token=job.cancellation,
+                on_progress=on_visual_progress,
+            )
+        except JobCancelledError:
+            raise
+        except VisualOcrError as exc:
+            document.status = DocumentStatus.VISUAL_PROCESSING_FAILED
+            document.progress_percent = _MAX_PROGRESS_PERCENT
+            document.failure_stage = _VISUAL_STAGE
+            document.failure_code = exc.code.value
+            document.failure_message = "The OCR service failed to process this document."
+            document.visual_processing_performed = True
+            await _safe_publish(
+                session.broker,
+                ProgressEventType.DOCUMENT_VISUAL_PROCESSING_FAILED,
+                document_id=document.document_id,
+                job_id=job.job_id,
+                percent=_MAX_PROGRESS_PERCENT,
+                document_status=DocumentStatus.VISUAL_PROCESSING_FAILED,
+                message=document.failure_message,
+            )
+            return
+
+        from backend.app.contracts.visual import VisualProcessingStatus
+
+        if summary.visual_processing_status is VisualProcessingStatus.VISUAL_PROCESSING_PARTIAL:
+            document.status = DocumentStatus.VISUAL_PROCESSING_PARTIAL
+            complete_event = ProgressEventType.DOCUMENT_VISUAL_PROCESSING_PARTIAL
+        elif summary.visual_processing_status is VisualProcessingStatus.VISUAL_PROCESSING_FAILED:
+            document.status = DocumentStatus.VISUAL_PROCESSING_FAILED
+            complete_event = ProgressEventType.DOCUMENT_VISUAL_PROCESSING_FAILED
+        else:
+            document.status = DocumentStatus.VISUAL_PROCESSING_COMPLETE
+            complete_event = ProgressEventType.DOCUMENT_VISUAL_PROCESSING_COMPLETED
+
+        document.progress_percent = _MAX_PROGRESS_PERCENT
+        document.visual_processing_performed = True
+        document.visual_result_available = summary.visual_result_available
+        document.visual_processing_required = summary.pages_selected > 0
+        if summary.document_source_policy is not None:
+            document.document_source_policy = summary.document_source_policy
+        document.user_status_message = summary.user_status_message or _PHASE4_COMPLETE_MESSAGE
+        document.pages_completed = summary.pages_completed
+        document.pages_total = summary.page_count
+
+        await _safe_publish(
+            session.broker,
+            ProgressEventType.DOCUMENT_VISUAL_GROUPING_COMPLETED,
+            document_id=document.document_id,
+            job_id=job.job_id,
+            percent=_VISUAL_GROUP_PROGRESS,
+        )
+        await _safe_publish(
+            session.broker,
+            complete_event,
+            document_id=document.document_id,
+            job_id=job.job_id,
+            percent=_MAX_PROGRESS_PERCENT,
+            document_status=document.status,
+            pages_completed=document.pages_completed,
+            pages_total=document.pages_total,
             message=document.user_status_message,
         )
 

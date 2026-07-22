@@ -13,6 +13,10 @@ jobs:
   checks:
     name: Lint, type-check, test, contracts
     runs-on: ubuntu-latest
+    env:
+      OPENAI_API_KEY: ""
+      OCR_ENABLED: "true"
+      OCR_DEVICE: cpu
     steps:
       - uses: actions/checkout@v4
 
@@ -52,11 +56,41 @@ jobs:
           sudo apt-get install -y libreoffice-writer
           libreoffice --version
 
+      - name: Cache OCR models
+        uses: actions/cache@v4
+        with:
+          path: .models/paddleocr
+          key: ${{ runner.os }}-py3.12-paddleocr-3.7.0-paddlepaddle-3.3.0-PP-OCRv6_medium_det-PP-OCRv6_medium_rec-${{ hashFiles('docs/models/phase-4-ocr-models.md', 'scripts/bootstrap_ocr_models.py') }}
+          restore-keys: |
+            ${{ runner.os }}-py3.12-paddleocr-3.7.0-paddlepaddle-3.3.0-PP-OCRv6_medium_det-PP-OCRv6_medium_rec-
+
+      - name: Bootstrap OCR models if missing
+        run: |
+          if [ ! -f .models/paddleocr/model-record.json ]; then
+            pnpm models:ocr:bootstrap
+          else
+            echo "OCR model cache hit"
+          fi
+
+      - name: Verify OCR runtime
+        run: pnpm models:ocr:verify
+
+      - name: Confirm no model files staged
+        run: |
+          if git ls-files --error-unmatch '.models/**' >/dev/null 2>&1; then
+            echo "Model files must not be tracked"
+            exit 1
+          fi
+          echo "No tracked .models paths"
+
       - name: Verify contracts (no drift)
         run: pnpm contracts:check
 
       - name: Run validation suite (excluding E2E)
         run: uv run python scripts/check_all.py --skip-e2e
+
+      - name: Real CPU OCR integration
+        run: pnpm test:ocr:integration
 
   e2e:
     name: End-to-end tests
@@ -65,6 +99,8 @@ jobs:
     # are fully offline and must never call a live vision provider.
     env:
       OPENAI_API_KEY: ""
+      OCR_ENABLED: "true"
+      OCR_DEVICE: cpu
     steps:
       - uses: actions/checkout@v4
 
@@ -94,6 +130,22 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libreoffice-writer
           libreoffice --version
+
+      - name: Cache OCR models
+        uses: actions/cache@v4
+        with:
+          path: .models/paddleocr
+          key: ${{ runner.os }}-py3.12-paddleocr-3.7.0-paddlepaddle-3.3.0-PP-OCRv6_medium_det-PP-OCRv6_medium_rec-${{ hashFiles('docs/models/phase-4-ocr-models.md', 'scripts/bootstrap_ocr_models.py') }}
+          restore-keys: |
+            ${{ runner.os }}-py3.12-paddleocr-3.7.0-paddlepaddle-3.3.0-PP-OCRv6_medium_det-PP-OCRv6_medium_rec-
+
+      - name: Bootstrap OCR models if missing
+        run: |
+          if [ ! -f .models/paddleocr/model-record.json ]; then
+            pnpm models:ocr:bootstrap
+          else
+            echo "OCR model cache hit"
+          fi
 
       - name: Install Playwright Chromium
         run: pnpm -C frontend exec playwright install --with-deps chromium
@@ -114,10 +166,12 @@ jobs:
           retention-days: 7
 
   smoke-corpus:
-    name: Synthetic smoke corpus (critical subset)
+    name: Synthetic smoke corpus (critical + Phase 4)
     runs-on: ubuntu-latest
     env:
       OPENAI_API_KEY: ""
+      OCR_ENABLED: "true"
+      OCR_DEVICE: cpu
     steps:
       - uses: actions/checkout@v4
 
@@ -148,6 +202,28 @@ jobs:
           sudo apt-get install -y libreoffice-writer
           libreoffice --version
 
+      - name: Cache OCR models
+        uses: actions/cache@v4
+        with:
+          path: .models/paddleocr
+          key: ${{ runner.os }}-py3.12-paddleocr-3.7.0-paddlepaddle-3.3.0-PP-OCRv6_medium_det-PP-OCRv6_medium_rec-${{ hashFiles('docs/models/phase-4-ocr-models.md', 'scripts/bootstrap_ocr_models.py') }}
+          restore-keys: |
+            ${{ runner.os }}-py3.12-paddleocr-3.7.0-paddlepaddle-3.3.0-PP-OCRv6_medium_det-PP-OCRv6_medium_rec-
+
+      - name: Bootstrap OCR models if missing
+        run: |
+          if [ ! -f .models/paddleocr/model-record.json ]; then
+            pnpm models:ocr:bootstrap
+          else
+            echo "OCR model cache hit"
+          fi
+
+      - name: Verify OCR runtime
+        run: pnpm models:ocr:verify
+
+      - name: OCR integration tests
+        run: pnpm test:ocr:integration
+
       - name: Validate smoke corpus PDF and manifest
         run: pnpm smoke:corpus:validate
 
@@ -155,12 +231,12 @@ jobs:
         run: |
           uv run uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 &
           echo $! > /tmp/veridemand-api.pid
-          for i in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:8000/health/live >/dev/null 2>&1; then
+          for i in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:8000/health/ready >/dev/null 2>&1; then
               echo "API ready"
               exit 0
             fi
-            sleep 1
+            sleep 2
           done
           echo "API failed to become ready"
           exit 1
@@ -170,6 +246,11 @@ jobs:
           mkdir -p tmp/smoke
           pnpm smoke:corpus:critical --output-json tmp/smoke/critical-summary.json
 
+      - name: Run Phase 4 smoke subset
+        run: |
+          mkdir -p tmp/smoke
+          pnpm smoke:corpus:phase4 --output-json tmp/smoke/phase4-summary.json
+
       - name: Stop backend API
         if: always()
         run: |
@@ -177,11 +258,21 @@ jobs:
             kill "$(cat /tmp/veridemand-api.pid)" || true
           fi
 
-      - name: Upload sanitised smoke summary
+      - name: Private-corpus tracking guard
+        if: always()
+        run: pnpm check:private
+
+      - name: Residual session-data guard
+        if: always()
+        run: uv run python scripts/check_no_residual_sessions.py
+
+      - name: Upload sanitised smoke summaries
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: smoke-corpus-critical-summary
-          path: tmp/smoke/critical-summary.json
+          name: smoke-corpus-summaries
+          path: |
+            tmp/smoke/critical-summary.json
+            tmp/smoke/phase4-summary.json
           retention-days: 14
           if-no-files-found: ignore

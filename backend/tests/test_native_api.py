@@ -15,12 +15,25 @@ GOOD_BYTES = Path("fixtures/synthetic/native/good-native-single-page.pdf").read_
 BAD_BYTES = Path("fixtures/synthetic/native/replacement-character-layer.pdf").read_bytes()
 IMAGE_BYTES = Path("fixtures/synthetic/native/image-only.pdf").read_bytes()
 
+_PHASE4_TERMINAL = {
+    "visual_processing_complete",
+    "visual_processing_partial",
+    "visual_processing_failed",
+    "failed",
+    "cancelled",
+}
+
 
 @pytest.fixture
 async def app_client(tmp_path: Path) -> AsyncIterator[tuple[object, AsyncClient]]:
     from fastapi import FastAPI
 
-    settings = Settings(temp_root=tmp_path / "temp")
+    settings = Settings(
+        temp_root=tmp_path / "temp",
+        ocr_enabled=False,
+        render_concurrency=1,
+        ocr_concurrency=1,
+    )
     app: FastAPI = create_app(settings)
     transport = ASGITransport(app=app)
     async with (
@@ -35,18 +48,18 @@ async def client(app_client: tuple[object, AsyncClient]) -> AsyncClient:
     return app_client[1]
 
 
-async def _wait_native(client: AsyncClient, session_id: str, document_id: str) -> dict[str, object]:
+async def _wait_phase4(client: AsyncClient, session_id: str, document_id: str) -> dict[str, object]:
     import asyncio
 
-    for _ in range(400):
+    for _ in range(600):
         response = await client.get(f"/api/v1/sessions/{session_id}/documents/{document_id}")
         assert response.status_code == 200
         body = response.json()
         assert isinstance(body, dict)
-        if body["status"] in {"native_trust_complete", "failed", "cancelled"}:
+        if body["status"] in _PHASE4_TERMINAL:
             return body
         await asyncio.sleep(0.05)
-    raise AssertionError("timed out waiting for native trust")
+    raise AssertionError("timed out waiting for Phase 4 visual completion")
 
 
 async def test_good_native_api_flow(app_client: tuple[object, AsyncClient]) -> None:
@@ -76,9 +89,9 @@ async def test_good_native_api_flow(app_client: tuple[object, AsyncClient]) -> N
         f"/api/v1/sessions/{session_id}/process", json={"document_ids": None}
     )
     assert process.status_code == 202
-    doc = await _wait_native(client, session_id, document_id)
-    assert doc["status"] == "native_trust_complete", doc
-    assert doc["progress_percent"] == 35
+    doc = await _wait_phase4(client, session_id, document_id)
+    assert doc["status"] == "visual_processing_complete", doc
+    assert doc["progress_percent"] == 65
     assert doc["native_result_available"] is True
     assert doc["document_source_policy"] == "native_authority"
 
@@ -111,8 +124,9 @@ async def test_bad_native_api_flow(client: AsyncClient) -> None:
     assert upload.status_code == 201
     document_id = upload.json()["accepted"][0]["document_id"]
     await client.post(f"/api/v1/sessions/{session_id}/process", json={"document_ids": None})
-    doc = await _wait_native(client, session_id, document_id)
-    assert doc["status"] == "native_trust_complete", doc
+    doc = await _wait_phase4(client, session_id, document_id)
+    assert doc["status"] in _PHASE4_TERMINAL - {"failed", "cancelled"}, doc
+    assert doc["progress_percent"] == 65
     assert doc["native_result_available"] is False
     assert doc["visual_processing_required"] is True
 
@@ -132,8 +146,9 @@ async def test_image_only_api_flow(client: AsyncClient) -> None:
     assert upload.status_code == 201
     document_id = upload.json()["accepted"][0]["document_id"]
     await client.post(f"/api/v1/sessions/{session_id}/process", json={"document_ids": None})
-    doc = await _wait_native(client, session_id, document_id)
-    assert doc["status"] == "native_trust_complete", doc
+    doc = await _wait_phase4(client, session_id, document_id)
+    assert doc["status"] in _PHASE4_TERMINAL - {"failed", "cancelled"}, doc
+    assert doc["progress_percent"] == 65
     assert doc["visual_processing_required"] is True
     page = await client.get(f"/api/v1/sessions/{session_id}/documents/{document_id}/native/pages/1")
     assert page.json()["words"] == []

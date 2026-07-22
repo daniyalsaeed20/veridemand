@@ -24,6 +24,8 @@ export interface ViewerState {
   readonly userRotation: RotationDegrees;
   readonly overlayEnabled: boolean;
   readonly nativeOverlayEnabled: boolean;
+  readonly ocrLineOverlayEnabled: boolean;
+  readonly ocrWordOverlayEnabled: boolean;
 
   // Selects a document for viewing, resetting every other viewer field to its
   // default (page 1, no rotation, fit-width zoom, overlay off). Passing
@@ -43,6 +45,8 @@ export interface ViewerState {
   readonly setOverlayEnabled: (enabled: boolean) => void;
   readonly toggleOverlay: () => void;
   readonly toggleNativeOverlay: () => void;
+  readonly toggleOcrLineOverlay: () => void;
+  readonly toggleOcrWordOverlay: () => void;
   // Resets every field to the defaults used on a fresh document selection,
   // keeping the current selection. Used e.g. when the session itself resets.
   readonly reset: () => void;
@@ -56,6 +60,8 @@ const DEFAULTS = {
   // Synthetic alignment overlay is off in normal user mode.
   overlayEnabled: false,
   nativeOverlayEnabled: false,
+  ocrLineOverlayEnabled: false,
+  ocrWordOverlayEnabled: false,
 } as const;
 
 export const useViewerStore = create<ViewerState>((set, get) => ({
@@ -97,6 +103,21 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
 
   toggleNativeOverlay: () =>
     set((state) => ({ nativeOverlayEnabled: !state.nativeOverlayEnabled })),
+
+  toggleOcrLineOverlay: () =>
+    set((state) => ({
+      ocrLineOverlayEnabled: !state.ocrLineOverlayEnabled,
+      // Do not enable all overlays simultaneously by default.
+      ocrWordOverlayEnabled: false,
+      nativeOverlayEnabled: false,
+    })),
+
+  toggleOcrWordOverlay: () =>
+    set((state) => ({
+      ocrWordOverlayEnabled: !state.ocrWordOverlayEnabled,
+      ocrLineOverlayEnabled: false,
+      nativeOverlayEnabled: false,
+    })),
 
   reset: () => set({ ...DEFAULTS, selectedDocumentId: get().selectedDocumentId }),
 }));

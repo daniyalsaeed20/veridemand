@@ -26,6 +26,11 @@ const STATUS_LABEL: Record<DocumentStatus, string> = {
   inspecting_native: "Inspecting native text",
   extracting_native: "Extracting native text",
   native_trust_complete: "Native trust complete",
+  visual_pending: "Visual OCR pending",
+  visual_processing: "Printed OCR running",
+  visual_processing_complete: "Printed OCR complete",
+  visual_processing_partial: "Printed OCR partial",
+  visual_processing_failed: "Printed OCR failed",
   cancelled: "Cancelled",
   failed: "Failed",
 };
@@ -38,6 +43,11 @@ const STATUS_TONE: Record<DocumentStatus, StatusTone> = {
   inspecting_native: "caution",
   extracting_native: "caution",
   native_trust_complete: "positive",
+  visual_pending: "caution",
+  visual_processing: "caution",
+  visual_processing_complete: "positive",
+  visual_processing_partial: "caution",
+  visual_processing_failed: "critical",
   cancelled: "neutral",
   failed: "critical",
 };
@@ -93,11 +103,16 @@ export function DocumentCard({ sessionId, document, disabled = false }: Document
     document.status === "queued" ||
     document.status === "canonicalising" ||
     document.status === "inspecting_native" ||
-    document.status === "extracting_native";
+    document.status === "extracting_native" ||
+    document.status === "visual_pending" ||
+    document.status === "visual_processing";
   const canRemove =
     document.status === "uploaded" ||
     document.status === "ready_for_extraction" ||
     document.status === "native_trust_complete" ||
+    document.status === "visual_processing_complete" ||
+    document.status === "visual_processing_partial" ||
+    document.status === "visual_processing_failed" ||
     document.status === "cancelled" ||
     document.status === "failed";
   const isSelected = selectedDocumentId === document.document_id;
@@ -139,7 +154,9 @@ export function DocumentCard({ sessionId, document, disabled = false }: Document
         {document.status === "queued" ||
         document.status === "canonicalising" ||
         document.status === "inspecting_native" ||
-        document.status === "extracting_native" ? (
+        document.status === "extracting_native" ||
+        document.status === "visual_pending" ||
+        document.status === "visual_processing" ? (
           <Box>
             <LinearProgress
               variant="determinate"
@@ -149,7 +166,9 @@ export function DocumentCard({ sessionId, document, disabled = false }: Document
             <Typography variant="caption" color="text.secondary">
               {document.status === "canonicalising"
                 ? "Canonicalising for the viewer — no extraction has been performed yet."
-                : "Inspecting native PDF text — progress is capped at 35% until visual processing."}
+                : document.status === "visual_pending" || document.status === "visual_processing"
+                  ? "Printed visual OCR in progress — capped at 65% until handwriting/structure phases."
+                  : "Inspecting native PDF text — visual OCR follows when native trust completes."}
             </Typography>
           </Box>
         ) : null}
@@ -162,9 +181,23 @@ export function DocumentCard({ sessionId, document, disabled = false }: Document
           </Typography>
         ) : null}
 
+        {document.status === "visual_processing_complete" ||
+        document.status === "visual_processing_partial" ? (
+          <Typography variant="caption" color="text.secondary">
+            Printed visual OCR complete. Handwriting and final document structure have not been
+            evaluated.
+          </Typography>
+        ) : null}
+
+        {document.status === "visual_processing_failed" ? (
+          <Typography variant="caption" color="text.secondary">
+            Printed visual OCR failed. The canonical document remains available for viewing.
+          </Typography>
+        ) : null}
+
         {document.status === "native_trust_complete" ? (
           <Typography variant="caption" color="text.secondary">
-            Native trust inspection complete. Visual agreement and processing have not started.
+            Native trust inspection complete. Visual processing is starting.
           </Typography>
         ) : null}
 

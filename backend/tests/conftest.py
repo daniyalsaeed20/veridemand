@@ -29,7 +29,12 @@ _FIXTURES_ROOT = Path(__file__).resolve().parents[2] / "fixtures" / "synthetic" 
 def settings(tmp_path: Path) -> Settings:
     """Settings pointed at an isolated, writable temporary workspace."""
 
-    return Settings(temp_root=tmp_path / "temp")
+    return Settings(
+        temp_root=tmp_path / "temp",
+        ocr_enabled=False,
+        render_concurrency=1,
+        ocr_concurrency=1,
+    )
 
 
 @pytest.fixture
@@ -108,6 +113,7 @@ def build_coordinator(
     *,
     settings: Settings | None = None,
     native_service: object | None = None,
+    visual_service: object | None = None,
 ) -> ProcessingCoordinator:
     from datetime import UTC, datetime
 
@@ -123,6 +129,12 @@ def build_coordinator(
         SourceMode,
         VisualAgreementStatus,
     )
+    from backend.app.contracts.visual import (
+        VisualDocumentSummary,
+        VisualModelInfo,
+        VisualProcessingStatus,
+        VisualProgress,
+    )
     from backend.app.extraction.native.runner import NativeWorkerOutcome
 
     resolved_settings = settings or Settings(temp_root=file_store.temp_root)
@@ -130,6 +142,9 @@ def build_coordinator(
 
     class _FakeNativeService:
         """Deterministic native stage for coordinator unit tests (no PDF parsing)."""
+
+        def __init__(self) -> None:
+            self._pages: dict[tuple[str, str, int], NativePageResult] = {}
 
         async def extract_document(self, **kwargs: object) -> NativeWorkerOutcome:
             pages_meta = kwargs.get("canonical_pages") or []
@@ -169,6 +184,8 @@ def build_coordinator(
                 page_dimension_match=True,
             )
             page_results: list[NativePageResult] = []
+            session_id = str(kwargs.get("session_id") or "")
+            document_id = str(kwargs.get("document_id") or "")
             for i in range(max(page_count, 1)):
                 trust = NativePageTrustResult(
                     page_number=i + 1,
@@ -186,19 +203,19 @@ def build_coordinator(
                     native_result_available=True,
                     visual_processing_required=False,
                 )
-                page_results.append(
-                    NativePageResult(
-                        page_number=i + 1,
-                        decision=NativePageDecision.ACCEPTED,
-                        source_mode=SourceMode.NATIVE_AUTHORITY,
-                        trust=trust,
-                        words=[],
-                        characters=[],
-                        provisional_native_text="ok",
-                    )
+                page = NativePageResult(
+                    page_number=i + 1,
+                    decision=NativePageDecision.ACCEPTED,
+                    source_mode=SourceMode.NATIVE_AUTHORITY,
+                    trust=trust,
+                    words=[],
+                    characters=[],
+                    provisional_native_text="ok",
                 )
+                page_results.append(page)
+                self._pages[(session_id, document_id, i + 1)] = page
             summary = NativeDocumentSummary(
-                document_id=str(kwargs.get("document_id") or ""),
+                document_id=document_id,
                 native_processing_status=NativeProcessingStatus.COMPLETE,
                 document_source_policy=DocumentSourcePolicy.NATIVE_AUTHORITY,
                 trust_policy_version="phase3-v1",
@@ -224,6 +241,11 @@ def build_coordinator(
             )
             return NativeWorkerOutcome(summary=summary, pages=page_results, exit_code=0)
 
+        def load_page(
+            self, session_id: str, document_id: str, page_number: int
+        ) -> NativePageResult | None:
+            return self._pages.get((session_id, document_id, page_number))
+
         def cleanup_staging(self, session_id: str, job_id: str) -> None:
             return None
 
@@ -236,12 +258,59 @@ def build_coordinator(
                 "native_runner_class": "FakeNativeRunner",
             }
 
+    class _FakeVisualService:
+        """Deterministic visual stage for coordinator unit tests."""
+
+        async def process_document(self, **kwargs: object) -> VisualDocumentSummary:
+            pages_meta = kwargs.get("canonical_pages") or []
+            page_count = len(pages_meta) if isinstance(pages_meta, list) else 1
+            document_id = str(kwargs.get("document_id") or "")
+            return VisualDocumentSummary(
+                document_id=document_id,
+                visual_processing_status=VisualProcessingStatus.NOT_REQUIRED,
+                page_count=page_count,
+                pages_selected=0,
+                pages_completed=0,
+                pages_no_text=0,
+                pages_failed=0,
+                pages_cancelled=0,
+                native_pages_retained=page_count,
+                native_pages_downgraded=0,
+                visual_result_available=False,
+                handwriting_assessment_pending=True,
+                final_result_available=False,
+                document_source_policy=DocumentSourcePolicy.NATIVE_AUTHORITY,
+                progress=VisualProgress(
+                    percent=65, pages_completed=page_count, pages_total=page_count
+                ),
+                model_info=VisualModelInfo(
+                    detection_model_name="test-det",
+                    recognition_model_name="test-rec",
+                ),
+                page_summaries=[],
+                warnings=[],
+                created_at=datetime.now(UTC),
+                completed_at=datetime.now(UTC),
+                user_status_message=(
+                    "Printed visual OCR complete. "
+                    "Handwriting and final document structure have not been evaluated."
+                ),
+            )
+
+        def cleanup_staging(self, session_id: str, job_id: str) -> None:
+            return None
+
+        def delete_results(self, session_id: str, document_id: str) -> None:
+            return None
+
     native = native_service or _FakeNativeService()
+    visual = visual_service or _FakeVisualService()
     return ProcessingCoordinator(
         registry,
         job_queue,
         resolved,  # type: ignore[arg-type]
         file_store,
         native,  # type: ignore[arg-type]
+        visual,  # type: ignore[arg-type]
         max_pages_per_session=resolved_settings.max_pages_per_session,
     )

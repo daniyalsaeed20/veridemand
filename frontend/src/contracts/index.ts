@@ -41,6 +41,10 @@ export type {
   SessionSnapshot,
   SessionStatus,
   UploadBatchResponse,
+  VisualDocumentSummary,
+  VisualPageResult,
+  PrintedOcrLine,
+  PrintedOcrWord,
 } from "./generated/types.gen";
 
 export {
@@ -77,4 +81,8 @@ export {
   zSessionSnapshot,
   zSessionStatus,
   zUploadBatchResponse,
+  zVisualDocumentSummary,
+  zVisualPageResult,
+  zPrintedOcrLine,
+  zPrintedOcrWord,
 } from "./generated/zod.gen";

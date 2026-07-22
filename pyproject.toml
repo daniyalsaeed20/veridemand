@@ -20,6 +20,8 @@ dependencies = [
   "defusedxml>=0.7,<1.0",
   "reportlab>=4.0,<5.0",
   "pdfplumber>=0.11.9",
+  "pypdfium2==5.12.1",
+  "numpy>=2.0,<3.0",
 ]
 
 [dependency-groups]
@@ -29,6 +31,13 @@ dev = [
   "pytest-asyncio>=1.1,<2.0",
   "ruff>=0.12,<1.0",
   "mypy>=1.17,<2.0",
+]
+ocr = [
+  "paddleocr==3.7.0",
+  "paddlepaddle==3.3.0",
+  "pypdfium2==5.12.1",
+  "numpy>=2.0,<3.0",
+  "psutil>=6.0,<8.0",
 ]
 
 [build-system]
@@ -75,7 +84,7 @@ disallow_untyped_defs = false
 # Third-party upload-validation libraries without type stubs (used only for
 # structural validation). Their imports are treated as untyped.
 [[tool.mypy.overrides]]
-module = ["defusedxml.*", "olefile", "olefile.*", "oletools.*", "reportlab.*", "pdfplumber.*", "pdfminer.*"]
+module = ["defusedxml.*", "olefile", "olefile.*", "oletools.*", "reportlab.*", "pdfplumber.*", "pdfminer.*", "pypdfium2.*", "paddleocr.*", "paddle.*", "numpy.*", "psutil.*", "PIL.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

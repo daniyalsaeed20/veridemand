@@ -30,6 +30,13 @@
     "smoke:corpus:test-id": "uv run python scripts/run_smoke_corpus.py --mode page-by-page --test-id",
     "smoke:corpus:validate": "uv run python scripts/run_smoke_corpus.py --validate-only",
     "smoke:corpus:critical": "uv run python scripts/run_smoke_corpus.py --mode page-by-page --critical-subset",
+    "smoke:corpus:phase4": "uv run python scripts/run_smoke_corpus.py --mode page-by-page --phase4-subset",
+    "models:ocr:bootstrap": "uv run --group ocr python scripts/bootstrap_ocr_models.py",
+    "models:ocr:verify": "uv run --group ocr python scripts/verify_ocr_runtime.py",
+    "test:ocr": "uv run --group ocr pytest backend/tests -k ocr",
+    "test:ocr:integration": "uv run --group ocr pytest backend/tests/test_ocr_integration.py -v",
+    "evaluate:ocr": "uv run --group ocr python scripts/evaluate_printed_ocr.py",
+    "verify:visual-runtime": "uv run --group ocr python scripts/verify_ocr_runtime.py",
     "check": "uv run python scripts/check_all.py"
   },
   "devDependencies": {

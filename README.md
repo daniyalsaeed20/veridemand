@@ -3,8 +3,8 @@
 VeriDemand is a **document-extraction platform**. It extracts text and structure
 from documents using a deterministic pipeline (native text and OCR, with a
 vision LLM only for handwritten or uncertain regions). This repository is at the
-**Phase 3** stage: native PDF extraction with a conservative trust gate on top of
-Phase 2 canonical viewing.
+**Phase 4** stage: visual detection and printed OCR on top of Phase 3 native
+trust (progress capped at **65%**).
 
 > **Runtime-only product.** VeriDemand keeps uploaded files and results only for
 > the duration of a session. Refreshing, closing, or resetting the page may
@@ -14,19 +14,23 @@ Phase 2 canonical viewing.
 The sole authoritative specification is
 [`docs/SOURCE_OF_TRUTH.md`](docs/SOURCE_OF_TRUTH.md).
 
-## Phase 3 scope
+## Phase 4 scope
 
-Building on Phase 2, Phase 3 adds:
+Building on Phase 3, Phase 4 adds:
 
-- **Native PDF extraction** with pdfplumber (characters, words, coordinates).
-- **pypdf structural inspection** against canonical metadata.
-- **Native trust scoring** with hard rejection rules and document escalation.
-- **Accepted-only APIs** (`/native/summary`, `/native/pages/{n}`) and viewer
-  inspection with optional native word boxes.
-- Progress capped at **35%** (`native_trust_complete`). Visual agreement is
-  **not evaluated** in Phase 3.
+- **Page rendering** with pypdfium2 (one page at a time).
+- **Native visibility probes** for accepted natives (retain or downgrade).
+- **Printed OCR** via local PaddleOCR (PP-OCRv6 medium, CPU) in a long-lived worker.
+- **Visual APIs** (`/visual/summary`, `/visual/pages/{n}`) and OCR overlays.
+- Progress capped at **65%**. Handwriting and final structure are **not** evaluated.
 
-Rejected candidate text is never returned, logged, or written to disk. See
+See [`docs/architecture/phase-4-visual-ocr.md`](docs/architecture/phase-4-visual-ocr.md)
+and ADRs [0017](docs/decisions/0017-pypdfium2-page-rendering.md)–[0021](docs/decisions/0021-provisional-visual-reading-order.md).
+
+### Phase 3 (complete)
+
+Native PDF extraction with pdfplumber, trust gate, accepted-only native APIs.
+Progress was capped at 35% before Phase 4. See
 [`docs/architecture/phase-3-native-extraction.md`](docs/architecture/phase-3-native-extraction.md)
 and ADRs [0013](docs/decisions/0013-native-extraction-with-pdfplumber.md)–[0016](docs/decisions/0016-native-worker-isolation.md).
 
@@ -43,8 +47,8 @@ upload + queue dashboard. See
 
 ### Not implemented yet (later phases)
 
-OCR (PaddleOCR), layout analysis, handwriting routing, vision-model calls,
-search, exports, databases, Redis/Celery, and authentication.
+Handwriting routing, vision-model calls, final layout/export, search, databases,
+Redis/Celery, and authentication.
 
 ## Repository layout
 

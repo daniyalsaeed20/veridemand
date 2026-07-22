@@ -19,10 +19,25 @@ class ProcessedDocument:
     document: dict[str, Any]
     summary: dict[str, Any] | None
     page_results: dict[int, dict[str, Any]] = field(default_factory=dict)
+    visual_summary: dict[str, Any] | None = None
+    visual_page_results: dict[int, dict[str, Any]] = field(default_factory=dict)
     canonical_ok: bool = False
     canonical_metadata: dict[str, Any] | None = None
     sse_blobs: list[str] = field(default_factory=list)
     public_result_blobs: list[str] = field(default_factory=list)
+
+
+# Phase 4 terminal statuses. Do not treat native_trust_complete as done — visual
+# OCR continues afterward and may briefly leave the document in that state.
+_TERMINAL_DOCUMENT_STATUSES = frozenset(
+    {
+        "visual_processing_complete",
+        "visual_processing_partial",
+        "visual_processing_failed",
+        "failed",
+        "cancelled",
+    }
+)
 
 
 async def wait_for_document(
@@ -30,8 +45,8 @@ async def wait_for_document(
     session_id: str,
     document_id: str,
     *,
-    timeout_s: float = 60.0,
-    poll_s: float = 0.1,
+    timeout_s: float = 180.0,
+    poll_s: float = 0.15,
 ) -> dict[str, Any]:
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout_s
@@ -49,7 +64,7 @@ async def wait_for_document(
         body = response.json()
         if not isinstance(body, dict):
             raise TypeError("document poll response must be an object")
-        if body.get("status") in {"native_trust_complete", "failed", "cancelled"}:
+        if body.get("status") in _TERMINAL_DOCUMENT_STATUSES:
             return body
         await asyncio.sleep(poll_s)
     raise TimeoutError(f"timed out waiting for document {document_id}")
@@ -155,6 +170,24 @@ async def process_pdf(
         if page_resp.status_code == 200:
             page_results[page_number] = page_resp.json()
 
+    visual_summary_resp = await client.get(
+        f"/api/v1/sessions/{session_id}/documents/{document_id}/visual/summary"
+    )
+    visual_summary = visual_summary_resp.json() if visual_summary_resp.status_code == 200 else None
+
+    visual_page_results: dict[int, dict[str, Any]] = {}
+    for page_number in pages_to_fetch:
+        visual_page_resp = await client.get(
+            f"/api/v1/sessions/{session_id}/documents/{document_id}/visual/pages/{page_number}",
+            params={
+                "include_lines": "true",
+                "include_words": "true",
+                "include_blocks": "false",
+            },
+        )
+        if visual_page_resp.status_code == 200:
+            visual_page_results[page_number] = visual_page_resp.json()
+
     public_blobs = await _collect_public_result_blobs(client, session_id, document_id)
 
     return ProcessedDocument(
@@ -163,6 +196,8 @@ async def process_pdf(
         document=document,
         summary=summary if isinstance(summary, dict) else None,
         page_results=page_results,
+        visual_summary=visual_summary if isinstance(visual_summary, dict) else None,
+        visual_page_results=visual_page_results,
         canonical_ok=canonical_ok,
         canonical_metadata=canonical_metadata if isinstance(canonical_metadata, dict) else None,
         sse_blobs=sse_blobs,

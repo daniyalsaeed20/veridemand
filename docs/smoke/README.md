@@ -28,7 +28,7 @@ without requiring private medical documents.
 Recorded values are compared at smoke-runner startup:
 
 - **PDF:** `373177016F10A6BA04142197F9A434AF8365493783F873C02B4E35889EC4FEA7`
-- **Manifest:** `C2347D6C66048730E463B74D80AFF346201A8AC1F6837CED35B80743160EAF30`
+- **Manifest:** `E4D08A36977A20C21D33C68B1DC087617B39EFB5A8A6EA5658FF59568621ADA4`
 
 If either file changes, update these values here **and** in
 [`scripts/smoke_corpus/__init__.py`](../../scripts/smoke_corpus/__init__.py).
@@ -64,6 +64,8 @@ pnpm smoke:corpus:validate
 pnpm smoke:corpus
 pnpm smoke:corpus:page
 pnpm smoke:corpus:whole
+pnpm smoke:corpus:critical
+pnpm smoke:corpus:phase4
 pnpm smoke:corpus:test-id -- T05
 ```
 
@@ -92,26 +94,23 @@ the whole document to visual authority; clean pages may become
 `suppressed_by_document_escalation`. That is **not** scored as an individual-page
 false failure.
 
-## Current phase coverage (Phase 3 / 3.5)
+## Current phase coverage (Phase 4)
 
-`phase_expectation: current_phase_expected` — full authority, decision, Phase-3
-reason-code, and publication-safety assertions. Includes clean native pages,
-duplicate / near-overprint rejects, image-absent routing, geometry/visibility
-rejects, unicode-noise rejects, CropBox/rotation/size cases, and mixed-content
-baselines.
+`phase_expectation: current_phase_expected` — native trust plus printed OCR /
+visibility assertions where the manifest includes a `phase4_visual` block.
 
-PR critical subset: **T01, T05, T10, T14, T20, T21, T41**.
+PR critical native subset: **T01, T05, T10, T14, T20, T21, T41**.
+
+Phase 4 page-by-page subset (`pnpm smoke:corpus:phase4`): **T10, T11, T12, T13,
+T18, T19, T50, T52** — hidden OCR, visibility, and scan/image pages. Handwriting
+and LLM/final-structure cases remain skipped.
 
 ## Future-phase coverage
 
-`future_phase_expected` — hidden OCR and deep image-quality / handwriting cases
-(T11–T13, T51–T54). Phase 3 **passes** when the page is safely routed to
-`visual_authority` or `image_authority` with empty published text. It must **not**
-fail merely because OCR is unimplemented.
-
-`not_yet_implemented` — advisory features and reason codes outside the current
-`NativeReasonCode` set (forms, annotations, OCG, ActualText, barcodes, etc.).
-Runner enforces no-crash and publication safety only.
+`future_phase_expected` / handwriting-heavy cases (e.g. deep HTR) still pass when
+safely routed without claiming Phase 5 assessment. `not_yet_implemented` —
+advisory features outside current reason codes; runner enforces no-crash and
+publication safety only.
 
 ## Document-level limitations
 

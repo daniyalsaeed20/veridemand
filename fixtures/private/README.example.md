@@ -53,5 +53,22 @@ Evaluate locally with:
 
 The script prints only opaque labels, counts, policies, score stats, reason-code
 counts, duration, and pass/fail — never text or filenames.
-  shareable synthetic fixtures live under `fixtures/extraction_acceptance/` instead.
-- Never place private medical PDFs under `docs/example/`; that tree is for local notes only.
+
+## Visual OCR local manifest (Phase 4)
+
+Create a **gitignored** file:
+
+`fixtures/private/visual-ocr-manifest.local.json`
+
+Copy from `visual-ocr-manifest.local.json.example`. Use opaque relative paths only.
+
+Evaluate locally with:
+
+`uv run python scripts/evaluate_private_visual_ocr.py`
+
+Output is opaque aggregates only (labels, page counts, confidence, duration,
+pass/fail). Never commit private PDFs, transcripts, or the live `.local.json`
+manifest.
+
+Shareable synthetic OCR fixtures live under `fixtures/synthetic/ocr/`.
+Never place private medical PDFs under `docs/example/`; that tree is for local notes only.

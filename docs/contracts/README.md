@@ -14,15 +14,12 @@ This runs `scripts/generate_contracts.py` (writes `openapi.json`
 deterministically) then `@hey-api/openapi-ts` (writes
 `frontend/src/contracts/generated/`).
 
-## Phase 1 contracts
+## Phase 4 contracts
 
-The document now covers the runtime session/upload/queue API: sessions,
-documents, uploads (batch/accepted/rejected), jobs, the processing request and
-response, and the strict `ProgressEvent` model (with its event-type enum).
-`ProgressEvent` is surfaced via the session snapshot's `recent_events`, so a
-reusable Zod schema is generated and used to validate every SSE event at runtime.
-Stable `ErrorCode` values for sessions, documents, jobs, uploads and SSE are part
-of the contract.
+Visual OCR intermediate contracts live in `backend/app/contracts/visual.py` and
+`ocr.py` (`VisualDocumentSummary`, `VisualPageResult`, `PrintedOcrLine` / word /
+block). Document statuses include `visual_*` values; progress SSE includes Phase 4
+visual events. Regenerate OpenAPI + Zod after any shape change.
 
 ## Verify (no drift)
 

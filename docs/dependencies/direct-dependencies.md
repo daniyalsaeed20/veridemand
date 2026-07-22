@@ -25,13 +25,35 @@ dependencies.
 | defusedxml | 0.7.1 | Safely inspect XML metadata in DOCX packages | 1 | https://github.com/tiran/defusedxml | PSF-2.0 |
 | reportlab | 4.5.1 | Deterministic TXT/image → canonical PDF | 2 | https://www.reportlab.com/devdocs/ | BSD-3-Clause |
 | pdfplumber | 0.11.9 | Native character/word extraction and geometry (no rendering) | 3 | https://github.com/jsvine/pdfplumber | MIT |
+| pypdfium2 | 5.12.1 | Canonical page rendering for visibility probes and printed OCR | 4 | https://github.com/pypdfium2-team/pypdfium2 | Apache-2.0 / BSD-3-Clause |
+| numpy | 2.x | Visibility-probe image math (no OpenCV in app code) | 4 | https://numpy.org/ | BSD-3-Clause |
+
+### Phase 4 OCR optional group (`[dependency-groups].ocr`)
+
+Installed via `uv sync --group ocr` / `pnpm models:ocr:bootstrap`. Not required for
+canonicalisation or native trust. No handwriting classifiers or vision-LLM
+packages are included.
+
+| Package | Version | Purpose | Phase | Source | Licence |
+|---|---|---|---|---|---|
+| paddleocr | 3.7.0 | Printed text detection + recognition (PP-OCRv6) | 4 | https://github.com/PaddlePaddle/PaddleOCR | Apache-2.0 |
+| paddlepaddle | 3.3.0 | CPU inference runtime for PaddleOCR | 4 | https://github.com/PaddlePaddle/Paddle | Apache-2.0 |
+| pypdfium2 | 5.12.1 | Same pin as runtime; used by OCR worker rendering | 4 | https://github.com/pypdfium2-team/pypdfium2 | Apache-2.0 / BSD-3-Clause |
+| numpy | ≥2,<3 | Array ops for OCR / visibility | 4 | https://numpy.org/ | BSD-3-Clause |
+| psutil | ≥6,<8 | OCR worker RSS monitoring / recycle heuristics | 4 | https://github.com/giampaolo/psutil | BSD-3-Clause |
+
+**Transitive note:** `paddleocr` may pull `opencv-contrib-python` (Apache-2.0).
+VeriDemand application code does **not** import OpenCV; visibility probes use
+Pillow + NumPy only. No ONNX handwriting classifier and no OpenAI/vision-LLM
+packages are Phase 4 dependencies.
 
 ### Phase 3 transitive notes
 
 `pdfplumber` 0.11.9 depends on `pdfminer.six` **20251230** (MIT) for text
-extraction and transitively installs `pypdfium2` **5.12.1**. VeriDemand Phase 3
-**does not** import or call `pypdfium2`, and never calls `page.to_image()`.
-Rendering/OCR remain Phase 4. A dependency-boundary guard enforces this.
+extraction and also depends on `pypdfium2` **5.12.1**. Phase 4 now **directly**
+depends on and imports `pypdfium2` for rendering under
+`backend/app/extraction/visual/`. A dependency-boundary guard still forbids OCR
+imports outside the visual package.
 
 ## External runtime (not a Python package)
 

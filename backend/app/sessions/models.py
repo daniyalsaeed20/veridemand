@@ -19,7 +19,7 @@ from backend.app.contracts.canonical import (
     CanonicalStatus,
 )
 from backend.app.contracts.documents import (
-    MAX_PHASE3_PROGRESS_PERCENT,
+    MAX_PHASE4_PROGRESS_PERCENT,
     DocumentFormat,
     DocumentStatus,
     DocumentStatusCounts,
@@ -36,7 +36,7 @@ _DEFAULT_PROGRESS_PERCENT = 5
 
 def _document_progress_percent(document: RuntimeDocument) -> int:
     if document.progress_percent != _DEFAULT_PROGRESS_PERCENT:
-        return min(document.progress_percent, MAX_PHASE3_PROGRESS_PERCENT)
+        return min(document.progress_percent, MAX_PHASE4_PROGRESS_PERCENT)
     match document.status:
         case DocumentStatus.UPLOADED | DocumentStatus.QUEUED:
             return 5
@@ -50,6 +50,14 @@ def _document_progress_percent(document: RuntimeDocument) -> int:
             return 20
         case DocumentStatus.NATIVE_TRUST_COMPLETE:
             return 35
+        case DocumentStatus.VISUAL_PENDING:
+            return 36
+        case DocumentStatus.VISUAL_PROCESSING:
+            return max(36, min(document.progress_percent, 64))
+        case DocumentStatus.VISUAL_PROCESSING_COMPLETE | DocumentStatus.VISUAL_PROCESSING_PARTIAL:
+            return 65
+        case DocumentStatus.VISUAL_PROCESSING_FAILED:
+            return min(document.progress_percent, MAX_PHASE4_PROGRESS_PERCENT)
         case _:
             return 5
 
@@ -59,12 +67,13 @@ def _canonical_urls(
     session_id: str,
     *,
     api_prefix: str,
-) -> tuple[str | None, str | None, str | None]:
+) -> tuple[str | None, str | None, str | None, str | None]:
     if not document.canonical_view_available:
-        return None, None, None
+        return None, None, None, None
     base = f"{api_prefix}/sessions/{session_id}/documents/{document.document_id}"
     native_url = f"{base}/native/summary" if document.native_extraction_performed else None
-    return f"{base}/canonical", f"{base}/canonical/metadata", native_url
+    visual_url = f"{base}/visual/summary" if document.visual_processing_performed else None
+    return f"{base}/canonical", f"{base}/canonical/metadata", native_url, visual_url
 
 
 @dataclass
@@ -100,6 +109,10 @@ class RuntimeDocument:
     native_extraction_performed: bool = False
     native_result_available: bool = False
     visual_processing_required: bool = False
+    visual_processing_performed: bool = False
+    visual_result_available: bool = False
+    pages_completed: int | None = None
+    pages_total: int | None = None
     document_source_policy: DocumentSourcePolicy | None = None
     user_status_message: str | None = None
     failure_stage: str | None = None
@@ -117,10 +130,14 @@ class RuntimeDocument:
         canonical_view_url: str | None = None
         canonical_metadata_url: str | None = None
         native_summary_url: str | None = None
+        visual_summary_url: str | None = None
         if session_id is not None and api_prefix is not None:
-            canonical_view_url, canonical_metadata_url, native_summary_url = _canonical_urls(
-                self, session_id, api_prefix=api_prefix
-            )
+            (
+                canonical_view_url,
+                canonical_metadata_url,
+                native_summary_url,
+                visual_summary_url,
+            ) = _canonical_urls(self, session_id, api_prefix=api_prefix)
         return DocumentSummary(
             document_id=self.document_id,
             display_filename=self.display_filename,
@@ -138,6 +155,8 @@ class RuntimeDocument:
             native_extraction_performed=self.native_extraction_performed,
             native_result_available=self.native_result_available,
             visual_processing_required=self.visual_processing_required,
+            visual_processing_performed=self.visual_processing_performed,
+            visual_result_available=self.visual_result_available,
             document_source_policy=self.document_source_policy,
             user_status_message=self.user_status_message,
             failure_stage=self.failure_stage,
@@ -156,6 +175,9 @@ class RuntimeDocument:
             canonical_view_url=canonical_view_url,
             canonical_metadata_url=canonical_metadata_url,
             native_summary_url=native_summary_url,
+            visual_summary_url=visual_summary_url,
+            pages_completed=self.pages_completed,
+            pages_total=self.pages_total,
         )
 
 
@@ -237,6 +259,16 @@ class RuntimeSession:
                     counts.extracting_native += 1
                 case DocumentStatus.NATIVE_TRUST_COMPLETE:
                     counts.native_trust_complete += 1
+                case DocumentStatus.VISUAL_PENDING:
+                    counts.visual_pending += 1
+                case DocumentStatus.VISUAL_PROCESSING:
+                    counts.visual_processing += 1
+                case DocumentStatus.VISUAL_PROCESSING_COMPLETE:
+                    counts.visual_processing_complete += 1
+                case DocumentStatus.VISUAL_PROCESSING_PARTIAL:
+                    counts.visual_processing_partial += 1
+                case DocumentStatus.VISUAL_PROCESSING_FAILED:
+                    counts.visual_processing_failed += 1
                 case DocumentStatus.CANCELLED:
                     counts.cancelled += 1
                 case DocumentStatus.FAILED:

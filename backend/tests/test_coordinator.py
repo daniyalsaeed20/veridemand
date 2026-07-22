@@ -151,12 +151,12 @@ async def test_happy_path_marks_ready_with_bounded_progress(settings: Settings) 
     coordinator.start()
     try:
         await coordinator.enqueue_documents(session, [document.document_id])
-        await _wait_for(lambda: document.status is DocumentStatus.NATIVE_TRUST_COMPLETE)
+        await _wait_for(lambda: document.status is DocumentStatus.VISUAL_PROCESSING_COMPLETE)
     finally:
         await coordinator.stop()
 
     summary = document.to_summary()
-    assert summary.progress_percent <= 35
+    assert summary.progress_percent <= 65
     assert summary.result_available is False
     assert summary.extraction_performed is False
     job = next(iter(session.jobs.values()))
@@ -175,7 +175,9 @@ async def test_fifo_single_worker_order(settings: Settings) -> None:
     coordinator.start()
     try:
         await coordinator.enqueue_documents(session, [d.document_id for d in docs])
-        await _wait_for(lambda: all(d.status is DocumentStatus.NATIVE_TRUST_COMPLETE for d in docs))
+        await _wait_for(
+            lambda: all(d.status is DocumentStatus.VISUAL_PROCESSING_COMPLETE for d in docs)
+        )
     finally:
         await coordinator.stop()
 
@@ -197,7 +199,7 @@ async def test_duplicate_enqueue_prevented(settings: Settings) -> None:
         await blocking.started.wait()
         queued_2, ignored_2 = await coordinator.enqueue_documents(session, [document.document_id])
         blocking.release.set()
-        await _wait_for(lambda: document.status is DocumentStatus.NATIVE_TRUST_COMPLETE)
+        await _wait_for(lambda: document.status is DocumentStatus.VISUAL_PROCESSING_COMPLETE)
     finally:
         await coordinator.stop()
 
@@ -222,7 +224,7 @@ async def test_cancel_queued_document(settings: Settings) -> None:
         await coordinator.cancel_document(session, second.document_id)
         assert second.status is DocumentStatus.CANCELLED
         blocking.release.set()
-        await _wait_for(lambda: first.status is DocumentStatus.NATIVE_TRUST_COMPLETE)
+        await _wait_for(lambda: first.status is DocumentStatus.VISUAL_PROCESSING_COMPLETE)
     finally:
         await coordinator.stop()
 
@@ -306,7 +308,7 @@ async def test_remove_document_after_ready(settings: Settings) -> None:
     coordinator.start()
     try:
         await coordinator.enqueue_documents(session, [document.document_id])
-        await _wait_for(lambda: document.status is DocumentStatus.NATIVE_TRUST_COMPLETE)
+        await _wait_for(lambda: document.status is DocumentStatus.VISUAL_PROCESSING_COMPLETE)
         await coordinator.remove_document(session, document.document_id)
     finally:
         await coordinator.stop()

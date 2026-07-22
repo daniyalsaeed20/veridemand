@@ -60,6 +60,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Run the PR-critical page subset only.",
     )
+    parser.add_argument(
+        "--phase4-subset",
+        action="store_true",
+        help="Run the Phase 4 printed-OCR / visibility smoke subset.",
+    )
     parser.add_argument("--output-json", type=Path, default=None)
     parser.add_argument("--fail-fast", action="store_true")
     parser.add_argument(
@@ -114,6 +119,7 @@ async def _async_main(args: argparse.Namespace) -> tuple[int, SmokeReport | None
         end_page=args.end_page,
         test_ids=_parse_test_ids(args.test_id),
         critical_subset=args.critical_subset,
+        phase4_subset=args.phase4_subset,
     )
     if not pages:
         print("No manifest pages matched the given filters.", file=sys.stderr)

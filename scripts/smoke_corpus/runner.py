@@ -11,7 +11,7 @@ from typing import Any
 
 import httpx
 
-from scripts.smoke_corpus import CRITICAL_SUBSET
+from scripts.smoke_corpus import CRITICAL_SUBSET, PHASE4_SUBSET
 from scripts.smoke_corpus.assert_page import assert_page
 from scripts.smoke_corpus.client import (
     canonical_page_meta,
@@ -32,10 +32,14 @@ def filter_pages(
     end_page: int | None = None,
     test_ids: Sequence[str] | None = None,
     critical_subset: bool = False,
+    phase4_subset: bool = False,
 ) -> list[dict[str, Any]]:
     selected = list(pages)
     if critical_subset:
         wanted = set(CRITICAL_SUBSET)
+        selected = [p for p in selected if p.get("test_id") in wanted]
+    if phase4_subset:
+        wanted = set(PHASE4_SUBSET)
         selected = [p for p in selected if p.get("test_id") in wanted]
     if test_ids:
         wanted = {t.strip() for t in test_ids if t.strip()}
@@ -77,6 +81,7 @@ async def _process_one_page(
             session_id = processed.session_id
             trust = trust_for_page(processed.summary, 1)
             page_result = processed.page_results.get(1)
+            visual_page = processed.visual_page_results.get(1)
             canonical_page = canonical_page_meta(processed.canonical_metadata, 1)
             escalated = document_escalated(processed.summary)
             assertion = assert_page(
@@ -88,6 +93,9 @@ async def _process_one_page(
                 document_escalated=escalated,
                 sse_blobs=processed.sse_blobs,
                 public_file_blobs=processed.public_result_blobs,
+                visual_page=visual_page,
+                visual_summary=processed.visual_summary,
+                document_status=str(processed.document.get("status") or ""),
             )
             return (
                 assertion.status,

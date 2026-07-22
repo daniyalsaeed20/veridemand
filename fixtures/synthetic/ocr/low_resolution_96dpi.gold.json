@@ -1,0 +1,35 @@
+{
+  "id": "low_resolution_96dpi",
+  "kind": "image",
+  "file": "low_resolution_96dpi.png",
+  "dpi": 96,
+  "transcript": "VeriDemand Synthetic OCR Page\nAccount: VD-100200\nService Date: 2026-07-23\nBilled: \\,234.56\nPatient: SAMPLE PERSON\nCafe resume: cafe resume",
+  "lines": [
+    {
+      "text": "VeriDemand Synthetic OCR Page",
+      "bbox": null
+    },
+    {
+      "text": "Account: VD-100200",
+      "bbox": null
+    },
+    {
+      "text": "Service Date: 2026-07-23",
+      "bbox": null
+    },
+    {
+      "text": "Billed: \\,234.56",
+      "bbox": null
+    },
+    {
+      "text": "Patient: SAMPLE PERSON",
+      "bbox": null
+    },
+    {
+      "text": "Cafe resume: cafe resume",
+      "bbox": null
+    }
+  ],
+  "phase5_pending": false,
+  "gate": "degraded"
+}
