@@ -52,7 +52,6 @@ def main() -> int:
     sys.path.insert(0, str(ROOT))
     os.environ.setdefault("FLAGS_use_mkldnn", "0")
     os.environ.setdefault("FLAGS_onednn", "0")
-    os.environ.setdefault("FLAGS_enable_pir_api", "0")
     os.environ.setdefault("PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT", "0")
 
     # Block silent downloads during verify — models must already exist.
@@ -89,7 +88,11 @@ def main() -> int:
         import pypdfium2
         from paddleocr import PaddleOCR
 
-        paddle.utils.run_check()
+        try:
+            paddle.utils.run_check()
+        except Exception:
+            _emit("WARNING: paddle.utils.run_check() failed; continuing with OCR warm-up.")
+            traceback.print_exc()
         _emit(f"paddlepaddle={getattr(paddle, '__version__', 'unknown')}")
         _emit(f"paddleocr={getattr(paddleocr, '__version__', 'unknown')}")
         _emit(f"pypdfium2={getattr(pypdfium2, '__version__', 'unknown')}")

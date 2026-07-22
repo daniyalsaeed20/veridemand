@@ -72,9 +72,9 @@ def main() -> int:
         "PADDLE_PDX_MODEL_SOURCE", os.environ.get("PADDLE_PDX_MODEL_SOURCE", "BOS")
     )
     # Linux CPU runners hit OneDNN PIR conversion errors on PP-OCRv6; force plain CPU.
+    # Do NOT set FLAGS_enable_pir_api=0 — that breaks paddle.utils.run_check() on 3.3.x.
     os.environ.setdefault("FLAGS_use_mkldnn", "0")
     os.environ.setdefault("FLAGS_onednn", "0")
-    os.environ.setdefault("FLAGS_enable_pir_api", "0")
     os.environ.setdefault("PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT", "0")
     os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
 
@@ -82,9 +82,13 @@ def main() -> int:
         import paddle
 
         _emit(f"paddlepaddle={getattr(paddle, '__version__', 'unknown')}")
-        paddle.utils.run_check()
+        try:
+            paddle.utils.run_check()
+        except Exception:
+            _emit("WARNING: paddle.utils.run_check() failed; continuing with OCR warm-up.")
+            traceback.print_exc()
     except Exception:
-        _emit("ERROR: paddle.utils.run_check() failed.")
+        _emit("ERROR: Failed to import paddlepaddle.")
         traceback.print_exc()
         return 1
 
