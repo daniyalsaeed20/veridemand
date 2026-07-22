@@ -19,8 +19,13 @@ test.describe("Canonical viewer (Phase 2)", () => {
     await page.getByRole("button", { name: /open canonical document/i }).click();
     await expect(page.getByRole("img", { name: /page 1 of/i })).toBeVisible({ timeout: 20_000 });
 
-    const overlay = page.locator("svg").filter({ hasText: /alignment|synthetic/i }).first();
-    const overlayAlt = page.locator('[aria-label*="Alignment"], [data-testid="overlay-layer"]').first();
+    const overlay = page
+      .locator("svg")
+      .filter({ hasText: /alignment|synthetic/i })
+      .first();
+    const overlayAlt = page
+      .locator('[aria-label*="Alignment"], [data-testid="overlay-layer"]')
+      .first();
     await expect(overlay.or(overlayAlt).first()).toBeVisible({ timeout: 10_000 });
 
     await page.getByRole("button", { name: /next page/i }).click();
@@ -46,6 +51,8 @@ test.describe("Canonical viewer (Phase 2)", () => {
     await expect(page.getByText(/5 files accepted/)).toBeVisible();
     await page.getByRole("button", { name: /process all uploaded/i }).click();
     await expect(page.getByText(/ready for extraction/i).first()).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByRole("button", { name: /open canonical document/i }).first()).toBeEnabled();
+    await expect(
+      page.getByRole("button", { name: /open canonical document/i }).first(),
+    ).toBeEnabled();
   });
 });
