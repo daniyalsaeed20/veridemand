@@ -10,6 +10,9 @@ Production soft trust score threshold was **not** lowered:
 
 - `Settings.native_trust_threshold` remains **0.75**
 
+The smoke manifest uses LF endings (see `.gitattributes`) so SHA-256 matches
+across Windows authoring and Linux CI checkouts.
+
 ## Baselines
 
 | Metric | Original (pre-triage) | Final (verified) |

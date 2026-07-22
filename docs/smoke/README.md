@@ -28,7 +28,7 @@ without requiring private medical documents.
 Recorded values are compared at smoke-runner startup:
 
 - **PDF:** `373177016F10A6BA04142197F9A434AF8365493783F873C02B4E35889EC4FEA7`
-- **Manifest:** `6E899DF6154317C5F2233E4FC90F5EBC2C55E18EA0BD30B37B892B1F5538D9EC`
+- **Manifest:** `C2347D6C66048730E463B74D80AFF346201A8AC1F6837CED35B80743160EAF30`
 
 If either file changes, update these values here **and** in
 [`scripts/smoke_corpus/__init__.py`](../../scripts/smoke_corpus/__init__.py).
