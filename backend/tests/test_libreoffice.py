@@ -41,9 +41,11 @@ def test_libreoffice_converts_minimal_docx(tmp_path: Path, uploads_dir: Path) ->
     base = _settings_with_libreoffice(tmp_path)
     if base is None:
         pytest.skip("LibreOffice is not available on this machine.")
+    # Keep an empty configured path when discovery used PATH (CI/Linux);
+    # do not fall back to a developer Windows install path.
     settings = Settings(
         temp_root=base.temp_root,
-        libreoffice_executable=base.libreoffice_executable or str(_LO_PATH),
+        libreoffice_executable=base.libreoffice_executable,
         libreoffice_timeout_seconds=120.0,
     )
 
