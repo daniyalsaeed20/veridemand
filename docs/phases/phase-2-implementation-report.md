@@ -83,6 +83,14 @@ LibreOffice availability before pytest.
   `canonical/`).
 - Overlay proof is synthetic only; no real extraction spans.
 
+## Phase 2.1 corrective note (PDF.js blank pages)
+
+Tag `phase-2-canonical-viewer-coordinates-v1.1` adds packaged `pdfjs-dist` WASM
+codecs at `/pdfjs-wasm/`, CORS expose headers for range responses, and viewer
+render cancel-and-await / generation-token recovery. See ADR 0012 and
+`docs/phases/phase-2-pdfjs-blank-pages-investigation.md`. Private corpus PDFs
+remain gitignored under `fixtures/private/` only.
+
 ## Phase boundary confirmation
 
 No native-text trust gate, OCR, layout analysis, handwriting classifier, vision
