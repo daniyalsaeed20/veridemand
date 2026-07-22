@@ -38,3 +38,10 @@ and macro-scan checks without shipping any real document. Boundary conditions of
 the `oletools` macro scanner that are impractical to reproduce with a tiny
 synthetic file are covered by mocking in the backend tests rather than by
 additional binary fixtures.
+
+## smoke/ — combined PDF regression corpus
+
+`smoke/` holds the VeriDemand synthetic PDF regression corpus (combined PDF +
+manifest). Documentation, checksums, and runner commands live under
+[`docs/smoke/README.md`](../../docs/smoke/README.md). Run with
+`pnpm smoke:corpus` against a live API.

@@ -34,9 +34,18 @@ Example shape (opaque relative paths only; no patient names in keys):
 {
   "bad_native_primary": "opaque-relative-path.pdf",
   "bad_native_billing": "opaque-relative-path.pdf",
-  "good_native_reference": "opaque-relative-path.pdf"
+  "good_native_reference": "opaque-relative-path.pdf",
+  "near_overprint_multi_cluster": {
+    "file": "opaque-relative-path.pdf",
+    "pages": [3, 5]
+  }
 }
 ```
+
+Phase 3.5 worker regression `test_private_pages_3_and_5_worker_regression` uses
+`near_overprint_multi_cluster` (skip if absent). It asserts each listed page is
+either clean single-copy accept or `visual_authority` with empty text — never
+geometrically interleaved doubles. No private text is printed.
 
 Evaluate locally with:
 

@@ -124,7 +124,22 @@
     {
       "filename": "legitimate-repeated-letters.pdf",
       "expected_native_status": "trusted",
-      "note": "Legitimate repeated letters: letter, bookkeeper, 100.00."
+      "note": "Legitimate repeated letters: letter, bookkeeper, committee, 100.00."
+    },
+    {
+      "filename": "multi-displacement-clusters.pdf",
+      "expected_native_status": "trusted_or_rejected_near_overprint",
+      "note": "Multiple nearby displacement clusters across fonts/sizes."
+    },
+    {
+      "filename": "diluted-coverage-duplicate-region.pdf",
+      "expected_native_status": "trusted_or_rejected_near_overprint",
+      "note": "Duplicated header region on an otherwise clean page (diluted global ratio)."
+    },
+    {
+      "filename": "overprinted-currency.pdf",
+      "expected_native_status": "trusted_or_rejected_near_overprint",
+      "note": "Intentional near-overprint of a currency line."
     }
   ]
 }

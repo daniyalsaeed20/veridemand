@@ -38,14 +38,12 @@ endobj
 endobj
 7 0 obj
 <<
-/Length 272
+/Length 145
 >>
 stream
 1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
 BT /F1 14 Tf 16.8 TL ET
-BT 1 0 0 1 72 720 Tm (letter bookkeeper Mississippi) Tj T* ET
-BT 1 0 0 1 72 690 Tm (Amount due: 100.00 exactly) Tj T* ET
-BT 1 0 0 1 72 660 Tm (Additional normal sentence without overprint layers.) Tj T* ET
+BT 1 0 0 1 72 720 Tm (letter bookkeeper Mississippi committee 100.00) Tj T* ET
  
 endstream
 endobj
@@ -70,5 +68,5 @@ trailer
 /Size 8
 >>
 startxref
-1102
+975
 %%EOF

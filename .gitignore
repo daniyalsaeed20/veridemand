@@ -38,6 +38,9 @@ temp-e2e/
 tmp/
 data/sessions/
 
+# Smoke corpus generator work files (single-page rebuilds; not corpus SoT)
+fixtures/synthetic/smoke/_veridemand_fixture_work/
+
 # Spikes (local outputs and venvs)
 spikes/**/out/
 spikes/**/.venv/

@@ -1,0 +1,2254 @@
+{
+  "document_id": "veridemand_synthetic_pdf_regression_corpus",
+  "version": "1.0.0",
+  "generated_on": "2026-07-23",
+  "pdf_filename": "VeriDemand_Synthetic_PDF_Regression_Corpus_v1.0.pdf",
+  "page_count_including_cover": 71,
+  "scope": "page-scoped cases in one healthy combined PDF",
+  "document_scoped_exclusions": [
+    "password encryption",
+    "digital signature validation",
+    "malformed xref or trailer",
+    "document-open JavaScript",
+    "embedded file attachment",
+    "linearisation corruption",
+    "object-stream corruption"
+  ],
+  "privacy": "Entirely synthetic; no private or real patient data.",
+  "pages": [
+    {
+      "test_id": "T01",
+      "title": "Clean digital baseline",
+      "category": "native_text",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [],
+      "expected_native_text": true,
+      "expected_viewer": "normal",
+      "notes": "Healthy machine-generated text with ordinary geometry.",
+      "postprocess": {},
+      "page_number": 2,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "phase_expectation": "current_phase_expected",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T02",
+      "title": "Clean dense ruled table",
+      "category": "tables",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [],
+      "expected_native_text": true,
+      "expected_viewer": "normal",
+      "notes": "Dense table with clear ruling, dates, currency and totals.",
+      "postprocess": {},
+      "page_number": 3,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "phase_expectation": "current_phase_expected",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T03",
+      "title": "Non-embedded Base14 font",
+      "category": "fonts",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [],
+      "expected_native_text": true,
+      "expected_viewer": "normal",
+      "notes": "Standard Helvetica text without an embedded TrueType font.",
+      "postprocess": {},
+      "page_number": 4,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "phase_expectation": "current_phase_expected",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T04",
+      "title": "Embedded TrueType subset font",
+      "category": "fonts",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [],
+      "expected_native_text": true,
+      "expected_viewer": "normal",
+      "notes": "Embedded DejaVu Sans subset with Unicode punctuation and accented letters.",
+      "postprocess": {},
+      "page_number": 5,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "phase_expectation": "current_phase_expected",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T05",
+      "title": "Exact duplicate native text layer",
+      "category": "duplicate_layers",
+      "expected_source_mode": "visual_authority",
+      "expected_decision": "rejected",
+      "expected_reason_codes": [
+        "excessive_duplicate_characters",
+        "native_text_rejected"
+      ],
+      "expected_native_text": false,
+      "expected_viewer": "single-copy or slightly bold",
+      "notes": "The same native text is painted twice at identical coordinates.",
+      "postprocess": {},
+      "page_number": 6,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [
+        "excessive_duplicate_characters",
+        "native_text_rejected"
+      ],
+      "phase_expectation": "current_phase_expected",
+      "hard_rejection": true,
+      "canonical_viewer_success": true,
+      "word_publication": "forbidden",
+      "character_publication": "forbidden",
+      "native_result_available": false,
+      "visual_processing_required": true,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": [],
+      "min_duplicate_character_ratio": 0.4
+    },
+    {
+      "test_id": "T06",
+      "title": "Cross-font near-overprint duplicate",
+      "category": "duplicate_layers",
+      "expected_source_mode": "visual_authority",
+      "expected_decision": "rejected",
+      "expected_reason_codes": [
+        "excessive_near_overprint_duplicates",
+        "native_text_rejected"
+      ],
+      "expected_native_text": false,
+      "expected_viewer": "visually near-single-copy",
+      "notes": "A second cross-font text layer is offset by about one point.",
+      "postprocess": {},
+      "page_number": 7,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [
+        "excessive_near_overprint_duplicates",
+        "native_text_rejected"
+      ],
+      "phase_expectation": "current_phase_expected",
+      "hard_rejection": true,
+      "canonical_viewer_success": true,
+      "word_publication": "forbidden",
+      "character_publication": "forbidden",
+      "native_result_available": false,
+      "visual_processing_required": true,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": [],
+      "acceptable_outcomes": [
+        {
+          "decision": "accepted",
+          "source_mode": "native_authority",
+          "require_no_interleaved_duplicates": true
+        },
+        {
+          "decision": "rejected",
+          "source_mode": "visual_authority",
+          "require_reason_codes": [
+            "excessive_near_overprint_duplicates"
+          ]
+        }
+      ]
+    },
+    {
+      "test_id": "T07",
+      "title": "Partial duplicate header and footer",
+      "category": "duplicate_layers",
+      "expected_source_mode": "visual_authority",
+      "expected_decision": "rejected",
+      "expected_reason_codes": [
+        "excessive_near_overprint_duplicates"
+      ],
+      "expected_native_text": false,
+      "expected_viewer": "body clean, header/footer overprinted",
+      "notes": "Only regional text bands are duplicated; global duplication is diluted.",
+      "postprocess": {},
+      "page_number": 8,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [
+        "excessive_near_overprint_duplicates"
+      ],
+      "phase_expectation": "current_phase_expected",
+      "hard_rejection": true,
+      "canonical_viewer_success": true,
+      "word_publication": "forbidden",
+      "character_publication": "forbidden",
+      "native_result_available": false,
+      "visual_processing_required": true,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": [],
+      "acceptable_outcomes": [
+        {
+          "decision": "accepted",
+          "source_mode": "native_authority",
+          "require_no_interleaved_duplicates": true,
+          "forbidden_substrings": [
+            "SSYYNNTTHHEETTIICC",
+            "BILLINGHEADER",
+            "BILILLININGG"
+          ]
+        },
+        {
+          "decision": "rejected",
+          "source_mode": "visual_authority",
+          "require_reason_codes": [
+            "excessive_near_overprint_duplicates"
+          ]
+        }
+      ]
+    },
+    {
+      "test_id": "T08",
+      "title": "Raster drop shadow with clean native text",
+      "category": "duplicate_controls",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [],
+      "expected_native_text": true,
+      "expected_viewer": "normal shadow",
+      "notes": "False-positive control: shadow is raster; native characters occur only once.",
+      "postprocess": {},
+      "page_number": 9,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "phase_expectation": "current_phase_expected",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T09",
+      "title": "Clean bold typography control",
+      "category": "duplicate_controls",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [],
+      "expected_native_text": true,
+      "expected_viewer": "normal",
+      "notes": "Bold face appears once and must not be mistaken for duplicate overprint.",
+      "postprocess": {},
+      "page_number": 10,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "phase_expectation": "current_phase_expected",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T10",
+      "title": "Full-page image-only scan",
+      "category": "scanned_pages",
+      "expected_source_mode": "visual_authority",
+      "expected_decision": "absent",
+      "expected_reason_codes": [
+        "native_text_absent",
+        "image_dominant_page"
+      ],
+      "expected_native_text": false,
+      "expected_viewer": "renders as readable scan",
+      "notes": "No native text layer exists. Phase 3 routes image-dominant empty native pages as visual_authority/absent (not a separate image_authority enum value).",
+      "postprocess": {},
+      "page_number": 11,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [
+        "native_text_absent"
+      ],
+      "phase_expectation": "current_phase_expected",
+      "hard_rejection": true,
+      "canonical_viewer_success": true,
+      "word_publication": "forbidden",
+      "character_publication": "forbidden",
+      "native_result_available": false,
+      "visual_processing_required": true,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T11",
+      "title": "Full-page scan with accurate invisible OCR",
+      "category": "hidden_ocr",
+      "expected_source_mode": "visual_authority",
+      "expected_decision": "rejected",
+      "expected_reason_codes": [
+        "image_dominant_page"
+      ],
+      "expected_native_text": false,
+      "expected_viewer": "scan looks normal",
+      "notes": "Invisible native OCR agrees with the image but Phase 3 should be conservative.",
+      "postprocess": {},
+      "page_number": 12,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [
+        "image_dominant_page"
+      ],
+      "phase_expectation": "future_phase_expected",
+      "hard_rejection": true,
+      "canonical_viewer_success": true,
+      "word_publication": "forbidden",
+      "character_publication": "forbidden",
+      "native_result_available": false,
+      "visual_processing_required": true,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T12",
+      "title": "Full-page scan with plausible wrong OCR",
+      "category": "hidden_ocr",
+      "expected_source_mode": "visual_authority",
+      "expected_decision": "rejected",
+      "expected_reason_codes": [
+        "image_dominant_page",
+        "visual_mismatch_expected"
+      ],
+      "expected_native_text": false,
+      "expected_viewer": "scan shows correct values",
+      "notes": "Invisible OCR changes dates and money while remaining plausible.",
+      "postprocess": {},
+      "page_number": 13,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [
+        "image_dominant_page"
+      ],
+      "future_phase_reason_codes": [
+        "visual_mismatch_expected"
+      ],
+      "phase_expectation": "future_phase_expected",
+      "hard_rejection": true,
+      "canonical_viewer_success": true,
+      "word_publication": "forbidden",
+      "character_publication": "forbidden",
+      "native_result_available": false,
+      "visual_processing_required": true,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T13",
+      "title": "Full-page scan with shifted OCR coordinates",
+      "category": "hidden_ocr",
+      "expected_source_mode": "visual_authority",
+      "expected_decision": "rejected",
+      "expected_reason_codes": [
+        "image_dominant_page",
+        "visual_geometry_mismatch_expected"
+      ],
+      "expected_native_text": false,
+      "expected_viewer": "scan looks normal",
+      "notes": "Invisible OCR text is displaced from the visual lines.",
+      "postprocess": {},
+      "page_number": 14,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [
+        "image_dominant_page"
+      ],
+      "future_phase_reason_codes": [
+        "visual_geometry_mismatch_expected"
+      ],
+      "phase_expectation": "future_phase_expected",
+      "hard_rejection": true,
+      "canonical_viewer_success": true,
+      "word_publication": "forbidden",
+      "character_publication": "forbidden",
+      "native_result_available": false,
+      "visual_processing_required": true,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T14",
+      "title": "Mixed native body and scan region",
+      "category": "mixed_content",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [],
+      "expected_native_text": true,
+      "expected_viewer": "native body plus image block",
+      "notes": "An image region exists but does not dominate the page.",
+      "postprocess": {},
+      "page_number": 15,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "phase_expectation": "current_phase_expected",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T15",
+      "title": "Image-dominant page with small native caption",
+      "category": "image_dominance",
+      "expected_source_mode": "visual_authority",
+      "expected_decision": "rejected",
+      "expected_reason_codes": [
+        "image_dominant_page"
+      ],
+      "expected_native_text": false,
+      "expected_viewer": "large image with caption",
+      "notes": "A full-page image dominates even though a small native caption exists.",
+      "postprocess": {},
+      "page_number": 16,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [
+        "image_dominant_page"
+      ],
+      "phase_expectation": "current_phase_expected",
+      "hard_rejection": true,
+      "canonical_viewer_success": true,
+      "word_publication": "forbidden",
+      "character_publication": "forbidden",
+      "native_result_available": false,
+      "visual_processing_required": true,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T16",
+      "title": "Sparse native text on mostly blank page",
+      "category": "sparse_text",
+      "expected_source_mode": "visual_authority",
+      "expected_decision": "rejected",
+      "expected_reason_codes": [
+        "native_text_too_sparse",
+        "native_text_absent"
+      ],
+      "expected_native_text": false,
+      "expected_viewer": "mostly blank",
+      "notes": "Only one small native token exists; no header/footer chrome. Identified via manifest.",
+      "postprocess": {},
+      "page_number": 17,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [
+        "native_text_too_sparse",
+        "native_text_absent"
+      ],
+      "phase_expectation": "current_phase_expected",
+      "hard_rejection": true,
+      "canonical_viewer_success": true,
+      "word_publication": "forbidden",
+      "character_publication": "forbidden",
+      "native_result_available": false,
+      "visual_processing_required": true,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T17",
+      "title": "Off-page hidden native text",
+      "category": "geometry",
+      "expected_source_mode": "visual_authority",
+      "expected_decision": "rejected",
+      "expected_reason_codes": [
+        "native_geometry_out_of_bounds"
+      ],
+      "expected_native_text": false,
+      "expected_viewer": "visible page looks clean",
+      "notes": "Many native strings are placed beyond the left page boundary.",
+      "postprocess": {},
+      "page_number": 18,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "native_geometry_out_of_bounds"
+      ],
+      "phase_expectation": "current_phase_expected",
+      "hard_rejection": true,
+      "canonical_viewer_success": true,
+      "word_publication": "forbidden",
+      "character_publication": "forbidden",
+      "native_result_available": false,
+      "visual_processing_required": true,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T18",
+      "title": "White-on-white hidden native text",
+      "category": "visibility",
+      "expected_source_mode": "visual_authority",
+      "expected_decision": "rejected",
+      "expected_reason_codes": [
+        "visual_agreement_required"
+      ],
+      "expected_native_text": false,
+      "expected_viewer": "visible page has little text",
+      "notes": "White native text is extractable but invisible on a white background. Soft-pass (not_yet_implemented): Phase 3 cannot detect invisible/white-on-white native text without visual agreement.",
+      "postprocess": {},
+      "page_number": 19,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "visual_agreement_required"
+      ],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": true,
+      "canonical_viewer_success": true,
+      "word_publication": "forbidden",
+      "character_publication": "forbidden",
+      "native_result_available": false,
+      "visual_processing_required": true,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T19",
+      "title": "Invisible text rendering mode",
+      "category": "visibility",
+      "expected_source_mode": "visual_authority",
+      "expected_decision": "rejected",
+      "expected_reason_codes": [
+        "visual_agreement_required"
+      ],
+      "expected_native_text": false,
+      "expected_viewer": "visible page has a reference box",
+      "notes": "Render mode 3 creates extractable text with no visible glyphs. Soft-pass (not_yet_implemented): Phase 3 cannot detect invisible/white-on-white native text without visual agreement.",
+      "postprocess": {},
+      "page_number": 20,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "visual_agreement_required"
+      ],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": true,
+      "canonical_viewer_success": true,
+      "word_publication": "forbidden",
+      "character_publication": "forbidden",
+      "native_result_available": false,
+      "visual_processing_required": true,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T20",
+      "title": "CropBox hides live native text",
+      "category": "page_boxes",
+      "expected_source_mode": "visual_authority",
+      "expected_decision": "rejected",
+      "expected_reason_codes": [
+        "native_page_metadata_mismatch",
+        "native_text_rejected"
+      ],
+      "expected_native_text": false,
+      "expected_viewer": "cropped edge hidden",
+      "notes": "CropBox differs from MediaBox. Phase 3 rejects with native_page_metadata_mismatch when canonical displayed size and native page boxes disagree.",
+      "postprocess": {
+        "cropbox": [
+          55,
+          55,
+          540,
+          770
+        ]
+      },
+      "page_number": 21,
+      "page_size_points": [
+        485.0,
+        715.0
+      ],
+      "phase3_reason_codes": [
+        "native_page_metadata_mismatch",
+        "native_text_rejected"
+      ],
+      "future_phase_reason_codes": [
+        "cropped_content_present"
+      ],
+      "phase_expectation": "current_phase_expected",
+      "hard_rejection": true,
+      "canonical_viewer_success": true,
+      "word_publication": "forbidden",
+      "character_publication": "forbidden",
+      "native_result_available": false,
+      "visual_processing_required": true,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T21",
+      "title": "Page rotation metadata 90 degrees",
+      "category": "rotation",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [],
+      "expected_native_text": true,
+      "expected_viewer": "rotated portrait page",
+      "notes": "Page /Rotate=90. Intended native_authority accept; Phase 3 currently may reject via high_single_character_word_ratio after rotation. Soft-pass until rotation tokenisation is hardened.",
+      "postprocess": {
+        "rotate": 90
+      },
+      "page_number": 22,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 90,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T22",
+      "title": "Page rotation metadata 180 degrees",
+      "category": "rotation",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [],
+      "expected_native_text": true,
+      "expected_viewer": "upside-down page",
+      "notes": "Page /Rotate is set to 180. Soft-pass until rotation tokenisation/extraction-order handling is hardened (same class as T21).",
+      "postprocess": {
+        "rotate": 180
+      },
+      "page_number": 23,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 180,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T23",
+      "title": "Small square page size",
+      "category": "page_sizes",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [],
+      "expected_native_text": true,
+      "expected_viewer": "300 x 300 point page",
+      "notes": "One document contains a much smaller page than the surrounding pages. Uses compact chrome so A4 header strings do not overflow 300pt width.",
+      "postprocess": {},
+      "page_number": 24,
+      "page_size_points": [
+        300,
+        300
+      ],
+      "phase3_reason_codes": [],
+      "phase_expectation": "current_phase_expected",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T24",
+      "title": "Landscape page",
+      "category": "page_sizes",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [],
+      "expected_native_text": true,
+      "expected_viewer": "landscape page",
+      "notes": "Landscape orientation and wide coordinate mapping.",
+      "postprocess": {},
+      "page_number": 25,
+      "page_size_points": [
+        841.8897637795277,
+        595.2755905511812
+      ],
+      "phase3_reason_codes": [],
+      "phase_expectation": "current_phase_expected",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T25",
+      "title": "Oversized page",
+      "category": "page_sizes",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [],
+      "expected_native_text": true,
+      "expected_viewer": "1200 x 900 point page",
+      "notes": "Large engineering-style page tests fit-page, fit-width and coordinate scaling.",
+      "postprocess": {},
+      "page_number": 26,
+      "page_size_points": [
+        1200,
+        900
+      ],
+      "phase3_reason_codes": [],
+      "phase_expectation": "current_phase_expected",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T26",
+      "title": "Non-zero MediaBox origin",
+      "category": "page_boxes",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [],
+      "expected_native_text": true,
+      "expected_viewer": "content shifted within unusual origin",
+      "notes": "MediaBox and CropBox start at negative coordinates. Soft-pass until non-zero page-origin mapping is hardened for Phase 3.",
+      "postprocess": {
+        "mediabox": [
+          -50,
+          -40,
+          545,
+          802
+        ]
+      },
+      "page_number": 27,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T27",
+      "title": "Two-column reading order",
+      "category": "reading_order",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [
+        "reading_order_provisional"
+      ],
+      "expected_native_text": true,
+      "expected_viewer": "two visible columns",
+      "notes": "Native words are valid but semantic order may be ambiguous.",
+      "postprocess": {},
+      "page_number": 28,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "reading_order_provisional"
+      ],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T28",
+      "title": "Three-column reading order",
+      "category": "reading_order",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [
+        "reading_order_provisional"
+      ],
+      "expected_native_text": true,
+      "expected_viewer": "three narrow columns",
+      "notes": "Narrow columns challenge sequence reconstruction.",
+      "postprocess": {},
+      "page_number": 29,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "reading_order_provisional"
+      ],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T29",
+      "title": "Content-stream order differs from visual order",
+      "category": "reading_order",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [
+        "reading_order_provisional"
+      ],
+      "expected_native_text": true,
+      "expected_viewer": "left column appears first visually",
+      "notes": "Right column is painted first in the content stream.",
+      "postprocess": {},
+      "page_number": 30,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "reading_order_provisional"
+      ],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T30",
+      "title": "Ruled table with merged headers",
+      "category": "tables",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [
+        "structure_provisional"
+      ],
+      "expected_native_text": true,
+      "expected_viewer": "visible merged table headers",
+      "notes": "Merged headings and grouped numeric columns.",
+      "postprocess": {},
+      "page_number": 31,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "structure_provisional"
+      ],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T31",
+      "title": "Borderless table",
+      "category": "tables",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [
+        "structure_provisional"
+      ],
+      "expected_native_text": true,
+      "expected_viewer": "aligned values without ruling",
+      "notes": "Whitespace and alignment carry the table structure.",
+      "postprocess": {},
+      "page_number": 32,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "structure_provisional"
+      ],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T32",
+      "title": "Table with multi-line cells",
+      "category": "tables",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [
+        "structure_provisional"
+      ],
+      "expected_native_text": true,
+      "expected_viewer": "multi-line cells and wrapped values",
+      "notes": "Cell content spans multiple visual lines.",
+      "postprocess": {},
+      "page_number": 33,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "structure_provisional"
+      ],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T33",
+      "title": "Repeated header and footer content",
+      "category": "repeated_content",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [
+        "repeated_header_footer"
+      ],
+      "expected_native_text": true,
+      "expected_viewer": "repeated page furniture",
+      "notes": "Tests recognition of boilerplate versus body text.",
+      "postprocess": {},
+      "page_number": 34,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "repeated_header_footer"
+      ],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T34",
+      "title": "Ligatures and kerning",
+      "category": "unicode",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [],
+      "expected_native_text": true,
+      "expected_viewer": "ligature glyphs visible",
+      "notes": "Contains fi/fl ligatures and ordinary repeated letters.",
+      "postprocess": {},
+      "page_number": 35,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T35",
+      "title": "Unicode NFC and NFD combining marks",
+      "category": "unicode",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [],
+      "expected_native_text": true,
+      "expected_viewer": "accented text should look equivalent",
+      "notes": "Visually similar composed and decomposed sequences.",
+      "postprocess": {},
+      "page_number": 36,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T36",
+      "title": "Hebrew right-to-left text with numbers",
+      "category": "rtl",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [
+        "reading_order_provisional"
+      ],
+      "expected_native_text": true,
+      "expected_viewer": "Hebrew text and Latin numbers",
+      "notes": "BiDi order, punctuation and numeric fields are mixed.",
+      "postprocess": {},
+      "page_number": 37,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "reading_order_provisional"
+      ],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T37",
+      "title": "Arabic Unicode with numbers",
+      "category": "rtl",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [
+        "reading_order_provisional"
+      ],
+      "expected_native_text": true,
+      "expected_viewer": "Arabic code points with numeric fields",
+      "notes": "Exercises Arabic Unicode and directionality; shaping varies by renderer.",
+      "postprocess": {},
+      "page_number": 38,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "reading_order_provisional"
+      ],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T38",
+      "title": "Vertical CJK text",
+      "category": "vertical_text",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [
+        "reading_order_provisional"
+      ],
+      "expected_native_text": true,
+      "expected_viewer": "vertical character columns",
+      "notes": "Characters are individually positioned from top to bottom.",
+      "postprocess": {},
+      "page_number": 39,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "reading_order_provisional"
+      ],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T39",
+      "title": "CID-backed CJK native text",
+      "category": "unicode",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [],
+      "expected_native_text": true,
+      "expected_viewer": "Chinese and Japanese text",
+      "notes": "CID font mapping and full-width digits.",
+      "postprocess": {},
+      "page_number": 40,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T40",
+      "title": "Emoji and supplementary-plane symbols",
+      "category": "unicode",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [
+        "unsupported_glyphs_possible"
+      ],
+      "expected_native_text": true,
+      "expected_viewer": "some glyphs may fall back",
+      "notes": "Tests characters outside the Basic Multilingual Plane.",
+      "postprocess": {},
+      "page_number": 41,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "unsupported_glyphs_possible"
+      ],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T41",
+      "title": "Private-use and unassigned hidden characters",
+      "category": "unicode_noise",
+      "expected_source_mode": "visual_authority",
+      "expected_decision": "rejected",
+      "expected_reason_codes": [
+        "high_control_character_ratio",
+        "high_unprintable_character_ratio",
+        "high_private_use_character_ratio",
+        "high_unassigned_character_ratio",
+        "native_text_rejected"
+      ],
+      "expected_native_text": false,
+      "expected_viewer": "visible page remains ordinary",
+      "notes": "Hidden private-use/unassigned noise; Phase 3 currently hard-rejects primarily via control/unprintable character ratios for this synthetic construction.",
+      "postprocess": {},
+      "page_number": 42,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [
+        "high_control_character_ratio",
+        "high_unprintable_character_ratio",
+        "native_text_rejected"
+      ],
+      "phase_expectation": "current_phase_expected",
+      "hard_rejection": true,
+      "canonical_viewer_success": true,
+      "word_publication": "forbidden",
+      "character_publication": "forbidden",
+      "native_result_available": false,
+      "visual_processing_required": true,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": [],
+      "future_phase_reason_codes": [
+        "high_private_use_character_ratio",
+        "high_unassigned_character_ratio"
+      ]
+    },
+    {
+      "test_id": "T42",
+      "title": "Replacement-character noise",
+      "category": "unicode_noise",
+      "expected_source_mode": "visual_authority",
+      "expected_decision": "rejected",
+      "expected_reason_codes": [
+        "high_replacement_character_ratio"
+      ],
+      "expected_native_text": false,
+      "expected_viewer": "replacement glyphs visible",
+      "notes": "A high ratio of U+FFFD replacement characters.",
+      "postprocess": {},
+      "page_number": 43,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [
+        "high_replacement_character_ratio"
+      ],
+      "phase_expectation": "current_phase_expected",
+      "hard_rejection": true,
+      "canonical_viewer_success": true,
+      "word_publication": "forbidden",
+      "character_publication": "forbidden",
+      "native_result_available": false,
+      "visual_processing_required": true,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T43",
+      "title": "Symbol-only and Dingbats noise",
+      "category": "token_noise",
+      "expected_source_mode": "visual_authority",
+      "expected_decision": "rejected",
+      "expected_reason_codes": [
+        "high_symbol_only_word_ratio"
+      ],
+      "expected_native_text": false,
+      "expected_viewer": "symbol grid",
+      "notes": "Large symbol-only regions should not be trusted as prose. Uses ASCII punctuation rows (ZapfDingbats remapped to Latin under extraction).",
+      "postprocess": {},
+      "page_number": 44,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [
+        "high_symbol_only_word_ratio"
+      ],
+      "phase_expectation": "current_phase_expected",
+      "hard_rejection": true,
+      "canonical_viewer_success": true,
+      "word_publication": "forbidden",
+      "character_publication": "forbidden",
+      "native_result_available": false,
+      "visual_processing_required": true,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T44",
+      "title": "Excessive single-character tokens",
+      "category": "token_noise",
+      "expected_source_mode": "visual_authority",
+      "expected_decision": "rejected",
+      "expected_reason_codes": [
+        "high_single_character_word_ratio"
+      ],
+      "expected_native_text": false,
+      "expected_viewer": "spaced character grid",
+      "notes": "Characters are separated into hundreds of single-token words.",
+      "postprocess": {},
+      "page_number": 45,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [
+        "high_single_character_word_ratio"
+      ],
+      "phase_expectation": "current_phase_expected",
+      "hard_rejection": true,
+      "canonical_viewer_success": true,
+      "word_publication": "forbidden",
+      "character_publication": "forbidden",
+      "native_result_available": false,
+      "visual_processing_required": true,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T45",
+      "title": "Superscript and subscript positioning",
+      "category": "geometry",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [],
+      "expected_native_text": true,
+      "expected_viewer": "formula-like text",
+      "notes": "Small vertically displaced glyphs should remain attached logically.",
+      "postprocess": {},
+      "page_number": 46,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T46",
+      "title": "Extreme character spacing and kerning",
+      "category": "geometry",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [
+        "tokenisation_provisional"
+      ],
+      "expected_native_text": true,
+      "expected_viewer": "widely spaced and tightly spaced text",
+      "notes": "Tests word grouping thresholds without invalid geometry.",
+      "postprocess": {},
+      "page_number": 47,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "tokenisation_provisional"
+      ],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T47",
+      "title": "Mirrored native text",
+      "category": "transforms",
+      "expected_source_mode": "visual_authority",
+      "expected_decision": "rejected",
+      "expected_reason_codes": [
+        "reading_order_implausible"
+      ],
+      "expected_native_text": false,
+      "expected_viewer": "mirrored text",
+      "notes": "Negative horizontal scaling creates mirrored glyph geometry.",
+      "postprocess": {},
+      "page_number": 48,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "reading_order_implausible"
+      ],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": true,
+      "canonical_viewer_success": true,
+      "word_publication": "forbidden",
+      "character_publication": "forbidden",
+      "native_result_available": false,
+      "visual_processing_required": true,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T48",
+      "title": "Sheared and skewed native text",
+      "category": "transforms",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [
+        "reading_order_provisional"
+      ],
+      "expected_native_text": true,
+      "expected_viewer": "slanted text",
+      "notes": "Text uses a shear transformation but remains readable.",
+      "postprocess": {},
+      "page_number": 49,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "reading_order_provisional"
+      ],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T49",
+      "title": "Individually rotated words",
+      "category": "transforms",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [
+        "reading_order_provisional"
+      ],
+      "expected_native_text": true,
+      "expected_viewer": "words at multiple angles",
+      "notes": "Word boxes and order must account for local rotations.",
+      "postprocess": {},
+      "page_number": 50,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "reading_order_provisional"
+      ],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T50",
+      "title": "Visible text rendered only as raster image",
+      "category": "image_text",
+      "expected_source_mode": "visual_authority",
+      "expected_decision": "absent",
+      "expected_reason_codes": [
+        "native_text_absent",
+        "image_dominant_page"
+      ],
+      "expected_native_text": false,
+      "expected_viewer": "text is readable but not selectable",
+      "notes": "Raster-only page; Phase 3 routes empty native as visual_authority/absent.",
+      "postprocess": {},
+      "page_number": 51,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [
+        "native_text_absent"
+      ],
+      "phase_expectation": "current_phase_expected",
+      "hard_rejection": true,
+      "canonical_viewer_success": true,
+      "word_publication": "forbidden",
+      "character_publication": "forbidden",
+      "native_result_available": false,
+      "visual_processing_required": true,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T51",
+      "title": "Handwriting-like raster page",
+      "category": "handwriting",
+      "expected_source_mode": "image_authority",
+      "expected_decision": "rejected",
+      "expected_reason_codes": [
+        "native_text_absent",
+        "handwriting_expected"
+      ],
+      "expected_native_text": false,
+      "expected_viewer": "handwritten notes",
+      "notes": "Synthetic cursive-like image for later handwriting routing.",
+      "postprocess": {},
+      "page_number": 52,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [
+        "native_text_absent"
+      ],
+      "future_phase_reason_codes": [
+        "handwriting_expected"
+      ],
+      "phase_expectation": "future_phase_expected",
+      "hard_rejection": true,
+      "canonical_viewer_success": true,
+      "word_publication": "forbidden",
+      "character_publication": "forbidden",
+      "native_result_available": false,
+      "visual_processing_required": true,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T52",
+      "title": "Low-resolution scan",
+      "category": "image_quality",
+      "expected_source_mode": "visual_authority",
+      "expected_decision": "rejected",
+      "expected_reason_codes": [
+        "low_resolution_image",
+        "native_text_absent"
+      ],
+      "expected_native_text": false,
+      "expected_viewer": "pixelated scan",
+      "notes": "A 75-DPI page is scaled to full size.",
+      "postprocess": {},
+      "page_number": 53,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [
+        "native_text_absent"
+      ],
+      "future_phase_reason_codes": [
+        "low_resolution_image"
+      ],
+      "phase_expectation": "future_phase_expected",
+      "hard_rejection": true,
+      "canonical_viewer_success": true,
+      "word_publication": "forbidden",
+      "character_publication": "forbidden",
+      "native_result_available": false,
+      "visual_processing_required": true,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T53",
+      "title": "Skewed photographed document",
+      "category": "image_quality",
+      "expected_source_mode": "visual_authority",
+      "expected_decision": "rejected",
+      "expected_reason_codes": [
+        "skewed_or_photographed_page"
+      ],
+      "expected_native_text": false,
+      "expected_viewer": "perspective-distorted page",
+      "notes": "Simulates a phone photograph with perspective distortion.",
+      "postprocess": {},
+      "page_number": 54,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "skewed_or_photographed_page"
+      ],
+      "phase_expectation": "future_phase_expected",
+      "hard_rejection": true,
+      "canonical_viewer_success": true,
+      "word_publication": "forbidden",
+      "character_publication": "forbidden",
+      "native_result_available": false,
+      "visual_processing_required": true,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T54",
+      "title": "Bilevel fax-like scan",
+      "category": "image_quality",
+      "expected_source_mode": "visual_authority",
+      "expected_decision": "rejected",
+      "expected_reason_codes": [
+        "bilevel_scan",
+        "native_text_absent"
+      ],
+      "expected_native_text": false,
+      "expected_viewer": "black-and-white fax appearance",
+      "notes": "One-bit thresholding simulates fax and CCITT-style content.",
+      "postprocess": {},
+      "page_number": 55,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [
+        "native_text_absent"
+      ],
+      "future_phase_reason_codes": [
+        "bilevel_scan"
+      ],
+      "phase_expectation": "future_phase_expected",
+      "hard_rejection": true,
+      "canonical_viewer_success": true,
+      "word_publication": "forbidden",
+      "character_publication": "forbidden",
+      "native_result_available": false,
+      "visual_processing_required": true,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T55",
+      "title": "JPEG-compressed photo page",
+      "category": "image_codecs",
+      "expected_source_mode": "visual_authority",
+      "expected_decision": "absent",
+      "expected_reason_codes": [
+        "native_text_absent",
+        "image_dominant_page"
+      ],
+      "expected_native_text": false,
+      "expected_viewer": "photo-style JPEG renders",
+      "notes": "JPEG photo page; Phase 3 routes empty native as visual_authority/absent.",
+      "postprocess": {},
+      "page_number": 56,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [
+        "native_text_absent"
+      ],
+      "phase_expectation": "current_phase_expected",
+      "hard_rejection": true,
+      "canonical_viewer_success": true,
+      "word_publication": "forbidden",
+      "character_publication": "forbidden",
+      "native_result_available": false,
+      "visual_processing_required": true,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T56",
+      "title": "PNG alpha transparency and soft mask",
+      "category": "image_codecs",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [],
+      "expected_native_text": true,
+      "expected_viewer": "transparent shapes render",
+      "notes": "Transparent raster overlays sit behind clean native text.",
+      "postprocess": {},
+      "page_number": 57,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T57",
+      "title": "CMYK image rendering",
+      "category": "image_codecs",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [],
+      "expected_native_text": true,
+      "expected_viewer": "CMYK colour bars render",
+      "notes": "CMYK JPEG image plus clean native labels.",
+      "postprocess": {},
+      "page_number": 58,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T58",
+      "title": "High vector-object count stress page",
+      "category": "performance",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [
+        "bounded_processing_required"
+      ],
+      "expected_native_text": true,
+      "expected_viewer": "thousands of vector marks",
+      "notes": "Tests renderer and parser performance without malformed syntax.",
+      "postprocess": {},
+      "page_number": 59,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "bounded_processing_required"
+      ],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T59",
+      "title": "High native character count stress page",
+      "category": "performance",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [
+        "bounded_processing_required"
+      ],
+      "expected_native_text": true,
+      "expected_viewer": "dense tiny native text",
+      "notes": "Thousands of characters test safety limits and deterministic IDs.",
+      "postprocess": {},
+      "page_number": 60,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "bounded_processing_required"
+      ],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T60",
+      "title": "AcroForm fields and widget values",
+      "category": "forms",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [
+        "form_widgets_present"
+      ],
+      "expected_native_text": true,
+      "expected_viewer": "interactive fields visible",
+      "notes": "Text field, checkbox and radio buttons are interactive annotations.",
+      "postprocess": {},
+      "page_number": 61,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "form_widgets_present"
+      ],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T61",
+      "title": "Link, highlight, note and free-text annotations",
+      "category": "annotations",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [
+        "annotations_present"
+      ],
+      "expected_native_text": true,
+      "expected_viewer": "annotations should render",
+      "notes": "Viewer must expose and render several annotation types.",
+      "postprocess": {
+        "annotations": true
+      },
+      "page_number": 62,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "annotations_present"
+      ],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T62",
+      "title": "Appearance-only fake redaction",
+      "category": "redaction",
+      "expected_source_mode": "visual_authority",
+      "expected_decision": "rejected",
+      "expected_reason_codes": [
+        "visible_native_disagreement",
+        "redaction_risk"
+      ],
+      "expected_native_text": false,
+      "expected_viewer": "black box hides live text",
+      "notes": "Underlying native text remains extractable beneath a black rectangle.",
+      "postprocess": {},
+      "page_number": 63,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "visible_native_disagreement",
+        "redaction_risk"
+      ],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": true,
+      "canonical_viewer_success": true,
+      "word_publication": "forbidden",
+      "character_publication": "forbidden",
+      "native_result_available": false,
+      "visual_processing_required": true,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T63",
+      "title": "Watermark and stamp over content",
+      "category": "overlays",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [
+        "overlay_present"
+      ],
+      "expected_native_text": true,
+      "expected_viewer": "watermark overlays text",
+      "notes": "Large rotated watermark and visible stamp.",
+      "postprocess": {},
+      "page_number": 64,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "overlay_present"
+      ],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T64",
+      "title": "Barcode and QR visual content",
+      "category": "barcodes",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [
+        "barcode_regions_present"
+      ],
+      "expected_native_text": true,
+      "expected_viewer": "QR and barcode-like regions visible",
+      "notes": "Visual codes coexist with ordinary native labels.",
+      "postprocess": {},
+      "page_number": 65,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "barcode_regions_present"
+      ],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T65",
+      "title": "Truly blank page",
+      "category": "blank_pages",
+      "expected_source_mode": "visual_authority",
+      "expected_decision": "absent",
+      "expected_reason_codes": [
+        "native_text_absent"
+      ],
+      "expected_native_text": false,
+      "expected_viewer": "page is intentionally blank",
+      "notes": "Truly blank; Phase 3 routes as visual_authority/absent. blank_page is future-phase.",
+      "postprocess": {},
+      "page_number": 66,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [
+        "native_text_absent"
+      ],
+      "future_phase_reason_codes": [
+        "blank_page"
+      ],
+      "phase_expectation": "current_phase_expected",
+      "hard_rejection": true,
+      "canonical_viewer_success": true,
+      "word_publication": "forbidden",
+      "character_publication": "forbidden",
+      "native_result_available": false,
+      "visual_processing_required": true,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T66",
+      "title": "Optional Content Group (layer)",
+      "category": "optional_content",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [
+        "optional_content_present"
+      ],
+      "expected_native_text": true,
+      "expected_viewer": "green layer rectangle visible by default",
+      "notes": "A page-level optional layer is added during post-processing.",
+      "postprocess": {
+        "ocg": true
+      },
+      "page_number": 67,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "optional_content_present"
+      ],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T67",
+      "title": "Repeated Form XObject content",
+      "category": "xobjects",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [
+        "repeated_xobject_present"
+      ],
+      "expected_native_text": true,
+      "expected_viewer": "many repeated mini-cards",
+      "notes": "The same form XObject is reused many times.",
+      "postprocess": {},
+      "page_number": 68,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "repeated_xobject_present"
+      ],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T68",
+      "title": "Clipped text and graphics",
+      "category": "clipping",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [
+        "clipped_content_present"
+      ],
+      "expected_native_text": true,
+      "expected_viewer": "text clipped to a window",
+      "notes": "Content extends beyond a clipping path.",
+      "postprocess": {},
+      "page_number": 69,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "clipped_content_present"
+      ],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T69",
+      "title": "Annotation-only visible text",
+      "category": "annotations",
+      "expected_source_mode": "native_authority",
+      "expected_decision": "accepted",
+      "expected_reason_codes": [
+        "annotation_text_separate"
+      ],
+      "expected_native_text": true,
+      "expected_viewer": "free-text annotation visible",
+      "notes": "Visible text is added as a FreeText annotation rather than page content.",
+      "postprocess": {
+        "free_text_annotation": true
+      },
+      "page_number": 70,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "annotation_text_separate"
+      ],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": false,
+      "canonical_viewer_success": true,
+      "word_publication": "required",
+      "character_publication": "optional",
+      "native_result_available": true,
+      "visual_processing_required": false,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    },
+    {
+      "test_id": "T70",
+      "title": "Marked-content ActualText mismatch",
+      "category": "semantic_text",
+      "expected_source_mode": "visual_authority",
+      "expected_decision": "rejected",
+      "expected_reason_codes": [
+        "actualtext_visual_mismatch"
+      ],
+      "expected_native_text": false,
+      "expected_viewer": "visible value differs from semantic replacement",
+      "notes": "An /ActualText replacement intentionally disagrees with the painted string.",
+      "postprocess": {
+        "actualtext": true
+      },
+      "page_number": 71,
+      "page_size_points": [
+        595.2755905511812,
+        841.8897637795277
+      ],
+      "phase3_reason_codes": [],
+      "future_phase_reason_codes": [
+        "actualtext_visual_mismatch"
+      ],
+      "phase_expectation": "not_yet_implemented",
+      "hard_rejection": true,
+      "canonical_viewer_success": true,
+      "word_publication": "forbidden",
+      "character_publication": "forbidden",
+      "native_result_available": false,
+      "visual_processing_required": true,
+      "expected_rotation": 0,
+      "forbidden_reason_codes": []
+    }
+  ]
+}

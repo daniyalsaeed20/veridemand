@@ -357,9 +357,61 @@ def write_legitimate_repeated_letters(path: Path) -> None:
 
     pdf = pdf_canvas(path)
     pdf.setFont("Helvetica", 14)
-    pdf.drawString(72, 720, "letter bookkeeper Mississippi")
-    pdf.drawString(72, 690, "Amount due: 100.00 exactly")
-    pdf.drawString(72, 660, "Additional normal sentence without overprint layers.")
+    pdf.drawString(72, 720, "letter bookkeeper Mississippi committee 100.00")
+    pdf.save()
+
+
+def write_multi_displacement_clusters(path: Path) -> None:
+    """Full lines with several nearby displacement clusters (fonts/sizes vary)."""
+
+    pdf = pdf_canvas(path)
+    lines = (
+        "Hospital account summary line one SAMPLE",
+        "Hospital account summary line two SAMPLE",
+        "Hospital account summary line three SAMPLE",
+        "Hospital account summary line four SAMPLE",
+    )
+    y = 720
+    for idx, line in enumerate(lines):
+        pdf.setFont("Helvetica", 12)
+        pdf.drawString(72, y, line)
+        # Cluster A
+        pdf.setFont("Times-Roman", 11.5)
+        pdf.drawString(72.5 + (idx % 2) * 0.5, y - 0.75, line)
+        # Cluster B — second nearby offset on half the lines
+        if idx % 2 == 0:
+            pdf.setFont("Courier", 11)
+            pdf.drawString(73.5, y - 1.75, line)
+        y -= 26
+    pdf.save()
+
+
+def write_diluted_coverage_duplicate_region(path: Path) -> None:
+    """Duplicated header/metadata region on an otherwise clean long page (page-5 style)."""
+
+    pdf = pdf_canvas(path)
+    header = "Run Date Account Meta HEADER BLOCK VALUE"
+    for offset_y, font, size in ((0.0, "Helvetica", 11), (1.75, "Times-Roman", 10.5)):
+        pdf.setFont(font, size)
+        pdf.drawString(72 + (0.75 if offset_y else 0), 750 - offset_y, header)
+        pdf.drawString(72 + (0.75 if offset_y else 0), 735 - offset_y, header)
+        pdf.drawString(72 + (0.75 if offset_y else 0), 720 - offset_y, header)
+    pdf.setFont("Helvetica", 11)
+    y = 680
+    for i in range(28):
+        pdf.drawString(72, y, f"Clean unique body line {i:02d} with distinct content only.")
+        y -= 16
+    pdf.save()
+
+
+def write_overprinted_currency(path: Path) -> None:
+    """Intentional near-overprint of a currency value — clean or reject, never interleaved."""
+
+    pdf = pdf_canvas(path)
+    pdf.setFont("Helvetica", 14)
+    pdf.drawString(72, 720, "Balance due 100.00 exactly today")
+    pdf.setFont("Times-Roman", 13.5)
+    pdf.drawString(73.2, 718.8, "Balance due 100.00 exactly today")
     pdf.save()
 
 
@@ -474,6 +526,9 @@ def main() -> None:
         "near-overprint-tagged-untagged.pdf": write_near_overprint_tagged_untagged,
         "genuine-bold-shadow.pdf": write_genuine_bold_shadow,
         "legitimate-repeated-letters.pdf": write_legitimate_repeated_letters,
+        "multi-displacement-clusters.pdf": write_multi_displacement_clusters,
+        "diluted-coverage-duplicate-region.pdf": write_diluted_coverage_duplicate_region,
+        "overprinted-currency.pdf": write_overprinted_currency,
         "out-of-bounds-text-layer.pdf": write_out_of_bounds,
         "cid-token-layer.pdf": write_cid_tokens,
         "symbol-noise-layer.pdf": write_symbol_noise,
