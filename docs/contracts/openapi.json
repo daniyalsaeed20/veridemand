@@ -93,6 +93,224 @@
         "title": "Body_upload_documents_api_v1_sessions__session_id__documents_post",
         "type": "object"
       },
+      "CanonicalDocumentMetadata": {
+        "additionalProperties": false,
+        "description": "Public metadata for a ready canonical document (no filesystem paths).",
+        "properties": {
+          "canonical_status": {
+            "$ref": "#/components/schemas/CanonicalStatus",
+            "description": "Canonicalisation lifecycle status."
+          },
+          "canonicalisation_method": {
+            "$ref": "#/components/schemas/CanonicalisationMethod",
+            "description": "Method used to produce the canonical PDF."
+          },
+          "created_at": {
+            "description": "Timezone-aware UTC time the canonical PDF was ready.",
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "document_id": {
+            "description": "Opaque document identifier.",
+            "pattern": "^doc_[0-9a-f]{32}$",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "libreoffice_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "LibreOffice version when used for conversion.",
+            "title": "Libreoffice Version"
+          },
+          "media_type": {
+            "description": "Always application/pdf for the canonical view.",
+            "title": "Media Type",
+            "type": "string"
+          },
+          "page_count": {
+            "description": "Canonical page count.",
+            "minimum": 1.0,
+            "title": "Page Count",
+            "type": "integer"
+          },
+          "pages": {
+            "description": "Per-page metadata.",
+            "items": {
+              "$ref": "#/components/schemas/CanonicalPageMetadata"
+            },
+            "title": "Pages",
+            "type": "array"
+          },
+          "sha256": {
+            "description": "Lowercase hex SHA-256 digest.",
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size_bytes": {
+            "description": "Canonical PDF size in bytes.",
+            "minimum": 0.0,
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "warnings": {
+            "description": "Non-fatal warning codes from canonicalisation.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "document_id",
+          "canonical_status",
+          "canonicalisation_method",
+          "media_type",
+          "size_bytes",
+          "sha256",
+          "page_count",
+          "pages",
+          "created_at"
+        ],
+        "title": "CanonicalDocumentMetadata",
+        "type": "object"
+      },
+      "CanonicalPageMetadata": {
+        "additionalProperties": false,
+        "description": "Per-page geometry for the canonical PDF.",
+        "properties": {
+          "height_points": {
+            "description": "Effective displayed height in PDF points.",
+            "exclusiveMinimum": 0.0,
+            "title": "Height Points",
+            "type": "number"
+          },
+          "image_placement_bbox": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NormalisedBoundingBox"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Normalised placement of the source image on the page (full-page when set)."
+          },
+          "intrinsic_rotation": {
+            "description": "Intrinsic PDF page rotation already applied in the default visual system.",
+            "title": "Intrinsic Rotation",
+            "type": "integer"
+          },
+          "page_number": {
+            "description": "1-based page number.",
+            "minimum": 1.0,
+            "title": "Page Number",
+            "type": "integer"
+          },
+          "source_frame_index": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "0-based source frame index for image-backed pages.",
+            "title": "Source Frame Index"
+          },
+          "source_pixel_height": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Source pixel height for image-backed pages.",
+            "title": "Source Pixel Height"
+          },
+          "source_pixel_width": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Source pixel width for image-backed pages.",
+            "title": "Source Pixel Width"
+          },
+          "source_type": {
+            "$ref": "#/components/schemas/CanonicalPageSourceType",
+            "description": "Source material for this page."
+          },
+          "width_points": {
+            "description": "Effective displayed width in PDF points.",
+            "exclusiveMinimum": 0.0,
+            "title": "Width Points",
+            "type": "number"
+          }
+        },
+        "required": [
+          "page_number",
+          "width_points",
+          "height_points",
+          "intrinsic_rotation",
+          "source_type"
+        ],
+        "title": "CanonicalPageMetadata",
+        "type": "object"
+      },
+      "CanonicalPageSourceType": {
+        "description": "Origin of a canonical page's visual content.",
+        "enum": [
+          "pdf",
+          "text",
+          "image",
+          "word"
+        ],
+        "title": "CanonicalPageSourceType",
+        "type": "string"
+      },
+      "CanonicalStatus": {
+        "description": "Lifecycle of a document's canonical visual representation.",
+        "enum": [
+          "pending",
+          "queued",
+          "canonicalising",
+          "ready",
+          "failed",
+          "cancelled"
+        ],
+        "title": "CanonicalStatus",
+        "type": "string"
+      },
+      "CanonicalisationMethod": {
+        "description": "How the canonical PDF was produced.",
+        "enum": [
+          "original_pdf",
+          "libreoffice_writer_pdf",
+          "reportlab_text_pdf",
+          "reportlab_image_pdf"
+        ],
+        "title": "CanonicalisationMethod",
+        "type": "string"
+      },
       "CheckState": {
         "description": "Result of a single readiness dependency check.",
         "enum": [
@@ -178,11 +396,11 @@
         "type": "object"
       },
       "DocumentStatus": {
-        "description": "Lifecycle state of an accepted document during Phase 1.",
+        "description": "Lifecycle state of an accepted document during Phase 2.",
         "enum": [
           "uploaded",
           "queued",
-          "preparing",
+          "canonicalising",
           "ready_for_extraction",
           "cancelled",
           "failed"
@@ -200,16 +418,16 @@
             "title": "Cancelled",
             "type": "integer"
           },
+          "canonicalising": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Canonicalising",
+            "type": "integer"
+          },
           "failed": {
             "default": 0,
             "minimum": 0.0,
             "title": "Failed",
-            "type": "integer"
-          },
-          "preparing": {
-            "default": 0,
-            "minimum": 0.0,
-            "title": "Preparing",
             "type": "integer"
           },
           "queued": {
@@ -251,6 +469,58 @@
             "description": "Identifier of the active/last admission job, if any.",
             "title": "Active Job Id"
           },
+          "canonical_metadata_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Relative URL for canonical page metadata.",
+            "title": "Canonical Metadata Url"
+          },
+          "canonical_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CanonicalStatus"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Canonical view lifecycle status when known."
+          },
+          "canonical_view_available": {
+            "default": false,
+            "description": "True when a canonical PDF is ready to serve.",
+            "title": "Canonical View Available",
+            "type": "boolean"
+          },
+          "canonical_view_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Relative URL for the canonical PDF viewer document.",
+            "title": "Canonical View Url"
+          },
+          "canonicalisation_method": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CanonicalisationMethod"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Method used to produce the canonical PDF, when ready."
+          },
           "created_at": {
             "description": "Timezone-aware UTC acceptance time.",
             "format": "date-time",
@@ -275,7 +545,7 @@
           },
           "extraction_performed": {
             "default": false,
-            "description": "Always false in Phase 1.",
+            "description": "Always false in Phase 2.",
             "title": "Extraction Performed",
             "type": "boolean"
           },
@@ -306,8 +576,8 @@
             "description": "Whether the page count is known."
           },
           "progress_percent": {
-            "description": "Honest Phase 1 progress; capped at 5% (no extraction).",
-            "maximum": 5.0,
+            "description": "Honest Phase 2 progress; capped at 15% (no extraction).",
+            "maximum": 15.0,
             "minimum": 0.0,
             "title": "Progress Percent",
             "type": "integer"
@@ -327,7 +597,7 @@
           },
           "result_available": {
             "default": false,
-            "description": "Always false in Phase 1.",
+            "description": "Always false in Phase 2.",
             "title": "Result Available",
             "type": "boolean"
           },
@@ -370,6 +640,24 @@
           "created_at"
         ],
         "title": "DocumentSummary",
+        "type": "object"
+      },
+      "Geometry": {
+        "additionalProperties": false,
+        "description": "Polygon plus containing bounding box.",
+        "properties": {
+          "bbox": {
+            "$ref": "#/components/schemas/NormalisedBoundingBox"
+          },
+          "polygon": {
+            "$ref": "#/components/schemas/NormalisedPolygon"
+          }
+        },
+        "required": [
+          "polygon",
+          "bbox"
+        ],
+        "title": "Geometry",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -608,6 +896,166 @@
         "title": "LivenessResponse",
         "type": "object"
       },
+      "NormalisedBoundingBox": {
+        "additionalProperties": false,
+        "description": "Axis-aligned box in normalised page space (top-left origin).",
+        "properties": {
+          "height": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 1.0,
+            "title": "Height",
+            "type": "number"
+          },
+          "width": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 1.0,
+            "title": "Width",
+            "type": "number"
+          },
+          "x": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
+        "title": "NormalisedBoundingBox",
+        "type": "object"
+      },
+      "NormalisedPoint": {
+        "additionalProperties": false,
+        "description": "A point in normalised page space.",
+        "properties": {
+          "x": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y"
+        ],
+        "title": "NormalisedPoint",
+        "type": "object"
+      },
+      "NormalisedPolygon": {
+        "additionalProperties": false,
+        "description": "Closed polygon in normalised page space (at least three points).",
+        "properties": {
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/NormalisedPoint"
+            },
+            "maxItems": 64,
+            "minItems": 3,
+            "title": "Points",
+            "type": "array"
+          }
+        },
+        "required": [
+          "points"
+        ],
+        "title": "NormalisedPolygon",
+        "type": "object"
+      },
+      "OverlayProofItem": {
+        "additionalProperties": false,
+        "description": "A single synthetic overlay used only for Phase 2 alignment verification.",
+        "properties": {
+          "geometry": {
+            "$ref": "#/components/schemas/Geometry",
+            "description": "Normalised geometry on the canonical page."
+          },
+          "id": {
+            "description": "Stable overlay identifier.",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "description": "Human-readable label.",
+            "title": "Label",
+            "type": "string"
+          },
+          "page_number": {
+            "description": "1-based page number.",
+            "minimum": 1.0,
+            "title": "Page Number",
+            "type": "integer"
+          },
+          "source": {
+            "description": "Provenance marker; always synthetic_phase_2.",
+            "title": "Source",
+            "type": "string"
+          },
+          "synthetic": {
+            "description": "Always true; this is not extraction output.",
+            "title": "Synthetic",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "source",
+          "synthetic",
+          "page_number",
+          "geometry"
+        ],
+        "title": "OverlayProofItem",
+        "type": "object"
+      },
+      "OverlayProofResponse": {
+        "additionalProperties": false,
+        "description": "Synthetic alignment overlays for every canonical page.",
+        "properties": {
+          "document_id": {
+            "description": "Opaque document identifier.",
+            "pattern": "^doc_[0-9a-f]{32}$",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "overlays": {
+            "description": "One overlay per canonical page.",
+            "items": {
+              "$ref": "#/components/schemas/OverlayProofItem"
+            },
+            "title": "Overlays",
+            "type": "array"
+          },
+          "synthetic": {
+            "default": true,
+            "description": "Always true for Phase 2 overlay proofs.",
+            "title": "Synthetic",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "document_id",
+          "overlays"
+        ],
+        "title": "OverlayProofResponse",
+        "type": "object"
+      },
       "PageCountStatus": {
         "description": "Whether a document's page count is known in Phase 1.",
         "enum": [
@@ -678,6 +1126,43 @@
         "additionalProperties": false,
         "description": "A single, strictly-validated progress event.",
         "properties": {
+          "canonical_page_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Canonical page count when known.",
+            "title": "Canonical Page Count"
+          },
+          "canonical_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Canonical status when relevant.",
+            "title": "Canonical Status"
+          },
+          "canonicalisation_method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Canonicalisation method when relevant.",
+            "title": "Canonicalisation Method"
+          },
           "document_id": {
             "anyOf": [
               {
@@ -867,6 +1352,12 @@
           "document.queued",
           "document.started",
           "document.stage_changed",
+          "document.canonicalisation_started",
+          "document.canonicalisation_progress",
+          "document.canonicalisation_completed",
+          "document.canonicalisation_failed",
+          "document.canonicalisation_cancelled",
+          "document.canonical_ready",
           "document.ready_for_extraction",
           "document.removed",
           "document.warning",
@@ -1732,6 +2223,217 @@
         "summary": "Cancel a queued or in-progress document",
         "tags": [
           "documents"
+        ]
+      }
+    },
+    "/api/v1/sessions/{session_id}/documents/{document_id}/canonical": {
+      "get": {
+        "operationId": "get_canonical_pdf_api_v1_sessions__session_id__documents__document_id__canonical_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "Session or document not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "Canonical document not ready."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download or stream the canonical PDF",
+        "tags": [
+          "canonical"
+        ]
+      }
+    },
+    "/api/v1/sessions/{session_id}/documents/{document_id}/canonical/metadata": {
+      "get": {
+        "operationId": "get_canonical_metadata_api_v1_sessions__session_id__documents__document_id__canonical_metadata_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanonicalDocumentMetadata"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "Session or document not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "Canonical document not ready."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Canonical page metadata",
+        "tags": [
+          "canonical"
+        ]
+      }
+    },
+    "/api/v1/sessions/{session_id}/documents/{document_id}/canonical/overlay-proof": {
+      "get": {
+        "operationId": "get_overlay_proof_api_v1_sessions__session_id__documents__document_id__canonical_overlay_proof_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OverlayProofResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "Session or document not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "Canonical document not ready."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Synthetic Phase 2 alignment overlay proof",
+        "tags": [
+          "canonical"
         ]
       }
     },

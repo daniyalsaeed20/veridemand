@@ -107,10 +107,11 @@ async def cancel_document(
     document_id: str,
     registry: RegistryDep,
     coordinator: CoordinatorDep,
+    settings: SettingsDep,
 ) -> DocumentSummary:
     session = await registry.get(session_id)
     document = await coordinator.cancel_document(session, document_id)
-    return document.to_summary()
+    return document.to_summary(session_id=session.session_id, api_prefix=settings.api_prefix)
 
 
 @router.delete(
