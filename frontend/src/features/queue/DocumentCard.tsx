@@ -1,19 +1,27 @@
 import CancelIcon from "@mui/icons-material/Cancel";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlined";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { Box, Button, Chip, LinearProgress, Paper, Stack, Typography } from "@mui/material";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import type { DocumentStatus, DocumentSummary } from "../../contracts";
 import { STATUS_TONE_COLOR, type StatusTone } from "../../app/theme";
+import { formatBytes } from "../upload/clientChecks";
 import { processDocuments } from "../session/sessionApi";
 import { sessionKeys } from "../session/sessionKeys";
+import { useViewerStore } from "../viewer/viewerState";
+import type {
+  CanonicalisationMethod,
+  CanonicalStatus,
+  DocumentStatus,
+  DocumentSummary,
+} from "../viewer/viewerApi";
 import { cancelDocument, removeDocument } from "./documentApi";
 
 const STATUS_LABEL: Record<DocumentStatus, string> = {
   uploaded: "Uploaded",
   queued: "Queued",
-  preparing: "Preparing",
+  canonicalising: "Canonicalising",
   ready_for_extraction: "Ready for extraction",
   cancelled: "Cancelled",
   failed: "Failed",
@@ -22,10 +30,26 @@ const STATUS_LABEL: Record<DocumentStatus, string> = {
 const STATUS_TONE: Record<DocumentStatus, StatusTone> = {
   uploaded: "neutral",
   queued: "caution",
-  preparing: "caution",
+  canonicalising: "caution",
   ready_for_extraction: "positive",
   cancelled: "neutral",
   failed: "critical",
+};
+
+const CANONICAL_STATUS_LABEL: Record<CanonicalStatus, string> = {
+  pending: "Pending",
+  queued: "Queued",
+  canonicalising: "Canonicalising",
+  ready: "Ready",
+  failed: "Failed",
+  cancelled: "Cancelled",
+};
+
+const CANONICALISATION_METHOD_LABEL: Record<CanonicalisationMethod, string> = {
+  original_pdf: "Original PDF",
+  libreoffice_writer_pdf: "LibreOffice conversion",
+  reportlab_text_pdf: "Text rendering",
+  reportlab_image_pdf: "Image rendering",
 };
 
 interface DocumentCardProps {
@@ -36,6 +60,8 @@ interface DocumentCardProps {
 
 export function DocumentCard({ sessionId, document, disabled = false }: DocumentCardProps) {
   const queryClient = useQueryClient();
+  const selectDocument = useViewerStore((state) => state.selectDocument);
+  const selectedDocumentId = useViewerStore((state) => state.selectedDocumentId);
 
   const invalidate = () =>
     void queryClient.invalidateQueries({ queryKey: sessionKeys.detail(sessionId) });
@@ -57,20 +83,26 @@ export function DocumentCard({ sessionId, document, disabled = false }: Document
     disabled || processMutation.isPending || cancelMutation.isPending || removeMutation.isPending;
 
   const canProcess = document.status === "uploaded";
-  const canCancel = document.status === "queued" || document.status === "preparing";
+  const canCancel = document.status === "queued" || document.status === "canonicalising";
   const canRemove =
     document.status === "uploaded" ||
     document.status === "ready_for_extraction" ||
     document.status === "cancelled" ||
     document.status === "failed";
+  const isSelected = selectedDocumentId === document.document_id;
 
   const pageLabel =
     document.page_count_status === "known" && document.page_count != null
       ? `${document.page_count} page${document.page_count === 1 ? "" : "s"}`
       : "Pages pending";
 
+  const hasCanonicalInfo =
+    document.canonical_status != null ||
+    document.canonicalisation_method != null ||
+    document.canonical_view_available;
+
   return (
-    <Paper variant="outlined" sx={{ p: 2 }}>
+    <Paper variant="outlined" sx={{ p: 2, borderColor: isSelected ? "primary.main" : undefined }}>
       <Stack spacing={1.5}>
         <Stack
           direction="row"
@@ -82,7 +114,7 @@ export function DocumentCard({ sessionId, document, disabled = false }: Document
               {document.display_filename}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              {document.format.toUpperCase()} · {pageLabel}
+              {document.format.toUpperCase()} · {pageLabel} · {formatBytes(document.size_bytes)}
               {document.queue_position != null ? ` · position ${document.queue_position}` : ""}
             </Typography>
           </Box>
@@ -93,27 +125,44 @@ export function DocumentCard({ sessionId, document, disabled = false }: Document
           />
         </Stack>
 
-        {document.status === "queued" || document.status === "preparing" ? (
+        {document.status === "queued" || document.status === "canonicalising" ? (
           <Box>
             <LinearProgress
               variant="determinate"
               value={document.progress_percent}
-              aria-label="Preparation progress"
+              aria-label="Canonicalisation progress"
             />
             <Typography variant="caption" color="text.secondary">
-              Preparing for extraction — no extraction has been performed yet.
+              Canonicalising for the viewer — no extraction has been performed yet.
             </Typography>
           </Box>
         ) : null}
 
         {document.status === "ready_for_extraction" ? (
           <Typography variant="caption" color="text.secondary">
-            Prepared and ready for extraction. Extraction is not part of this phase; no results are
-            available yet.
+            {document.canonical_view_available
+              ? "Canonical document ready. Extraction is not part of this phase; no results are available yet."
+              : "Extraction has not started. Extraction is not part of this phase; no results are available yet."}
           </Typography>
         ) : null}
 
-        <Stack direction="row" spacing={1}>
+        {hasCanonicalInfo ? (
+          <Typography variant="caption" color="text.secondary">
+            Canonical:{" "}
+            {document.canonical_status != null
+              ? CANONICAL_STATUS_LABEL[document.canonical_status]
+              : "—"}
+            {document.canonicalisation_method != null
+              ? ` · ${CANONICALISATION_METHOD_LABEL[document.canonicalisation_method]}`
+              : ""}
+            {document.page_count_status === "known" && document.page_count != null
+              ? ` · ${document.page_count} page${document.page_count === 1 ? "" : "s"}`
+              : ""}
+            {` · ${formatBytes(document.size_bytes)}`}
+          </Typography>
+        ) : null}
+
+        <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
           {canProcess ? (
             <Button
               size="small"
@@ -135,6 +184,18 @@ export function DocumentCard({ sessionId, document, disabled = false }: Document
               onClick={() => cancelMutation.mutate()}
             >
               Cancel
+            </Button>
+          ) : null}
+          {document.canonical_view_available ? (
+            <Button
+              size="small"
+              variant={isSelected ? "contained" : "outlined"}
+              startIcon={<OpenInNewIcon />}
+              disabled={disabled}
+              aria-pressed={isSelected}
+              onClick={() => selectDocument(document.document_id)}
+            >
+              Open canonical document
             </Button>
           ) : null}
           {canRemove ? (

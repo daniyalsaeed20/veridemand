@@ -1,7 +1,7 @@
 import { sendJson } from "../../api/http";
-import type { UploadBatchResponse } from "../../contracts";
-import { zUploadBatchResponse } from "../../contracts";
 import { sessionPath } from "../session/sessionApi";
+import type { UploadBatchResponse } from "../viewer/viewerApi";
+import { zUploadBatchResponse } from "../viewer/viewerApi";
 
 // Uploads can carry large files; give the request a generous ceiling well above
 // the small JSON default. There is no fake progress bar — the request simply

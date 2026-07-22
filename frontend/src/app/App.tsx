@@ -8,7 +8,7 @@ export function App() {
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
       <AppHeader />
-      <Container maxWidth="md" component="main" sx={{ py: 4 }}>
+      <Container maxWidth="xl" component="main" sx={{ py: 4 }}>
         <Stack spacing={3}>
           <RuntimeWarning />
           <SessionWorkspace />

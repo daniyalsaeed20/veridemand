@@ -1,9 +1,9 @@
 import { z } from "zod";
 
 import { sendJson } from "../../api/http";
-import type { DocumentSummary } from "../../contracts";
-import { zDocumentSummary } from "../../contracts";
 import { sessionPath } from "../session/sessionApi";
+import type { DocumentSummary } from "../viewer/viewerApi";
+import { zDocumentSummary } from "../viewer/viewerApi";
 
 const zVoid = z.void();
 

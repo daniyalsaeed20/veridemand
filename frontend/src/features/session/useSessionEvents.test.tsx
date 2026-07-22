@@ -3,8 +3,8 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ProgressEvent, ProgressEventType } from "../../contracts";
 import { createTestQueryClient, MockEventSource } from "../../tests/testUtils";
+import type { ProgressEvent, ProgressEventType } from "../viewer/viewerApi";
 import { useSessionEvents } from "./useSessionEvents";
 
 const SESSION_ID = "ses_" + "0".repeat(32);

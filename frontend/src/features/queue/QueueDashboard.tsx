@@ -2,9 +2,9 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { Box, Button, Card, CardContent, Chip, Divider, Stack, Typography } from "@mui/material";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import type { SessionSnapshot } from "../../contracts";
 import { processDocuments } from "../session/sessionApi";
 import { sessionKeys } from "../session/sessionKeys";
+import type { SessionSnapshot } from "../viewer/viewerApi";
 import { DocumentCard } from "./DocumentCard";
 
 interface QueueDashboardProps {
@@ -50,7 +50,7 @@ export function QueueDashboard({ sessionId, snapshot, disabled = false }: QueueD
           <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
             <CountChip label="Uploaded" value={counts.uploaded ?? 0} />
             <CountChip label="Queued" value={counts.queued ?? 0} />
-            <CountChip label="Preparing" value={counts.preparing ?? 0} />
+            <CountChip label="Canonicalising" value={counts.canonicalising ?? 0} />
             <CountChip label="Ready" value={counts.ready_for_extraction ?? 0} />
             <CountChip label="Cancelled" value={counts.cancelled ?? 0} />
             <CountChip label="Failed" value={counts.failed ?? 0} />

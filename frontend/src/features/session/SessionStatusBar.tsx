@@ -17,8 +17,8 @@ import {
 } from "@mui/material";
 import { useEffect, useState } from "react";
 
-import type { SessionSnapshot, SessionStatus } from "../../contracts";
 import { STATUS_TONE_COLOR, type StatusTone } from "../../app/theme";
+import type { SessionSnapshot, SessionStatus } from "../viewer/viewerApi";
 
 const STATUS_LABEL: Record<SessionStatus, string> = {
   created: "Created",

@@ -5,7 +5,7 @@
 // page load regardless of double mounting. The promise is held in memory only;
 // nothing is written to localStorage, sessionStorage, IndexedDB or cookies.
 
-import type { SessionSnapshot } from "../../contracts";
+import type { SessionSnapshot } from "../viewer/viewerApi";
 import { createSession } from "./sessionApi";
 
 let bootstrapPromise: Promise<SessionSnapshot> | null = null;

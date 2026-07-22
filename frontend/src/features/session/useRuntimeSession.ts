@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { deleteBeacon } from "../../api/http";
-import type { SessionSnapshot } from "../../contracts";
+import type { SessionSnapshot } from "../viewer/viewerApi";
 import { bootstrapSession, clearBootstrap } from "./sessionBootstrap";
 import { deleteSession, getSession, sessionPath } from "./sessionApi";
 import { sessionKeys } from "./sessionKeys";

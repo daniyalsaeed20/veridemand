@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
 
-import type { SessionSnapshot } from "../contracts";
+import type { SessionSnapshot } from "../features/viewer/viewerApi";
 
 export function createTestQueryClient(): QueryClient {
   return new QueryClient({
@@ -105,7 +105,7 @@ export function makeSnapshot(overrides: Partial<SessionSnapshot> = {}): SessionS
     counts: {
       uploaded: 0,
       queued: 0,
-      preparing: 0,
+      canonicalising: 0,
       ready_for_extraction: 0,
       cancelled: 0,
       failed: 0,
@@ -142,6 +142,11 @@ export function makeDocument(
     queue_position: null,
     active_job_id: null,
     created_at: new Date().toISOString(),
+    canonical_status: null,
+    canonicalisation_method: null,
+    canonical_view_available: false,
+    canonical_view_url: null,
+    canonical_metadata_url: null,
     ...overrides,
   };
 }

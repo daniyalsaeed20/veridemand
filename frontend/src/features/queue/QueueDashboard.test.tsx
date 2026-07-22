@@ -11,7 +11,7 @@ function snapshotWithDocuments() {
     counts: {
       uploaded: 1,
       queued: 1,
-      preparing: 0,
+      canonicalising: 0,
       ready_for_extraction: 1,
       cancelled: 0,
       failed: 0,

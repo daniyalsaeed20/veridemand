@@ -2,6 +2,7 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { makeDocument, makeSnapshot, renderWithClient } from "../../tests/testUtils";
+import { useViewerStore } from "../viewer/viewerState";
 import { DocumentCard } from "./DocumentCard";
 
 vi.mock("./documentApi", () => ({
@@ -24,6 +25,7 @@ const DOC_ID = "doc_" + "1".repeat(32);
 
 afterEach(() => {
   vi.clearAllMocks();
+  useViewerStore.getState().selectDocument(null);
 });
 
 describe("DocumentCard", () => {
@@ -84,5 +86,60 @@ describe("DocumentCard", () => {
       />,
     );
     expect(screen.queryByRole("button", { name: "Process" })).toBeNull();
+  });
+
+  it("shows a Canonicalising chip and allows cancelling while canonicalising", () => {
+    renderWithClient(
+      <DocumentCard
+        sessionId={SESSION_ID}
+        document={makeDocument({ document_id: DOC_ID, status: "canonicalising" })}
+      />,
+    );
+    expect(screen.getByText("Canonicalising")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+  });
+
+  it('offers "Open canonical document" only when canonical_view_available', () => {
+    const { rerender } = renderWithClient(
+      <DocumentCard
+        sessionId={SESSION_ID}
+        document={makeDocument({
+          document_id: DOC_ID,
+          status: "ready_for_extraction",
+          canonical_view_available: false,
+        })}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /open canonical document/i })).toBeNull();
+
+    rerender(
+      <DocumentCard
+        sessionId={SESSION_ID}
+        document={makeDocument({
+          document_id: DOC_ID,
+          status: "ready_for_extraction",
+          canonical_status: "ready",
+          canonicalisation_method: "original_pdf",
+          canonical_view_available: true,
+        })}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /open canonical document/i })).toBeInTheDocument();
+    expect(screen.getByText(/Canonical document ready/i)).toBeInTheDocument();
+  });
+
+  it('selects the document in the viewer store when "Open canonical document" is clicked', () => {
+    renderWithClient(
+      <DocumentCard
+        sessionId={SESSION_ID}
+        document={makeDocument({
+          document_id: DOC_ID,
+          status: "ready_for_extraction",
+          canonical_view_available: true,
+        })}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /open canonical document/i }));
+    expect(useViewerStore.getState().selectedDocumentId).toBe(DOC_ID);
   });
 });

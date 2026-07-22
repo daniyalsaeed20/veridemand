@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { environment } from "../../api/environment";
-import { zProgressEvent, zProgressEventType } from "../../contracts";
+import { zProgressEvent, zProgressEventType } from "../viewer/viewerApi";
 import { sessionKeys } from "./sessionKeys";
 
 const PROGRESS_EVENT_TYPES = zProgressEventType.options;

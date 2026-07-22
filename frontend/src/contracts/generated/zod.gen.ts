@@ -33,6 +33,44 @@ export const zBodyUploadDocumentsApiV1SessionsSessionIdDocumentsPost = z.object(
 });
 
 /**
+ * CanonicalPageSourceType
+ *
+ * Origin of a canonical page's visual content.
+ */
+export const zCanonicalPageSourceType = z.enum([
+    'pdf',
+    'text',
+    'image',
+    'word'
+]);
+
+/**
+ * CanonicalStatus
+ *
+ * Lifecycle of a document's canonical visual representation.
+ */
+export const zCanonicalStatus = z.enum([
+    'pending',
+    'queued',
+    'canonicalising',
+    'ready',
+    'failed',
+    'cancelled'
+]);
+
+/**
+ * CanonicalisationMethod
+ *
+ * How the canonical PDF was produced.
+ */
+export const zCanonicalisationMethod = z.enum([
+    'original_pdf',
+    'libreoffice_writer_pdf',
+    'reportlab_text_pdf',
+    'reportlab_image_pdf'
+]);
+
+/**
  * CheckState
  *
  * Result of a single readiness dependency check.
@@ -75,12 +113,12 @@ export const zDocumentFormat = z.enum([
 /**
  * DocumentStatus
  *
- * Lifecycle state of an accepted document during Phase 1.
+ * Lifecycle state of an accepted document during Phase 2.
  */
 export const zDocumentStatus = z.enum([
     'uploaded',
     'queued',
-    'preparing',
+    'canonicalising',
     'ready_for_extraction',
     'cancelled',
     'failed'
@@ -93,8 +131,8 @@ export const zDocumentStatus = z.enum([
  */
 export const zDocumentStatusCounts = z.object({
     cancelled: z.int().gte(0).optional().default(0),
+    canonicalising: z.int().gte(0).optional().default(0),
     failed: z.int().gte(0).optional().default(0),
-    preparing: z.int().gte(0).optional().default(0),
     queued: z.int().gte(0).optional().default(0),
     ready_for_extraction: z.int().gte(0).optional().default(0),
     uploaded: z.int().gte(0).optional().default(0)
@@ -167,6 +205,108 @@ export const zLivenessResponse = z.object({
 });
 
 /**
+ * NormalisedBoundingBox
+ *
+ * Axis-aligned box in normalised page space (top-left origin).
+ */
+export const zNormalisedBoundingBox = z.object({
+    height: z.number().gt(0).lte(1),
+    width: z.number().gt(0).lte(1),
+    x: z.number().gte(0).lte(1),
+    y: z.number().gte(0).lte(1)
+});
+
+/**
+ * CanonicalPageMetadata
+ *
+ * Per-page geometry for the canonical PDF.
+ */
+export const zCanonicalPageMetadata = z.object({
+    height_points: z.number().gt(0),
+    image_placement_bbox: zNormalisedBoundingBox.nullish(),
+    intrinsic_rotation: z.int(),
+    page_number: z.int().gte(1),
+    source_frame_index: z.int().gte(0).nullish(),
+    source_pixel_height: z.int().gt(0).nullish(),
+    source_pixel_width: z.int().gt(0).nullish(),
+    source_type: zCanonicalPageSourceType,
+    width_points: z.number().gt(0)
+});
+
+/**
+ * CanonicalDocumentMetadata
+ *
+ * Public metadata for a ready canonical document (no filesystem paths).
+ */
+export const zCanonicalDocumentMetadata = z.object({
+    canonical_status: zCanonicalStatus,
+    canonicalisation_method: zCanonicalisationMethod,
+    created_at: z.iso.datetime(),
+    document_id: z.string().regex(/^doc_[0-9a-f]{32}$/),
+    libreoffice_version: z.string().nullish(),
+    media_type: z.string(),
+    page_count: z.int().gte(1),
+    pages: z.array(zCanonicalPageMetadata),
+    sha256: z.string().length(64),
+    size_bytes: z.int().gte(0),
+    warnings: z.array(z.string()).optional()
+});
+
+/**
+ * NormalisedPoint
+ *
+ * A point in normalised page space.
+ */
+export const zNormalisedPoint = z.object({
+    x: z.number().gte(0).lte(1),
+    y: z.number().gte(0).lte(1)
+});
+
+/**
+ * NormalisedPolygon
+ *
+ * Closed polygon in normalised page space (at least three points).
+ */
+export const zNormalisedPolygon = z.object({
+    points: z.array(zNormalisedPoint).min(3).max(64)
+});
+
+/**
+ * Geometry
+ *
+ * Polygon plus containing bounding box.
+ */
+export const zGeometry = z.object({
+    bbox: zNormalisedBoundingBox,
+    polygon: zNormalisedPolygon
+});
+
+/**
+ * OverlayProofItem
+ *
+ * A single synthetic overlay used only for Phase 2 alignment verification.
+ */
+export const zOverlayProofItem = z.object({
+    geometry: zGeometry,
+    id: z.string(),
+    label: z.string(),
+    page_number: z.int().gte(1),
+    source: z.string(),
+    synthetic: z.boolean()
+});
+
+/**
+ * OverlayProofResponse
+ *
+ * Synthetic alignment overlays for every canonical page.
+ */
+export const zOverlayProofResponse = z.object({
+    document_id: z.string().regex(/^doc_[0-9a-f]{32}$/),
+    overlays: z.array(zOverlayProofItem),
+    synthetic: z.boolean().optional().default(true)
+});
+
+/**
  * PageCountStatus
  *
  * Whether a document's page count is known in Phase 1.
@@ -180,6 +320,11 @@ export const zPageCountStatus = z.enum(['known', 'pending_canonicalisation']);
  */
 export const zDocumentSummary = z.object({
     active_job_id: z.string().regex(/^job_[0-9a-f]{32}$/).nullish(),
+    canonical_metadata_url: z.string().nullish(),
+    canonical_status: zCanonicalStatus.nullish(),
+    canonical_view_available: z.boolean().optional().default(false),
+    canonical_view_url: z.string().nullish(),
+    canonicalisation_method: zCanonicalisationMethod.nullish(),
     created_at: z.iso.datetime(),
     display_filename: z.string(),
     document_id: z.string().regex(/^doc_[0-9a-f]{32}$/),
@@ -189,7 +334,7 @@ export const zDocumentSummary = z.object({
     media_type: z.string(),
     page_count: z.int().gte(0).nullish(),
     page_count_status: zPageCountStatus,
-    progress_percent: z.int().gte(0).lte(5),
+    progress_percent: z.int().gte(0).lte(15),
     queue_position: z.int().gte(1).nullish(),
     result_available: z.boolean().optional().default(false),
     sha256: z.string().length(64),
@@ -238,6 +383,12 @@ export const zProgressEventType = z.enum([
     'document.queued',
     'document.started',
     'document.stage_changed',
+    'document.canonicalisation_started',
+    'document.canonicalisation_progress',
+    'document.canonicalisation_completed',
+    'document.canonicalisation_failed',
+    'document.canonicalisation_cancelled',
+    'document.canonical_ready',
     'document.ready_for_extraction',
     'document.removed',
     'document.warning',
@@ -261,6 +412,9 @@ export const zProgressEventType = z.enum([
  * A single, strictly-validated progress event.
  */
 export const zProgressEvent = z.object({
+    canonical_page_count: z.int().gte(0).nullish(),
+    canonical_status: z.string().nullish(),
+    canonicalisation_method: z.string().nullish(),
     document_id: z.string().regex(/^doc_[0-9a-f]{32}$/).nullish(),
     document_status: zDocumentStatus.nullish(),
     event: zProgressEventType,
@@ -495,6 +649,31 @@ export const zCancelDocumentApiV1SessionsSessionIdDocumentsDocumentIdCancelPostP
  * Successful Response
  */
 export const zCancelDocumentApiV1SessionsSessionIdDocumentsDocumentIdCancelPostResponse = zDocumentSummary;
+
+export const zGetCanonicalPdfApiV1SessionsSessionIdDocumentsDocumentIdCanonicalGetPath = z.object({
+    session_id: z.string(),
+    document_id: z.string()
+});
+
+export const zGetCanonicalMetadataApiV1SessionsSessionIdDocumentsDocumentIdCanonicalMetadataGetPath = z.object({
+    session_id: z.string(),
+    document_id: z.string()
+});
+
+/**
+ * Successful Response
+ */
+export const zGetCanonicalMetadataApiV1SessionsSessionIdDocumentsDocumentIdCanonicalMetadataGetResponse = zCanonicalDocumentMetadata;
+
+export const zGetOverlayProofApiV1SessionsSessionIdDocumentsDocumentIdCanonicalOverlayProofGetPath = z.object({
+    session_id: z.string(),
+    document_id: z.string()
+});
+
+/**
+ * Successful Response
+ */
+export const zGetOverlayProofApiV1SessionsSessionIdDocumentsDocumentIdCanonicalOverlayProofGetResponse = zOverlayProofResponse;
 
 export const zSessionEventsApiV1SessionsSessionIdEventsGetPath = z.object({
     session_id: z.string()

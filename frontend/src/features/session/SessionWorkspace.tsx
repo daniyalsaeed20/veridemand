@@ -4,6 +4,7 @@ import { Alert, AlertTitle, Box, Button, CircularProgress, Stack, Typography } f
 import { ApiError } from "../../api/http";
 import { UploadPanel } from "../upload/UploadPanel";
 import { QueueDashboard } from "../queue/QueueDashboard";
+import { CanonicalViewer } from "../viewer/CanonicalViewer";
 import { SessionStatusBar } from "./SessionStatusBar";
 import { useRuntimeSession } from "./useRuntimeSession";
 import { useSessionEvents } from "./useSessionEvents";
@@ -83,16 +84,28 @@ export function SessionWorkspace() {
         isResetting={session.isResetting}
         onReset={() => void session.reset()}
       />
-      <UploadPanel
-        sessionId={session.sessionId}
-        limits={snapshot.limits}
-        disabled={interactionsDisabled}
-      />
-      <QueueDashboard
-        sessionId={session.sessionId}
-        snapshot={snapshot}
-        disabled={interactionsDisabled}
-      />
+
+      {/* Two-column workspace: the queue panel (upload + documents) on the
+          left, the canonical document viewer on the right. The viewer column
+          renders its own empty state until a document is selected. */}
+      <Stack direction={{ xs: "column", lg: "row" }} spacing={3} sx={{ alignItems: "stretch" }}>
+        <Stack spacing={3} sx={{ flex: { lg: "0 0 420px" }, minWidth: 0 }}>
+          <UploadPanel
+            sessionId={session.sessionId}
+            limits={snapshot.limits}
+            disabled={interactionsDisabled}
+          />
+          <QueueDashboard
+            sessionId={session.sessionId}
+            snapshot={snapshot}
+            disabled={interactionsDisabled}
+          />
+        </Stack>
+
+        <Box sx={{ flex: "1 1 auto", minWidth: 0 }}>
+          <CanonicalViewer sessionId={session.sessionId} documents={snapshot.documents} />
+        </Box>
+      </Stack>
     </Stack>
   );
 }

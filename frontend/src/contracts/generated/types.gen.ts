@@ -75,6 +75,155 @@ export type BodyUploadDocumentsApiV1SessionsSessionIdDocumentsPost = {
 };
 
 /**
+ * CanonicalDocumentMetadata
+ *
+ * Public metadata for a ready canonical document (no filesystem paths).
+ */
+export type CanonicalDocumentMetadata = {
+    /**
+     * Canonicalisation lifecycle status.
+     */
+    canonical_status: CanonicalStatus;
+    /**
+     * Method used to produce the canonical PDF.
+     */
+    canonicalisation_method: CanonicalisationMethod;
+    /**
+     * Created At
+     *
+     * Timezone-aware UTC time the canonical PDF was ready.
+     */
+    created_at: string;
+    /**
+     * Document Id
+     *
+     * Opaque document identifier.
+     */
+    document_id: string;
+    /**
+     * Libreoffice Version
+     *
+     * LibreOffice version when used for conversion.
+     */
+    libreoffice_version?: string | null;
+    /**
+     * Media Type
+     *
+     * Always application/pdf for the canonical view.
+     */
+    media_type: string;
+    /**
+     * Page Count
+     *
+     * Canonical page count.
+     */
+    page_count: number;
+    /**
+     * Pages
+     *
+     * Per-page metadata.
+     */
+    pages: Array<CanonicalPageMetadata>;
+    /**
+     * Sha256
+     *
+     * Lowercase hex SHA-256 digest.
+     */
+    sha256: string;
+    /**
+     * Size Bytes
+     *
+     * Canonical PDF size in bytes.
+     */
+    size_bytes: number;
+    /**
+     * Warnings
+     *
+     * Non-fatal warning codes from canonicalisation.
+     */
+    warnings?: Array<string>;
+};
+
+/**
+ * CanonicalPageMetadata
+ *
+ * Per-page geometry for the canonical PDF.
+ */
+export type CanonicalPageMetadata = {
+    /**
+     * Height Points
+     *
+     * Effective displayed height in PDF points.
+     */
+    height_points: number;
+    /**
+     * Normalised placement of the source image on the page (full-page when set).
+     */
+    image_placement_bbox?: NormalisedBoundingBox | null;
+    /**
+     * Intrinsic Rotation
+     *
+     * Intrinsic PDF page rotation already applied in the default visual system.
+     */
+    intrinsic_rotation: number;
+    /**
+     * Page Number
+     *
+     * 1-based page number.
+     */
+    page_number: number;
+    /**
+     * Source Frame Index
+     *
+     * 0-based source frame index for image-backed pages.
+     */
+    source_frame_index?: number | null;
+    /**
+     * Source Pixel Height
+     *
+     * Source pixel height for image-backed pages.
+     */
+    source_pixel_height?: number | null;
+    /**
+     * Source Pixel Width
+     *
+     * Source pixel width for image-backed pages.
+     */
+    source_pixel_width?: number | null;
+    /**
+     * Source material for this page.
+     */
+    source_type: CanonicalPageSourceType;
+    /**
+     * Width Points
+     *
+     * Effective displayed width in PDF points.
+     */
+    width_points: number;
+};
+
+/**
+ * CanonicalPageSourceType
+ *
+ * Origin of a canonical page's visual content.
+ */
+export type CanonicalPageSourceType = 'pdf' | 'text' | 'image' | 'word';
+
+/**
+ * CanonicalStatus
+ *
+ * Lifecycle of a document's canonical visual representation.
+ */
+export type CanonicalStatus = 'pending' | 'queued' | 'canonicalising' | 'ready' | 'failed' | 'cancelled';
+
+/**
+ * CanonicalisationMethod
+ *
+ * How the canonical PDF was produced.
+ */
+export type CanonicalisationMethod = 'original_pdf' | 'libreoffice_writer_pdf' | 'reportlab_text_pdf' | 'reportlab_image_pdf';
+
+/**
  * CheckState
  *
  * Result of a single readiness dependency check.
@@ -135,9 +284,9 @@ export type DocumentListResponse = {
 /**
  * DocumentStatus
  *
- * Lifecycle state of an accepted document during Phase 1.
+ * Lifecycle state of an accepted document during Phase 2.
  */
-export type DocumentStatus = 'uploaded' | 'queued' | 'preparing' | 'ready_for_extraction' | 'cancelled' | 'failed';
+export type DocumentStatus = 'uploaded' | 'queued' | 'canonicalising' | 'ready_for_extraction' | 'cancelled' | 'failed';
 
 /**
  * DocumentStatusCounts
@@ -150,13 +299,13 @@ export type DocumentStatusCounts = {
      */
     cancelled?: number;
     /**
+     * Canonicalising
+     */
+    canonicalising?: number;
+    /**
      * Failed
      */
     failed?: number;
-    /**
-     * Preparing
-     */
-    preparing?: number;
     /**
      * Queued
      */
@@ -184,6 +333,32 @@ export type DocumentSummary = {
      */
     active_job_id?: string | null;
     /**
+     * Canonical Metadata Url
+     *
+     * Relative URL for canonical page metadata.
+     */
+    canonical_metadata_url?: string | null;
+    /**
+     * Canonical view lifecycle status when known.
+     */
+    canonical_status?: CanonicalStatus | null;
+    /**
+     * Canonical View Available
+     *
+     * True when a canonical PDF is ready to serve.
+     */
+    canonical_view_available?: boolean;
+    /**
+     * Canonical View Url
+     *
+     * Relative URL for the canonical PDF viewer document.
+     */
+    canonical_view_url?: string | null;
+    /**
+     * Method used to produce the canonical PDF, when ready.
+     */
+    canonicalisation_method?: CanonicalisationMethod | null;
+    /**
      * Created At
      *
      * Timezone-aware UTC acceptance time.
@@ -210,7 +385,7 @@ export type DocumentSummary = {
     /**
      * Extraction Performed
      *
-     * Always false in Phase 1.
+     * Always false in Phase 2.
      */
     extraction_performed?: boolean;
     /**
@@ -236,7 +411,7 @@ export type DocumentSummary = {
     /**
      * Progress Percent
      *
-     * Honest Phase 1 progress; capped at 5% (no extraction).
+     * Honest Phase 2 progress; capped at 15% (no extraction).
      */
     progress_percent: number;
     /**
@@ -248,7 +423,7 @@ export type DocumentSummary = {
     /**
      * Result Available
      *
-     * Always false in Phase 1.
+     * Always false in Phase 2.
      */
     result_available?: boolean;
     /**
@@ -273,6 +448,16 @@ export type DocumentSummary = {
      * Number of non-fatal upload warnings.
      */
     warning_count?: number;
+};
+
+/**
+ * Geometry
+ *
+ * Polygon plus containing bounding box.
+ */
+export type Geometry = {
+    bbox: NormalisedBoundingBox;
+    polygon: NormalisedPolygon;
 };
 
 /**
@@ -449,6 +634,126 @@ export type LivenessResponse = {
 };
 
 /**
+ * NormalisedBoundingBox
+ *
+ * Axis-aligned box in normalised page space (top-left origin).
+ */
+export type NormalisedBoundingBox = {
+    /**
+     * Height
+     */
+    height: number;
+    /**
+     * Width
+     */
+    width: number;
+    /**
+     * X
+     */
+    x: number;
+    /**
+     * Y
+     */
+    y: number;
+};
+
+/**
+ * NormalisedPoint
+ *
+ * A point in normalised page space.
+ */
+export type NormalisedPoint = {
+    /**
+     * X
+     */
+    x: number;
+    /**
+     * Y
+     */
+    y: number;
+};
+
+/**
+ * NormalisedPolygon
+ *
+ * Closed polygon in normalised page space (at least three points).
+ */
+export type NormalisedPolygon = {
+    /**
+     * Points
+     */
+    points: Array<NormalisedPoint>;
+};
+
+/**
+ * OverlayProofItem
+ *
+ * A single synthetic overlay used only for Phase 2 alignment verification.
+ */
+export type OverlayProofItem = {
+    /**
+     * Normalised geometry on the canonical page.
+     */
+    geometry: Geometry;
+    /**
+     * Id
+     *
+     * Stable overlay identifier.
+     */
+    id: string;
+    /**
+     * Label
+     *
+     * Human-readable label.
+     */
+    label: string;
+    /**
+     * Page Number
+     *
+     * 1-based page number.
+     */
+    page_number: number;
+    /**
+     * Source
+     *
+     * Provenance marker; always synthetic_phase_2.
+     */
+    source: string;
+    /**
+     * Synthetic
+     *
+     * Always true; this is not extraction output.
+     */
+    synthetic: boolean;
+};
+
+/**
+ * OverlayProofResponse
+ *
+ * Synthetic alignment overlays for every canonical page.
+ */
+export type OverlayProofResponse = {
+    /**
+     * Document Id
+     *
+     * Opaque document identifier.
+     */
+    document_id: string;
+    /**
+     * Overlays
+     *
+     * One overlay per canonical page.
+     */
+    overlays: Array<OverlayProofItem>;
+    /**
+     * Synthetic
+     *
+     * Always true for Phase 2 overlay proofs.
+     */
+    synthetic?: boolean;
+};
+
+/**
  * PageCountStatus
  *
  * Whether a document's page count is known in Phase 1.
@@ -503,6 +808,24 @@ export type ProcessResponse = {
  * A single, strictly-validated progress event.
  */
 export type ProgressEvent = {
+    /**
+     * Canonical Page Count
+     *
+     * Canonical page count when known.
+     */
+    canonical_page_count?: number | null;
+    /**
+     * Canonical Status
+     *
+     * Canonical status when relevant.
+     */
+    canonical_status?: string | null;
+    /**
+     * Canonicalisation Method
+     *
+     * Canonicalisation method when relevant.
+     */
+    canonicalisation_method?: string | null;
     /**
      * Document Id
      *
@@ -603,7 +926,7 @@ export type ProgressEvent = {
  * Extraction-stage types are reserved for later phases and are never emitted in
  * Phase 1.
  */
-export type ProgressEventType = 'session.created' | 'session.snapshot' | 'session.expiring' | 'session.deleted' | 'document.uploaded' | 'document.rejected' | 'document.queued' | 'document.started' | 'document.stage_changed' | 'document.ready_for_extraction' | 'document.removed' | 'document.warning' | 'document.failed' | 'document.cancelled' | 'job.queued' | 'job.started' | 'job.completed' | 'job.failed' | 'job.cancelled' | 'stream.resync_required' | 'heartbeat' | 'document.page_started' | 'document.page_completed' | 'document.completed';
+export type ProgressEventType = 'session.created' | 'session.snapshot' | 'session.expiring' | 'session.deleted' | 'document.uploaded' | 'document.rejected' | 'document.queued' | 'document.started' | 'document.stage_changed' | 'document.canonicalisation_started' | 'document.canonicalisation_progress' | 'document.canonicalisation_completed' | 'document.canonicalisation_failed' | 'document.canonicalisation_cancelled' | 'document.canonical_ready' | 'document.ready_for_extraction' | 'document.removed' | 'document.warning' | 'document.failed' | 'document.cancelled' | 'job.queued' | 'job.started' | 'job.completed' | 'job.failed' | 'job.cancelled' | 'stream.resync_required' | 'heartbeat' | 'document.page_started' | 'document.page_completed' | 'document.completed';
 
 /**
  * QueueInfo
@@ -1194,6 +1517,130 @@ export type CancelDocumentApiV1SessionsSessionIdDocumentsDocumentIdCancelPostRes
 };
 
 export type CancelDocumentApiV1SessionsSessionIdDocumentsDocumentIdCancelPostResponse = CancelDocumentApiV1SessionsSessionIdDocumentsDocumentIdCancelPostResponses[keyof CancelDocumentApiV1SessionsSessionIdDocumentsDocumentIdCancelPostResponses];
+
+export type GetCanonicalPdfApiV1SessionsSessionIdDocumentsDocumentIdCanonicalGetData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+        /**
+         * Document Id
+         */
+        document_id: string;
+    };
+    query?: never;
+    url: '/api/v1/sessions/{session_id}/documents/{document_id}/canonical';
+};
+
+export type GetCanonicalPdfApiV1SessionsSessionIdDocumentsDocumentIdCanonicalGetErrors = {
+    /**
+     * Session or document not found.
+     */
+    404: ApiErrorEnvelope;
+    /**
+     * Canonical document not ready.
+     */
+    409: ApiErrorEnvelope;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCanonicalPdfApiV1SessionsSessionIdDocumentsDocumentIdCanonicalGetError = GetCanonicalPdfApiV1SessionsSessionIdDocumentsDocumentIdCanonicalGetErrors[keyof GetCanonicalPdfApiV1SessionsSessionIdDocumentsDocumentIdCanonicalGetErrors];
+
+export type GetCanonicalPdfApiV1SessionsSessionIdDocumentsDocumentIdCanonicalGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type GetCanonicalMetadataApiV1SessionsSessionIdDocumentsDocumentIdCanonicalMetadataGetData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+        /**
+         * Document Id
+         */
+        document_id: string;
+    };
+    query?: never;
+    url: '/api/v1/sessions/{session_id}/documents/{document_id}/canonical/metadata';
+};
+
+export type GetCanonicalMetadataApiV1SessionsSessionIdDocumentsDocumentIdCanonicalMetadataGetErrors = {
+    /**
+     * Session or document not found.
+     */
+    404: ApiErrorEnvelope;
+    /**
+     * Canonical document not ready.
+     */
+    409: ApiErrorEnvelope;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCanonicalMetadataApiV1SessionsSessionIdDocumentsDocumentIdCanonicalMetadataGetError = GetCanonicalMetadataApiV1SessionsSessionIdDocumentsDocumentIdCanonicalMetadataGetErrors[keyof GetCanonicalMetadataApiV1SessionsSessionIdDocumentsDocumentIdCanonicalMetadataGetErrors];
+
+export type GetCanonicalMetadataApiV1SessionsSessionIdDocumentsDocumentIdCanonicalMetadataGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: CanonicalDocumentMetadata;
+};
+
+export type GetCanonicalMetadataApiV1SessionsSessionIdDocumentsDocumentIdCanonicalMetadataGetResponse = GetCanonicalMetadataApiV1SessionsSessionIdDocumentsDocumentIdCanonicalMetadataGetResponses[keyof GetCanonicalMetadataApiV1SessionsSessionIdDocumentsDocumentIdCanonicalMetadataGetResponses];
+
+export type GetOverlayProofApiV1SessionsSessionIdDocumentsDocumentIdCanonicalOverlayProofGetData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+        /**
+         * Document Id
+         */
+        document_id: string;
+    };
+    query?: never;
+    url: '/api/v1/sessions/{session_id}/documents/{document_id}/canonical/overlay-proof';
+};
+
+export type GetOverlayProofApiV1SessionsSessionIdDocumentsDocumentIdCanonicalOverlayProofGetErrors = {
+    /**
+     * Session or document not found.
+     */
+    404: ApiErrorEnvelope;
+    /**
+     * Canonical document not ready.
+     */
+    409: ApiErrorEnvelope;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetOverlayProofApiV1SessionsSessionIdDocumentsDocumentIdCanonicalOverlayProofGetError = GetOverlayProofApiV1SessionsSessionIdDocumentsDocumentIdCanonicalOverlayProofGetErrors[keyof GetOverlayProofApiV1SessionsSessionIdDocumentsDocumentIdCanonicalOverlayProofGetErrors];
+
+export type GetOverlayProofApiV1SessionsSessionIdDocumentsDocumentIdCanonicalOverlayProofGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: OverlayProofResponse;
+};
+
+export type GetOverlayProofApiV1SessionsSessionIdDocumentsDocumentIdCanonicalOverlayProofGetResponse = GetOverlayProofApiV1SessionsSessionIdDocumentsDocumentIdCanonicalOverlayProofGetResponses[keyof GetOverlayProofApiV1SessionsSessionIdDocumentsDocumentIdCanonicalOverlayProofGetResponses];
 
 export type SessionEventsApiV1SessionsSessionIdEventsGetData = {
     body?: never;
