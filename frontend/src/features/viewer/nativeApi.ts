@@ -29,8 +29,11 @@ export function getNativePage(
   pageNumber: number,
   signal?: AbortSignal,
 ): Promise<NativePageResult> {
-  return getJson(`${nativeBasePath(sessionId, documentId)}/pages/${pageNumber}?include_characters=false`, {
-    schema: zNativePageResult,
-    signal,
-  });
+  return getJson(
+    `${nativeBasePath(sessionId, documentId)}/pages/${pageNumber}?include_characters=false`,
+    {
+      schema: zNativePageResult,
+      signal,
+    },
+  );
 }

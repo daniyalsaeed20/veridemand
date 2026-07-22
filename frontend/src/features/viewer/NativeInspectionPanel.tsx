@@ -42,10 +42,12 @@ export function NativeInspectionPanel({
             Trust score: {displayValue(page.trust.native_trust_score)}
           </Typography>
           <Typography variant="body2">
-            Reason codes: {page.trust.reason_codes?.length ? page.trust.reason_codes.join(", ") : "—"}
+            Reason codes:{" "}
+            {page.trust.reason_codes?.length ? page.trust.reason_codes.join(", ") : "—"}
           </Typography>
           <Typography variant="body2">
-            Native words: {page.trust.metrics.word_count} · Characters: {page.trust.metrics.character_count}
+            Native words: {page.trust.metrics.word_count} · Characters:{" "}
+            {page.trust.metrics.character_count}
           </Typography>
           <Typography variant="body2">
             native_result_available: {String(page.trust.native_result_available)} ·

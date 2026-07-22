@@ -274,7 +274,7 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
             />
             <OverlayLayer
               overlays={overlayQuery.data?.overlays ?? []}
-              nativeWordOverlays={nativeOverlayActive ? nativePageQuery.data?.words ?? [] : []}
+              nativeWordOverlays={nativeOverlayActive ? (nativePageQuery.data?.words ?? []) : []}
               pageNumber={clampedPageNumber}
               pixelWidth={renderedViewport?.widthPx ?? 0}
               pixelHeight={renderedViewport?.heightPx ?? 0}
