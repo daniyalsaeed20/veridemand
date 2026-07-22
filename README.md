@@ -3,7 +3,8 @@
 VeriDemand is a **document-extraction platform**. It extracts text and structure
 from documents using a deterministic pipeline (native text and OCR, with a
 vision LLM only for handwritten or uncertain regions). This repository is at the
-**Phase 1** stage: runtime sessions, uploads, and the processing queue skeleton.
+**Phase 2** stage: runtime sessions, uploads, canonical PDF production, and the
+PDF.js viewer with normalised coordinates.
 
 > **Runtime-only product.** VeriDemand keeps uploaded files and results only for
 > the duration of a session. Refreshing, closing, or resetting the page may
@@ -13,33 +14,35 @@ vision LLM only for handwritten or uncertain regions). This repository is at the
 The sole authoritative specification is
 [`docs/SOURCE_OF_TRUTH.md`](docs/SOURCE_OF_TRUTH.md).
 
-## Phase 1 scope
+## Phase 2 scope
 
-Building on the Phase 0 foundation, Phase 1 adds:
+Building on Phase 1, Phase 2 adds:
 
-- **Runtime-only sessions** created per page load, in-memory with an inactivity
-  TTL and guaranteed cleanup (periodic sweep, startup sweep, graceful shutdown).
-- **Defensive multi-document uploads**: filename normalisation, extension
-  allow-list, streamed size enforcement, magic-byte and MIME checks, and
-  format-specific structural validation for PDF, images, DOCX, DOC and TXT — using
-  `pypdf`/`Pillow`/`oletools`/`defusedxml` **for validation only**.
-- **In-memory processing queue** with a single admission worker and a
-  **non-extractive** coordinator that only marks documents `ready_for_extraction`.
-- **Live progress over SSE** with stable event ids, bounded replay, resync, and a
-  per-session connection cap.
-- A responsive **upload + queue dashboard** with reset and expiration UX.
+- **Canonical PDF production** for PDF (byte-identical publish), TXT (deterministic
+  ReportLab render), images (Pillow + ReportLab), and Word (LibreOffice headless).
+- **Canonical HTTP delivery**: inline PDF with byte ranges, page metadata, and a
+  synthetic overlay-proof endpoint.
+- **Normalised coordinate contracts** (top-left origin, `[0, 1]`) and rotation
+  helpers for viewer alignment.
+- **PDF.js viewer** in the frontend with scale controls and synthetic overlay proof.
+- Extended **readiness** checks for LibreOffice, ReportLab, and canonical storage.
 
-**No extraction of any kind** is performed in Phase 1: no canonicalisation, PDF
-rendering, native-text reading, OCR, layout analysis, or LLM calls. See
-[`docs/architecture/phase-1-runtime-sessions.md`](docs/architecture/phase-1-runtime-sessions.md)
-and ADRs [0004](docs/decisions/0004-runtime-sessions.md)–[0007](docs/decisions/0007-sse-progress-broker.md).
+**No extraction of any kind** is performed in Phase 2: no native-text trust,
+OCR, layout analysis, or LLM calls. Documents reach `ready_for_extraction` with
+`canonical_view_available: true` but `result_available: false`. See
+[`docs/architecture/phase-2-canonical-documents.md`](docs/architecture/phase-2-canonical-documents.md)
+and ADRs [0008](docs/decisions/0008-canonical-pdf-policy.md)–[0011](docs/decisions/0011-pdfjs-viewer.md).
+
+### Phase 1 (complete)
+
+Runtime-only sessions, defensive uploads, in-memory queue, SSE progress, and the
+upload + queue dashboard. See
+[`docs/architecture/phase-1-runtime-sessions.md`](docs/architecture/phase-1-runtime-sessions.md).
 
 ### Not implemented yet (later phases)
 
-Canonicalisation, PDF rendering (`pypdfium2`/MuPDF), OCR (PaddleOCR), layout
-analysis, LibreOffice conversion, vision-model calls, handwriting routing,
-search, exports, databases, Redis/Celery, and authentication. **Phase 2 has not
-been implemented.**
+Native-text trust gate, OCR (PaddleOCR), layout analysis, handwriting routing,
+vision-model calls, search, exports, databases, Redis/Celery, and authentication.
 
 ## Repository layout
 
@@ -56,6 +59,8 @@ models/ fixtures/ temp/   Phase-boundary scaffolding (README-only / gitkeep)
 - **uv** (manages a Python **3.12** environment; the system Python is untouched).
 - **Node.js 24.18.0** (`.nvmrc`) with **Corepack** enabled.
 - **pnpm 11** (pinned via `packageManager`; `corepack enable pnpm`).
+- **LibreOffice** (Writer) for Word canonicalisation and readiness — install
+  locally or set `LIBREOFFICE_EXECUTABLE` (see `.env.example`).
 
 ## Setup
 
@@ -78,12 +83,15 @@ pnpm dev:frontend
 
 ## Endpoints
 
-- Health: `GET /health/live`, `GET /health/ready` (readiness now also checks the
-  session workspace, admission coordinator, cleanup worker, and queue).
+- Health: `GET /health/live`, `GET /health/ready` (readiness checks session
+  workspace, coordinator, cleanup worker, queue, LibreOffice, ReportLab, and
+  canonical storage).
 - Sessions: `POST/GET/DELETE /api/v1/sessions/{id}`, `GET .../events` (SSE),
   `POST .../process`.
 - Documents: `POST/GET .../documents`, `GET/DELETE .../documents/{doc}`,
   `POST .../documents/{doc}/cancel`.
+- Canonical: `GET .../documents/{doc}/canonical`, `GET .../canonical/metadata`,
+  `GET .../canonical/overlay-proof`.
 - Jobs: `GET .../jobs`, `GET .../jobs/{job}`.
 - `GET http://127.0.0.1:8000/openapi.json`, `/docs`, `/redoc`.
 
@@ -119,14 +127,17 @@ cancellation and expiry flows.
 
 ## Current limitations
 
-- Single process with exactly one queue admission worker; no horizontal scaling.
-- No extraction is performed: Phase 1 stops at `ready_for_extraction`.
-- Readiness reports future capabilities as optional `not_configured` (see
-  [ADR 0003](docs/decisions/0003-phase-0-readiness.md)).
+- Single process with exactly one canonicalisation worker; no horizontal scaling.
+- No extraction is performed: Phase 2 stops at `ready_for_extraction` with a
+  canonical view only.
+- Word conversion fidelity depends on the installed LibreOffice version.
+- Readiness reports future capabilities as optional `not_configured` (OCR, HTR,
+  vision provider).
 
 ## More documentation
 
-- Architecture: [`docs/architecture/phase-1-runtime-sessions.md`](docs/architecture/phase-1-runtime-sessions.md),
+- Architecture: [`docs/architecture/phase-2-canonical-documents.md`](docs/architecture/phase-2-canonical-documents.md),
+  [`docs/architecture/phase-1-runtime-sessions.md`](docs/architecture/phase-1-runtime-sessions.md),
   [`docs/architecture/phase-0-foundation.md`](docs/architecture/phase-0-foundation.md)
 - Decisions: [`docs/decisions/`](docs/decisions/)
 - Dependencies & licences: [`docs/dependencies/`](docs/dependencies/)
