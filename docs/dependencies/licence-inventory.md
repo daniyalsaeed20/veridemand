@@ -2,11 +2,24 @@
 
 ## Summary
 
-All Phase 0 and Phase 1 **direct** dependencies are under permissive licences
-(MIT, MIT-CMU/HPND, BSD-2/3-Clause, Apache-2.0, or PSF-2.0). No copyleft
-licence is present in the direct dependency set. Phase 1 introduces one
-**transitive** GPL-3.0 package (`pcodedmp`, via `oletools`) that is flagged for
-review below.
+All Phase 0–2 **direct** Python and Node dependencies are under permissive
+licences (MIT, MIT-CMU/HPND, BSD-2/3-Clause, Apache-2.0, or PSF-2.0). Phase 1
+introduces one **transitive** GPL-3.0 package (`pcodedmp`, via `oletools`) that
+is flagged for review below. Phase 2 adds **LibreOffice** as an external MPL-2.0
+runtime (not a Python/Node package).
+
+## Phase 2 direct dependency additions
+
+| Package | Version | Licence | Notes |
+|---|---|---|---|
+| reportlab | 4.5.1 | BSD-3-Clause | Permissive; deterministic PDF generation |
+| pdfjs-dist | 6.1.200 | Apache-2.0 | Permissive; patent grant |
+
+## Phase 2 external runtime
+
+| Component | Licence | Notes |
+|---|---|---|
+| LibreOffice Writer | MPL-2.0 | External headless runtime; not vendored. Operators install locally or via CI (`libreoffice-writer`). File-based invocation only (`shell=False`). |
 
 ## Phase 1 direct dependency additions
 
@@ -58,10 +71,15 @@ required; no questionable dependency was added merely to produce a report.
 ## Packages needing future review
 
 - `pcodedmp` (GPL-3.0, transitive) - see the concern above.
-- Later phases will add OCR (PaddleOCR), PDF (pdfplumber/pypdfium2),
-  imaging (OpenCV), ONNX Runtime, the OpenAI SDK, and LibreOffice
-  integration. Each must be licence-reviewed before it is added, per the
-  dependency policy.
+- Later phases will add OCR (PaddleOCR), additional PDF tooling, imaging (OpenCV),
+  ONNX Runtime, and the OpenAI SDK. Each must be licence-reviewed before it is
+  added, per the dependency policy.
+
+## Phase 2 confirmation
+
+Confirmed: **no** OCR, HTR, or vision-model Python/Node dependencies were
+introduced in Phase 2. `reportlab` and `pdfjs-dist` are permissively licensed.
+LibreOffice is an external MPL-2.0 runtime requirement, recorded separately.
 
 ## Phase 1 confirmation
 

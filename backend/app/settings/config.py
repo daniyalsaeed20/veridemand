@@ -77,16 +77,41 @@ class Settings(BaseSettings):
     sse_subscriber_queue_size: int = Field(default=100, gt=0)
     max_sse_connections_per_session: int = Field(default=3, gt=0)
 
-    # Processing queue (Phase 1). The runtime-only implementation is single-process
-    # and MUST run exactly one admission worker: multiple workers would create
-    # independent, inconsistent session registries and queues.
+    # Processing queue (Phase 1/2). Single-process runtime: exactly one worker.
     queue_admission_workers: int = Field(default=1, ge=1, le=1)
 
-    # Test-only admission hold. When > 0, the non-extractive admission step sleeps
-    # cooperatively (honouring cancellation) for this many seconds before marking a
-    # document ready. It exists solely so E2E tests can observe the queued/preparing
-    # states and exercise cancellation deterministically. MUST be 0 in production.
+    # Test-only hold. When > 0, the processor sleeps cooperatively before finishing
+    # so E2E can observe queued/canonicalising states. MUST be 0 in production.
     queue_admission_test_delay_seconds: float = Field(default=0.0, ge=0.0, le=60.0)
+
+    # LibreOffice (Phase 2). External runtime requirement, not a Python package.
+    libreoffice_executable: str = ""
+    libreoffice_timeout_seconds: float = Field(default=120.0, gt=0)
+    libreoffice_termination_grace_seconds: float = Field(default=5.0, gt=0)
+
+    # Canonicalisation workers (Phase 2). Hard-capped at one.
+    canonicalisation_workers: int = Field(default=1, ge=1, le=1)
+    canonicalisation_thread_workers: int = Field(default=1, ge=1, le=1)
+
+    # Deterministic TXT → PDF (Phase 2).
+    txt_page_size: str = "LETTER"
+    txt_margin_points: float = Field(default=54.0, gt=0)
+    txt_font_size_points: float = Field(default=10.0, gt=0)
+    txt_leading_points: float = Field(default=12.0, gt=0)
+    txt_tab_size: int = Field(default=4, ge=1, le=16)
+
+    # Image → PDF (Phase 2).
+    image_canonical_dpi: float = Field(default=96.0, ge=36.0, le=600.0)
+    max_canonical_page_points: float = Field(default=14400.0, gt=0)
+
+    # Canonical delivery (Phase 2).
+    canonical_file_cache_control: str = "no-store"
+    canonical_page_dimension_tolerance_points: float = Field(default=0.5, gt=0)
+
+    # Viewer scale limits (Phase 2; mirrored as frontend constants).
+    viewer_min_scale: float = Field(default=0.25, gt=0)
+    viewer_max_scale: float = Field(default=4.0, gt=0)
+    viewer_scale_step: float = Field(default=0.25, gt=0)
 
     # Concurrency (future processing pipeline).
     heavy_document_workers: int = Field(default=1, gt=0)
@@ -156,6 +181,23 @@ class Settings(BaseSettings):
             raise ValueError(
                 "SESSION_EXPIRING_WARNING_SECONDS must be less than SESSION_TTL_SECONDS."
             )
+        if self.libreoffice_termination_grace_seconds >= self.libreoffice_timeout_seconds:
+            raise ValueError(
+                "LIBREOFFICE_TERMINATION_GRACE_SECONDS must be less than "
+                "LIBREOFFICE_TIMEOUT_SECONDS."
+            )
+        page_size = self.txt_page_size.strip().upper()
+        if page_size != "LETTER":
+            raise ValueError("TXT_PAGE_SIZE must be LETTER in Phase 2.")
+        # US Letter: 612 x 792 points; margins must leave a usable content area.
+        if self.txt_margin_points * 2 >= 612 or self.txt_margin_points * 2 >= 792:
+            raise ValueError("TXT_MARGIN_POINTS must fit inside the LETTER page.")
+        if self.txt_leading_points < self.txt_font_size_points:
+            raise ValueError("TXT_LEADING_POINTS must be >= TXT_FONT_SIZE_POINTS.")
+        if self.viewer_max_scale <= self.viewer_min_scale:
+            raise ValueError("VIEWER_MAX_SCALE must be greater than VIEWER_MIN_SCALE.")
+        if self.canonical_file_cache_control.strip().lower() != "no-store":
+            raise ValueError("CANONICAL_FILE_CACHE_CONTROL must be 'no-store'.")
         return self
 
 

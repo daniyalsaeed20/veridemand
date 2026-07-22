@@ -3,10 +3,10 @@
 Exact versions are taken from the committed lockfiles (`uv.lock`,
 `pnpm-lock.yaml`) and installed package metadata. Phase 0 introduced **no**
 OCR, PDF, image, MuPDF, HTR, vision-model, database, or queue dependencies.
-Phase 1 adds upload-validation and SSE libraries only: `pypdf` and `Pillow` are
-used strictly for structural upload validation (no rendering or text
-extraction); no OCR, MuPDF, HTR, vision-model, database, or external-queue
-dependency is introduced.
+Phase 1 adds upload-validation and SSE libraries only. Phase 2 adds canonical
+PDF production (`reportlab`), PDF.js viewing (`pdfjs-dist`), and an external
+LibreOffice runtime for Word conversion — still **no** OCR, HTR, or vision-model
+dependencies.
 
 ## Python - runtime (`pyproject.toml` `[project].dependencies`)
 
@@ -23,6 +23,16 @@ dependency is introduced.
 | Pillow | 11.3.0 | Image identification, integrity, dimensions, frame count only | 1 | https://github.com/python-pillow/Pillow | MIT-CMU (HPND) |
 | oletools | 0.60.2 | Detect VBA macros in legacy `.doc` files | 1 | https://github.com/decalage2/oletools | BSD-2-Clause |
 | defusedxml | 0.7.1 | Safely inspect XML metadata in DOCX packages | 1 | https://github.com/tiran/defusedxml | PSF-2.0 |
+| reportlab | 4.5.1 | Deterministic TXT/image → canonical PDF | 2 | https://www.reportlab.com/devdocs/ | BSD-3-Clause |
+
+## External runtime (not a Python package)
+
+| Component | Version | Purpose | Phase | Source | Licence |
+|---|---|---|---|---|---|
+| LibreOffice Writer | host-specific | Headless DOC/DOCX → PDF canonicalisation | 2 | https://www.libreoffice.org/ | MPL-2.0 |
+
+Discovered via `LIBREOFFICE_EXECUTABLE`, `PATH`, or known install paths. Required
+for readiness and Word canonicalisation; not vendored in the repository.
 
 ## Python - development (`[dependency-groups].dev`)
 
@@ -61,6 +71,7 @@ imported directly by application code.
 | @tanstack/react-query | 5.101.3 | Server-state / health queries | 0 | https://github.com/TanStack/query | MIT |
 | zustand | 5.0.14 | Ephemeral shell state | 0 | https://github.com/pmndrs/zustand | MIT |
 | zod | 4.4.3 | Runtime response validation | 0 | https://github.com/colinhacks/zod | MIT |
+| pdfjs-dist | 6.1.200 | In-browser canonical PDF viewer (PDF.js) | 2 | https://github.com/mozilla/pdf.js | Apache-2.0 |
 
 ## Node - frontend development (`frontend/package.json` `devDependencies`)
 
