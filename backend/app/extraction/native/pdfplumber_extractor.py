@@ -13,6 +13,7 @@ from backend.app.extraction.native.models import (
     RawCharCandidate,
     RawWordCandidate,
 )
+from backend.app.extraction.native.near_overprint import analyse_and_clean_near_overprint
 
 
 def _safe_float(value: object, default: float = 0.0) -> float:
@@ -20,6 +21,20 @@ def _safe_float(value: object, default: float = 0.0) -> float:
         return float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return default
+
+
+def _char_tagged(ch: dict[str, object]) -> bool | None:
+    """Best-effort tagged-object hint from pdfplumber/pdfminer char dicts."""
+
+    if "tag" in ch and ch["tag"] is not None:
+        return True
+    if ch.get("mcid") is not None:
+        return True
+    if ch.get("tagged") is True:
+        return True
+    if ch.get("tagged") is False:
+        return False
+    return None
 
 
 def extract_page_candidates(
@@ -122,16 +137,17 @@ def _extract_one_page(
                 fontname=str(ch["fontname"]) if ch.get("fontname") is not None else None,
                 size=max(_safe_float(ch.get("size"), 0.0), 0.0),
                 upright=bool(ch.get("upright", True)),
-                rotation_degrees=_safe_float(ch.get("matrix", [1, 0, 0, 1, 0, 0])[1], 0.0)
-                if False
-                else _char_rotation(ch),
+                rotation_degrees=_char_rotation(ch),
                 x0=_safe_float(ch.get("x0")),
                 x1=_safe_float(ch.get("x1")),
                 top=_safe_float(ch.get("top")),
                 bottom=_safe_float(ch.get("bottom")),
                 sequence_index=index,
+                tagged=_char_tagged(ch),
             )
         )
+
+    strict_duplicate_ratio = (raw_character_count - len(characters)) / max(raw_character_count, 1)
 
     word_dicts = deduped.extract_words(
         x_tolerance=3,
@@ -190,6 +206,20 @@ def _extract_one_page(
             )
         )
 
+    overprint = analyse_and_clean_near_overprint(
+        characters,
+        strict_duplicate_ratio=strict_duplicate_ratio,
+        words=words,
+        max_near_overprint_ratio=policy.native_max_near_overprint_ratio,
+        iou_threshold=policy.native_near_overprint_iou_threshold,
+        centre_factor=policy.native_near_overprint_centre_factor,
+        centre_cap=policy.native_near_overprint_centre_cap_points,
+        size_similarity=policy.native_near_overprint_size_similarity,
+    )
+    characters = overprint.characters
+    words = overprint.words
+    near_overprint_ambiguous = overprint.selection == "ambiguous"
+
     images: list[ImageGeom] = []
     for img in page.images or []:
         images.append(
@@ -212,6 +242,12 @@ def _extract_one_page(
         words=words,
         images=images,
         page_dimension_match=page_dimension_match,
+        strict_duplicate_ratio=overprint.metrics.strict_duplicate_ratio,
+        near_overprint_duplicate_ratio=overprint.metrics.near_overprint_duplicate_ratio,
+        duplicate_layer_count=overprint.metrics.duplicate_layer_count,
+        dominant_duplicate_offset_x=overprint.metrics.dominant_duplicate_offset_x,
+        dominant_duplicate_offset_y=overprint.metrics.dominant_duplicate_offset_y,
+        near_overprint_ambiguous=near_overprint_ambiguous,
     )
 
 

@@ -1314,11 +1314,30 @@
             "title": "Deduplicated Character Count",
             "type": "integer"
           },
+          "dominant_duplicate_offset_x": {
+            "default": 0.0,
+            "description": "Dominant near-overprint offset X in PDF points.",
+            "title": "Dominant Duplicate Offset X",
+            "type": "number"
+          },
+          "dominant_duplicate_offset_y": {
+            "default": 0.0,
+            "description": "Dominant near-overprint offset Y in PDF points.",
+            "title": "Dominant Duplicate Offset Y",
+            "type": "number"
+          },
           "duplicate_character_ratio": {
             "maximum": 1.0,
             "minimum": 0.0,
             "title": "Duplicate Character Ratio",
             "type": "number"
+          },
+          "duplicate_layer_count": {
+            "default": 1,
+            "description": "Estimated distinct near-overprint text layers.",
+            "minimum": 1.0,
+            "title": "Duplicate Layer Count",
+            "type": "integer"
           },
           "extraction_order_backtrack_ratio": {
             "maximum": 1.0,
@@ -1358,6 +1377,14 @@
             "maximum": 1.0,
             "minimum": 0.0,
             "title": "Missing Font Ratio",
+            "type": "number"
+          },
+          "near_overprint_duplicate_ratio": {
+            "default": 0.0,
+            "description": "Fraction of characters participating in near-overprint pairs.",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Near Overprint Duplicate Ratio",
             "type": "number"
           },
           "noncharacter_ratio": {
@@ -1404,6 +1431,14 @@
             "maximum": 1.0,
             "minimum": 0.0,
             "title": "Single Character Word Ratio",
+            "type": "number"
+          },
+          "strict_duplicate_ratio": {
+            "default": 0.0,
+            "description": "Ratio removed by strict pdfplumber dedupe (fontname+size).",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Strict Duplicate Ratio",
             "type": "number"
           },
           "symbol_only_word_ratio": {

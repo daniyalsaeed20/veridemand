@@ -158,6 +158,31 @@ class NativePageMetrics(ApiModel):
     word_count: int = Field(ge=0)
     character_count: int = Field(ge=0)
     duplicate_character_ratio: float = Field(ge=0.0, le=1.0)
+    strict_duplicate_ratio: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Ratio removed by strict pdfplumber dedupe (fontname+size).",
+    )
+    near_overprint_duplicate_ratio: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Fraction of characters participating in near-overprint pairs.",
+    )
+    duplicate_layer_count: int = Field(
+        default=1,
+        ge=1,
+        description="Estimated distinct near-overprint text layers.",
+    )
+    dominant_duplicate_offset_x: float = Field(
+        default=0.0,
+        description="Dominant near-overprint offset X in PDF points.",
+    )
+    dominant_duplicate_offset_y: float = Field(
+        default=0.0,
+        description="Dominant near-overprint offset Y in PDF points.",
+    )
     replacement_character_ratio: float = Field(ge=0.0, le=1.0)
     control_character_ratio: float = Field(ge=0.0, le=1.0)
     private_use_character_ratio: float = Field(ge=0.0, le=1.0)

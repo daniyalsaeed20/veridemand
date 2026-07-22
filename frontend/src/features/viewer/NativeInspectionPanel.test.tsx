@@ -66,4 +66,34 @@ describe("NativeInspectionPanel", () => {
     expect(screen.queryByText("Accepted native text")).toBeNull();
     expect(screen.queryByRole("switch", { name: "Show native word boxes" })).toBeNull();
   });
+
+  it("shows overlapping-layer wording for near-overprint rejection", () => {
+    const rejectedPage = {
+      ...acceptedPage,
+      decision: "rejected",
+      source_mode: "visual_authority",
+      provisional_native_text: null,
+      words: [],
+      trust: {
+        ...acceptedPage.trust,
+        reason_codes: ["excessive_near_overprint_duplicates", "native_text_rejected"],
+        native_result_available: false,
+        visual_processing_required: true,
+      },
+    } as NativePageResult;
+    render(
+      <NativeInspectionPanel
+        summary={summary}
+        page={rejectedPage}
+        nativeOverlayEnabled={false}
+        onToggleNativeOverlay={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        /overlapping native text layers that could not be trusted\. Visual processing is required/i,
+      ),
+    ).toBeInTheDocument();
+  });
 });

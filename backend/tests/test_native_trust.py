@@ -89,6 +89,119 @@ def test_duplicate_layer_rejected() -> None:
     assert NativeReasonCode.EXCESSIVE_DUPLICATE_CHARACTERS.value in bundle.trust.reason_codes
 
 
+def _assert_no_doubled_adjacent_letters(text: str) -> None:
+    """Heuristic guard: accepted provisional text must not look like RRuunn-style doubles."""
+
+    # Collapse is not required; instead forbid long runs of identical adjacent pairs.
+    if not text:
+        return
+    doubles = 0
+    i = 0
+    while i + 1 < len(text):
+        if text[i] == text[i + 1] and text[i].isalnum():
+            doubles += 1
+            i += 2
+        else:
+            i += 1
+    # Legitimate words have occasional doubles; RRuunn-style pages are mostly doubles.
+    assert doubles / max(len(text.replace(" ", "")), 1) < 0.35
+
+
+def test_near_overprint_cross_font_never_doubled() -> None:
+    bundle = _decide("near-overprint-cross-font.pdf")
+    result = build_page_result(bundle, canonicalisation_method="original_pdf")
+    metrics = bundle.trust.metrics
+    assert metrics.strict_duplicate_ratio is not None
+    assert metrics.near_overprint_duplicate_ratio >= 0.0
+    assert metrics.duplicate_layer_count >= 1
+    if bundle.accept_text:
+        assert bundle.trust.decision is NativePageDecision.ACCEPTED
+        assert result.provisional_native_text
+        _assert_no_doubled_adjacent_letters(result.provisional_native_text)
+        # Cleaned single copy should not retain both fonts on the same glyphs densely.
+        assert "Cross font" in result.provisional_native_text or "SAMPLE" in (
+            result.provisional_native_text or ""
+        )
+    else:
+        assert bundle.trust.decision is NativePageDecision.REJECTED
+        assert (
+            NativeReasonCode.EXCESSIVE_NEAR_OVERPRINT_DUPLICATES.value
+            in bundle.trust.reason_codes
+        )
+        assert result.words == []
+        assert result.characters == []
+        assert result.provisional_native_text is None
+
+
+def test_near_overprint_vertical_never_doubled() -> None:
+    bundle = _decide("near-overprint-vertical.pdf")
+    result = build_page_result(bundle, canonicalisation_method="original_pdf")
+    if bundle.accept_text:
+        assert result.provisional_native_text
+        _assert_no_doubled_adjacent_letters(result.provisional_native_text)
+    else:
+        assert (
+            NativeReasonCode.EXCESSIVE_NEAR_OVERPRINT_DUPLICATES.value
+            in bundle.trust.reason_codes
+        )
+        assert result.words == []
+
+
+def test_near_overprint_horizontal_never_doubled() -> None:
+    bundle = _decide("near-overprint-horizontal.pdf")
+    result = build_page_result(bundle, canonicalisation_method="original_pdf")
+    if bundle.accept_text:
+        assert result.provisional_native_text
+        _assert_no_doubled_adjacent_letters(result.provisional_native_text)
+    else:
+        assert (
+            NativeReasonCode.EXCESSIVE_NEAR_OVERPRINT_DUPLICATES.value
+            in bundle.trust.reason_codes
+        )
+        assert result.characters == []
+
+
+def test_near_overprint_tagged_untagged_never_doubled() -> None:
+    bundle = _decide("near-overprint-tagged-untagged.pdf")
+    result = build_page_result(bundle, canonicalisation_method="original_pdf")
+    if bundle.accept_text:
+        assert result.provisional_native_text
+        _assert_no_doubled_adjacent_letters(result.provisional_native_text)
+    else:
+        assert (
+            NativeReasonCode.EXCESSIVE_NEAR_OVERPRINT_DUPLICATES.value
+            in bundle.trust.reason_codes
+        )
+
+
+def test_genuine_bold_shadow_keeps_primary() -> None:
+    bundle = _decide("genuine-bold-shadow.pdf")
+    result = build_page_result(bundle, canonicalisation_method="original_pdf")
+    assert bundle.trust.decision is NativePageDecision.ACCEPTED
+    assert result.provisional_native_text
+    assert "Primary readable heading text" in result.provisional_native_text
+    assert "bookkeeper" in result.provisional_native_text
+    assert "100.00" in result.provisional_native_text
+
+
+def test_legitimate_repeated_letters_accepted() -> None:
+    bundle = _decide("legitimate-repeated-letters.pdf")
+    result = build_page_result(bundle, canonicalisation_method="original_pdf")
+    assert bundle.trust.decision is NativePageDecision.ACCEPTED
+    text = result.provisional_native_text or ""
+    assert "letter" in text
+    assert "bookkeeper" in text
+    assert "100.00" in text
+
+
+def test_near_overprint_reason_message() -> None:
+    from backend.app.contracts.warnings import reason_message
+
+    msg = reason_message(NativeReasonCode.EXCESSIVE_NEAR_OVERPRINT_DUPLICATES.value)
+    assert "overlapping native text layers" in msg
+    assert "Visual processing is required" in msg
+
+
 def test_cid_layer_rejected() -> None:
     bundle = _decide("cid-token-layer.pdf")
     assert bundle.trust.decision is NativePageDecision.REJECTED

@@ -226,6 +226,105 @@ def write_duplicate_text(path: Path) -> None:
     pdf.save()
 
 
+def write_near_overprint_cross_font(path: Path) -> None:
+    """Same string in two fonts with a ~1.5 pt offset (cross-font near-overprint)."""
+
+    pdf = pdf_canvas(path)
+    text = "Cross font near overprint SAMPLE 0044"
+    pdf.setFont("Helvetica", 14)
+    pdf.drawString(72, 720, text)
+    pdf.setFont("Times-Roman", 13.5)
+    pdf.drawString(73.5, 718.5, text)
+    pdf.save()
+
+
+def write_near_overprint_vertical(path: Path) -> None:
+    pdf = pdf_canvas(path)
+    text = "Vertical offset duplicate layer TEXT"
+    pdf.setFont("Helvetica", 12)
+    pdf.drawString(72, 700, text)
+    pdf.setFont("Courier", 12)
+    pdf.drawString(72, 698, text)
+    pdf.save()
+
+
+def write_near_overprint_horizontal(path: Path) -> None:
+    pdf = pdf_canvas(path)
+    text = "Horizontal offset duplicate layer TEXT"
+    pdf.setFont("Helvetica", 12)
+    pdf.drawString(72, 700, text)
+    pdf.setFont("Courier", 12)
+    pdf.drawString(74, 700, text)
+    pdf.save()
+
+
+def write_near_overprint_tagged_untagged(path: Path) -> None:
+    """Two complete layers; one wrapped in marked-content (tagged hint when exposed)."""
+
+    # Build via raw content: untagged Helvetica then tagged Times at slight offset.
+    writer = PdfWriter()
+    page = writer.add_blank_page(width=PAGE_WIDTH, height=PAGE_HEIGHT)
+    resources = DictionaryObject(
+        {
+            NameObject("/Font"): DictionaryObject(
+                {
+                    NameObject("/F1"): DictionaryObject(
+                        {
+                            NameObject("/Type"): NameObject("/Font"),
+                            NameObject("/Subtype"): NameObject("/Type1"),
+                            NameObject("/BaseFont"): NameObject("/Helvetica"),
+                        }
+                    ),
+                    NameObject("/F2"): DictionaryObject(
+                        {
+                            NameObject("/Type"): NameObject("/Font"),
+                            NameObject("/Subtype"): NameObject("/Type1"),
+                            NameObject("/BaseFont"): NameObject("/Times-Roman"),
+                        }
+                    ),
+                }
+            )
+        }
+    )
+    page[NameObject("/Resources")] = resources
+    stream = DecodedStreamObject()
+    # PDF text: "TaggedDup" drawn twice with 1.5pt offset; second in BDC/EMC.
+    stream.set_data(
+        b"BT /F1 14 Tf 72 720 Td (TaggedDup Layer) Tj ET\n"
+        b"/Span << /MCID 0 >> BDC\n"
+        b"BT /F2 13.5 Tf 73.5 718.5 Td (TaggedDup Layer) Tj ET\n"
+        b"EMC\n"
+    )
+    page[NameObject("/Contents")] = writer._add_object(stream)
+    with path.open("wb") as handle:
+        writer.write(handle)
+
+
+def write_genuine_bold_shadow(path: Path) -> None:
+    """Partial shadow/bold effect — must not strip the primary readable text."""
+
+    pdf = pdf_canvas(path)
+    pdf.setFont("Helvetica", 16)
+    pdf.drawString(72, 720, "Primary readable heading text")
+    # Incomplete shadow: only a short prefix, gray-ish second stroke simulation via offset.
+    pdf.setFont("Helvetica", 16)
+    pdf.drawString(73, 719, "Primary")  # partial only
+    pdf.setFont("Helvetica", 11)
+    pdf.drawString(72, 680, "Body line with letter bookkeeper and 100.00 amounts.")
+    pdf.save()
+
+
+def write_legitimate_repeated_letters(path: Path) -> None:
+    """Legitimate doubled letters that must remain accepted single-copy text."""
+
+    pdf = pdf_canvas(path)
+    pdf.setFont("Helvetica", 14)
+    pdf.drawString(72, 720, "letter bookkeeper Mississippi")
+    pdf.drawString(72, 690, "Amount due: 100.00 exactly")
+    pdf.drawString(72, 660, "Additional normal sentence without overprint layers.")
+    pdf.save()
+
+
 def write_out_of_bounds(path: Path) -> None:
     pdf = pdf_canvas(path)
     pdf.setFont("Helvetica", 12)
@@ -329,6 +428,12 @@ def main() -> None:
         "private-use-layer.pdf": write_private_use,
         "control-character-layer.pdf": write_control_characters,
         "duplicate-text-layer.pdf": write_duplicate_text,
+        "near-overprint-cross-font.pdf": write_near_overprint_cross_font,
+        "near-overprint-vertical.pdf": write_near_overprint_vertical,
+        "near-overprint-horizontal.pdf": write_near_overprint_horizontal,
+        "near-overprint-tagged-untagged.pdf": write_near_overprint_tagged_untagged,
+        "genuine-bold-shadow.pdf": write_genuine_bold_shadow,
+        "legitimate-repeated-letters.pdf": write_legitimate_repeated_letters,
         "out-of-bounds-text-layer.pdf": write_out_of_bounds,
         "cid-token-layer.pdf": write_cid_tokens,
         "symbol-noise-layer.pdf": write_symbol_noise,

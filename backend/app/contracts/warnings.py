@@ -28,6 +28,7 @@ class NativeReasonCode(StrEnum):
     TEXT_OUTSIDE_PAGE_BOUNDS = "text_outside_page_bounds"
     ZERO_AREA_TEXT_GEOMETRY = "zero_area_text_geometry"
     EXCESSIVE_DUPLICATE_CHARACTERS = "excessive_duplicate_characters"
+    EXCESSIVE_NEAR_OVERPRINT_DUPLICATES = "excessive_near_overprint_duplicates"
 
     HIGH_SYMBOL_ONLY_WORD_RATIO = "high_symbol_only_word_ratio"
     HIGH_SINGLE_CHARACTER_WORD_RATIO = "high_single_character_word_ratio"
@@ -72,6 +73,10 @@ REASON_MESSAGES: dict[NativeReasonCode, str] = {
     NativeReasonCode.ZERO_AREA_TEXT_GEOMETRY: "Text geometry had zero area.",
     NativeReasonCode.EXCESSIVE_DUPLICATE_CHARACTERS: (
         "Excessive duplicate characters were detected."
+    ),
+    NativeReasonCode.EXCESSIVE_NEAR_OVERPRINT_DUPLICATES: (
+        "The PDF contains overlapping native text layers that could not be "
+        "trusted. Visual processing is required."
     ),
     NativeReasonCode.HIGH_SYMBOL_ONLY_WORD_RATIO: "Too many symbol-only words were present.",
     NativeReasonCode.HIGH_SINGLE_CHARACTER_WORD_RATIO: (

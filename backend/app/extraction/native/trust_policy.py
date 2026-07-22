@@ -66,8 +66,10 @@ def compute_components(
         geometry_m.zero_area_character_ratio,
         geometry_m.invalid_word_geometry_ratio,
     )
-    duplication = 1.0 - (
-        geometry_m.duplicate_character_ratio / max(policy.native_max_duplicate_ratio, 1e-9)
+    duplication = 1.0 - max(
+        geometry_m.duplicate_character_ratio / max(policy.native_max_duplicate_ratio, 1e-9),
+        geometry_m.near_overprint_duplicate_ratio
+        / max(policy.native_max_near_overprint_ratio, 1e-9),
     )
     token = 1.0 - max(
         text_m.cid_token_ratio / max(policy.native_max_cid_token_ratio, 1e-9),
@@ -137,11 +139,16 @@ def decide_page_trust(
         or not page.words
         or len(meaningful_chars) < policy.native_min_characters
     )
-    if sparse and not is_image_source:
+    # Near-overprint ambiguity clears text intentionally; do not treat as mere absence.
+    if sparse and not is_image_source and not page.near_overprint_ambiguous:
         reasons.append(NativeReasonCode.NATIVE_TEXT_ABSENT.value)
         if page.characters and len(meaningful_chars) < policy.native_min_characters:
             reasons.append(NativeReasonCode.NATIVE_TEXT_TOO_SPARSE.value)
         hard = True
+
+    if page.near_overprint_ambiguous:
+        hard = True
+        reasons.append(NativeReasonCode.EXCESSIVE_NEAR_OVERPRINT_DUPLICATES.value)
 
     if len(page.characters) > policy.native_max_characters_per_page:
         hard = True
@@ -190,6 +197,11 @@ def decide_page_trust(
             geometry_m.duplicate_character_ratio,
             policy.native_max_duplicate_ratio,
             NativeReasonCode.EXCESSIVE_DUPLICATE_CHARACTERS,
+        ),
+        (
+            geometry_m.near_overprint_duplicate_ratio,
+            policy.native_max_near_overprint_ratio,
+            NativeReasonCode.EXCESSIVE_NEAR_OVERPRINT_DUPLICATES,
         ),
         (
             text_m.symbol_only_word_ratio,
@@ -256,6 +268,12 @@ def decide_page_trust(
         decision = NativePageDecision.ERROR
         source_mode = SourceMode.VISUAL_AUTHORITY
         accept = False
+    elif page.near_overprint_ambiguous:
+        decision = NativePageDecision.REJECTED
+        source_mode = SourceMode.VISUAL_AUTHORITY
+        accept = False
+        if NativeReasonCode.NATIVE_TEXT_REJECTED.value not in ordered_reasons:
+            ordered_reasons.append(NativeReasonCode.NATIVE_TEXT_REJECTED.value)
     elif not native_present or (
         NativeReasonCode.NATIVE_TEXT_ABSENT.value in ordered_reasons
         and NativeReasonCode.NATIVE_TEXT_TOO_SPARSE.value not in ordered_reasons

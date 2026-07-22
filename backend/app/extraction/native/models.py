@@ -25,6 +25,11 @@ class NativeTrustPolicyConfig:
     native_max_invalid_geometry_ratio: float = 0.01
     native_max_out_of_bounds_ratio: float = 0.01
     native_max_duplicate_ratio: float = 0.20
+    native_max_near_overprint_ratio: float = 0.20
+    native_near_overprint_iou_threshold: float = 0.35
+    native_near_overprint_centre_factor: float = 0.35
+    native_near_overprint_centre_cap_points: float = 3.5
+    native_near_overprint_size_similarity: float = 0.40
     native_max_symbol_only_word_ratio: float = 0.40
     native_max_single_character_word_ratio: float = 0.75
     native_image_dominant_area_ratio: float = 0.80
@@ -107,6 +112,7 @@ class RawCharCandidate:
     top: float
     bottom: float
     sequence_index: int
+    tagged: bool | None = None
 
 
 @dataclass(slots=True)
@@ -150,3 +156,9 @@ class PageExtractionCandidate:
     images: list[ImageGeom]
     page_dimension_match: bool
     extraction_error: str | None = None
+    strict_duplicate_ratio: float = 0.0
+    near_overprint_duplicate_ratio: float = 0.0
+    duplicate_layer_count: int = 1
+    dominant_duplicate_offset_x: float = 0.0
+    dominant_duplicate_offset_y: float = 0.0
+    near_overprint_ambiguous: bool = False

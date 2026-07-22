@@ -911,9 +911,27 @@ export type NativePageMetrics = {
      */
     deduplicated_character_count: number;
     /**
+     * Dominant Duplicate Offset X
+     *
+     * Dominant near-overprint offset X in PDF points.
+     */
+    dominant_duplicate_offset_x?: number;
+    /**
+     * Dominant Duplicate Offset Y
+     *
+     * Dominant near-overprint offset Y in PDF points.
+     */
+    dominant_duplicate_offset_y?: number;
+    /**
      * Duplicate Character Ratio
      */
     duplicate_character_ratio: number;
+    /**
+     * Duplicate Layer Count
+     *
+     * Estimated distinct near-overprint text layers.
+     */
+    duplicate_layer_count?: number;
     /**
      * Extraction Order Backtrack Ratio
      */
@@ -942,6 +960,12 @@ export type NativePageMetrics = {
      * Missing Font Ratio
      */
     missing_font_ratio: number;
+    /**
+     * Near Overprint Duplicate Ratio
+     *
+     * Fraction of characters participating in near-overprint pairs.
+     */
+    near_overprint_duplicate_ratio?: number;
     /**
      * Noncharacter Ratio
      */
@@ -976,6 +1000,12 @@ export type NativePageMetrics = {
      * Single Character Word Ratio
      */
     single_character_word_ratio: number;
+    /**
+     * Strict Duplicate Ratio
+     *
+     * Ratio removed by strict pdfplumber dedupe (fontname+size).
+     */
+    strict_duplicate_ratio?: number;
     /**
      * Symbol Only Word Ratio
      */

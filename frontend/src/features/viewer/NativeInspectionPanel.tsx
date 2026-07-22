@@ -79,7 +79,9 @@ export function NativeInspectionPanel({
           ) : null}
           {page.decision === "rejected" ? (
             <Alert severity="warning">
-              The native text layer was rejected. This page requires visual processing in Phase 4.
+              {page.trust.reason_codes?.includes("excessive_near_overprint_duplicates")
+                ? "The PDF contains overlapping native text layers that could not be trusted. Visual processing is required."
+                : "The native text layer was rejected. This page requires visual processing in Phase 4."}
             </Alert>
           ) : null}
           {page.decision === "error" ? (

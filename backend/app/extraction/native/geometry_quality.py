@@ -35,6 +35,11 @@ class GeometryMetrics:
     raw_character_count: int
     deduplicated_character_count: int
     duplicate_character_ratio: float
+    strict_duplicate_ratio: float
+    near_overprint_duplicate_ratio: float
+    duplicate_layer_count: int
+    dominant_duplicate_offset_x: float
+    dominant_duplicate_offset_y: float
     zero_area_character_ratio: float
     invalid_geometry_ratio: float
     out_of_bounds_character_ratio: float
@@ -53,7 +58,10 @@ def analyse_geometry(
 
     raw = page.raw_character_count
     deduped = len(page.characters)
-    duplicate_ratio = (raw - deduped) / max(raw, 1)
+    # Strict ratio is owned by the extractor (pdfplumber dedupe only).
+    # Do not recompute from post-clean counts — near-overprint cleaning is separate.
+    strict_ratio = max(0.0, min(1.0, page.strict_duplicate_ratio))
+    duplicate_ratio = strict_ratio
 
     char_results: list[CharGeomResult] = []
     zero_area = 0
@@ -114,6 +122,11 @@ def analyse_geometry(
         raw_character_count=raw,
         deduplicated_character_count=deduped,
         duplicate_character_ratio=max(0.0, min(1.0, duplicate_ratio)),
+        strict_duplicate_ratio=max(0.0, min(1.0, strict_ratio)),
+        near_overprint_duplicate_ratio=max(0.0, min(1.0, page.near_overprint_duplicate_ratio)),
+        duplicate_layer_count=max(1, page.duplicate_layer_count),
+        dominant_duplicate_offset_x=page.dominant_duplicate_offset_x,
+        dominant_duplicate_offset_y=page.dominant_duplicate_offset_y,
         zero_area_character_ratio=zero_area / denom,
         invalid_geometry_ratio=invalid / denom,
         out_of_bounds_character_ratio=oob / denom,
