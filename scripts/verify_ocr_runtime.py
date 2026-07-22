@@ -50,6 +50,8 @@ def _synthetic_image() -> object:
 def main() -> int:
     os.chdir(ROOT)
     sys.path.insert(0, str(ROOT))
+    os.environ.setdefault("FLAGS_use_mkldnn", "0")
+    os.environ.setdefault("FLAGS_onednn", "0")
 
     # Block silent downloads during verify — models must already exist.
     os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "True"

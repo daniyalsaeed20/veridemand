@@ -8,6 +8,7 @@ Never commits model binaries. Exits non-zero on any failure.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -70,6 +71,10 @@ def main() -> int:
     os.environ.setdefault(
         "PADDLE_PDX_MODEL_SOURCE", os.environ.get("PADDLE_PDX_MODEL_SOURCE", "BOS")
     )
+    # Linux CPU runners hit OneDNN PIR conversion errors on PP-OCRv6; force plain CPU.
+    os.environ.setdefault("FLAGS_use_mkldnn", "0")
+    os.environ.setdefault("FLAGS_onednn", "0")
+    os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
 
     try:
         import paddle
@@ -98,6 +103,7 @@ def main() -> int:
     )
 
     try:
+        # Construction downloads into the PaddleX cache when dirs are missing.
         ocr = PaddleOCR(
             text_detection_model_name=settings.ocr_detection_model_name,
             text_detection_model_dir=str(det_dir) if det_dir.is_dir() else None,
@@ -108,7 +114,6 @@ def main() -> int:
             use_textline_orientation=False,
             return_word_box=True,
             device=settings.ocr_device,
-            # engine may be unsupported on some builds; prefer explicit when available
             enable_hpi=False,
             text_recognition_batch_size=settings.ocr_recognition_batch_size,
             text_det_limit_side_len=settings.ocr_text_det_limit_side_len,
@@ -118,8 +123,11 @@ def main() -> int:
             text_det_unclip_ratio=settings.ocr_text_det_unclip_ratio,
             text_rec_score_thresh=0.0,
         )
+        # Touch predict once so downloads finish if construction deferred them.
+        with contextlib.suppress(Exception):
+            _ = ocr.predict(_synthetic_image())
     except TypeError:
-        # Fallback without engine= if the installed paddleocr signature differs.
+        # Fallback without extended kwargs if the installed paddleocr signature differs.
         ocr = PaddleOCR(
             text_detection_model_name=settings.ocr_detection_model_name,
             text_recognition_model_name=settings.ocr_recognition_model_name,
@@ -131,16 +139,10 @@ def main() -> int:
             enable_hpi=False,
             text_recognition_batch_size=settings.ocr_recognition_batch_size,
         )
+        with contextlib.suppress(Exception):
+            _ = ocr.predict(_synthetic_image())
 
-    # Warm-up forces download into local cache; copy/ensure under OCR_MODEL_ROOT.
-    try:
-        _ = ocr.predict(_synthetic_image())
-    except Exception:
-        _emit("ERROR: Warm-up inference failed.")
-        traceback.print_exc()
-        return 1
-
-    # After first run, paddleocr caches models; locate and record dirs.
+    # Materialise models under OCR_MODEL_ROOT from the PaddleX cache.
     if not det_dir.is_dir() or not rec_dir.is_dir():
         import shutil
 
@@ -153,7 +155,6 @@ def main() -> int:
             if os.environ.get("PADDLE_PDX_CACHE_HOME")
             else None,
         ]
-        # Also discover from common env / user cache roots.
         for env_key in ("PADDLE_HOME", "PADDLEX_HOME"):
             raw = os.environ.get(env_key)
             if raw:
@@ -177,7 +178,6 @@ def main() -> int:
             if det_dir.is_dir() and rec_dir.is_dir():
                 break
 
-    # If still missing, create junction/symlink-style copy via file walk with open read.
     if not det_dir.is_dir() or not rec_dir.is_dir():
         cache = Path(r"D:\programming\caches\paddle\official_models")
         for name, dest in (
@@ -201,6 +201,27 @@ def main() -> int:
             "ERROR: Model directories were not materialised under OCR_MODEL_ROOT. "
             "Re-run with network access or set PADDLE_PDX_MODEL_SOURCE=BOS."
         )
+        return 1
+
+    # Warm-up again from the local OCR_MODEL_ROOT (OneDNN disabled above).
+    try:
+        ocr = PaddleOCR(
+            text_detection_model_name=settings.ocr_detection_model_name,
+            text_detection_model_dir=str(det_dir),
+            text_recognition_model_name=settings.ocr_recognition_model_name,
+            text_recognition_model_dir=str(rec_dir),
+            use_doc_orientation_classify=False,
+            use_doc_unwarping=False,
+            use_textline_orientation=False,
+            return_word_box=True,
+            device=settings.ocr_device,
+            enable_hpi=False,
+            text_recognition_batch_size=settings.ocr_recognition_batch_size,
+        )
+        _ = ocr.predict(_synthetic_image())
+    except Exception:
+        _emit("ERROR: Warm-up inference failed against local model dirs.")
+        traceback.print_exc()
         return 1
 
     import pypdfium2

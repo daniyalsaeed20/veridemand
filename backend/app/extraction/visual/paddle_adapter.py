@@ -66,6 +66,11 @@ class PaddleOcrAdapter:
     def load(self) -> None:
         """Import, construct, and warm PaddleOCR from local model directories."""
 
+        import os
+
+        os.environ.setdefault("FLAGS_use_mkldnn", "0")
+        os.environ.setdefault("FLAGS_onednn", "0")
+
         try:
             import paddle
             import paddleocr

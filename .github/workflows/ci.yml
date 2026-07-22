@@ -14,6 +14,11 @@ jobs:
     name: Lint, type-check, test, contracts
     runs-on: ubuntu-latest
     env:
+      FLAGS_use_mkldnn: "0"
+      FLAGS_onednn: "0"
+      PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK: "True"
+      PADDLE_PDX_MODEL_SOURCE: BOS
+    env:
       OPENAI_API_KEY: ""
       OCR_ENABLED: "true"
       OCR_DEVICE: cpu
@@ -101,6 +106,10 @@ jobs:
       OPENAI_API_KEY: ""
       OCR_ENABLED: "true"
       OCR_DEVICE: cpu
+      FLAGS_use_mkldnn: "0"
+      FLAGS_onednn: "0"
+      PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK: "True"
+      PADDLE_PDX_MODEL_SOURCE: BOS
     steps:
       - uses: actions/checkout@v4
 
@@ -172,6 +181,10 @@ jobs:
       OPENAI_API_KEY: ""
       OCR_ENABLED: "true"
       OCR_DEVICE: cpu
+      FLAGS_use_mkldnn: "0"
+      FLAGS_onednn: "0"
+      PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK: "True"
+      PADDLE_PDX_MODEL_SOURCE: BOS
     steps:
       - uses: actions/checkout@v4
 
