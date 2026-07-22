@@ -46,6 +46,12 @@ jobs:
       - name: Install Node dependencies (frozen)
         run: pnpm install --frozen-lockfile
 
+      - name: Install LibreOffice Writer
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libreoffice-writer
+          libreoffice --version
+
       - name: Verify contracts (no drift)
         run: pnpm contracts:check
 
@@ -82,6 +88,12 @@ jobs:
         run: |
           uv sync --frozen --all-groups
           pnpm install --frozen-lockfile
+
+      - name: Install LibreOffice Writer
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libreoffice-writer
+          libreoffice --version
 
       - name: Install Playwright Chromium
         run: pnpm -C frontend exec playwright install --with-deps chromium

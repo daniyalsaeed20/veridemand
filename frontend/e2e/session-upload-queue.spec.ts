@@ -24,11 +24,10 @@ test.describe("Bulk upload and processing queue", () => {
     // Queue everything and wait, event-driven, for readiness.
     await page.getByRole("button", { name: /process all uploaded/i }).click();
 
-    await expect(page.getByText("Ready for extraction").first()).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText("Ready:", { exact: false })).toBeVisible();
-
-    // Honest progress: the UI must never claim extraction results exist.
-    await expect(page.getByText(/no results are\s+available yet/i).first()).toBeVisible();
+    await expect(page.getByText(/canonical document ready|ready for extraction/i).first()).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page.getByText(/extraction has not started|no results are\s+available yet/i).first()).toBeVisible();
     await expect(page.getByText(/extraction complete/i)).toHaveCount(0);
   });
 

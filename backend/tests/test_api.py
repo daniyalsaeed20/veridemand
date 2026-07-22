@@ -97,9 +97,10 @@ def test_process_and_reach_ready(client: TestClient, uploads_dir: Path) -> None:
     )
     assert body["counts"]["ready_for_extraction"] == 2
     for document in body["documents"]:
-        assert document["progress_percent"] <= 5
+        assert document["progress_percent"] <= 15
         assert document["result_available"] is False
         assert document["extraction_performed"] is False
+        assert document["canonical_view_available"] is True
 
 
 def test_jobs_listed_after_process(client: TestClient, uploads_dir: Path) -> None:

@@ -51,8 +51,13 @@ def test_readiness_ready_when_temp_writable(client: TestClient) -> None:
 
 def test_readiness_reports_future_dependencies_as_not_configured(client: TestClient) -> None:
     model = ReadinessResponse.model_validate(client.get("/health/ready").json())
+    by_name = {c.name: c for c in model.checks}
+    assert by_name["libreoffice"].required is True
+    assert by_name["libreoffice"].status == "pass"
+    assert by_name["reportlab"].required is True
+    assert by_name["reportlab"].status == "pass"
     future = {c.name: c for c in model.checks if not c.required}
-    for name in ("libreoffice", "paddle_ocr", "handwriting_classifier", "openai_vision"):
+    for name in ("paddle_ocr", "handwriting_classifier", "openai_vision"):
         assert future[name].status == "not_configured"
 
 

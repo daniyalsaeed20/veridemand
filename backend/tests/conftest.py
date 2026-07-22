@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from backend.app.canonical.processor import DefaultCanonicalisationProcessor
 from backend.app.contracts.documents import (
     DocumentFormat,
     DocumentStatus,
@@ -14,7 +15,6 @@ from backend.app.contracts.documents import (
 )
 from backend.app.contracts.identifiers import new_document_id
 from backend.app.main import create_app
-from backend.app.processing.admission import Phase1AdmissionProcessor
 from backend.app.processing.coordinator import ProcessingCoordinator
 from backend.app.processing.queue import InMemoryJobQueue
 from backend.app.sessions.models import RuntimeDocument, RuntimeSession
@@ -82,6 +82,7 @@ def register_document(
         page_count=page_count,
         page_count_status=page_count_status,
         status=DocumentStatus.UPLOADED,
+        text_encoding="utf-8" if fmt is DocumentFormat.TXT else None,
     )
     session.documents[document_id] = document
     session.accepted_bytes += len(content)
@@ -103,7 +104,16 @@ def build_coordinator(
     registry: SessionRegistry,
     job_queue: InMemoryJobQueue,
     file_store: FileStore,
-    admission: object | None = None,
+    processor: object | None = None,
+    *,
+    settings: Settings | None = None,
 ) -> ProcessingCoordinator:
-    processor = admission or Phase1AdmissionProcessor(file_store)
-    return ProcessingCoordinator(registry, job_queue, processor, file_store)  # type: ignore[arg-type]
+    resolved_settings = settings or Settings(temp_root=file_store.temp_root)
+    resolved = processor or DefaultCanonicalisationProcessor(resolved_settings, file_store)
+    return ProcessingCoordinator(
+        registry,
+        job_queue,
+        resolved,  # type: ignore[arg-type]
+        file_store,
+        max_pages_per_session=resolved_settings.max_pages_per_session,
+    )

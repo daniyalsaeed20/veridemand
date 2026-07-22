@@ -2,8 +2,8 @@
 
 Runs the full validation suite in a sensible fail-fast order. Each command is
 printed before it runs; the first failure stops the run and its exit code is
-preserved. Covers Phase 0 and Phase 1 (backend + frontend tests, build, E2E, and
-a residual-session-data guard).
+preserved. Covers Phase 0-2 (backend + frontend tests, build, E2E, LibreOffice
+availability, and a residual-session-data guard).
 """
 
 from __future__ import annotations
@@ -25,6 +25,12 @@ STEPS: list[tuple[str, str]] = [
     ("Backend format check", "uv run ruff format --check backend scripts"),
     ("Backend lint", "uv run ruff check backend scripts"),
     ("Backend type check", "uv run mypy backend scripts"),
+    (
+        "LibreOffice availability",
+        f'{PYTHON} -c "from backend.app.settings.config import Settings; '
+        f"from backend.app.canonical.libreoffice import LibreOfficeService; "
+        f'r=LibreOfficeService(Settings()).resolve(); print(r.executable, r.version)"',
+    ),
     ("Backend tests", "uv run pytest"),
     ("Frontend format check", "pnpm -C frontend format:check"),
     ("Frontend lint", "pnpm -C frontend lint"),
