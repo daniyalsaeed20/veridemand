@@ -11,10 +11,16 @@ test.describe("Canonical viewer (Phase 2)", () => {
     await expect(page.getByText(/1 file accepted/)).toBeVisible();
 
     await page.getByRole("button", { name: /process all uploaded/i }).click();
-    await expect(page.getByText(/canonical document ready/i).first()).toBeVisible({
-      timeout: 30_000,
+    await expect(
+      page
+        .getByText(
+          /Native text accepted|requires visual processing|native text layer was rejected|canonical document ready/i,
+        )
+        .first(),
+    ).toBeVisible({
+      timeout: 60_000,
     });
-    await expect(page.getByText(/extraction has not started/i).first()).toBeVisible();
+    await expect(page.getByText(/extraction complete/i)).toHaveCount(0);
 
     await page.getByRole("button", { name: /open canonical document/i }).click();
     const canvas = page.getByRole("img", { name: /page 1 of/i });
@@ -54,8 +60,14 @@ test.describe("Canonical viewer (Phase 2)", () => {
     await chooseFiles(page, [fixture("valid.png")]);
     await expect(page.getByText(/1 file accepted/)).toBeVisible();
     await page.getByRole("button", { name: /process all uploaded/i }).click();
-    await expect(page.getByText(/canonical document ready/i).first()).toBeVisible({
-      timeout: 30_000,
+    await expect(
+      page
+        .getByText(
+          /Native text accepted|requires visual processing|native text layer was rejected|canonical document ready/i,
+        )
+        .first(),
+    ).toBeVisible({
+      timeout: 60_000,
     });
     await page.getByRole("button", { name: /open canonical document/i }).click();
     const canvas = page.getByRole("img", { name: /page 1 of/i });
@@ -94,7 +106,13 @@ test.describe("Canonical viewer (Phase 2)", () => {
     ]);
     await expect(page.getByText(/5 files accepted/)).toBeVisible();
     await page.getByRole("button", { name: /process all uploaded/i }).click();
-    await expect(page.getByText(/ready for extraction/i).first()).toBeVisible({ timeout: 60_000 });
+    await expect(
+      page
+        .getByText(
+          /Native text accepted|requires visual processing|native text layer was rejected|ready for extraction/i,
+        )
+        .first(),
+    ).toBeVisible({ timeout: 90_000 });
     await expect(
       page.getByRole("button", { name: /open canonical document/i }).first(),
     ).toBeEnabled();

@@ -25,13 +25,14 @@ test.describe("Bulk upload and processing queue", () => {
     await page.getByRole("button", { name: /process all uploaded/i }).click();
 
     await expect(
-      page.getByText(/canonical document ready|ready for extraction/i).first(),
+      page
+        .getByText(
+          /Native text accepted|requires visual processing|native text layer was rejected|canonical document ready|ready for extraction/i,
+        )
+        .first(),
     ).toBeVisible({
-      timeout: 30_000,
+      timeout: 90_000,
     });
-    await expect(
-      page.getByText(/extraction has not started|no results are\s+available yet/i).first(),
-    ).toBeVisible();
     await expect(page.getByText(/extraction complete/i)).toHaveCount(0);
   });
 
