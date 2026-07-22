@@ -111,15 +111,30 @@ export const zDocumentFormat = z.enum([
 ]);
 
 /**
+ * DocumentSourcePolicy
+ *
+ * Document-level source authority after escalation rules.
+ */
+export const zDocumentSourcePolicy = z.enum([
+    'native_authority',
+    'mixed_authority',
+    'visual_authority',
+    'image_authority'
+]);
+
+/**
  * DocumentStatus
  *
- * Lifecycle state of an accepted document during Phase 2.
+ * Lifecycle state of an accepted document during Phase 3.
  */
 export const zDocumentStatus = z.enum([
     'uploaded',
     'queued',
     'canonicalising',
     'ready_for_extraction',
+    'inspecting_native',
+    'extracting_native',
+    'native_trust_complete',
     'cancelled',
     'failed'
 ]);
@@ -132,7 +147,10 @@ export const zDocumentStatus = z.enum([
 export const zDocumentStatusCounts = z.object({
     cancelled: z.int().gte(0).optional().default(0),
     canonicalising: z.int().gte(0).optional().default(0),
+    extracting_native: z.int().gte(0).optional().default(0),
     failed: z.int().gte(0).optional().default(0),
+    inspecting_native: z.int().gte(0).optional().default(0),
+    native_trust_complete: z.int().gte(0).optional().default(0),
     queued: z.int().gte(0).optional().default(0),
     ready_for_extraction: z.int().gte(0).optional().default(0),
     uploaded: z.int().gte(0).optional().default(0)
@@ -202,6 +220,111 @@ export const zLivenessResponse = z.object({
     status: z.literal('ok').optional().default('ok'),
     timestamp: z.iso.datetime(),
     version: z.string()
+});
+
+/**
+ * NativePageDecision
+ *
+ * Page-level native trust decision.
+ */
+export const zNativePageDecision = z.enum([
+    'accepted',
+    'rejected',
+    'absent',
+    'error',
+    'suppressed_by_document_escalation'
+]);
+
+/**
+ * NativeProcessingStatus
+ *
+ * Lifecycle of native extraction for a document.
+ */
+export const zNativeProcessingStatus = z.enum([
+    'pending',
+    'inspecting',
+    'extracting',
+    'complete',
+    'failed',
+    'cancelled'
+]);
+
+/**
+ * NativeProgress
+ *
+ * Monotonic native-stage progress (capped at Phase 3 maximum).
+ */
+export const zNativeProgress = z.object({
+    pages_completed: z.int().gte(0),
+    pages_total: z.int().gte(0),
+    percent: z.int().gte(0).lte(35)
+});
+
+/**
+ * NativeTrustComponents
+ *
+ * Component scores in [0, 1] contributing to the native trust score.
+ */
+export const zNativeTrustComponents = z.object({
+    character_validity_score: z.number().gte(0).lte(1),
+    duplication_score: z.number().gte(0).lte(1),
+    geometry_validity_score: z.number().gte(0).lte(1),
+    image_compatibility_score: z.number().gte(0).lte(1),
+    order_plausibility_score: z.number().gte(0).lte(1),
+    text_density_score: z.number().gte(0).lte(1),
+    token_structure_score: z.number().gte(0).lte(1)
+});
+
+/**
+ * NativePageMetrics
+ *
+ * Safe page-level native quality metrics (no extracted text).
+ */
+export const zNativePageMetrics = z.object({
+    alphanumeric_word_ratio: z.number().gte(0).lte(1),
+    character_count: z.int().gte(0),
+    characters_per_page_area: z.number().gte(0),
+    cid_token_ratio: z.number().gte(0).lte(1),
+    components: zNativeTrustComponents.nullish(),
+    control_character_ratio: z.number().gte(0).lte(1),
+    deduplicated_character_count: z.int().gte(0),
+    duplicate_character_ratio: z.number().gte(0).lte(1),
+    extraction_order_backtrack_ratio: z.number().gte(0).lte(1),
+    font_count: z.int().gte(0),
+    image_count: z.int().gte(0),
+    invalid_geometry_ratio: z.number().gte(0).lte(1),
+    invalid_word_geometry_ratio: z.number().gte(0).lte(1),
+    largest_image_area_ratio: z.number().gte(0).lte(1),
+    missing_font_ratio: z.number().gte(0).lte(1),
+    noncharacter_ratio: z.number().gte(0).lte(1),
+    out_of_bounds_character_ratio: z.number().gte(0).lte(1),
+    page_dimension_match: z.boolean(),
+    private_use_character_ratio: z.number().gte(0).lte(1),
+    raw_character_count: z.int().gte(0),
+    repeated_token_ratio: z.number().gte(0).lte(1),
+    replacement_character_ratio: z.number().gte(0).lte(1),
+    single_character_word_ratio: z.number().gte(0).lte(1),
+    symbol_only_word_ratio: z.number().gte(0).lte(1),
+    total_clipped_image_area_ratio: z.number().gte(0).lte(1),
+    unassigned_character_ratio: z.number().gte(0).lte(1),
+    unprintable_character_ratio: z.number().gte(0).lte(1),
+    upright_character_ratio: z.number().gte(0).lte(1),
+    very_long_token_ratio: z.number().gte(0).lte(1),
+    whitespace_ratio: z.number().gte(0).lte(1),
+    word_count: z.int().gte(0),
+    words_per_page_area: z.number().gte(0),
+    zero_area_character_ratio: z.number().gte(0).lte(1)
+});
+
+/**
+ * NativeWarning
+ *
+ * Safe diagnostic warning without extracted text.
+ */
+export const zNativeWarning = z.object({
+    code: z.string(),
+    message: z.string(),
+    page_number: z.int().gte(1).nullish()
 });
 
 /**
@@ -328,18 +451,24 @@ export const zDocumentSummary = z.object({
     created_at: z.iso.datetime(),
     display_filename: z.string(),
     document_id: z.string().regex(/^doc_[0-9a-f]{32}$/),
+    document_source_policy: zDocumentSourcePolicy.nullish(),
     extension: z.string(),
     extraction_performed: z.boolean().optional().default(false),
     format: zDocumentFormat,
     media_type: z.string(),
+    native_extraction_performed: z.boolean().optional().default(false),
+    native_result_available: z.boolean().optional().default(false),
+    native_summary_url: z.string().nullish(),
     page_count: z.int().gte(0).nullish(),
     page_count_status: zPageCountStatus,
-    progress_percent: z.int().gte(0).lte(15),
+    progress_percent: z.int().gte(0).lte(35),
     queue_position: z.int().gte(1).nullish(),
     result_available: z.boolean().optional().default(false),
     sha256: z.string().length(64),
     size_bytes: z.int().gte(0),
     status: zDocumentStatus,
+    user_status_message: z.string().nullish(),
+    visual_processing_required: z.boolean().optional().default(false),
     warning_count: z.int().gte(0).optional().default(0)
 });
 
@@ -350,6 +479,41 @@ export const zDocumentSummary = z.object({
  */
 export const zDocumentListResponse = z.object({
     documents: z.array(zDocumentSummary)
+});
+
+/**
+ * PdfPointBox
+ *
+ * Top-left PDF-point bounding box preserved alongside normalised geometry.
+ */
+export const zPdfPointBox = z.object({
+    height: z.number().gt(0),
+    origin: z.string().optional().default('top_left'),
+    unit: z.string().optional().default('pdf_point'),
+    width: z.number().gt(0),
+    x: z.number(),
+    y: z.number()
+});
+
+/**
+ * NativeCharacter
+ *
+ * One accepted native character with canonical geometry.
+ */
+export const zNativeCharacter = z.object({
+    font_name: z.string().nullish(),
+    font_size: z.number().gte(0),
+    geometry: zGeometry,
+    id: z.string(),
+    is_whitespace: z.boolean(),
+    normalised_text: z.string().min(1),
+    page_number: z.int().gte(1),
+    pdf_point_bbox: zPdfPointBox,
+    rotation_degrees: z.number(),
+    sequence_index: z.int().gte(0),
+    text: z.string().min(1),
+    unicode_category: z.string(),
+    upright: z.boolean()
 });
 
 /**
@@ -390,6 +554,15 @@ export const zProgressEventType = z.enum([
     'document.canonicalisation_cancelled',
     'document.canonical_ready',
     'document.ready_for_extraction',
+    'document.native_inspection_started',
+    'document.native_page_started',
+    'document.native_page_accepted',
+    'document.native_page_rejected',
+    'document.native_page_absent',
+    'document.native_page_error',
+    'document.native_document_escalated',
+    'document.native_extraction_completed',
+    'document.native_extraction_failed',
     'document.removed',
     'document.warning',
     'document.failed',
@@ -415,6 +588,7 @@ export const zProgressEvent = z.object({
     canonical_page_count: z.int().gte(0).nullish(),
     canonical_status: z.string().nullish(),
     canonicalisation_method: z.string().nullish(),
+    decision: z.string().nullish(),
     document_id: z.string().regex(/^doc_[0-9a-f]{32}$/).nullish(),
     document_status: zDocumentStatus.nullish(),
     event: zProgressEventType,
@@ -423,15 +597,25 @@ export const zProgressEvent = z.object({
     job_id: z.string().regex(/^job_[0-9a-f]{32}$/).nullish(),
     job_status: zJobStatus.nullish(),
     message: z.string().nullish(),
+    native_trust_score: z.number().gte(0).lte(1).nullish(),
     page_number: z.int().gte(1).nullish(),
     pages_completed: z.int().gte(0).nullish(),
     pages_total: z.int().gte(0).nullish(),
     percent: z.int().gte(0).lte(100).nullish(),
     queue_position: z.int().gte(1).nullish(),
+    reason_codes: z.array(z.string()).nullish(),
     session_id: z.string().regex(/^ses_[0-9a-f]{32}$/),
+    source_mode: z.string().nullish(),
     stage: z.string().nullish(),
     timestamp: z.iso.datetime()
 });
+
+/**
+ * ProvisionalOrderStatus
+ *
+ * Extraction order is not final reading order.
+ */
+export const zProvisionalOrderStatus = z.enum(['unverified']);
 
 /**
  * QueueInfo
@@ -463,6 +647,20 @@ export const zReadinessResponse = z.object({
     timestamp: z.iso.datetime(),
     version: z.string()
 });
+
+/**
+ * RecognitionMethod
+ *
+ * How accepted native text was obtained.
+ */
+export const zRecognitionMethod = z.enum(['native_pdf', 'canonical_pdf_native']);
+
+/**
+ * RecognitionStatus
+ *
+ * Public recognition status for accepted native words.
+ */
+export const zRecognitionStatus = z.enum(['accepted']);
 
 /**
  * RejectedDocument
@@ -549,6 +747,39 @@ export const zProcessResponse = z.object({
 });
 
 /**
+ * SourceMode
+ *
+ * Page-level source authority for Phase 3.
+ */
+export const zSourceMode = z.enum([
+    'native_authority',
+    'visual_authority',
+    'image_authority'
+]);
+
+/**
+ * NativeWord
+ *
+ * One accepted native word with canonical geometry.
+ */
+export const zNativeWord = z.object({
+    character_ids: z.array(z.string()),
+    font_names: z.array(z.string()).optional(),
+    font_sizes: z.array(z.number()).optional(),
+    geometry: zGeometry,
+    id: z.string(),
+    normalised_text: z.string().min(1),
+    page_number: z.int().gte(1),
+    pdf_point_bbox: zPdfPointBox,
+    recognition_method: zRecognitionMethod,
+    recognition_status: zRecognitionStatus,
+    sequence_index: z.int().gte(0),
+    source_mode: zSourceMode,
+    text: z.string().min(1),
+    upright: z.boolean()
+});
+
+/**
  * UploadBatchResponse
  *
  * Response body for a bulk upload request (201, incl. partial acceptance).
@@ -575,6 +806,79 @@ export const zValidationError = z.object({
  */
 export const zHttpValidationError = z.object({
     detail: z.array(zValidationError).optional()
+});
+
+/**
+ * VisualAgreementStatus
+ *
+ * Visual agreement is deferred until Phase 4 rendering/OCR exist.
+ */
+export const zVisualAgreementStatus = z.enum(['not_evaluated_phase_3']);
+
+/**
+ * NativePageTrustResult
+ *
+ * Trust decision for one page (safe; no candidate text).
+ */
+export const zNativePageTrustResult = z.object({
+    decision: zNativePageDecision,
+    hard_rejection: z.boolean(),
+    metrics: zNativePageMetrics,
+    native_result_available: z.boolean(),
+    native_text_present: z.boolean(),
+    native_trust_score: z.number().gte(0).lte(1).nullish(),
+    page_number: z.int().gte(1),
+    reason_codes: z.array(z.string()).optional(),
+    source_mode: zSourceMode,
+    trust_policy_version: z.string(),
+    visual_agreement_score: z.number().nullish(),
+    visual_agreement_status: zVisualAgreementStatus.optional().default('not_evaluated_phase_3'),
+    visual_processing_required: z.boolean(),
+    warning_codes: z.array(z.string()).optional()
+});
+
+/**
+ * NativeDocumentSummary
+ *
+ * Public native-extraction summary for a document.
+ */
+export const zNativeDocumentSummary = z.object({
+    created_at: z.iso.datetime(),
+    document_id: z.string().regex(/^doc_[0-9a-f]{32}$/),
+    document_source_policy: zDocumentSourcePolicy.nullish(),
+    final_result_available: z.boolean().optional().default(false),
+    native_extraction_performed: z.boolean(),
+    native_processing_status: zNativeProcessingStatus,
+    native_result_available: z.boolean(),
+    page_count: z.int().gte(0),
+    page_decisions: z.array(zNativePageTrustResult).optional(),
+    pages_absent: z.int().gte(0),
+    pages_accepted: z.int().gte(0),
+    pages_errored: z.int().gte(0),
+    pages_rejected: z.int().gte(0),
+    pages_suppressed: z.int().gte(0),
+    progress: zNativeProgress,
+    trust_policy_version: z.string(),
+    user_status_message: z.string().nullish(),
+    visual_processing_required: z.boolean(),
+    warnings: z.array(zNativeWarning).optional()
+});
+
+/**
+ * NativePageResult
+ *
+ * Public per-page native result.
+ */
+export const zNativePageResult = z.object({
+    characters: z.array(zNativeCharacter).optional(),
+    decision: zNativePageDecision,
+    page_number: z.int().gte(1),
+    provisional_native_text: z.string().nullish(),
+    provisional_order_status: zProvisionalOrderStatus.optional().default('unverified'),
+    source_mode: zSourceMode,
+    trust: zNativePageTrustResult,
+    warnings: z.array(zNativeWarning).optional(),
+    words: z.array(zNativeWord).optional()
 });
 
 /**
@@ -674,6 +978,31 @@ export const zGetOverlayProofApiV1SessionsSessionIdDocumentsDocumentIdCanonicalO
  * Successful Response
  */
 export const zGetOverlayProofApiV1SessionsSessionIdDocumentsDocumentIdCanonicalOverlayProofGetResponse = zOverlayProofResponse;
+
+export const zGetNativePageApiV1SessionsSessionIdDocumentsDocumentIdNativePagesPageNumberGetPath = z.object({
+    session_id: z.string(),
+    document_id: z.string(),
+    page_number: z.int()
+});
+
+export const zGetNativePageApiV1SessionsSessionIdDocumentsDocumentIdNativePagesPageNumberGetQuery = z.object({
+    include_characters: z.boolean().optional().default(false)
+});
+
+/**
+ * Successful Response
+ */
+export const zGetNativePageApiV1SessionsSessionIdDocumentsDocumentIdNativePagesPageNumberGetResponse = zNativePageResult;
+
+export const zGetNativeSummaryApiV1SessionsSessionIdDocumentsDocumentIdNativeSummaryGetPath = z.object({
+    session_id: z.string(),
+    document_id: z.string()
+});
+
+/**
+ * Successful Response
+ */
+export const zGetNativeSummaryApiV1SessionsSessionIdDocumentsDocumentIdNativeSummaryGetResponse = zNativeDocumentSummary;
 
 export const zSessionEventsApiV1SessionsSessionIdEventsGetPath = z.object({
     session_id: z.string()

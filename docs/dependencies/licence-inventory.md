@@ -8,6 +8,17 @@ introduces one **transitive** GPL-3.0 package (`pcodedmp`, via `oletools`) that
 is flagged for review below. Phase 2 adds **LibreOffice** as an external MPL-2.0
 runtime (not a Python/Node package).
 
+## Phase 3 direct dependency additions
+
+| Package | Version | Licence | Notes |
+|---|---|---|---|
+| pdfplumber | 0.11.9 | MIT | Native text/geometry only; no OCR/HTR/LLM |
+| pdfminer.six (transitive) | 20251230 | MIT | Pulled by pdfplumber |
+| pypdfium2 (transitive) | 5.12.1 | Apache-2.0 / BSD-3-Clause | Pulled by pdfplumber; **not imported or used for rendering in Phase 3** |
+
+Confirmed: no OCR (Paddle/Tesseract), ONNX, OpenAI, OpenCV, or backend rasterisation
+packages were added as direct dependencies.
+
 ## Phase 2 direct dependency additions
 
 | Package | Version | Licence | Notes |

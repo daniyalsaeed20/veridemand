@@ -1,10 +1,9 @@
 """Document domain contracts.
 
-Phase 2 accepts and validates uploads, performs canonicalisation for a viewer
-representation, but performs **no** extraction. Public document summaries
-therefore always report ``result_available: false`` and
-``extraction_performed: false``, and progress is capped at 15% (canonical view
-ready).
+Phase 3 advances through canonicalisation then native extraction and trust.
+Public summaries always report ``result_available: false`` and
+``extraction_performed: false`` (final extraction is not complete). Progress is
+capped at 35% after native trust completes.
 """
 
 from __future__ import annotations
@@ -17,8 +16,10 @@ from pydantic import Field
 from backend.app.contracts.base import ApiModel
 from backend.app.contracts.canonical import CanonicalisationMethod, CanonicalStatus
 from backend.app.contracts.identifiers import DocumentId, JobId
+from backend.app.contracts.native import DocumentSourcePolicy
 
-# Progress never exceeds this in Phase 2: no document has been extracted.
+# Progress never exceeds this in Phase 3: visual/OCR stages have not started.
+MAX_PHASE3_PROGRESS_PERCENT = 35
 MAX_PHASE2_PROGRESS_PERCENT = 15
 # Backward-compatible alias for Phase 1 references in tests/docs.
 MAX_PHASE1_PROGRESS_PERCENT = MAX_PHASE2_PROGRESS_PERCENT
@@ -46,12 +47,15 @@ class PageCountStatus(StrEnum):
 
 
 class DocumentStatus(StrEnum):
-    """Lifecycle state of an accepted document during Phase 2."""
+    """Lifecycle state of an accepted document during Phase 3."""
 
     UPLOADED = "uploaded"
     QUEUED = "queued"
     CANONICALISING = "canonicalising"
     READY_FOR_EXTRACTION = "ready_for_extraction"
+    INSPECTING_NATIVE = "inspecting_native"
+    EXTRACTING_NATIVE = "extracting_native"
+    NATIVE_TRUST_COMPLETE = "native_trust_complete"
     CANCELLED = "cancelled"
     FAILED = "failed"
 
@@ -71,11 +75,31 @@ class DocumentSummary(ApiModel):
     status: DocumentStatus = Field(description="Current document lifecycle status.")
     progress_percent: int = Field(
         ge=0,
-        le=MAX_PHASE2_PROGRESS_PERCENT,
-        description="Honest Phase 2 progress; capped at 15% (no extraction).",
+        le=MAX_PHASE3_PROGRESS_PERCENT,
+        description="Honest Phase 3 progress; capped at 35% (native trust complete).",
     )
-    result_available: bool = Field(default=False, description="Always false in Phase 2.")
-    extraction_performed: bool = Field(default=False, description="Always false in Phase 2.")
+    result_available: bool = Field(
+        default=False, description="Always false until final extraction exists."
+    )
+    extraction_performed: bool = Field(
+        default=False, description="Always false until final extraction exists."
+    )
+    native_extraction_performed: bool = Field(
+        default=False, description="True when native candidate extraction ran."
+    )
+    native_result_available: bool = Field(
+        default=False,
+        description="True when at least one accepted native page remains after escalation.",
+    )
+    visual_processing_required: bool = Field(
+        default=False, description="True when one or more pages require visual processing."
+    )
+    document_source_policy: DocumentSourcePolicy | None = Field(
+        default=None, description="Document-level source authority after native trust."
+    )
+    user_status_message: str | None = Field(
+        default=None, description="Safe user-facing status for the native trust stage."
+    )
     warning_count: int = Field(default=0, ge=0, description="Number of non-fatal upload warnings.")
     queue_position: int | None = Field(
         default=None, ge=1, description="Dynamic 1-based queue position while queued."
@@ -99,6 +123,9 @@ class DocumentSummary(ApiModel):
     canonical_metadata_url: str | None = Field(
         default=None, description="Relative URL for canonical page metadata."
     )
+    native_summary_url: str | None = Field(
+        default=None, description="Relative URL for the native extraction summary."
+    )
 
 
 class DocumentStatusCounts(ApiModel):
@@ -108,6 +135,9 @@ class DocumentStatusCounts(ApiModel):
     queued: int = Field(default=0, ge=0)
     canonicalising: int = Field(default=0, ge=0)
     ready_for_extraction: int = Field(default=0, ge=0)
+    inspecting_native: int = Field(default=0, ge=0)
+    extracting_native: int = Field(default=0, ge=0)
+    native_trust_complete: int = Field(default=0, ge=0)
     cancelled: int = Field(default=0, ge=0)
     failed: int = Field(default=0, ge=0)
 

@@ -87,6 +87,22 @@ class ErrorCode(StrEnum):
     GEOMETRY_ZERO_AREA = "geometry_zero_area"
     GEOMETRY_BBOX_MISMATCH = "geometry_bbox_mismatch"
 
+    # Native extraction / trust (Phase 3).
+    NATIVE_RESULT_NOT_READY = "native_result_not_ready"
+    NATIVE_RESULT_NOT_FOUND = "native_result_not_found"
+    NATIVE_PAGE_NOT_FOUND = "native_page_not_found"
+    NATIVE_EXTRACTION_FAILED = "native_extraction_failed"
+    NATIVE_EXTRACTION_TIMEOUT = "native_extraction_timeout"
+    NATIVE_WORKER_FAILED = "native_worker_failed"
+    NATIVE_WORKER_OUTPUT_INVALID = "native_worker_output_invalid"
+    NATIVE_CHARACTER_LIMIT_EXCEEDED = "native_character_limit_exceeded"
+    NATIVE_WORD_LIMIT_EXCEEDED = "native_word_limit_exceeded"
+    NATIVE_PAGE_METADATA_MISMATCH = "native_page_metadata_mismatch"
+    NATIVE_PAGE_DIMENSIONS_MISMATCH = "native_page_dimensions_mismatch"
+    NATIVE_GEOMETRY_INVALID = "native_geometry_invalid"
+    NATIVE_TEXT_REJECTED = "native_text_rejected"
+    NATIVE_DOCUMENT_ESCALATED = "native_document_escalated"
+
 
 class ApiErrorDetail(ApiModel):
     """Structured, non-sensitive description of a single API error."""

@@ -19,11 +19,19 @@ dependencies.
 | python-dotenv | 1.2.2 | `.env` loading in development | 0 | https://github.com/theskumar/python-dotenv | BSD-3-Clause |
 | python-multipart | 0.0.32 | Receive multipart file uploads | 1 | https://github.com/Kludex/python-multipart | Apache-2.0 |
 | sse-starlette | 3.4.6 | SSE responses, heartbeat, disconnect handling | 1 | https://github.com/sysid/sse-starlette | BSD-3-Clause |
-| pypdf | 5.9.0 | PDF structural validation, encryption check, page count only | 1 | https://github.com/py-pdf/pypdf | BSD-3-Clause |
+| pypdf | 5.9.0 | PDF structural validation, encryption check, page count; Phase 3 structural inspection | 1–3 | https://github.com/py-pdf/pypdf | BSD-3-Clause |
 | Pillow | 11.3.0 | Image identification, integrity, dimensions, frame count only | 1 | https://github.com/python-pillow/Pillow | MIT-CMU (HPND) |
 | oletools | 0.60.2 | Detect VBA macros in legacy `.doc` files | 1 | https://github.com/decalage2/oletools | BSD-2-Clause |
 | defusedxml | 0.7.1 | Safely inspect XML metadata in DOCX packages | 1 | https://github.com/tiran/defusedxml | PSF-2.0 |
 | reportlab | 4.5.1 | Deterministic TXT/image → canonical PDF | 2 | https://www.reportlab.com/devdocs/ | BSD-3-Clause |
+| pdfplumber | 0.11.9 | Native character/word extraction and geometry (no rendering) | 3 | https://github.com/jsvine/pdfplumber | MIT |
+
+### Phase 3 transitive notes
+
+`pdfplumber` 0.11.9 depends on `pdfminer.six` **20251230** (MIT) for text
+extraction and transitively installs `pypdfium2` **5.12.1**. VeriDemand Phase 3
+**does not** import or call `pypdfium2`, and never calls `page.to_image()`.
+Rendering/OCR remain Phase 4. A dependency-boundary guard enforces this.
 
 ## External runtime (not a Python package)
 

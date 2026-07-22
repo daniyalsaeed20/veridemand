@@ -282,11 +282,18 @@ export type DocumentListResponse = {
 };
 
 /**
+ * DocumentSourcePolicy
+ *
+ * Document-level source authority after escalation rules.
+ */
+export type DocumentSourcePolicy = 'native_authority' | 'mixed_authority' | 'visual_authority' | 'image_authority';
+
+/**
  * DocumentStatus
  *
- * Lifecycle state of an accepted document during Phase 2.
+ * Lifecycle state of an accepted document during Phase 3.
  */
-export type DocumentStatus = 'uploaded' | 'queued' | 'canonicalising' | 'ready_for_extraction' | 'cancelled' | 'failed';
+export type DocumentStatus = 'uploaded' | 'queued' | 'canonicalising' | 'ready_for_extraction' | 'inspecting_native' | 'extracting_native' | 'native_trust_complete' | 'cancelled' | 'failed';
 
 /**
  * DocumentStatusCounts
@@ -303,9 +310,21 @@ export type DocumentStatusCounts = {
      */
     canonicalising?: number;
     /**
+     * Extracting Native
+     */
+    extracting_native?: number;
+    /**
      * Failed
      */
     failed?: number;
+    /**
+     * Inspecting Native
+     */
+    inspecting_native?: number;
+    /**
+     * Native Trust Complete
+     */
+    native_trust_complete?: number;
     /**
      * Queued
      */
@@ -377,6 +396,10 @@ export type DocumentSummary = {
      */
     document_id: string;
     /**
+     * Document-level source authority after native trust.
+     */
+    document_source_policy?: DocumentSourcePolicy | null;
+    /**
      * Extension
      *
      * Lowercased, validated file extension without the dot.
@@ -385,7 +408,7 @@ export type DocumentSummary = {
     /**
      * Extraction Performed
      *
-     * Always false in Phase 2.
+     * Always false until final extraction exists.
      */
     extraction_performed?: boolean;
     /**
@@ -399,6 +422,24 @@ export type DocumentSummary = {
      */
     media_type: string;
     /**
+     * Native Extraction Performed
+     *
+     * True when native candidate extraction ran.
+     */
+    native_extraction_performed?: boolean;
+    /**
+     * Native Result Available
+     *
+     * True when at least one accepted native page remains after escalation.
+     */
+    native_result_available?: boolean;
+    /**
+     * Native Summary Url
+     *
+     * Relative URL for the native extraction summary.
+     */
+    native_summary_url?: string | null;
+    /**
      * Page Count
      *
      * Known page count, else null.
@@ -411,7 +452,7 @@ export type DocumentSummary = {
     /**
      * Progress Percent
      *
-     * Honest Phase 2 progress; capped at 15% (no extraction).
+     * Honest Phase 3 progress; capped at 35% (native trust complete).
      */
     progress_percent: number;
     /**
@@ -423,7 +464,7 @@ export type DocumentSummary = {
     /**
      * Result Available
      *
-     * Always false in Phase 2.
+     * Always false until final extraction exists.
      */
     result_available?: boolean;
     /**
@@ -442,6 +483,18 @@ export type DocumentSummary = {
      * Current document lifecycle status.
      */
     status: DocumentStatus;
+    /**
+     * User Status Message
+     *
+     * Safe user-facing status for the native trust stage.
+     */
+    user_status_message?: string | null;
+    /**
+     * Visual Processing Required
+     *
+     * True when one or more pages require visual processing.
+     */
+    visual_processing_required?: boolean;
     /**
      * Warning Count
      *
@@ -634,6 +687,569 @@ export type LivenessResponse = {
 };
 
 /**
+ * NativeCharacter
+ *
+ * One accepted native character with canonical geometry.
+ */
+export type NativeCharacter = {
+    /**
+     * Font Name
+     *
+     * Font name when available.
+     */
+    font_name?: string | null;
+    /**
+     * Font Size
+     *
+     * Font size in PDF points.
+     */
+    font_size: number;
+    /**
+     * Canonical normalised geometry.
+     */
+    geometry: Geometry;
+    /**
+     * Id
+     *
+     * Deterministic character id, e.g. char_p0001_000001.
+     */
+    id: string;
+    /**
+     * Is Whitespace
+     *
+     * Whether the character is whitespace.
+     */
+    is_whitespace: boolean;
+    /**
+     * Normalised Text
+     *
+     * NFC-normalised character text.
+     */
+    normalised_text: string;
+    /**
+     * Page Number
+     *
+     * 1-based page number.
+     */
+    page_number: number;
+    /**
+     * Top-left PDF-point box.
+     */
+    pdf_point_bbox: PdfPointBox;
+    /**
+     * Rotation Degrees
+     *
+     * Character rotation in degrees.
+     */
+    rotation_degrees: number;
+    /**
+     * Sequence Index
+     *
+     * Provisional extraction sequence index.
+     */
+    sequence_index: number;
+    /**
+     * Text
+     *
+     * Character as returned by pdfplumber.
+     */
+    text: string;
+    /**
+     * Unicode Category
+     *
+     * unicodedata category.
+     */
+    unicode_category: string;
+    /**
+     * Upright
+     *
+     * Whether the character is upright.
+     */
+    upright: boolean;
+};
+
+/**
+ * NativeDocumentSummary
+ *
+ * Public native-extraction summary for a document.
+ */
+export type NativeDocumentSummary = {
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Document Id
+     */
+    document_id: string;
+    document_source_policy?: DocumentSourcePolicy | null;
+    /**
+     * Final Result Available
+     */
+    final_result_available?: boolean;
+    /**
+     * Native Extraction Performed
+     */
+    native_extraction_performed: boolean;
+    native_processing_status: NativeProcessingStatus;
+    /**
+     * Native Result Available
+     */
+    native_result_available: boolean;
+    /**
+     * Page Count
+     */
+    page_count: number;
+    /**
+     * Page Decisions
+     */
+    page_decisions?: Array<NativePageTrustResult>;
+    /**
+     * Pages Absent
+     */
+    pages_absent: number;
+    /**
+     * Pages Accepted
+     */
+    pages_accepted: number;
+    /**
+     * Pages Errored
+     */
+    pages_errored: number;
+    /**
+     * Pages Rejected
+     */
+    pages_rejected: number;
+    /**
+     * Pages Suppressed
+     */
+    pages_suppressed: number;
+    progress: NativeProgress;
+    /**
+     * Trust Policy Version
+     */
+    trust_policy_version: string;
+    /**
+     * User Status Message
+     *
+     * Safe user-facing status based on document source policy.
+     */
+    user_status_message?: string | null;
+    /**
+     * Visual Processing Required
+     */
+    visual_processing_required: boolean;
+    /**
+     * Warnings
+     */
+    warnings?: Array<NativeWarning>;
+};
+
+/**
+ * NativePageDecision
+ *
+ * Page-level native trust decision.
+ */
+export type NativePageDecision = 'accepted' | 'rejected' | 'absent' | 'error' | 'suppressed_by_document_escalation';
+
+/**
+ * NativePageMetrics
+ *
+ * Safe page-level native quality metrics (no extracted text).
+ */
+export type NativePageMetrics = {
+    /**
+     * Alphanumeric Word Ratio
+     */
+    alphanumeric_word_ratio: number;
+    /**
+     * Character Count
+     */
+    character_count: number;
+    /**
+     * Characters Per Page Area
+     */
+    characters_per_page_area: number;
+    /**
+     * Cid Token Ratio
+     */
+    cid_token_ratio: number;
+    /**
+     * Component scores when calculated.
+     */
+    components?: NativeTrustComponents | null;
+    /**
+     * Control Character Ratio
+     */
+    control_character_ratio: number;
+    /**
+     * Deduplicated Character Count
+     */
+    deduplicated_character_count: number;
+    /**
+     * Duplicate Character Ratio
+     */
+    duplicate_character_ratio: number;
+    /**
+     * Extraction Order Backtrack Ratio
+     */
+    extraction_order_backtrack_ratio: number;
+    /**
+     * Font Count
+     */
+    font_count: number;
+    /**
+     * Image Count
+     */
+    image_count: number;
+    /**
+     * Invalid Geometry Ratio
+     */
+    invalid_geometry_ratio: number;
+    /**
+     * Invalid Word Geometry Ratio
+     */
+    invalid_word_geometry_ratio: number;
+    /**
+     * Largest Image Area Ratio
+     */
+    largest_image_area_ratio: number;
+    /**
+     * Missing Font Ratio
+     */
+    missing_font_ratio: number;
+    /**
+     * Noncharacter Ratio
+     */
+    noncharacter_ratio: number;
+    /**
+     * Out Of Bounds Character Ratio
+     */
+    out_of_bounds_character_ratio: number;
+    /**
+     * Page Dimension Match
+     *
+     * Whether page dims match canonical metadata.
+     */
+    page_dimension_match: boolean;
+    /**
+     * Private Use Character Ratio
+     */
+    private_use_character_ratio: number;
+    /**
+     * Raw Character Count
+     */
+    raw_character_count: number;
+    /**
+     * Repeated Token Ratio
+     */
+    repeated_token_ratio: number;
+    /**
+     * Replacement Character Ratio
+     */
+    replacement_character_ratio: number;
+    /**
+     * Single Character Word Ratio
+     */
+    single_character_word_ratio: number;
+    /**
+     * Symbol Only Word Ratio
+     */
+    symbol_only_word_ratio: number;
+    /**
+     * Total Clipped Image Area Ratio
+     */
+    total_clipped_image_area_ratio: number;
+    /**
+     * Unassigned Character Ratio
+     */
+    unassigned_character_ratio: number;
+    /**
+     * Unprintable Character Ratio
+     */
+    unprintable_character_ratio: number;
+    /**
+     * Upright Character Ratio
+     */
+    upright_character_ratio: number;
+    /**
+     * Very Long Token Ratio
+     */
+    very_long_token_ratio: number;
+    /**
+     * Whitespace Ratio
+     */
+    whitespace_ratio: number;
+    /**
+     * Word Count
+     */
+    word_count: number;
+    /**
+     * Words Per Page Area
+     */
+    words_per_page_area: number;
+    /**
+     * Zero Area Character Ratio
+     */
+    zero_area_character_ratio: number;
+};
+
+/**
+ * NativePageResult
+ *
+ * Public per-page native result.
+ */
+export type NativePageResult = {
+    /**
+     * Characters
+     */
+    characters?: Array<NativeCharacter>;
+    decision: NativePageDecision;
+    /**
+     * Page Number
+     */
+    page_number: number;
+    /**
+     * Provisional Native Text
+     *
+     * Derived only from accepted words; null when not accepted.
+     */
+    provisional_native_text?: string | null;
+    provisional_order_status?: ProvisionalOrderStatus;
+    source_mode: SourceMode;
+    trust: NativePageTrustResult;
+    /**
+     * Warnings
+     */
+    warnings?: Array<NativeWarning>;
+    /**
+     * Words
+     */
+    words?: Array<NativeWord>;
+};
+
+/**
+ * NativePageTrustResult
+ *
+ * Trust decision for one page (safe; no candidate text).
+ */
+export type NativePageTrustResult = {
+    decision: NativePageDecision;
+    /**
+     * Hard Rejection
+     */
+    hard_rejection: boolean;
+    metrics: NativePageMetrics;
+    /**
+     * Native Result Available
+     */
+    native_result_available: boolean;
+    /**
+     * Native Text Present
+     */
+    native_text_present: boolean;
+    /**
+     * Native Trust Score
+     */
+    native_trust_score?: number | null;
+    /**
+     * Page Number
+     */
+    page_number: number;
+    /**
+     * Reason Codes
+     */
+    reason_codes?: Array<string>;
+    source_mode: SourceMode;
+    /**
+     * Trust Policy Version
+     */
+    trust_policy_version: string;
+    /**
+     * Visual Agreement Score
+     */
+    visual_agreement_score?: number | null;
+    visual_agreement_status?: VisualAgreementStatus;
+    /**
+     * Visual Processing Required
+     */
+    visual_processing_required: boolean;
+    /**
+     * Warning Codes
+     */
+    warning_codes?: Array<string>;
+};
+
+/**
+ * NativeProcessingStatus
+ *
+ * Lifecycle of native extraction for a document.
+ */
+export type NativeProcessingStatus = 'pending' | 'inspecting' | 'extracting' | 'complete' | 'failed' | 'cancelled';
+
+/**
+ * NativeProgress
+ *
+ * Monotonic native-stage progress (capped at Phase 3 maximum).
+ */
+export type NativeProgress = {
+    /**
+     * Pages Completed
+     */
+    pages_completed: number;
+    /**
+     * Pages Total
+     */
+    pages_total: number;
+    /**
+     * Percent
+     */
+    percent: number;
+};
+
+/**
+ * NativeTrustComponents
+ *
+ * Component scores in [0, 1] contributing to the native trust score.
+ */
+export type NativeTrustComponents = {
+    /**
+     * Character Validity Score
+     */
+    character_validity_score: number;
+    /**
+     * Duplication Score
+     */
+    duplication_score: number;
+    /**
+     * Geometry Validity Score
+     */
+    geometry_validity_score: number;
+    /**
+     * Image Compatibility Score
+     */
+    image_compatibility_score: number;
+    /**
+     * Order Plausibility Score
+     */
+    order_plausibility_score: number;
+    /**
+     * Text Density Score
+     */
+    text_density_score: number;
+    /**
+     * Token Structure Score
+     */
+    token_structure_score: number;
+};
+
+/**
+ * NativeWarning
+ *
+ * Safe diagnostic warning without extracted text.
+ */
+export type NativeWarning = {
+    /**
+     * Code
+     *
+     * Stable reason or warning code.
+     */
+    code: string;
+    /**
+     * Message
+     *
+     * Generic, non-sensitive message.
+     */
+    message: string;
+    /**
+     * Page Number
+     */
+    page_number?: number | null;
+};
+
+/**
+ * NativeWord
+ *
+ * One accepted native word with canonical geometry.
+ */
+export type NativeWord = {
+    /**
+     * Character Ids
+     *
+     * Linked accepted character ids.
+     */
+    character_ids: Array<string>;
+    /**
+     * Font Names
+     *
+     * Distinct font names.
+     */
+    font_names?: Array<string>;
+    /**
+     * Font Sizes
+     *
+     * Distinct font sizes.
+     */
+    font_sizes?: Array<number>;
+    /**
+     * Canonical normalised geometry.
+     */
+    geometry: Geometry;
+    /**
+     * Id
+     *
+     * Deterministic word id, e.g. word_p0001_000001.
+     */
+    id: string;
+    /**
+     * Normalised Text
+     *
+     * NFC-normalised word text.
+     */
+    normalised_text: string;
+    /**
+     * Page Number
+     *
+     * 1-based page number.
+     */
+    page_number: number;
+    /**
+     * Top-left PDF-point box.
+     */
+    pdf_point_bbox: PdfPointBox;
+    /**
+     * Native recognition method.
+     */
+    recognition_method: RecognitionMethod;
+    /**
+     * Must be accepted.
+     */
+    recognition_status: RecognitionStatus;
+    /**
+     * Sequence Index
+     *
+     * Provisional extraction sequence index.
+     */
+    sequence_index: number;
+    /**
+     * Must be native_authority when accepted.
+     */
+    source_mode: SourceMode;
+    /**
+     * Text
+     *
+     * Word text as extracted.
+     */
+    text: string;
+    /**
+     * Upright
+     *
+     * Whether linked characters are upright.
+     */
+    upright: boolean;
+};
+
+/**
  * NormalisedBoundingBox
  *
  * Axis-aligned box in normalised page space (top-left origin).
@@ -761,6 +1377,50 @@ export type OverlayProofResponse = {
 export type PageCountStatus = 'known' | 'pending_canonicalisation';
 
 /**
+ * PdfPointBox
+ *
+ * Top-left PDF-point bounding box preserved alongside normalised geometry.
+ */
+export type PdfPointBox = {
+    /**
+     * Height
+     *
+     * Height in PDF points.
+     */
+    height: number;
+    /**
+     * Origin
+     *
+     * Always top_left.
+     */
+    origin?: string;
+    /**
+     * Unit
+     *
+     * Always pdf_point.
+     */
+    unit?: string;
+    /**
+     * Width
+     *
+     * Width in PDF points.
+     */
+    width: number;
+    /**
+     * X
+     *
+     * Left edge in PDF points (top-left origin).
+     */
+    x: number;
+    /**
+     * Y
+     *
+     * Top edge in PDF points (top-left origin).
+     */
+    y: number;
+};
+
+/**
  * ProcessRequest
  *
  * Request to queue documents for admission.
@@ -827,6 +1487,12 @@ export type ProgressEvent = {
      */
     canonicalisation_method?: string | null;
     /**
+     * Decision
+     *
+     * Native page decision when relevant.
+     */
+    decision?: string | null;
+    /**
      * Document Id
      *
      * Related document, if any.
@@ -869,6 +1535,12 @@ export type ProgressEvent = {
      */
     message?: string | null;
     /**
+     * Native Trust Score
+     *
+     * Native trust score when relevant.
+     */
+    native_trust_score?: number | null;
+    /**
      * Page Number
      *
      * Reserved; unused in Phase 1.
@@ -899,11 +1571,23 @@ export type ProgressEvent = {
      */
     queue_position?: number | null;
     /**
+     * Reason Codes
+     *
+     * Safe native reason codes when relevant.
+     */
+    reason_codes?: Array<string> | null;
+    /**
      * Session Id
      *
      * Owning session identifier.
      */
     session_id: string;
+    /**
+     * Source Mode
+     *
+     * Page source mode when relevant.
+     */
+    source_mode?: string | null;
     /**
      * Stage
      *
@@ -926,7 +1610,14 @@ export type ProgressEvent = {
  * Extraction-stage types are reserved for later phases and are never emitted in
  * Phase 1.
  */
-export type ProgressEventType = 'session.created' | 'session.snapshot' | 'session.expiring' | 'session.deleted' | 'document.uploaded' | 'document.rejected' | 'document.queued' | 'document.started' | 'document.stage_changed' | 'document.canonicalisation_started' | 'document.canonicalisation_progress' | 'document.canonicalisation_completed' | 'document.canonicalisation_failed' | 'document.canonicalisation_cancelled' | 'document.canonical_ready' | 'document.ready_for_extraction' | 'document.removed' | 'document.warning' | 'document.failed' | 'document.cancelled' | 'job.queued' | 'job.started' | 'job.completed' | 'job.failed' | 'job.cancelled' | 'stream.resync_required' | 'heartbeat' | 'document.page_started' | 'document.page_completed' | 'document.completed';
+export type ProgressEventType = 'session.created' | 'session.snapshot' | 'session.expiring' | 'session.deleted' | 'document.uploaded' | 'document.rejected' | 'document.queued' | 'document.started' | 'document.stage_changed' | 'document.canonicalisation_started' | 'document.canonicalisation_progress' | 'document.canonicalisation_completed' | 'document.canonicalisation_failed' | 'document.canonicalisation_cancelled' | 'document.canonical_ready' | 'document.ready_for_extraction' | 'document.native_inspection_started' | 'document.native_page_started' | 'document.native_page_accepted' | 'document.native_page_rejected' | 'document.native_page_absent' | 'document.native_page_error' | 'document.native_document_escalated' | 'document.native_extraction_completed' | 'document.native_extraction_failed' | 'document.removed' | 'document.warning' | 'document.failed' | 'document.cancelled' | 'job.queued' | 'job.started' | 'job.completed' | 'job.failed' | 'job.cancelled' | 'stream.resync_required' | 'heartbeat' | 'document.page_started' | 'document.page_completed' | 'document.completed';
+
+/**
+ * ProvisionalOrderStatus
+ *
+ * Extraction order is not final reading order.
+ */
+export type ProvisionalOrderStatus = 'unverified';
 
 /**
  * QueueInfo
@@ -1009,6 +1700,20 @@ export type ReadinessResponse = {
      */
     version: string;
 };
+
+/**
+ * RecognitionMethod
+ *
+ * How accepted native text was obtained.
+ */
+export type RecognitionMethod = 'native_pdf' | 'canonical_pdf_native';
+
+/**
+ * RecognitionStatus
+ *
+ * Public recognition status for accepted native words.
+ */
+export type RecognitionStatus = 'accepted';
 
 /**
  * RejectedDocument
@@ -1201,6 +1906,13 @@ export type SessionSnapshot = {
 export type SessionStatus = 'created' | 'accepting_uploads' | 'queued' | 'processing' | 'ready' | 'reset' | 'expired' | 'failed' | 'deleted';
 
 /**
+ * SourceMode
+ *
+ * Page-level source authority for Phase 3.
+ */
+export type SourceMode = 'native_authority' | 'visual_authority' | 'image_authority';
+
+/**
  * UploadBatchResponse
  *
  * Response body for a bulk upload request (201, incl. partial acceptance).
@@ -1251,6 +1963,13 @@ export type ValidationError = {
      */
     type: string;
 };
+
+/**
+ * VisualAgreementStatus
+ *
+ * Visual agreement is deferred until Phase 4 rendering/OCR exist.
+ */
+export type VisualAgreementStatus = 'not_evaluated_phase_3';
 
 export type CreateSessionApiV1SessionsPostData = {
     body?: never;
@@ -1641,6 +2360,83 @@ export type GetOverlayProofApiV1SessionsSessionIdDocumentsDocumentIdCanonicalOve
 };
 
 export type GetOverlayProofApiV1SessionsSessionIdDocumentsDocumentIdCanonicalOverlayProofGetResponse = GetOverlayProofApiV1SessionsSessionIdDocumentsDocumentIdCanonicalOverlayProofGetResponses[keyof GetOverlayProofApiV1SessionsSessionIdDocumentsDocumentIdCanonicalOverlayProofGetResponses];
+
+export type GetNativePageApiV1SessionsSessionIdDocumentsDocumentIdNativePagesPageNumberGetData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+        /**
+         * Document Id
+         */
+        document_id: string;
+        /**
+         * Page Number
+         */
+        page_number: number;
+    };
+    query?: {
+        /**
+         * Include Characters
+         */
+        include_characters?: boolean;
+    };
+    url: '/api/v1/sessions/{session_id}/documents/{document_id}/native/pages/{page_number}';
+};
+
+export type GetNativePageApiV1SessionsSessionIdDocumentsDocumentIdNativePagesPageNumberGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetNativePageApiV1SessionsSessionIdDocumentsDocumentIdNativePagesPageNumberGetError = GetNativePageApiV1SessionsSessionIdDocumentsDocumentIdNativePagesPageNumberGetErrors[keyof GetNativePageApiV1SessionsSessionIdDocumentsDocumentIdNativePagesPageNumberGetErrors];
+
+export type GetNativePageApiV1SessionsSessionIdDocumentsDocumentIdNativePagesPageNumberGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: NativePageResult;
+};
+
+export type GetNativePageApiV1SessionsSessionIdDocumentsDocumentIdNativePagesPageNumberGetResponse = GetNativePageApiV1SessionsSessionIdDocumentsDocumentIdNativePagesPageNumberGetResponses[keyof GetNativePageApiV1SessionsSessionIdDocumentsDocumentIdNativePagesPageNumberGetResponses];
+
+export type GetNativeSummaryApiV1SessionsSessionIdDocumentsDocumentIdNativeSummaryGetData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+        /**
+         * Document Id
+         */
+        document_id: string;
+    };
+    query?: never;
+    url: '/api/v1/sessions/{session_id}/documents/{document_id}/native/summary';
+};
+
+export type GetNativeSummaryApiV1SessionsSessionIdDocumentsDocumentIdNativeSummaryGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetNativeSummaryApiV1SessionsSessionIdDocumentsDocumentIdNativeSummaryGetError = GetNativeSummaryApiV1SessionsSessionIdDocumentsDocumentIdNativeSummaryGetErrors[keyof GetNativeSummaryApiV1SessionsSessionIdDocumentsDocumentIdNativeSummaryGetErrors];
+
+export type GetNativeSummaryApiV1SessionsSessionIdDocumentsDocumentIdNativeSummaryGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: NativeDocumentSummary;
+};
+
+export type GetNativeSummaryApiV1SessionsSessionIdDocumentsDocumentIdNativeSummaryGetResponse = GetNativeSummaryApiV1SessionsSessionIdDocumentsDocumentIdNativeSummaryGetResponses[keyof GetNativeSummaryApiV1SessionsSessionIdDocumentsDocumentIdNativeSummaryGetResponses];
 
 export type SessionEventsApiV1SessionsSessionIdEventsGetData = {
     body?: never;

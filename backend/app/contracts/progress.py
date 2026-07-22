@@ -43,6 +43,15 @@ class ProgressEventType(StrEnum):
     DOCUMENT_CANONICALISATION_CANCELLED = "document.canonicalisation_cancelled"
     DOCUMENT_CANONICAL_READY = "document.canonical_ready"
     DOCUMENT_READY_FOR_EXTRACTION = "document.ready_for_extraction"
+    DOCUMENT_NATIVE_INSPECTION_STARTED = "document.native_inspection_started"
+    DOCUMENT_NATIVE_PAGE_STARTED = "document.native_page_started"
+    DOCUMENT_NATIVE_PAGE_ACCEPTED = "document.native_page_accepted"
+    DOCUMENT_NATIVE_PAGE_REJECTED = "document.native_page_rejected"
+    DOCUMENT_NATIVE_PAGE_ABSENT = "document.native_page_absent"
+    DOCUMENT_NATIVE_PAGE_ERROR = "document.native_page_error"
+    DOCUMENT_NATIVE_DOCUMENT_ESCALATED = "document.native_document_escalated"
+    DOCUMENT_NATIVE_EXTRACTION_COMPLETED = "document.native_extraction_completed"
+    DOCUMENT_NATIVE_EXTRACTION_FAILED = "document.native_extraction_failed"
     DOCUMENT_REMOVED = "document.removed"
     DOCUMENT_WARNING = "document.warning"
     DOCUMENT_FAILED = "document.failed"
@@ -57,7 +66,7 @@ class ProgressEventType(StrEnum):
     STREAM_RESYNC_REQUIRED = "stream.resync_required"
     HEARTBEAT = "heartbeat"
 
-    # Reserved for later phases; never emitted in Phase 1.
+    # Reserved for later phases.
     DOCUMENT_PAGE_STARTED = "document.page_started"
     DOCUMENT_PAGE_COMPLETED = "document.page_completed"
     DOCUMENT_COMPLETED = "document.completed"
@@ -100,4 +109,12 @@ class ProgressEvent(ApiModel):
     )
     canonical_status: str | None = Field(
         default=None, description="Canonical status when relevant."
+    )
+    decision: str | None = Field(default=None, description="Native page decision when relevant.")
+    source_mode: str | None = Field(default=None, description="Page source mode when relevant.")
+    native_trust_score: float | None = Field(
+        default=None, ge=0.0, le=1.0, description="Native trust score when relevant."
+    )
+    reason_codes: list[str] | None = Field(
+        default=None, description="Safe native reason codes when relevant."
     )

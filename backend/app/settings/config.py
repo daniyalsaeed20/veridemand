@@ -122,12 +122,38 @@ class Settings(BaseSettings):
     pdf_render_dpi: int = Field(default=300, gt=0)
     pdf_render_retry_dpi: int = Field(default=400, gt=0)
 
-    # Trust and routing thresholds (future).
+    # Trust and routing thresholds (Phase 3+).
     native_trust_threshold: float = Field(default=0.75, ge=0.0, le=1.0)
     document_visual_authority_failure_ratio: float = Field(default=0.30, ge=0.0, le=1.0)
     printed_threshold: float = Field(default=0.85, ge=0.0, le=1.0)
     handwriting_threshold: float = Field(default=0.70, ge=0.0, le=1.0)
     uncertain_to_llm: bool = True
+
+    # Native extraction worker (Phase 3).
+    native_extraction_timeout_seconds: float = Field(default=600.0, gt=0)
+    native_termination_grace_seconds: float = Field(default=5.0, gt=0)
+    native_workers: int = Field(default=1, ge=1, le=1)
+    native_dedupe_tolerance_points: float = Field(default=1.0, gt=0)
+    native_coordinate_tolerance_points: float = Field(default=0.5, gt=0)
+    native_min_characters: int = Field(default=8, gt=0)
+    native_max_characters_per_page: int = Field(default=250_000, gt=0)
+    native_max_words_per_page: int = Field(default=100_000, gt=0)
+    native_max_replacement_ratio: float = Field(default=0.005, ge=0.0, le=1.0)
+    native_max_control_ratio: float = Field(default=0.002, ge=0.0, le=1.0)
+    native_max_private_use_ratio: float = Field(default=0.005, ge=0.0, le=1.0)
+    native_max_unassigned_ratio: float = Field(default=0.005, ge=0.0, le=1.0)
+    native_max_cid_token_ratio: float = Field(default=0.05, ge=0.0, le=1.0)
+    native_max_invalid_geometry_ratio: float = Field(default=0.01, ge=0.0, le=1.0)
+    native_max_out_of_bounds_ratio: float = Field(default=0.01, ge=0.0, le=1.0)
+    native_max_duplicate_ratio: float = Field(default=0.20, ge=0.0, le=1.0)
+    native_max_symbol_only_word_ratio: float = Field(default=0.40, ge=0.0, le=1.0)
+    native_max_single_character_word_ratio: float = Field(default=0.75, ge=0.0, le=1.0)
+    native_image_dominant_area_ratio: float = Field(default=0.80, ge=0.0, le=1.0)
+    native_document_min_failed_pages: int = Field(default=2, gt=0)
+    native_trust_policy_version: str = Field(default="phase3-v1", min_length=1)
+
+    # Test-only hold during native extraction for cancellation E2E.
+    native_extraction_test_delay_seconds: float = Field(default=0.0, ge=0.0, le=60.0)
 
     # OCR / layout (future).
     paddle_device: str = "cpu"
@@ -186,6 +212,13 @@ class Settings(BaseSettings):
                 "LIBREOFFICE_TERMINATION_GRACE_SECONDS must be less than "
                 "LIBREOFFICE_TIMEOUT_SECONDS."
             )
+        if self.native_termination_grace_seconds >= self.native_extraction_timeout_seconds:
+            raise ValueError(
+                "NATIVE_TERMINATION_GRACE_SECONDS must be less than "
+                "NATIVE_EXTRACTION_TIMEOUT_SECONDS."
+            )
+        if not self.native_trust_policy_version.strip():
+            raise ValueError("NATIVE_TRUST_POLICY_VERSION must be non-empty.")
         page_size = self.txt_page_size.strip().upper()
         if page_size != "LETTER":
             raise ValueError("TXT_PAGE_SIZE must be LETTER in Phase 2.")

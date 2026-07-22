@@ -395,13 +395,27 @@
         "title": "DocumentListResponse",
         "type": "object"
       },
+      "DocumentSourcePolicy": {
+        "description": "Document-level source authority after escalation rules.",
+        "enum": [
+          "native_authority",
+          "mixed_authority",
+          "visual_authority",
+          "image_authority"
+        ],
+        "title": "DocumentSourcePolicy",
+        "type": "string"
+      },
       "DocumentStatus": {
-        "description": "Lifecycle state of an accepted document during Phase 2.",
+        "description": "Lifecycle state of an accepted document during Phase 3.",
         "enum": [
           "uploaded",
           "queued",
           "canonicalising",
           "ready_for_extraction",
+          "inspecting_native",
+          "extracting_native",
+          "native_trust_complete",
           "cancelled",
           "failed"
         ],
@@ -424,10 +438,28 @@
             "title": "Canonicalising",
             "type": "integer"
           },
+          "extracting_native": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Extracting Native",
+            "type": "integer"
+          },
           "failed": {
             "default": 0,
             "minimum": 0.0,
             "title": "Failed",
+            "type": "integer"
+          },
+          "inspecting_native": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Inspecting Native",
+            "type": "integer"
+          },
+          "native_trust_complete": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Native Trust Complete",
             "type": "integer"
           },
           "queued": {
@@ -538,6 +570,17 @@
             "title": "Document Id",
             "type": "string"
           },
+          "document_source_policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DocumentSourcePolicy"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Document-level source authority after native trust."
+          },
           "extension": {
             "description": "Lowercased, validated file extension without the dot.",
             "title": "Extension",
@@ -545,7 +588,7 @@
           },
           "extraction_performed": {
             "default": false,
-            "description": "Always false in Phase 2.",
+            "description": "Always false until final extraction exists.",
             "title": "Extraction Performed",
             "type": "boolean"
           },
@@ -557,6 +600,30 @@
             "description": "Server-validated media type.",
             "title": "Media Type",
             "type": "string"
+          },
+          "native_extraction_performed": {
+            "default": false,
+            "description": "True when native candidate extraction ran.",
+            "title": "Native Extraction Performed",
+            "type": "boolean"
+          },
+          "native_result_available": {
+            "default": false,
+            "description": "True when at least one accepted native page remains after escalation.",
+            "title": "Native Result Available",
+            "type": "boolean"
+          },
+          "native_summary_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Relative URL for the native extraction summary.",
+            "title": "Native Summary Url"
           },
           "page_count": {
             "anyOf": [
@@ -576,8 +643,8 @@
             "description": "Whether the page count is known."
           },
           "progress_percent": {
-            "description": "Honest Phase 2 progress; capped at 15% (no extraction).",
-            "maximum": 15.0,
+            "description": "Honest Phase 3 progress; capped at 35% (native trust complete).",
+            "maximum": 35.0,
             "minimum": 0.0,
             "title": "Progress Percent",
             "type": "integer"
@@ -597,7 +664,7 @@
           },
           "result_available": {
             "default": false,
-            "description": "Always false in Phase 2.",
+            "description": "Always false until final extraction exists.",
             "title": "Result Available",
             "type": "boolean"
           },
@@ -617,6 +684,24 @@
           "status": {
             "$ref": "#/components/schemas/DocumentStatus",
             "description": "Current document lifecycle status."
+          },
+          "user_status_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Safe user-facing status for the native trust stage.",
+            "title": "User Status Message"
+          },
+          "visual_processing_required": {
+            "default": false,
+            "description": "True when one or more pages require visual processing.",
+            "title": "Visual Processing Required",
+            "type": "boolean"
           },
           "warning_count": {
             "default": 0,
@@ -896,6 +981,873 @@
         "title": "LivenessResponse",
         "type": "object"
       },
+      "NativeCharacter": {
+        "additionalProperties": false,
+        "description": "One accepted native character with canonical geometry.",
+        "properties": {
+          "font_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Font name when available.",
+            "title": "Font Name"
+          },
+          "font_size": {
+            "description": "Font size in PDF points.",
+            "minimum": 0.0,
+            "title": "Font Size",
+            "type": "number"
+          },
+          "geometry": {
+            "$ref": "#/components/schemas/Geometry",
+            "description": "Canonical normalised geometry."
+          },
+          "id": {
+            "description": "Deterministic character id, e.g. char_p0001_000001.",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_whitespace": {
+            "description": "Whether the character is whitespace.",
+            "title": "Is Whitespace",
+            "type": "boolean"
+          },
+          "normalised_text": {
+            "description": "NFC-normalised character text.",
+            "minLength": 1,
+            "title": "Normalised Text",
+            "type": "string"
+          },
+          "page_number": {
+            "description": "1-based page number.",
+            "minimum": 1.0,
+            "title": "Page Number",
+            "type": "integer"
+          },
+          "pdf_point_bbox": {
+            "$ref": "#/components/schemas/PdfPointBox",
+            "description": "Top-left PDF-point box."
+          },
+          "rotation_degrees": {
+            "description": "Character rotation in degrees.",
+            "title": "Rotation Degrees",
+            "type": "number"
+          },
+          "sequence_index": {
+            "description": "Provisional extraction sequence index.",
+            "minimum": 0.0,
+            "title": "Sequence Index",
+            "type": "integer"
+          },
+          "text": {
+            "description": "Character as returned by pdfplumber.",
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          },
+          "unicode_category": {
+            "description": "unicodedata category.",
+            "title": "Unicode Category",
+            "type": "string"
+          },
+          "upright": {
+            "description": "Whether the character is upright.",
+            "title": "Upright",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "page_number",
+          "sequence_index",
+          "text",
+          "normalised_text",
+          "font_size",
+          "upright",
+          "rotation_degrees",
+          "geometry",
+          "pdf_point_bbox",
+          "unicode_category",
+          "is_whitespace"
+        ],
+        "title": "NativeCharacter",
+        "type": "object"
+      },
+      "NativeDocumentSummary": {
+        "additionalProperties": false,
+        "description": "Public native-extraction summary for a document.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "document_id": {
+            "pattern": "^doc_[0-9a-f]{32}$",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "document_source_policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DocumentSourcePolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "final_result_available": {
+            "default": false,
+            "title": "Final Result Available",
+            "type": "boolean"
+          },
+          "native_extraction_performed": {
+            "title": "Native Extraction Performed",
+            "type": "boolean"
+          },
+          "native_processing_status": {
+            "$ref": "#/components/schemas/NativeProcessingStatus"
+          },
+          "native_result_available": {
+            "title": "Native Result Available",
+            "type": "boolean"
+          },
+          "page_count": {
+            "minimum": 0.0,
+            "title": "Page Count",
+            "type": "integer"
+          },
+          "page_decisions": {
+            "items": {
+              "$ref": "#/components/schemas/NativePageTrustResult"
+            },
+            "title": "Page Decisions",
+            "type": "array"
+          },
+          "pages_absent": {
+            "minimum": 0.0,
+            "title": "Pages Absent",
+            "type": "integer"
+          },
+          "pages_accepted": {
+            "minimum": 0.0,
+            "title": "Pages Accepted",
+            "type": "integer"
+          },
+          "pages_errored": {
+            "minimum": 0.0,
+            "title": "Pages Errored",
+            "type": "integer"
+          },
+          "pages_rejected": {
+            "minimum": 0.0,
+            "title": "Pages Rejected",
+            "type": "integer"
+          },
+          "pages_suppressed": {
+            "minimum": 0.0,
+            "title": "Pages Suppressed",
+            "type": "integer"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/NativeProgress"
+          },
+          "trust_policy_version": {
+            "title": "Trust Policy Version",
+            "type": "string"
+          },
+          "user_status_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Safe user-facing status based on document source policy.",
+            "title": "User Status Message"
+          },
+          "visual_processing_required": {
+            "title": "Visual Processing Required",
+            "type": "boolean"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/NativeWarning"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "document_id",
+          "native_processing_status",
+          "trust_policy_version",
+          "page_count",
+          "pages_accepted",
+          "pages_rejected",
+          "pages_absent",
+          "pages_errored",
+          "pages_suppressed",
+          "native_result_available",
+          "visual_processing_required",
+          "native_extraction_performed",
+          "progress",
+          "created_at"
+        ],
+        "title": "NativeDocumentSummary",
+        "type": "object"
+      },
+      "NativePageDecision": {
+        "description": "Page-level native trust decision.",
+        "enum": [
+          "accepted",
+          "rejected",
+          "absent",
+          "error",
+          "suppressed_by_document_escalation"
+        ],
+        "title": "NativePageDecision",
+        "type": "string"
+      },
+      "NativePageMetrics": {
+        "additionalProperties": false,
+        "description": "Safe page-level native quality metrics (no extracted text).",
+        "properties": {
+          "alphanumeric_word_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Alphanumeric Word Ratio",
+            "type": "number"
+          },
+          "character_count": {
+            "minimum": 0.0,
+            "title": "Character Count",
+            "type": "integer"
+          },
+          "characters_per_page_area": {
+            "minimum": 0.0,
+            "title": "Characters Per Page Area",
+            "type": "number"
+          },
+          "cid_token_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Cid Token Ratio",
+            "type": "number"
+          },
+          "components": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NativeTrustComponents"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Component scores when calculated."
+          },
+          "control_character_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Control Character Ratio",
+            "type": "number"
+          },
+          "deduplicated_character_count": {
+            "minimum": 0.0,
+            "title": "Deduplicated Character Count",
+            "type": "integer"
+          },
+          "duplicate_character_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Duplicate Character Ratio",
+            "type": "number"
+          },
+          "extraction_order_backtrack_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Extraction Order Backtrack Ratio",
+            "type": "number"
+          },
+          "font_count": {
+            "minimum": 0.0,
+            "title": "Font Count",
+            "type": "integer"
+          },
+          "image_count": {
+            "minimum": 0.0,
+            "title": "Image Count",
+            "type": "integer"
+          },
+          "invalid_geometry_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Invalid Geometry Ratio",
+            "type": "number"
+          },
+          "invalid_word_geometry_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Invalid Word Geometry Ratio",
+            "type": "number"
+          },
+          "largest_image_area_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Largest Image Area Ratio",
+            "type": "number"
+          },
+          "missing_font_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Missing Font Ratio",
+            "type": "number"
+          },
+          "noncharacter_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Noncharacter Ratio",
+            "type": "number"
+          },
+          "out_of_bounds_character_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Out Of Bounds Character Ratio",
+            "type": "number"
+          },
+          "page_dimension_match": {
+            "description": "Whether page dims match canonical metadata.",
+            "title": "Page Dimension Match",
+            "type": "boolean"
+          },
+          "private_use_character_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Private Use Character Ratio",
+            "type": "number"
+          },
+          "raw_character_count": {
+            "minimum": 0.0,
+            "title": "Raw Character Count",
+            "type": "integer"
+          },
+          "repeated_token_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Repeated Token Ratio",
+            "type": "number"
+          },
+          "replacement_character_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Replacement Character Ratio",
+            "type": "number"
+          },
+          "single_character_word_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Single Character Word Ratio",
+            "type": "number"
+          },
+          "symbol_only_word_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Symbol Only Word Ratio",
+            "type": "number"
+          },
+          "total_clipped_image_area_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Total Clipped Image Area Ratio",
+            "type": "number"
+          },
+          "unassigned_character_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Unassigned Character Ratio",
+            "type": "number"
+          },
+          "unprintable_character_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Unprintable Character Ratio",
+            "type": "number"
+          },
+          "upright_character_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Upright Character Ratio",
+            "type": "number"
+          },
+          "very_long_token_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Very Long Token Ratio",
+            "type": "number"
+          },
+          "whitespace_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Whitespace Ratio",
+            "type": "number"
+          },
+          "word_count": {
+            "minimum": 0.0,
+            "title": "Word Count",
+            "type": "integer"
+          },
+          "words_per_page_area": {
+            "minimum": 0.0,
+            "title": "Words Per Page Area",
+            "type": "number"
+          },
+          "zero_area_character_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Zero Area Character Ratio",
+            "type": "number"
+          }
+        },
+        "required": [
+          "raw_character_count",
+          "deduplicated_character_count",
+          "word_count",
+          "character_count",
+          "duplicate_character_ratio",
+          "replacement_character_ratio",
+          "control_character_ratio",
+          "private_use_character_ratio",
+          "unassigned_character_ratio",
+          "noncharacter_ratio",
+          "unprintable_character_ratio",
+          "cid_token_ratio",
+          "invalid_geometry_ratio",
+          "out_of_bounds_character_ratio",
+          "zero_area_character_ratio",
+          "invalid_word_geometry_ratio",
+          "single_character_word_ratio",
+          "symbol_only_word_ratio",
+          "alphanumeric_word_ratio",
+          "very_long_token_ratio",
+          "repeated_token_ratio",
+          "whitespace_ratio",
+          "font_count",
+          "missing_font_ratio",
+          "upright_character_ratio",
+          "extraction_order_backtrack_ratio",
+          "characters_per_page_area",
+          "words_per_page_area",
+          "image_count",
+          "largest_image_area_ratio",
+          "total_clipped_image_area_ratio",
+          "page_dimension_match"
+        ],
+        "title": "NativePageMetrics",
+        "type": "object"
+      },
+      "NativePageResult": {
+        "additionalProperties": false,
+        "description": "Public per-page native result.",
+        "properties": {
+          "characters": {
+            "items": {
+              "$ref": "#/components/schemas/NativeCharacter"
+            },
+            "title": "Characters",
+            "type": "array"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/NativePageDecision"
+          },
+          "page_number": {
+            "minimum": 1.0,
+            "title": "Page Number",
+            "type": "integer"
+          },
+          "provisional_native_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Derived only from accepted words; null when not accepted.",
+            "title": "Provisional Native Text"
+          },
+          "provisional_order_status": {
+            "$ref": "#/components/schemas/ProvisionalOrderStatus",
+            "default": "unverified"
+          },
+          "source_mode": {
+            "$ref": "#/components/schemas/SourceMode"
+          },
+          "trust": {
+            "$ref": "#/components/schemas/NativePageTrustResult"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/NativeWarning"
+            },
+            "title": "Warnings",
+            "type": "array"
+          },
+          "words": {
+            "items": {
+              "$ref": "#/components/schemas/NativeWord"
+            },
+            "title": "Words",
+            "type": "array"
+          }
+        },
+        "required": [
+          "page_number",
+          "decision",
+          "source_mode",
+          "trust"
+        ],
+        "title": "NativePageResult",
+        "type": "object"
+      },
+      "NativePageTrustResult": {
+        "additionalProperties": false,
+        "description": "Trust decision for one page (safe; no candidate text).",
+        "properties": {
+          "decision": {
+            "$ref": "#/components/schemas/NativePageDecision"
+          },
+          "hard_rejection": {
+            "title": "Hard Rejection",
+            "type": "boolean"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/NativePageMetrics"
+          },
+          "native_result_available": {
+            "title": "Native Result Available",
+            "type": "boolean"
+          },
+          "native_text_present": {
+            "title": "Native Text Present",
+            "type": "boolean"
+          },
+          "native_trust_score": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Native Trust Score"
+          },
+          "page_number": {
+            "minimum": 1.0,
+            "title": "Page Number",
+            "type": "integer"
+          },
+          "reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reason Codes",
+            "type": "array"
+          },
+          "source_mode": {
+            "$ref": "#/components/schemas/SourceMode"
+          },
+          "trust_policy_version": {
+            "title": "Trust Policy Version",
+            "type": "string"
+          },
+          "visual_agreement_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visual Agreement Score"
+          },
+          "visual_agreement_status": {
+            "$ref": "#/components/schemas/VisualAgreementStatus",
+            "default": "not_evaluated_phase_3"
+          },
+          "visual_processing_required": {
+            "title": "Visual Processing Required",
+            "type": "boolean"
+          },
+          "warning_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warning Codes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "page_number",
+          "decision",
+          "source_mode",
+          "native_text_present",
+          "trust_policy_version",
+          "hard_rejection",
+          "metrics",
+          "native_result_available",
+          "visual_processing_required"
+        ],
+        "title": "NativePageTrustResult",
+        "type": "object"
+      },
+      "NativeProcessingStatus": {
+        "description": "Lifecycle of native extraction for a document.",
+        "enum": [
+          "pending",
+          "inspecting",
+          "extracting",
+          "complete",
+          "failed",
+          "cancelled"
+        ],
+        "title": "NativeProcessingStatus",
+        "type": "string"
+      },
+      "NativeProgress": {
+        "additionalProperties": false,
+        "description": "Monotonic native-stage progress (capped at Phase 3 maximum).",
+        "properties": {
+          "pages_completed": {
+            "minimum": 0.0,
+            "title": "Pages Completed",
+            "type": "integer"
+          },
+          "pages_total": {
+            "minimum": 0.0,
+            "title": "Pages Total",
+            "type": "integer"
+          },
+          "percent": {
+            "maximum": 35.0,
+            "minimum": 0.0,
+            "title": "Percent",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "percent",
+          "pages_completed",
+          "pages_total"
+        ],
+        "title": "NativeProgress",
+        "type": "object"
+      },
+      "NativeTrustComponents": {
+        "additionalProperties": false,
+        "description": "Component scores in [0, 1] contributing to the native trust score.",
+        "properties": {
+          "character_validity_score": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Character Validity Score",
+            "type": "number"
+          },
+          "duplication_score": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Duplication Score",
+            "type": "number"
+          },
+          "geometry_validity_score": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Geometry Validity Score",
+            "type": "number"
+          },
+          "image_compatibility_score": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Image Compatibility Score",
+            "type": "number"
+          },
+          "order_plausibility_score": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Order Plausibility Score",
+            "type": "number"
+          },
+          "text_density_score": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Text Density Score",
+            "type": "number"
+          },
+          "token_structure_score": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Token Structure Score",
+            "type": "number"
+          }
+        },
+        "required": [
+          "character_validity_score",
+          "geometry_validity_score",
+          "duplication_score",
+          "token_structure_score",
+          "text_density_score",
+          "order_plausibility_score",
+          "image_compatibility_score"
+        ],
+        "title": "NativeTrustComponents",
+        "type": "object"
+      },
+      "NativeWarning": {
+        "additionalProperties": false,
+        "description": "Safe diagnostic warning without extracted text.",
+        "properties": {
+          "code": {
+            "description": "Stable reason or warning code.",
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "description": "Generic, non-sensitive message.",
+            "title": "Message",
+            "type": "string"
+          },
+          "page_number": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Number"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "NativeWarning",
+        "type": "object"
+      },
+      "NativeWord": {
+        "additionalProperties": false,
+        "description": "One accepted native word with canonical geometry.",
+        "properties": {
+          "character_ids": {
+            "description": "Linked accepted character ids.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Character Ids",
+            "type": "array"
+          },
+          "font_names": {
+            "description": "Distinct font names.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Font Names",
+            "type": "array"
+          },
+          "font_sizes": {
+            "description": "Distinct font sizes.",
+            "items": {
+              "type": "number"
+            },
+            "title": "Font Sizes",
+            "type": "array"
+          },
+          "geometry": {
+            "$ref": "#/components/schemas/Geometry",
+            "description": "Canonical normalised geometry."
+          },
+          "id": {
+            "description": "Deterministic word id, e.g. word_p0001_000001.",
+            "title": "Id",
+            "type": "string"
+          },
+          "normalised_text": {
+            "description": "NFC-normalised word text.",
+            "minLength": 1,
+            "title": "Normalised Text",
+            "type": "string"
+          },
+          "page_number": {
+            "description": "1-based page number.",
+            "minimum": 1.0,
+            "title": "Page Number",
+            "type": "integer"
+          },
+          "pdf_point_bbox": {
+            "$ref": "#/components/schemas/PdfPointBox",
+            "description": "Top-left PDF-point box."
+          },
+          "recognition_method": {
+            "$ref": "#/components/schemas/RecognitionMethod",
+            "description": "Native recognition method."
+          },
+          "recognition_status": {
+            "$ref": "#/components/schemas/RecognitionStatus",
+            "description": "Must be accepted."
+          },
+          "sequence_index": {
+            "description": "Provisional extraction sequence index.",
+            "minimum": 0.0,
+            "title": "Sequence Index",
+            "type": "integer"
+          },
+          "source_mode": {
+            "$ref": "#/components/schemas/SourceMode",
+            "description": "Must be native_authority when accepted."
+          },
+          "text": {
+            "description": "Word text as extracted.",
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          },
+          "upright": {
+            "description": "Whether linked characters are upright.",
+            "title": "Upright",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "page_number",
+          "sequence_index",
+          "text",
+          "normalised_text",
+          "character_ids",
+          "geometry",
+          "pdf_point_bbox",
+          "upright",
+          "recognition_method",
+          "source_mode",
+          "recognition_status"
+        ],
+        "title": "NativeWord",
+        "type": "object"
+      },
       "NormalisedBoundingBox": {
         "additionalProperties": false,
         "description": "Axis-aligned box in normalised page space (top-left origin).",
@@ -1065,6 +2017,54 @@
         "title": "PageCountStatus",
         "type": "string"
       },
+      "PdfPointBox": {
+        "additionalProperties": false,
+        "description": "Top-left PDF-point bounding box preserved alongside normalised geometry.",
+        "properties": {
+          "height": {
+            "description": "Height in PDF points.",
+            "exclusiveMinimum": 0.0,
+            "title": "Height",
+            "type": "number"
+          },
+          "origin": {
+            "default": "top_left",
+            "description": "Always top_left.",
+            "title": "Origin",
+            "type": "string"
+          },
+          "unit": {
+            "default": "pdf_point",
+            "description": "Always pdf_point.",
+            "title": "Unit",
+            "type": "string"
+          },
+          "width": {
+            "description": "Width in PDF points.",
+            "exclusiveMinimum": 0.0,
+            "title": "Width",
+            "type": "number"
+          },
+          "x": {
+            "description": "Left edge in PDF points (top-left origin).",
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "description": "Top edge in PDF points (top-left origin).",
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
+        "title": "PdfPointBox",
+        "type": "object"
+      },
       "ProcessRequest": {
         "additionalProperties": false,
         "description": "Request to queue documents for admission.\n\nWhen ``document_ids`` is null, all documents currently in the ``uploaded``\nstate are queued. When supplied, every id must belong to the session and only\neligible uploaded documents are queued.",
@@ -1163,6 +2163,18 @@
             "description": "Canonicalisation method when relevant.",
             "title": "Canonicalisation Method"
           },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Native page decision when relevant.",
+            "title": "Decision"
+          },
           "document_id": {
             "anyOf": [
               {
@@ -1239,6 +2251,20 @@
             "description": "Optional safe, non-sensitive message.",
             "title": "Message"
           },
+          "native_trust_score": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Native trust score when relevant.",
+            "title": "Native Trust Score"
+          },
           "page_number": {
             "anyOf": [
               {
@@ -1305,11 +2331,38 @@
             "description": "Queue position, if relevant.",
             "title": "Queue Position"
           },
+          "reason_codes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Safe native reason codes when relevant.",
+            "title": "Reason Codes"
+          },
           "session_id": {
             "description": "Owning session identifier.",
             "pattern": "^ses_[0-9a-f]{32}$",
             "title": "Session Id",
             "type": "string"
+          },
+          "source_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Page source mode when relevant.",
+            "title": "Source Mode"
           },
           "stage": {
             "anyOf": [
@@ -1359,6 +2412,15 @@
           "document.canonicalisation_cancelled",
           "document.canonical_ready",
           "document.ready_for_extraction",
+          "document.native_inspection_started",
+          "document.native_page_started",
+          "document.native_page_accepted",
+          "document.native_page_rejected",
+          "document.native_page_absent",
+          "document.native_page_error",
+          "document.native_document_escalated",
+          "document.native_extraction_completed",
+          "document.native_extraction_failed",
           "document.removed",
           "document.warning",
           "document.failed",
@@ -1375,6 +2437,14 @@
           "document.completed"
         ],
         "title": "ProgressEventType",
+        "type": "string"
+      },
+      "ProvisionalOrderStatus": {
+        "description": "Extraction order is not final reading order.",
+        "enum": [
+          "unverified"
+        ],
+        "title": "ProvisionalOrderStatus",
         "type": "string"
       },
       "QueueInfo": {
@@ -1486,6 +2556,23 @@
         ],
         "title": "ReadinessResponse",
         "type": "object"
+      },
+      "RecognitionMethod": {
+        "description": "How accepted native text was obtained.",
+        "enum": [
+          "native_pdf",
+          "canonical_pdf_native"
+        ],
+        "title": "RecognitionMethod",
+        "type": "string"
+      },
+      "RecognitionStatus": {
+        "description": "Public recognition status for accepted native words.",
+        "enum": [
+          "accepted"
+        ],
+        "title": "RecognitionStatus",
+        "type": "string"
       },
       "RejectedDocument": {
         "additionalProperties": false,
@@ -1742,6 +2829,16 @@
         "title": "SessionStatus",
         "type": "string"
       },
+      "SourceMode": {
+        "description": "Page-level source authority for Phase 3.",
+        "enum": [
+          "native_authority",
+          "visual_authority",
+          "image_authority"
+        ],
+        "title": "SourceMode",
+        "type": "string"
+      },
       "UploadBatchResponse": {
         "additionalProperties": false,
         "description": "Response body for a bulk upload request (201, incl. partial acceptance).",
@@ -1814,6 +2911,14 @@
         ],
         "title": "ValidationError",
         "type": "object"
+      },
+      "VisualAgreementStatus": {
+        "description": "Visual agreement is deferred until Phase 4 rendering/OCR exist.",
+        "enum": [
+          "not_evaluated_phase_3"
+        ],
+        "title": "VisualAgreementStatus",
+        "type": "string"
       }
     }
   },
@@ -2434,6 +3539,127 @@
         "summary": "Synthetic Phase 2 alignment overlay proof",
         "tags": [
           "canonical"
+        ]
+      }
+    },
+    "/api/v1/sessions/{session_id}/documents/{document_id}/native/pages/{page_number}": {
+      "get": {
+        "operationId": "get_native_page_api_v1_sessions__session_id__documents__document_id__native_pages__page_number__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "page_number",
+            "required": true,
+            "schema": {
+              "title": "Page Number",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_characters",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Characters",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NativePageResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Native Page",
+        "tags": [
+          "native"
+        ]
+      }
+    },
+    "/api/v1/sessions/{session_id}/documents/{document_id}/native/summary": {
+      "get": {
+        "operationId": "get_native_summary_api_v1_sessions__session_id__documents__document_id__native_summary_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NativeDocumentSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Native Summary",
+        "tags": [
+          "native"
         ]
       }
     },
