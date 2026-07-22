@@ -1,4 +1,10 @@
-"""Subprocess runner for native extraction workers."""
+"""Subprocess runner for native extraction workers.
+
+Uses ``subprocess.Popen`` with async supervision so the worker starts on every
+supported event loop, including Windows ``SelectorEventLoop`` used by uvicorn
+``--reload`` / multi-worker. Isolation is unchanged: pdfplumber runs only in the
+child ``python -m backend.app.extraction.native.worker`` process.
+"""
 
 from __future__ import annotations
 
@@ -8,7 +14,9 @@ import json
 import logging
 import os
 import shutil
+import subprocess
 import sys
+import threading
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -30,6 +38,16 @@ class NativeWorkerOutcome:
     summary: NativeDocumentSummary
     pages: list[NativePageResult]
     exit_code: int
+
+
+def _popen_kwargs() -> dict[str, Any]:
+    """Platform-specific Popen flags for reliable terminate/kill."""
+
+    kwargs: dict[str, Any] = {}
+    if sys.platform == "win32":
+        # New process group so terminate/kill can target the worker tree.
+        kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+    return kwargs
 
 
 class NativeExtractionRunner:
@@ -55,6 +73,36 @@ class NativeExtractionRunner:
         )
         return env
 
+    def _command(self, request_path: Path, output_path: Path) -> list[str]:
+        return [
+            self._python,
+            "-m",
+            "backend.app.extraction.native.worker",
+            "--request",
+            str(request_path),
+            "--output",
+            str(output_path),
+        ]
+
+    def _spawn(self, command: list[str]) -> subprocess.Popen[bytes]:
+        try:
+            return subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=self._env(),
+                cwd=self._repo_root,
+                shell=False,
+                **_popen_kwargs(),
+            )
+        except OSError as exc:
+            raise NativeExtractionError(
+                ErrorCode.NATIVE_WORKER_START_FAILED,
+                "Native extraction worker failed to start.",
+                operation="spawn_worker",
+                failing_component="NativeExtractionRunner",
+            ) from exc
+
     async def run(
         self,
         request: NativeWorkerRequest,
@@ -73,26 +121,20 @@ class NativeExtractionRunner:
         if cancel_token is not None:
             cancel_token.raise_if_cancelled()
 
-        command = [
-            self._python,
-            "-m",
-            "backend.app.extraction.native.worker",
-            "--request",
-            str(request_path),
-            "--output",
-            str(output_path),
-        ]
+        command = self._command(request_path, output_path)
+        process = self._spawn(command)
 
-        process = await asyncio.create_subprocess_exec(
-            *command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env=self._env(),
-            cwd=self._repo_root,
+        stdout_queue: asyncio.Queue[bytes | None] = asyncio.Queue()
+        loop = asyncio.get_running_loop()
+        stdout_thread = threading.Thread(
+            target=self._drain_stdout_thread,
+            args=(process, stdout_queue, loop),
+            name="native-worker-stdout",
+            daemon=True,
         )
-
+        stdout_thread.start()
         stdout_task = asyncio.create_task(
-            self._read_stdout(process, on_progress), name="native-worker-stdout"
+            self._consume_stdout(stdout_queue, on_progress), name="native-worker-stdout-consume"
         )
         cancel_watcher: asyncio.Task[None] | None = None
         if cancel_token is not None:
@@ -102,30 +144,41 @@ class NativeExtractionRunner:
 
         try:
             try:
-                await asyncio.wait_for(process.wait(), timeout=self._timeout)
+                exit_code = await asyncio.wait_for(
+                    self._wait_process(process), timeout=self._timeout
+                )
             except TimeoutError as exc:
                 await self._terminate(process)
                 raise NativeExtractionError(
                     ErrorCode.NATIVE_EXTRACTION_TIMEOUT,
                     "Native extraction timed out.",
+                    worker_exit_code=process.returncode,
+                    operation="wait_worker",
+                    failing_component="NativeExtractionRunner",
                 ) from exc
 
             if cancel_token is not None and cancel_token.cancelled:
                 await self._terminate(process)
                 raise JobCancelledError()
 
-            exit_code = process.returncode if process.returncode is not None else 1
             await stdout_task
+            stdout_thread.join(timeout=2.0)
 
             if exit_code != 0:
                 raise NativeExtractionError(
                     ErrorCode.NATIVE_WORKER_FAILED,
                     "Native extraction worker failed.",
+                    worker_exit_code=exit_code,
+                    operation="worker_exit",
+                    failing_component="NativeExtractionRunner",
                 )
             if not output_path.is_file():
                 raise NativeExtractionError(
                     ErrorCode.NATIVE_WORKER_OUTPUT_INVALID,
                     "Native extraction worker produced no output.",
+                    worker_exit_code=exit_code,
+                    operation="read_worker_output",
+                    failing_component="NativeExtractionRunner",
                 )
             try:
                 payload = json.loads(output_path.read_text(encoding="utf-8"))
@@ -135,6 +188,9 @@ class NativeExtractionRunner:
                 raise NativeExtractionError(
                     ErrorCode.NATIVE_WORKER_OUTPUT_INVALID,
                     "Native extraction worker output was invalid.",
+                    worker_exit_code=exit_code,
+                    operation="validate_worker_output",
+                    failing_component="NativeExtractionRunner",
                 ) from exc
 
             for page in pages:
@@ -144,6 +200,9 @@ class NativeExtractionRunner:
                     raise NativeExtractionError(
                         ErrorCode.NATIVE_WORKER_OUTPUT_INVALID,
                         "Rejected native page output contained text.",
+                        worker_exit_code=exit_code,
+                        operation="privacy_guard",
+                        failing_component="NativeExtractionRunner",
                     )
 
             return NativeWorkerOutcome(summary=summary, pages=pages, exit_code=exit_code)
@@ -159,6 +218,8 @@ class NativeExtractionRunner:
                 stdout_task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await stdout_task
+            if process.returncode is None:
+                await self._terminate(process)
 
     async def self_check(self, staging_dir: Path) -> bool:
         request = NativeWorkerRequest(
@@ -178,45 +239,47 @@ class NativeExtractionRunner:
             request_path.write_text(
                 json.dumps(request.to_dict(), separators=(",", ":")), encoding="utf-8"
             )
-            process = await asyncio.create_subprocess_exec(
-                self._python,
-                "-m",
-                "backend.app.extraction.native.worker",
-                "--request",
-                str(request_path),
-                "--output",
-                str(output_path),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env=self._env(),
-                cwd=self._repo_root,
-            )
-            await asyncio.wait_for(process.wait(), timeout=30)
-            return process.returncode == 0 and output_path.is_file()
+            process = self._spawn(self._command(request_path, output_path))
+            exit_code = await asyncio.wait_for(self._wait_process(process), timeout=30)
+            # Drain pipes so the child can exit cleanly on Windows.
+            if process.stdout is not None:
+                await asyncio.to_thread(process.stdout.read)
+            if process.stderr is not None:
+                await asyncio.to_thread(process.stderr.read)
+            return exit_code == 0 and output_path.is_file()
         except Exception:
             return False
         finally:
             shutil.rmtree(staging_dir, ignore_errors=True)
 
-    async def _watch_cancel(
-        self, token: CancellationToken, process: asyncio.subprocess.Process
-    ) -> None:
-        while process.returncode is None:
-            if token.cancelled:
-                await self._terminate(process)
-                return
-            await asyncio.sleep(0.05)
+    async def _wait_process(self, process: subprocess.Popen[bytes]) -> int:
+        return int(await asyncio.to_thread(process.wait))
 
-    async def _read_stdout(
+    def _drain_stdout_thread(
         self,
-        process: asyncio.subprocess.Process,
-        on_progress: ProgressCallback | None,
+        process: subprocess.Popen[bytes],
+        queue: asyncio.Queue[bytes | None],
+        loop: asyncio.AbstractEventLoop,
     ) -> None:
         assert process.stdout is not None
+        try:
+            while True:
+                line = process.stdout.readline()
+                if not line:
+                    break
+                loop.call_soon_threadsafe(queue.put_nowait, line)
+        finally:
+            loop.call_soon_threadsafe(queue.put_nowait, None)
+
+    async def _consume_stdout(
+        self,
+        queue: asyncio.Queue[bytes | None],
+        on_progress: ProgressCallback | None,
+    ) -> None:
         while True:
-            line = await process.stdout.readline()
-            if not line:
-                break
+            line = await queue.get()
+            if line is None:
+                return
             try:
                 payload = json.loads(line.decode("utf-8", errors="replace"))
             except json.JSONDecodeError:
@@ -231,12 +294,30 @@ class NativeExtractionRunner:
                 if asyncio.iscoroutine(result):
                     await result
 
-    async def _terminate(self, process: asyncio.subprocess.Process) -> None:
-        if process.returncode is not None:
+    async def _watch_cancel(
+        self, token: CancellationToken, process: subprocess.Popen[bytes]
+    ) -> None:
+        while process.poll() is None:
+            if token.cancelled:
+                await self._terminate(process)
+                return
+            await asyncio.sleep(0.05)
+
+    async def _terminate(self, process: subprocess.Popen[bytes]) -> None:
+        if process.poll() is not None:
             return
-        process.terminate()
+        with contextlib.suppress(ProcessLookupError, OSError):
+            process.terminate()
         try:
-            await asyncio.wait_for(process.wait(), timeout=self._grace)
+            await asyncio.wait_for(self._wait_process(process), timeout=self._grace)
         except TimeoutError:
-            process.kill()
-            await process.wait()
+            with contextlib.suppress(ProcessLookupError, OSError):
+                process.kill()
+            await self._wait_process(process)
+        # Best-effort drain to avoid zombie pipe blocks on Windows.
+        if process.stdout is not None:
+            with contextlib.suppress(OSError):
+                await asyncio.to_thread(process.stdout.read)
+        if process.stderr is not None:
+            with contextlib.suppress(OSError):
+                await asyncio.to_thread(process.stderr.read)

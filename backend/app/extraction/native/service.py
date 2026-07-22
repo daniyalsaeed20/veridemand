@@ -11,7 +11,9 @@ from pathlib import Path
 from typing import Any
 
 from backend.app.contracts.canonical import CanonicalisationMethod, CanonicalPageMetadata
+from backend.app.contracts.errors import ErrorCode
 from backend.app.contracts.native import NativeDocumentSummary, NativePageResult
+from backend.app.extraction.native.errors import NativeExtractionError
 from backend.app.extraction.native.models import (
     CanonicalPageRef,
     NativeTrustPolicyConfig,
@@ -111,18 +113,34 @@ class NativeExtractionService:
                 cancel_token=cancel_token,
                 on_progress=on_progress,
             )
-            self._publish_atomic(
-                outcome,
-                results_part=results_part,
-                results_final=results_final,
-                job_id=job_id,
-            )
+            try:
+                self._publish_atomic(
+                    outcome,
+                    results_part=results_part,
+                    results_final=results_final,
+                    job_id=job_id,
+                )
+            except Exception as exc:
+                raise NativeExtractionError(
+                    ErrorCode.NATIVE_RESULT_PUBLISH_FAILED,
+                    "Native extraction result publication failed.",
+                    operation="publish_results",
+                    failing_component="NativeExtractionService",
+                ) from exc
             return outcome
         except Exception:
             shutil.rmtree(results_part, ignore_errors=True)
             raise
         finally:
             shutil.rmtree(staging, ignore_errors=True)
+
+    def describe_runtime(self) -> dict[str, str]:
+        """Privacy-safe wiring diagnostics for tests and health."""
+
+        return {
+            "native_service_class": type(self).__qualname__,
+            "native_runner_class": type(self._runner).__qualname__,
+        }
 
     def _publish_atomic(
         self,
