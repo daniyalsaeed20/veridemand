@@ -79,9 +79,7 @@ def test_cross_font_near_overprint_cleans_or_rejects() -> None:
         chars.append(_ch(c, x0=10 + i * 8, top=20, size=14, font="Helvetica", seq=seq))
         seq += 1
     for i, c in enumerate(line):
-        chars.append(
-            _ch(c, x0=11.5 + i * 8, top=21.5, size=13.5, font="Times-Roman", seq=seq)
-        )
+        chars.append(_ch(c, x0=11.5 + i * 8, top=21.5, size=13.5, font="Times-Roman", seq=seq))
         seq += 1
     outcome = analyse_and_clean_near_overprint(
         chars, strict_duplicate_ratio=0.0, words=rebuild_words_from_characters(chars)

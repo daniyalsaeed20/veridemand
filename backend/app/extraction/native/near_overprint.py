@@ -343,9 +343,7 @@ def _complete_size_or_tag_layer_pairs(
 
     tagged_vals = {ch.tagged for ch in characters if ch.tagged is not None}
     if True in tagged_vals and False in tagged_vals:
-        return _complete_partition_layer_pairs(
-            characters, key_fn=lambda ch: bool(ch.tagged)
-        )
+        return _complete_partition_layer_pairs(characters, key_fn=lambda ch: bool(ch.tagged))
     return None
 
 
@@ -617,8 +615,7 @@ def analyse_and_clean_near_overprint(
         not conflict
         and cross >= DEFAULT_CROSS_COVERAGE_MIN
         and (
-            coverage_gap <= DEFAULT_COVERAGE_GAP_MAX
-            or (winner_cov >= loser_cov and cross >= 0.90)
+            coverage_gap <= DEFAULT_COVERAGE_GAP_MAX or (winner_cov >= loser_cov and cross >= 0.90)
         )
         and winner_score >= loser_score
     )

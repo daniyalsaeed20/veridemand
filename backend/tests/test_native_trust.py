@@ -125,8 +125,7 @@ def test_near_overprint_cross_font_never_doubled() -> None:
     else:
         assert bundle.trust.decision is NativePageDecision.REJECTED
         assert (
-            NativeReasonCode.EXCESSIVE_NEAR_OVERPRINT_DUPLICATES.value
-            in bundle.trust.reason_codes
+            NativeReasonCode.EXCESSIVE_NEAR_OVERPRINT_DUPLICATES.value in bundle.trust.reason_codes
         )
         assert result.words == []
         assert result.characters == []
@@ -141,8 +140,7 @@ def test_near_overprint_vertical_never_doubled() -> None:
         _assert_no_doubled_adjacent_letters(result.provisional_native_text)
     else:
         assert (
-            NativeReasonCode.EXCESSIVE_NEAR_OVERPRINT_DUPLICATES.value
-            in bundle.trust.reason_codes
+            NativeReasonCode.EXCESSIVE_NEAR_OVERPRINT_DUPLICATES.value in bundle.trust.reason_codes
         )
         assert result.words == []
 
@@ -155,8 +153,7 @@ def test_near_overprint_horizontal_never_doubled() -> None:
         _assert_no_doubled_adjacent_letters(result.provisional_native_text)
     else:
         assert (
-            NativeReasonCode.EXCESSIVE_NEAR_OVERPRINT_DUPLICATES.value
-            in bundle.trust.reason_codes
+            NativeReasonCode.EXCESSIVE_NEAR_OVERPRINT_DUPLICATES.value in bundle.trust.reason_codes
         )
         assert result.characters == []
 
@@ -169,8 +166,7 @@ def test_near_overprint_tagged_untagged_never_doubled() -> None:
         _assert_no_doubled_adjacent_letters(result.provisional_native_text)
     else:
         assert (
-            NativeReasonCode.EXCESSIVE_NEAR_OVERPRINT_DUPLICATES.value
-            in bundle.trust.reason_codes
+            NativeReasonCode.EXCESSIVE_NEAR_OVERPRINT_DUPLICATES.value in bundle.trust.reason_codes
         )
 
 
