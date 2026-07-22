@@ -141,8 +141,8 @@ export function DocumentCard({ sessionId, document, disabled = false }: Document
         {document.status === "ready_for_extraction" ? (
           <Typography variant="caption" color="text.secondary">
             {document.canonical_view_available
-              ? "Canonical document ready. Extraction is not part of this phase; no results are available yet."
-              : "Extraction has not started. Extraction is not part of this phase; no results are available yet."}
+              ? "Canonical document ready. Extraction has not started."
+              : "Extraction has not started. No results are available yet."}
           </Typography>
         ) : null}
 

@@ -318,9 +318,13 @@ def _controlled_env(temp_dir: Path, profile_dir: Path) -> dict[str, str]:
     return os.environ.copy()
 
 
-def _windows_startupinfo() -> subprocess.STARTUPINFO | None:
+def _windows_startupinfo() -> object | None:
     if sys.platform != "win32":
         return None
-    info = subprocess.STARTUPINFO()
-    info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    startupinfo_cls = getattr(subprocess, "STARTUPINFO", None)
+    if startupinfo_cls is None:
+        return None
+    info = startupinfo_cls()
+    flags = getattr(subprocess, "STARTF_USESHOWWINDOW", 0)
+    info.dwFlags |= flags
     return info
