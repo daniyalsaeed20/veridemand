@@ -114,6 +114,17 @@ class EventBroker:
         attempt_number: int | None = None,
         max_attempts: int | None = None,
         reason_code: str | None = None,
+        document_pages_total: int | None = None,
+        native_pages_retained: int | None = None,
+        visual_pages_selected: int | None = None,
+        visual_pages_completed: int | None = None,
+        visual_pages_remaining: int | None = None,
+        pages_per_minute: float | None = None,
+        average_page_seconds: float | None = None,
+        estimated_document_seconds_remaining: float | None = None,
+        estimated_queue_seconds_remaining: float | None = None,
+        estimated_completion_time: datetime | None = None,
+        estimate_confidence: str | None = None,
     ) -> ProgressEvent:
         return ProgressEvent(
             event_id=format_event_id(sequence),
@@ -158,6 +169,17 @@ class EventBroker:
             attempt_number=attempt_number,
             max_attempts=max_attempts,
             reason_code=reason_code,
+            document_pages_total=document_pages_total,
+            native_pages_retained=native_pages_retained,
+            visual_pages_selected=visual_pages_selected,
+            visual_pages_completed=visual_pages_completed,
+            visual_pages_remaining=visual_pages_remaining,
+            pages_per_minute=pages_per_minute,
+            average_page_seconds=average_page_seconds,
+            estimated_document_seconds_remaining=estimated_document_seconds_remaining,
+            estimated_queue_seconds_remaining=estimated_queue_seconds_remaining,
+            estimated_completion_time=estimated_completion_time,
+            estimate_confidence=estimate_confidence,
         )
 
     async def publish(
@@ -201,6 +223,17 @@ class EventBroker:
         attempt_number: int | None = None,
         max_attempts: int | None = None,
         reason_code: str | None = None,
+        document_pages_total: int | None = None,
+        native_pages_retained: int | None = None,
+        visual_pages_selected: int | None = None,
+        visual_pages_completed: int | None = None,
+        visual_pages_remaining: int | None = None,
+        pages_per_minute: float | None = None,
+        average_page_seconds: float | None = None,
+        estimated_document_seconds_remaining: float | None = None,
+        estimated_queue_seconds_remaining: float | None = None,
+        estimated_completion_time: datetime | None = None,
+        estimate_confidence: str | None = None,
     ) -> ProgressEvent:
         """Allocate a sequence, record, and deliver an event to subscribers."""
 
@@ -248,6 +281,17 @@ class EventBroker:
                 attempt_number=attempt_number,
                 max_attempts=max_attempts,
                 reason_code=reason_code,
+                document_pages_total=document_pages_total,
+                native_pages_retained=native_pages_retained,
+                visual_pages_selected=visual_pages_selected,
+                visual_pages_completed=visual_pages_completed,
+                visual_pages_remaining=visual_pages_remaining,
+                pages_per_minute=pages_per_minute,
+                average_page_seconds=average_page_seconds,
+                estimated_document_seconds_remaining=estimated_document_seconds_remaining,
+                estimated_queue_seconds_remaining=estimated_queue_seconds_remaining,
+                estimated_completion_time=estimated_completion_time,
+                estimate_confidence=estimate_confidence,
             )
             self._replay.append(progress)
             for subscriber in self._subscribers:

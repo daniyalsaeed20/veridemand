@@ -79,8 +79,26 @@ _PHASE4_COMPLETE_MESSAGE = (
 
 
 async def _safe_publish(broker: EventBroker, event: ProgressEventType, **fields: object) -> None:
-    with contextlib.suppress(BrokerClosedError):
+    """Publish a progress event; never abort core processing on telemetry failure."""
+
+    try:
         await broker.publish(event, **fields)  # type: ignore[arg-type]
+    except BrokerClosedError:
+        return
+    except Exception as publish_exc:
+        logger.exception(
+            "Progress publication failed",
+            extra={
+                "exception_type": type(publish_exc).__name__,
+                "safe_error_code": ErrorCode.INTERNAL_ERROR.value,
+                "failing_component": "EventBroker",
+                "failing_operation": "visual_progress_creation",
+                "document_id": fields.get("document_id"),
+                "job_id": fields.get("job_id"),
+                "page_number": fields.get("page_number"),
+                "progress_event": getattr(event, "value", str(event)),
+            },
+        )
 
 
 class ProcessingCoordinator:
@@ -542,27 +560,83 @@ class ProcessingCoordinator:
                     await self._run_visual(session, job, document, native_summary)
                 except JobCancelledError:
                     await self._finalize_cancelled(session, job, document)
-                except Exception:
+                except Exception as visual_exc:
+                    failing_operation = "visual_request_creation"
+                    if isinstance(visual_exc, TypeError) and "unexpected keyword" in str(
+                        visual_exc
+                    ):
+                        failing_operation = "visual_progress_creation"
                     logger.exception(
                         "Visual OCR failed",
                         extra={
                             "document_id": document.document_id,
                             "job_id": job.job_id,
+                            "page_number": document.active_page_number,
+                            "exception_type": type(visual_exc).__name__,
+                            "safe_error_code": ErrorCode.OCR_RUNTIME_UNAVAILABLE.value,
+                            "failing_component": "ProcessingCoordinator",
+                            "failing_operation": failing_operation,
+                            "visual_page_count": document.canonical_page_count,
+                            "selected_page_count": document.pages_total,
+                            "worker_generation": document.worker_generation,
+                            "attempt_number": document.attempt_number,
                         },
                     )
-                    document.status = DocumentStatus.VISUAL_PROCESSING_FAILED
+                    # Preserve usable native/canonical results; prefer partial when
+                    # native pages already exist.
+                    had_native = bool(document.native_result_available)
+                    document.status = (
+                        DocumentStatus.VISUAL_PROCESSING_PARTIAL
+                        if had_native
+                        else DocumentStatus.VISUAL_PROCESSING_FAILED
+                    )
                     document.progress_percent = _MAX_PROGRESS_PERCENT
-                    document.failure_stage = _VISUAL_STAGE
+                    document.failure_stage = failing_operation
                     document.failure_code = ErrorCode.OCR_RUNTIME_UNAVAILABLE.value
                     document.failure_message = "The OCR service failed to process this document."
                     document.visual_processing_performed = True
+                    document.visual_result_available = False
+                    if self._visual is not None:
+                        try:
+                            from backend.app.contracts.visual import VisualProcessingStatus
+
+                            self._visual.publish_terminal_failure_summary(
+                                session_id=session.session_id,
+                                document_id=document.document_id,
+                                page_count=document.canonical_page_count or 0,
+                                error_code=ErrorCode.OCR_RUNTIME_UNAVAILABLE.value,
+                                canonical_document_available=document.canonical_view_available,
+                                native_pages_retained=(
+                                    document.canonical_page_count or 0 if had_native else 0
+                                ),
+                                status=(
+                                    VisualProcessingStatus.VISUAL_PROCESSING_PARTIAL
+                                    if had_native
+                                    else VisualProcessingStatus.VISUAL_PROCESSING_FAILED
+                                ),
+                                user_status_message=document.failure_message,
+                            )
+                        except Exception:
+                            logger.exception(
+                                "Visual terminal summary publication failed",
+                                extra={
+                                    "document_id": document.document_id,
+                                    "job_id": job.job_id,
+                                    "exception_type": "SummaryPublishError",
+                                    "safe_error_code": ErrorCode.VISUAL_RESULT_PUBLISH_FAILED.value,
+                                    "failing_component": "VisualOcrService",
+                                    "failing_operation": "visual_summary_publication",
+                                },
+                            )
                     await _safe_publish(
                         session.broker,
-                        ProgressEventType.DOCUMENT_VISUAL_PROCESSING_FAILED,
+                        ProgressEventType.DOCUMENT_VISUAL_PROCESSING_FAILED
+                        if not had_native
+                        else ProgressEventType.DOCUMENT_VISUAL_PROCESSING_PARTIAL,
                         document_id=document.document_id,
                         job_id=job.job_id,
                         percent=_MAX_PROGRESS_PERCENT,
-                        document_status=DocumentStatus.VISUAL_PROCESSING_FAILED,
+                        document_status=document.status,
                         message=document.failure_message,
                     )
                 else:
@@ -1189,7 +1263,12 @@ class ProcessingCoordinator:
         except JobCancelledError:
             raise
         except VisualOcrError as exc:
-            document.status = DocumentStatus.VISUAL_PROCESSING_FAILED
+            had_native = bool(document.native_result_available)
+            document.status = (
+                DocumentStatus.VISUAL_PROCESSING_PARTIAL
+                if had_native
+                else DocumentStatus.VISUAL_PROCESSING_FAILED
+            )
             document.progress_percent = _MAX_PROGRESS_PERCENT
             document.failure_stage = exc.operation or "paddle_ocr_pipeline"
             document.failure_code = exc.code.value
@@ -1202,15 +1281,69 @@ class ProcessingCoordinator:
             document.operation_status = "failed"
             document.user_status_message = "Visual OCR could not complete."
             document.visual_processing_performed = True
+            document.visual_result_available = False
             document.major_phase = "visual_ocr"
             document.major_phase_percent = 100.0
+            logger.exception(
+                "Visual OCR failed",
+                extra={
+                    "document_id": document.document_id,
+                    "job_id": job.job_id,
+                    "page_number": getattr(exc, "page_number", None) or document.active_page_number,
+                    "exception_type": type(exc).__name__,
+                    "safe_error_code": exc.code.value,
+                    "failing_component": getattr(exc, "failing_component", None)
+                    or "VisualOcrService",
+                    "failing_operation": exc.operation or "paddle_ocr_pipeline",
+                    "visual_page_count": document.canonical_page_count,
+                    "selected_page_count": document.pages_total,
+                    "worker_generation": document.worker_generation,
+                    "attempt_number": document.attempt_number,
+                },
+            )
+            if self._visual is not None:
+                try:
+                    from backend.app.contracts.visual import VisualProcessingStatus
+
+                    self._visual.publish_terminal_failure_summary(
+                        session_id=session.session_id,
+                        document_id=document.document_id,
+                        page_count=document.canonical_page_count or 0,
+                        error_code=exc.code.value,
+                        canonical_document_available=document.canonical_view_available,
+                        native_pages_retained=(
+                            document.canonical_page_count or 0 if had_native else 0
+                        ),
+                        pages_selected=document.pages_total or 0,
+                        status=(
+                            VisualProcessingStatus.VISUAL_PROCESSING_PARTIAL
+                            if had_native
+                            else VisualProcessingStatus.VISUAL_PROCESSING_FAILED
+                        ),
+                        user_status_message=document.user_status_message
+                        or document.failure_message,
+                    )
+                except Exception:
+                    logger.exception(
+                        "Visual terminal summary publication failed",
+                        extra={
+                            "document_id": document.document_id,
+                            "job_id": job.job_id,
+                            "exception_type": "SummaryPublishError",
+                            "safe_error_code": ErrorCode.VISUAL_RESULT_PUBLISH_FAILED.value,
+                            "failing_component": "VisualOcrService",
+                            "failing_operation": "visual_summary_publication",
+                        },
+                    )
             await _safe_publish(
                 session.broker,
-                ProgressEventType.DOCUMENT_VISUAL_PROCESSING_FAILED,
+                ProgressEventType.DOCUMENT_VISUAL_PROCESSING_FAILED
+                if not had_native
+                else ProgressEventType.DOCUMENT_VISUAL_PROCESSING_PARTIAL,
                 document_id=document.document_id,
                 job_id=job.job_id,
                 percent=_MAX_PROGRESS_PERCENT,
-                document_status=DocumentStatus.VISUAL_PROCESSING_FAILED,
+                document_status=document.status,
                 message=document.user_status_message,
                 reason_codes=[exc.code.value],
             )
