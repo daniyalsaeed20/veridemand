@@ -133,3 +133,27 @@ class ProgressEvent(ApiModel):
     reason_codes: list[str] | None = Field(
         default=None, description="Safe native reason codes when relevant."
     )
+    overall_percent: float | None = Field(
+        default=None, ge=0.0, le=65.0, description="Document overall progress (Phase 4 cap 65)."
+    )
+    major_phase: str | None = Field(default=None, description="Major phase label.")
+    major_phase_percent: float | None = Field(
+        default=None, ge=0.0, le=100.0, description="Major-phase progress 0-100."
+    )
+    page_percent: float | None = Field(
+        default=None, ge=0.0, le=100.0, description="Active page progress 0-100."
+    )
+    operation: str | None = Field(default=None, description="Stable operation identifier.")
+    operation_status: str | None = Field(default=None, description="Operation status.")
+    progress_kind: str | None = Field(
+        default=None, description="determinate|indeterminate|heartbeat."
+    )
+    elapsed_seconds: float | None = Field(default=None, ge=0.0)
+    stage_elapsed_seconds: float | None = Field(default=None, ge=0.0)
+    deadline_remaining_seconds: float | None = Field(default=None, ge=0.0)
+    worker_pid: int | None = Field(default=None, ge=0)
+    worker_generation: int | None = Field(default=None, ge=0)
+    worker_restart_count: int | None = Field(default=None, ge=0)
+    attempt_number: int | None = Field(default=None, ge=1)
+    max_attempts: int | None = Field(default=None, ge=1)
+    reason_code: str | None = Field(default=None, description="Safe reason/error code.")

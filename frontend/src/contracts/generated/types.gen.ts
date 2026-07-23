@@ -372,6 +372,18 @@ export type DocumentSummary = {
      */
     active_job_id?: string | null;
     /**
+     * Active Page Number
+     *
+     * Active visual page number when processing.
+     */
+    active_page_number?: number | null;
+    /**
+     * Attempt Number
+     *
+     * Current page/document attempt number.
+     */
+    attempt_number?: number | null;
+    /**
      * Canonical Metadata Url
      *
      * Relative URL for canonical page metadata.
@@ -404,6 +416,18 @@ export type DocumentSummary = {
      */
     created_at: string;
     /**
+     * Current Operation
+     *
+     * Stable operation identifier for the active stage.
+     */
+    current_operation?: string | null;
+    /**
+     * Deadline Remaining Seconds
+     *
+     * Seconds remaining before the active deadline.
+     */
+    deadline_remaining_seconds?: number | null;
+    /**
      * Display Filename
      *
      * Sanitised display filename (never a storage path).
@@ -419,6 +443,12 @@ export type DocumentSummary = {
      * Document-level source authority after native/visual stages.
      */
     document_source_policy?: DocumentSourcePolicy | null;
+    /**
+     * Elapsed Seconds
+     *
+     * Monotonic elapsed seconds for the active job.
+     */
+    elapsed_seconds?: number | null;
     /**
      * Extension
      *
@@ -460,6 +490,24 @@ export type DocumentSummary = {
      */
     format: DocumentFormat;
     /**
+     * Major Phase
+     *
+     * Current major processing phase (admission/canonicalisation/native_trust/visual_ocr).
+     */
+    major_phase?: string | null;
+    /**
+     * Major Phase Percent
+     *
+     * Progress within the current major phase (0-100).
+     */
+    major_phase_percent?: number | null;
+    /**
+     * Max Attempts
+     *
+     * Maximum attempts allowed for the active page.
+     */
+    max_attempts?: number | null;
+    /**
      * Media Type
      *
      * Server-validated media type.
@@ -484,6 +532,12 @@ export type DocumentSummary = {
      */
     native_summary_url?: string | null;
     /**
+     * Operation Status
+     *
+     * Operation lifecycle status (started/running/completed/...).
+     */
+    operation_status?: string | null;
+    /**
      * Page Count
      *
      * Known page count, else null.
@@ -493,6 +547,12 @@ export type DocumentSummary = {
      * Whether the page count is known.
      */
     page_count_status: PageCountStatus;
+    /**
+     * Page Percent
+     *
+     * Progress within the active visual page (0-100).
+     */
+    page_percent?: number | null;
     /**
      * Pages Completed
      *
@@ -505,6 +565,12 @@ export type DocumentSummary = {
      * Visual pages selected for processing.
      */
     pages_total?: number | null;
+    /**
+     * Progress Kind
+     *
+     * determinate, indeterminate, or heartbeat.
+     */
+    progress_kind?: string | null;
     /**
      * Progress Percent
      *
@@ -535,6 +601,14 @@ export type DocumentSummary = {
      * Accepted file size in bytes.
      */
     size_bytes: number;
+    /**
+     * Stage Timeline
+     *
+     * Bounded privacy-safe completed/active stage history for UI timelines.
+     */
+    stage_timeline?: Array<{
+        [key: string]: unknown;
+    }> | null;
     /**
      * Current document lifecycle status.
      */
@@ -575,6 +649,18 @@ export type DocumentSummary = {
      * Number of non-fatal upload warnings.
      */
     warning_count?: number;
+    /**
+     * Worker Generation
+     *
+     * OCR worker generation owning the active request.
+     */
+    worker_generation?: number | null;
+    /**
+     * Worker Restart Count
+     *
+     * OCR worker restarts since process start.
+     */
+    worker_restart_count?: number | null;
 };
 
 /**
@@ -1881,6 +1967,10 @@ export type ProcessResponse = {
  */
 export type ProgressEvent = {
     /**
+     * Attempt Number
+     */
+    attempt_number?: number | null;
+    /**
      * Canonical Page Count
      *
      * Canonical page count when known.
@@ -1899,6 +1989,10 @@ export type ProgressEvent = {
      */
     canonicalisation_method?: string | null;
     /**
+     * Deadline Remaining Seconds
+     */
+    deadline_remaining_seconds?: number | null;
+    /**
      * Decision
      *
      * Native page decision when relevant.
@@ -1914,6 +2008,10 @@ export type ProgressEvent = {
      * Document status at the time of the event, if relevant.
      */
     document_status?: DocumentStatus | null;
+    /**
+     * Elapsed Seconds
+     */
+    elapsed_seconds?: number | null;
     /**
      * Event type.
      */
@@ -1941,6 +2039,22 @@ export type ProgressEvent = {
      */
     job_status?: JobStatus | null;
     /**
+     * Major Phase
+     *
+     * Major phase label.
+     */
+    major_phase?: string | null;
+    /**
+     * Major Phase Percent
+     *
+     * Major-phase progress 0-100.
+     */
+    major_phase_percent?: number | null;
+    /**
+     * Max Attempts
+     */
+    max_attempts?: number | null;
+    /**
      * Message
      *
      * Optional safe, non-sensitive message.
@@ -1953,11 +2067,35 @@ export type ProgressEvent = {
      */
     native_trust_score?: number | null;
     /**
+     * Operation
+     *
+     * Stable operation identifier.
+     */
+    operation?: string | null;
+    /**
+     * Operation Status
+     *
+     * Operation status.
+     */
+    operation_status?: string | null;
+    /**
+     * Overall Percent
+     *
+     * Document overall progress (Phase 4 cap 65).
+     */
+    overall_percent?: number | null;
+    /**
      * Page Number
      *
      * Reserved; unused in Phase 1.
      */
     page_number?: number | null;
+    /**
+     * Page Percent
+     *
+     * Active page progress 0-100.
+     */
+    page_percent?: number | null;
     /**
      * Pages Completed
      *
@@ -1977,11 +2115,23 @@ export type ProgressEvent = {
      */
     percent?: number | null;
     /**
+     * Progress Kind
+     *
+     * determinate|indeterminate|heartbeat.
+     */
+    progress_kind?: string | null;
+    /**
      * Queue Position
      *
      * Queue position, if relevant.
      */
     queue_position?: number | null;
+    /**
+     * Reason Code
+     *
+     * Safe reason/error code.
+     */
+    reason_code?: string | null;
     /**
      * Reason Codes
      *
@@ -2007,11 +2157,27 @@ export type ProgressEvent = {
      */
     stage?: string | null;
     /**
+     * Stage Elapsed Seconds
+     */
+    stage_elapsed_seconds?: number | null;
+    /**
      * Timestamp
      *
      * Timezone-aware UTC time of the event.
      */
     timestamp: string;
+    /**
+     * Worker Generation
+     */
+    worker_generation?: number | null;
+    /**
+     * Worker Pid
+     */
+    worker_pid?: number | null;
+    /**
+     * Worker Restart Count
+     */
+    worker_restart_count?: number | null;
 };
 
 /**

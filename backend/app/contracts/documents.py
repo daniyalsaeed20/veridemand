@@ -160,6 +160,59 @@ class DocumentSummary(ApiModel):
     pages_total: int | None = Field(
         default=None, ge=0, description="Visual pages selected for processing."
     )
+    major_phase: str | None = Field(
+        default=None,
+        description=(
+            "Current major processing phase "
+            "(admission/canonicalisation/native_trust/visual_ocr)."
+        ),
+    )
+    major_phase_percent: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=100.0,
+        description="Progress within the current major phase (0-100).",
+    )
+    page_percent: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=100.0,
+        description="Progress within the active visual page (0-100).",
+    )
+    active_page_number: int | None = Field(
+        default=None, ge=1, description="Active visual page number when processing."
+    )
+    current_operation: str | None = Field(
+        default=None, description="Stable operation identifier for the active stage."
+    )
+    operation_status: str | None = Field(
+        default=None, description="Operation lifecycle status (started/running/completed/...)."
+    )
+    progress_kind: str | None = Field(
+        default=None, description="determinate, indeterminate, or heartbeat."
+    )
+    elapsed_seconds: float | None = Field(
+        default=None, ge=0.0, description="Monotonic elapsed seconds for the active job."
+    )
+    deadline_remaining_seconds: float | None = Field(
+        default=None, ge=0.0, description="Seconds remaining before the active deadline."
+    )
+    worker_generation: int | None = Field(
+        default=None, ge=0, description="OCR worker generation owning the active request."
+    )
+    worker_restart_count: int | None = Field(
+        default=None, ge=0, description="OCR worker restarts since process start."
+    )
+    attempt_number: int | None = Field(
+        default=None, ge=1, description="Current page/document attempt number."
+    )
+    max_attempts: int | None = Field(
+        default=None, ge=1, description="Maximum attempts allowed for the active page."
+    )
+    stage_timeline: list[dict[str, object]] | None = Field(
+        default=None,
+        description="Bounded privacy-safe completed/active stage history for UI timelines.",
+    )
 
 
 class DocumentStatusCounts(ApiModel):

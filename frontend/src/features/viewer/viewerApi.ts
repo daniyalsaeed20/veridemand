@@ -214,6 +214,20 @@ export const zDocumentSummary = z.object({
   visual_summary_url: z.string().nullish(),
   pages_completed: z.int().gte(0).nullish(),
   pages_total: z.int().gte(0).nullish(),
+  major_phase: z.string().nullish(),
+  major_phase_percent: z.number().gte(0).lte(100).nullish(),
+  page_percent: z.number().gte(0).lte(100).nullish(),
+  active_page_number: z.int().gte(1).nullish(),
+  current_operation: z.string().nullish(),
+  operation_status: z.string().nullish(),
+  progress_kind: z.string().nullish(),
+  elapsed_seconds: z.number().gte(0).nullish(),
+  deadline_remaining_seconds: z.number().gte(0).nullish(),
+  worker_generation: z.int().gte(0).nullish(),
+  worker_restart_count: z.int().gte(0).nullish(),
+  attempt_number: z.int().gte(1).nullish(),
+  max_attempts: z.int().gte(1).nullish(),
+  stage_timeline: z.array(z.record(z.string(), z.unknown())).nullish(),
 });
 export type DocumentSummary = z.infer<typeof zDocumentSummary>;
 

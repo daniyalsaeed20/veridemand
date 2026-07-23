@@ -119,6 +119,20 @@ class RuntimeDocument:
     failure_code: str | None = None
     failure_message: str | None = None
     failure_page_number: int | None = None
+    major_phase: str | None = None
+    major_phase_percent: float | None = None
+    page_percent: float | None = None
+    active_page_number: int | None = None
+    current_operation: str | None = None
+    operation_status: str | None = None
+    progress_kind: str | None = None
+    elapsed_seconds: float | None = None
+    deadline_remaining_seconds: float | None = None
+    worker_generation: int | None = None
+    worker_restart_count: int | None = None
+    attempt_number: int | None = None
+    max_attempts: int | None = None
+    stage_timeline: list[dict[str, object]] = field(default_factory=list)
 
     def to_summary(
         self,
@@ -178,6 +192,20 @@ class RuntimeDocument:
             visual_summary_url=visual_summary_url,
             pages_completed=self.pages_completed,
             pages_total=self.pages_total,
+            major_phase=self.major_phase,
+            major_phase_percent=self.major_phase_percent,
+            page_percent=self.page_percent,
+            active_page_number=self.active_page_number,
+            current_operation=self.current_operation,
+            operation_status=self.operation_status,
+            progress_kind=self.progress_kind,
+            elapsed_seconds=self.elapsed_seconds,
+            deadline_remaining_seconds=self.deadline_remaining_seconds,
+            worker_generation=self.worker_generation,
+            worker_restart_count=self.worker_restart_count,
+            attempt_number=self.attempt_number,
+            max_attempts=self.max_attempts,
+            stage_timeline=list(self.stage_timeline[-32:]) or None,
         )
 
 

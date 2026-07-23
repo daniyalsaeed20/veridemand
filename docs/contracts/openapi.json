@@ -536,6 +536,32 @@
             "description": "Identifier of the active/last admission job, if any.",
             "title": "Active Job Id"
           },
+          "active_page_number": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Active visual page number when processing.",
+            "title": "Active Page Number"
+          },
+          "attempt_number": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Current page/document attempt number.",
+            "title": "Attempt Number"
+          },
           "canonical_metadata_url": {
             "anyOf": [
               {
@@ -594,6 +620,31 @@
             "title": "Created At",
             "type": "string"
           },
+          "current_operation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Stable operation identifier for the active stage.",
+            "title": "Current Operation"
+          },
+          "deadline_remaining_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Seconds remaining before the active deadline.",
+            "title": "Deadline Remaining Seconds"
+          },
           "display_filename": {
             "description": "Sanitised display filename (never a storage path).",
             "title": "Display Filename",
@@ -615,6 +666,19 @@
               }
             ],
             "description": "Document-level source authority after native/visual stages."
+          },
+          "elapsed_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Monotonic elapsed seconds for the active job.",
+            "title": "Elapsed Seconds"
           },
           "extension": {
             "description": "Lowercased, validated file extension without the dot.",
@@ -680,6 +744,45 @@
             "$ref": "#/components/schemas/DocumentFormat",
             "description": "Canonical internal format key."
           },
+          "major_phase": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Current major processing phase (admission/canonicalisation/native_trust/visual_ocr).",
+            "title": "Major Phase"
+          },
+          "major_phase_percent": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Progress within the current major phase (0-100).",
+            "title": "Major Phase Percent"
+          },
+          "max_attempts": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Maximum attempts allowed for the active page.",
+            "title": "Max Attempts"
+          },
           "media_type": {
             "description": "Server-validated media type.",
             "title": "Media Type",
@@ -709,6 +812,18 @@
             "description": "Relative URL for the native extraction summary.",
             "title": "Native Summary Url"
           },
+          "operation_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Operation lifecycle status (started/running/completed/...).",
+            "title": "Operation Status"
+          },
           "page_count": {
             "anyOf": [
               {
@@ -725,6 +840,20 @@
           "page_count_status": {
             "$ref": "#/components/schemas/PageCountStatus",
             "description": "Whether the page count is known."
+          },
+          "page_percent": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Progress within the active visual page (0-100).",
+            "title": "Page Percent"
           },
           "pages_completed": {
             "anyOf": [
@@ -751,6 +880,18 @@
             ],
             "description": "Visual pages selected for processing.",
             "title": "Pages Total"
+          },
+          "progress_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "determinate, indeterminate, or heartbeat.",
+            "title": "Progress Kind"
           },
           "progress_percent": {
             "description": "Honest Phase 4 progress; capped at 65% (printed visual OCR complete).",
@@ -790,6 +931,22 @@
             "minimum": 0.0,
             "title": "Size Bytes",
             "type": "integer"
+          },
+          "stage_timeline": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Bounded privacy-safe completed/active stage history for UI timelines.",
+            "title": "Stage Timeline"
           },
           "status": {
             "$ref": "#/components/schemas/DocumentStatus",
@@ -843,6 +1000,32 @@
             "minimum": 0.0,
             "title": "Warning Count",
             "type": "integer"
+          },
+          "worker_generation": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "OCR worker generation owning the active request.",
+            "title": "Worker Generation"
+          },
+          "worker_restart_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "OCR worker restarts since process start.",
+            "title": "Worker Restart Count"
           }
         },
         "required": [
@@ -2800,6 +2983,18 @@
         "additionalProperties": false,
         "description": "A single, strictly-validated progress event.",
         "properties": {
+          "attempt_number": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempt Number"
+          },
           "canonical_page_count": {
             "anyOf": [
               {
@@ -2837,6 +3032,18 @@
             "description": "Canonicalisation method when relevant.",
             "title": "Canonicalisation Method"
           },
+          "deadline_remaining_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadline Remaining Seconds"
+          },
           "decision": {
             "anyOf": [
               {
@@ -2872,6 +3079,18 @@
               }
             ],
             "description": "Document status at the time of the event, if relevant."
+          },
+          "elapsed_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elapsed Seconds"
           },
           "event": {
             "$ref": "#/components/schemas/ProgressEventType",
@@ -2913,6 +3132,44 @@
             ],
             "description": "Job status at the time of the event, if relevant."
           },
+          "major_phase": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Major phase label.",
+            "title": "Major Phase"
+          },
+          "major_phase_percent": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Major-phase progress 0-100.",
+            "title": "Major Phase Percent"
+          },
+          "max_attempts": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Attempts"
+          },
           "message": {
             "anyOf": [
               {
@@ -2939,6 +3196,44 @@
             "description": "Native trust score when relevant.",
             "title": "Native Trust Score"
           },
+          "operation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Stable operation identifier.",
+            "title": "Operation"
+          },
+          "operation_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Operation status.",
+            "title": "Operation Status"
+          },
+          "overall_percent": {
+            "anyOf": [
+              {
+                "maximum": 65.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Document overall progress (Phase 4 cap 65).",
+            "title": "Overall Percent"
+          },
           "page_number": {
             "anyOf": [
               {
@@ -2951,6 +3246,20 @@
             ],
             "description": "Reserved; unused in Phase 1.",
             "title": "Page Number"
+          },
+          "page_percent": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Active page progress 0-100.",
+            "title": "Page Percent"
           },
           "pages_completed": {
             "anyOf": [
@@ -2992,6 +3301,18 @@
             "description": "Optional progress percent.",
             "title": "Percent"
           },
+          "progress_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "determinate|indeterminate|heartbeat.",
+            "title": "Progress Kind"
+          },
           "queue_position": {
             "anyOf": [
               {
@@ -3004,6 +3325,18 @@
             ],
             "description": "Queue position, if relevant.",
             "title": "Queue Position"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Safe reason/error code.",
+            "title": "Reason Code"
           },
           "reason_codes": {
             "anyOf": [
@@ -3050,11 +3383,59 @@
             "description": "Optional stage label.",
             "title": "Stage"
           },
+          "stage_elapsed_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage Elapsed Seconds"
+          },
           "timestamp": {
             "description": "Timezone-aware UTC time of the event.",
             "format": "date-time",
             "title": "Timestamp",
             "type": "string"
+          },
+          "worker_generation": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worker Generation"
+          },
+          "worker_pid": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worker Pid"
+          },
+          "worker_restart_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worker Restart Count"
           }
         },
         "required": [
