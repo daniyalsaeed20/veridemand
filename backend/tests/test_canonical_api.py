@@ -175,9 +175,13 @@ def test_get_canonical_not_ready_returns_409(client: TestClient, uploads_dir: Pa
 
 def test_readiness_includes_libreoffice_when_configured(tmp_path: Path) -> None:
     if _LO_PATH.is_file():
-        settings = Settings(temp_root=tmp_path / "temp", libreoffice_executable=str(_LO_PATH))
+        settings = Settings(
+            temp_root=tmp_path / "temp",
+            libreoffice_executable=str(_LO_PATH),
+            ocr_enabled=False,
+        )
     else:
-        settings = Settings(temp_root=tmp_path / "temp")
+        settings = Settings(temp_root=tmp_path / "temp", ocr_enabled=False)
     with TestClient(create_app(settings)) as client:
         response = client.get("/health/ready")
     assert response.status_code == 200

@@ -37,6 +37,8 @@
     "test:ocr:integration": "uv run --group ocr pytest backend/tests/test_ocr_integration.py -v",
     "evaluate:ocr": "uv run --group ocr python scripts/evaluate_printed_ocr.py",
     "verify:visual-runtime": "uv run --group ocr python scripts/verify_ocr_runtime.py",
+    "verify:windows-dev-runtime": "uv run python scripts/verify_windows_dev_runtime.py",
+    "diagnose:mkldnn": "uv run --group ocr python scripts/diagnose_mkldnn_windows.py",
     "check": "uv run python scripts/check_all.py"
   },
   "devDependencies": {

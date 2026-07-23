@@ -19,8 +19,12 @@ _LIBREOFFICE_SOURCE = Path(__file__).resolve().parents[1] / "app" / "canonical" 
 
 def _settings_with_libreoffice(tmp_path: Path) -> Settings | None:
     if _LO_PATH.is_file():
-        return Settings(temp_root=tmp_path / "temp", libreoffice_executable=str(_LO_PATH))
-    probe = Settings(temp_root=tmp_path / "temp")
+        return Settings(
+            temp_root=tmp_path / "temp",
+            libreoffice_executable=str(_LO_PATH),
+            ocr_enabled=False,
+        )
+    probe = Settings(temp_root=tmp_path / "temp", ocr_enabled=False)
     try:
         LibreOfficeService(probe).resolve()
     except CanonicalisationError:
@@ -47,6 +51,7 @@ def test_libreoffice_converts_minimal_docx(tmp_path: Path, uploads_dir: Path) ->
         temp_root=base.temp_root,
         libreoffice_executable=base.libreoffice_executable,
         libreoffice_timeout_seconds=120.0,
+        ocr_enabled=False,
     )
 
     file_store = FileStore(settings.temp_root)

@@ -29,6 +29,8 @@ PHASE4_ALLOWED_PREFIXES = (
     "backend/app/health/service.py",
     "scripts/bootstrap_ocr_models.py",
     "scripts/verify_ocr_runtime.py",
+    "scripts/diagnose_mkldnn_windows.py",
+    "scripts/verify_windows_dev_runtime.py",
     "scripts/evaluate_printed_ocr.py",
     "scripts/evaluate_private_visual_ocr.py",
     "scripts/generate_veridemand_regression_pdf.py",
