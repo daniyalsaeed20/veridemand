@@ -26,22 +26,22 @@ export default defineConfig({
   forbidOnly: isCI,
   retries: isCI ? 1 : 0,
   workers: 1,
-  // Phase 4 printed OCR on CPU can exceed one minute per document in CI.
-  timeout: 360_000,
+  // Phase 4 printed OCR is covered by smoke/OCR jobs; default e2e stays Phase 2/3-speed.
+  timeout: 120_000,
   expect: {
-    timeout: 180_000,
+    timeout: 90_000,
   },
   reporter: [["html", { open: "never" }]],
   use: {
     trace: "on-first-retry",
-    actionTimeout: 60_000,
+    actionTimeout: 30_000,
   },
   projects: [
     {
       name: "chromium",
       testIgnore: HOLDS_SPECS,
       use: { ...devices["Desktop Chrome"], baseURL: NORMAL_FRONTEND },
-      timeout: 360_000,
+      timeout: 120_000,
     },
     {
       name: "chromium-holds",
@@ -57,9 +57,9 @@ export default defineConfig({
       cwd: "..",
       url: `${NORMAL_BACKEND}/health/live`,
       reuseExistingServer: true,
-      timeout: 180_000,
+      timeout: 120_000,
       env: {
-        OCR_ENABLED: nodeProcess?.env?.OCR_ENABLED ?? "true",
+        OCR_ENABLED: nodeProcess?.env?.OCR_ENABLED ?? "false",
       },
     },
     {

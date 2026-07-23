@@ -102,15 +102,11 @@ jobs:
     runs-on: ubuntu-latest
     # No secrets are provided to this job: the runtime-session/upload/queue flows
     # are fully offline and must never call a live vision provider.
+    # Phase 2/3 Playwright flows do not require printed OCR; keep OCR off so
+    # the suite stays bounded. Real OCR is exercised by smoke + OCR jobs.
     env:
       OPENAI_API_KEY: ""
-      OCR_ENABLED: "true"
-      OCR_DEVICE: cpu
-      FLAGS_use_mkldnn: "0"
-      FLAGS_onednn: "0"
-      PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT: "0"
-      PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK: "True"
-      PADDLE_PDX_MODEL_SOURCE: BOS
+      OCR_ENABLED: "false"
     steps:
       - uses: actions/checkout@v4
 
@@ -140,22 +136,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libreoffice-writer
           libreoffice --version
-
-      - name: Cache OCR models
-        uses: actions/cache@v4
-        with:
-          path: .models/paddleocr
-          key: ${{ runner.os }}-py3.12-paddleocr-3.7.0-paddlepaddle-3.3.0-PP-OCRv6_medium_det-PP-OCRv6_medium_rec-${{ hashFiles('docs/models/phase-4-ocr-models.md', 'scripts/bootstrap_ocr_models.py') }}
-          restore-keys: |
-            ${{ runner.os }}-py3.12-paddleocr-3.7.0-paddlepaddle-3.3.0-PP-OCRv6_medium_det-PP-OCRv6_medium_rec-
-
-      - name: Bootstrap OCR models if missing
-        run: |
-          if [ ! -f .models/paddleocr/model-record.json ]; then
-            pnpm models:ocr:bootstrap
-          else
-            echo "OCR model cache hit"
-          fi
 
       - name: Install Playwright Chromium
         run: pnpm -C frontend exec playwright install --with-deps chromium
