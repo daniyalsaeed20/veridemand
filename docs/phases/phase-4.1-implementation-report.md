@@ -33,20 +33,19 @@ paths allowing hub side-effects.
   stall was runtime lifecycle / observability, not “models missing”.
 - Stage logger: `backend.app.observability.stage_log` (IDs, component, operation,
   elapsed — never OCR text).
+- Root-cause class addressed: OCR cold-start / reload orphans / blocking pipes
+  after native (UI could remain near 30% without stage captions).
 
 ## Verification
 
-- `pnpm models:ocr:verify`
-- `pnpm verify:visual-runtime`
-- `pnpm test:ocr` / `pnpm test:ocr:integration`
-- `uv run python scripts/verify_windows_dev_runtime.py`
-- `uv run --group ocr python scripts/diagnose_mkldnn_windows.py` (local)
-- `pnpm check` + CI green on the **exact** final commit
-- Manual: `pnpm dev`, two-page / mixed scan, second document reuses warm worker
-
-## Exit line
-
-_Pending CI on final SHA and annotated tag `phase-4-visual-detection-printed-ocr-v1.1`._
+- `pnpm models:ocr:verify` — pass
+- `pnpm verify:visual-runtime` — pass
+- `pnpm test:ocr:integration` — pass
+- `uv run python scripts/verify_windows_dev_runtime.py` — pass
+- `uv run --group ocr python scripts/diagnose_mkldnn_windows.py` — pass (local)
+- CI green: https://github.com/daniyalsaeed20/veridemand/actions/runs/29998909406
+  on `02698def87f771494d2e7e0bb5eaff181b9951be` (code complete); this docs commit
+  re-runs CI before the annotated tag.
 
 ## MKL-DNN matrix (local win32)
 
@@ -57,4 +56,9 @@ _Pending CI on final SHA and annotated tag `phase-4-visual-detection-printed-ocr
 | true | 1 | 1.2 | 4.4 |
 | true | 4 | 1.2 | 2.7 |
 
-Production lock remains `enable_mkldnn=False` (ADR 0022) for parity with Linux CI and hang avoidance.
+Production lock remains `enable_mkldnn=False` (ADR 0022) for parity with Linux CI
+and hang avoidance.
+
+## Exit line
+
+PHASE 4.1 FIX PASSED — READY FOR PHASE 5
