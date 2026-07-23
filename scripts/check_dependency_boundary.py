@@ -30,6 +30,7 @@ PHASE4_ALLOWED_PREFIXES = (
     "scripts/bootstrap_ocr_models.py",
     "scripts/verify_ocr_runtime.py",
     "scripts/diagnose_mkldnn_windows.py",
+    "scripts/diagnose_phase42_stall.py",
     "scripts/verify_windows_dev_runtime.py",
     "scripts/evaluate_printed_ocr.py",
     "scripts/evaluate_private_visual_ocr.py",
