@@ -59,6 +59,26 @@ pnpm dev:backend
 # or: uv run uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
 ```
 
+### Checking readiness (PowerShell)
+
+`Invoke-RestMethod` is a **PowerShell cmdlet**, not a file in this repository.
+While the backend is running, open a **second** PowerShell window and run:
+
+```powershell
+Invoke-RestMethod `
+  -Uri "http://127.0.0.1:8000/health/ready" |
+  ConvertTo-Json -Depth 20
+```
+
+Alternative:
+
+```powershell
+curl.exe -s http://127.0.0.1:8000/health/ready
+```
+
+A `200` ready response means required OCR models and the worker are up. It does
+not by itself prove multipage progress correctness.
+
 ```bash
 pnpm smoke:corpus:validate
 pnpm smoke:corpus
