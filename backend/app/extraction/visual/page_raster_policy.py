@@ -6,6 +6,7 @@ Never uses filenames or content hashes.
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
@@ -131,49 +132,54 @@ def inspect_page_rasters(
     best_coverage = 0.0
 
     for obj in page.get_objects(max_depth=2):
+        image: Any | None = None
         try:
             if int(obj.type) != int(pdfium_raw.FPDF_PAGEOBJ_IMAGE):
                 continue
-        except Exception:
-            continue
-        try:
             image = pdfium.PdfImage(obj)
             width_px, height_px = image.get_px_size()
         except Exception:
+            if image is not None:
+                with contextlib.suppress(Exception):
+                    image.close()
             continue
 
-        coverage = 0.0
-        x0 = y0 = 0.0
-        x1 = page_width_points
-        y1 = page_height_points
         try:
-            bounds = image.get_bounds()
-            coverage, x0, y0, x1, y1 = _coverage_from_bounds(
-                bounds,
-                page_width=page_width_points,
-                page_height=page_height_points,
-            )
-        except Exception:
-            # Loose page objects may not expose bounds; fall back to dimension match.
-            w_ratio = float(width_px) / max(page_width_points, 1.0)
-            h_ratio = float(height_px) / max(page_height_points, 1.0)
-            if w_ratio >= _DIM_MATCH_RATIO and h_ratio >= _DIM_MATCH_RATIO:
-                coverage = min(1.0, w_ratio * h_ratio)
-            else:
-                coverage = min(1.0, w_ratio * h_ratio * 0.5)
+            coverage = 0.0
+            x0 = y0 = 0.0
+            x1 = page_width_points
+            y1 = page_height_points
+            try:
+                bounds = image.get_bounds()
+                coverage, x0, y0, x1, y1 = _coverage_from_bounds(
+                    bounds,
+                    page_width=page_width_points,
+                    page_height=page_height_points,
+                )
+            except Exception:
+                # Loose page objects may not expose bounds; fall back to dimension match.
+                w_ratio = float(width_px) / max(page_width_points, 1.0)
+                h_ratio = float(height_px) / max(page_height_points, 1.0)
+                if w_ratio >= _DIM_MATCH_RATIO and h_ratio >= _DIM_MATCH_RATIO:
+                    coverage = min(1.0, w_ratio * h_ratio)
+                else:
+                    coverage = min(1.0, w_ratio * h_ratio * 0.5)
 
-        info = EmbeddedImageInfo(
-            width_px=int(width_px),
-            height_px=int(height_px),
-            coverage_ratio=coverage,
-            x0=x0,
-            y0=y0,
-            x1=x1,
-            y1=y1,
-        )
-        if coverage >= best_coverage:
-            best_coverage = coverage
-            best = info
+            info = EmbeddedImageInfo(
+                width_px=int(width_px),
+                height_px=int(height_px),
+                coverage_ratio=coverage,
+                x0=x0,
+                y0=y0,
+                x1=x1,
+                y1=y1,
+            )
+            if coverage >= best_coverage:
+                best_coverage = coverage
+                best = info
+        finally:
+            with contextlib.suppress(Exception):
+                image.close()
 
     is_full = False
     if best is not None and image_count == 1:

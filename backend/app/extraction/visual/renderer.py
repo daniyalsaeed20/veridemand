@@ -145,23 +145,53 @@ def render_page(
             )
 
         if plan is None:
-            assessment = inspect_page_rasters(
-                page,
-                page_width_points=page_width_points,
-                page_height_points=page_height_points,
-            )
-            plan = plan_render(
-                assessment,
-                page_width_points=page_width_points,
-                page_height_points=page_height_points,
-                requested_dpi=limits.target_dpi,
-                min_effective_dpi=limits.min_effective_dpi,
-                max_render_pixels=limits.max_render_pixels,
-                max_render_side_pixels=limits.max_render_side_pixels,
-                # Prefer capped pdfium render: embedded decode is fragile on some
-                # Windows pdfium builds (finalizer crashes). Cap still prevents upscale.
-                prefer_embedded=False,
-            )
+            try:
+                assessment = inspect_page_rasters(
+                    page,
+                    page_width_points=page_width_points,
+                    page_height_points=page_height_points,
+                )
+                plan = plan_render(
+                    assessment,
+                    page_width_points=page_width_points,
+                    page_height_points=page_height_points,
+                    requested_dpi=limits.target_dpi,
+                    min_effective_dpi=limits.min_effective_dpi,
+                    max_render_pixels=limits.max_render_pixels,
+                    max_render_side_pixels=limits.max_render_side_pixels,
+                    # Prefer capped pdfium render: embedded decode is fragile on some
+                    # Windows pdfium builds (finalizer crashes). Cap still prevents upscale.
+                    prefer_embedded=False,
+                )
+            except Exception:
+                # Safe fallback: classic pdfium render with resource caps only.
+                from backend.app.extraction.visual.page_raster_policy import RenderPlan
+
+                effective = compute_effective_dpi(
+                    page_width_points=page_width_points,
+                    page_height_points=page_height_points,
+                    target_dpi=limits.target_dpi,
+                    min_effective_dpi=limits.min_effective_dpi,
+                    max_render_pixels=limits.max_render_pixels,
+                    max_render_side_pixels=limits.max_render_side_pixels,
+                )
+                plan = RenderPlan(
+                    policy=RenderSourcePolicy.PDFIUM_RENDER,
+                    requested_dpi=float(limits.target_dpi),
+                    target_dpi=float(limits.target_dpi),
+                    effective_dpi=float(effective),
+                    downscale_reason=(
+                        "resource_pixel_or_side_cap"
+                        if effective + 1e-6 < float(limits.target_dpi)
+                        else None
+                    ),
+                    source_resolution_cap_applied=False,
+                    source_width_px=None,
+                    source_height_px=None,
+                    canonical_width_points=page_width_points,
+                    canonical_height_points=page_height_points,
+                    embedded=None,
+                )
 
         effective_dpi = float(plan.effective_dpi)
         render_scale = effective_dpi / _POINTS_PER_INCH
