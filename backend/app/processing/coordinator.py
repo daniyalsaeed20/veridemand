@@ -814,21 +814,50 @@ class ProcessingCoordinator:
             return
 
         # Persist visibility downgrades onto published native results so public
-        # APIs never keep suppressed native words/text after Phase 4.
+        # APIs (including summary.page_decisions used by smoke) never keep
+        # suppressed native authority after Phase 4.
+        downgraded_any = False
         for page in native_pages.values():
-            if "native_text_not_visually_present" in page.trust.reason_codes:
-                self._native.republish_page(session.session_id, document.document_id, page)
+            if page.trust.visual_processing_required and not page.trust.native_result_available:
+                if page.decision is NativePageDecision.REJECTED or (
+                    "native_text_not_visually_present" in page.trust.reason_codes
+                    or "native_text_visibility_uncertain" in page.trust.reason_codes
+                ):
+                    # Only rewrite pages mutated by the visibility probe, not Phase-3 rejects.
+                    if page.trust.visual_agreement_status.value == "evaluated_phase_4_visibility":
+                        self._native.republish_page(session.session_id, document.document_id, page)
+                        downgraded_any = True
 
-        if summary.native_pages_downgraded > 0:
+        if downgraded_any or summary.native_pages_downgraded > 0:
             document.native_result_available = False
             document.visual_processing_required = True
             existing_summary = self._native.load_summary(session.session_id, document.document_id)
-            if existing_summary is not None and summary.document_source_policy is not None:
+            if existing_summary is not None:
+                by_number = {entry.page_number: entry for entry in existing_summary.page_decisions}
+                for page_number, page in native_pages.items():
+                    by_number[page_number] = page.trust
+                decisions = [by_number[n] for n in sorted(by_number)]
+                accepted = sum(1 for d in decisions if d.decision is NativePageDecision.ACCEPTED)
+                rejected = sum(1 for d in decisions if d.decision is NativePageDecision.REJECTED)
+                absent = sum(1 for d in decisions if d.decision is NativePageDecision.ABSENT)
+                errored = sum(1 for d in decisions if d.decision is NativePageDecision.ERROR)
+                suppressed = sum(
+                    1
+                    for d in decisions
+                    if d.decision is NativePageDecision.SUPPRESSED_BY_DOCUMENT_ESCALATION
+                )
                 updated = existing_summary.model_copy(
                     update={
-                        "document_source_policy": summary.document_source_policy,
+                        "document_source_policy": summary.document_source_policy
+                        or existing_summary.document_source_policy,
                         "native_result_available": False,
                         "visual_processing_required": True,
+                        "page_decisions": decisions,
+                        "pages_accepted": accepted,
+                        "pages_rejected": rejected,
+                        "pages_absent": absent,
+                        "pages_errored": errored,
+                        "pages_suppressed": suppressed,
                     }
                 )
                 self._native.republish_summary(session.session_id, document.document_id, updated)
