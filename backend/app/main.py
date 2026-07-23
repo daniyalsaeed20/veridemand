@@ -147,7 +147,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     """Build and configure the FastAPI application."""
 
     resolved = settings or get_settings()
-    logging.basicConfig(level=resolved.log_level)
+    from backend.app.observability.dev_logging import configure_dev_logging
+
+    configure_dev_logging(resolved.log_level)
 
     app = FastAPI(
         title="VeriDemand API",
