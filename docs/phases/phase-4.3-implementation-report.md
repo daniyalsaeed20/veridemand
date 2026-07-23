@@ -111,7 +111,11 @@ No Phase 5 (handwriting / ONNX / OpenAI / PP-Structure). Progress cap remains
 
 ## Corrective Tag
 
-`phase-4-visual-detection-printed-ocr-v1.4` (after CI on exact final SHA).
-Does not move v1 / v1.1 / v1.2 / v1.3.
+`phase-4-visual-detection-printed-ocr-v1.4` → `611250eae88a8a1fc9c457b97dc8e9a37c905e52`
+(after CI on exact final SHA). Does not move v1 / v1.1 / v1.2 / v1.3.
+
+## CI
+
+https://github.com/daniyalsaeed20/veridemand/actions/runs/30042122825
 
 PHASE 4.3 PRIVATE ACCEPTANCE PASSED — READY FOR PHASE 5
