@@ -99,39 +99,82 @@ def main() -> int:
             "failed",
             "cancelled",
         }
-        last_status = ""
-        last_op = ""
-        while time.monotonic() - started < args.timeout_seconds:
-            snap = client.get(f"/api/v1/sessions/{session_id}").json()
-            doc = next(d for d in snap["documents"] if d["document_id"] == document_id)
-            status = doc["status"]
-            op = doc.get("current_operation") or ""
-            if status != last_status or op != last_op:
-                mark(
-                    "snapshot",
-                    status=status,
-                    overall=doc.get("progress_percent"),
-                    major_phase=doc.get("major_phase"),
-                    major_phase_percent=doc.get("major_phase_percent"),
-                    page_percent=doc.get("page_percent"),
-                    operation=op,
-                    attempt=doc.get("attempt_number"),
-                    generation=doc.get("worker_generation"),
-                )
-                last_status = status
-                last_op = op
-            if status in terminal:
-                mark("terminal", status=status, overall=doc.get("progress_percent"))
-                args.out.parent.mkdir(parents=True, exist_ok=True)
-                args.out.write_text(json.dumps(timeline, indent=2), encoding="utf-8")
-                print(json.dumps(timeline[-5:], indent=2))
-                return 0
-            time.sleep(1.0)
 
-        mark("wall_timeout", last_status=last_status, last_op=last_op)
+        def wait_terminal(document_id: str, *, label: str) -> tuple[str, int | None]:
+            last_status = ""
+            last_op = ""
+            while time.monotonic() - started < args.timeout_seconds:
+                snap = client.get(f"/api/v1/sessions/{session_id}").json()
+                doc = next(d for d in snap["documents"] if d["document_id"] == document_id)
+                status = str(doc["status"])
+                op = str(doc.get("current_operation") or "")
+                if status != last_status or op != last_op:
+                    mark(
+                        "snapshot",
+                        label=label,
+                        status=status,
+                        overall=doc.get("progress_percent"),
+                        major_phase=doc.get("major_phase"),
+                        major_phase_percent=doc.get("major_phase_percent"),
+                        page_percent=doc.get("page_percent"),
+                        operation=op,
+                        attempt=doc.get("attempt_number"),
+                        generation=doc.get("worker_generation"),
+                    )
+                    last_status = status
+                    last_op = op
+                if status in terminal:
+                    gen = doc.get("worker_generation")
+                    mark(
+                        "terminal",
+                        label=label,
+                        status=status,
+                        overall=doc.get("progress_percent"),
+                        generation=gen,
+                    )
+                    return status, int(gen) if isinstance(gen, int) else None
+                time.sleep(1.0)
+            mark("wall_timeout", label=label, last_status=last_status, last_op=last_op)
+            return last_status, None
+
+        first_status, first_gen = wait_terminal(document_id, label="doc1")
+        if first_status not in terminal:
+            args.out.parent.mkdir(parents=True, exist_ok=True)
+            args.out.write_text(json.dumps(timeline, indent=2), encoding="utf-8")
+            print(json.dumps(timeline, indent=2))
+            return 1
+
+        # Second document without recreating the app/client (worker reuse).
+        upload2 = client.post(
+            f"/api/v1/sessions/{session_id}/documents",
+            files=[
+                (
+                    "files",
+                    (args.pdf.name, args.pdf.read_bytes(), "application/pdf"),
+                )
+            ],
+        )
+        upload2.raise_for_status()
+        document_id_2 = upload2.json()["accepted"][0]["document_id"]
+        mark("uploaded", label="doc2", document_id=document_id_2)
+        process2 = client.post(
+            f"/api/v1/sessions/{session_id}/process",
+            json={"document_ids": [document_id_2]},
+        )
+        mark("process_accepted", label="doc2", status_code=process2.status_code)
+        assert process2.status_code == 202
+        second_status, second_gen = wait_terminal(document_id_2, label="doc2")
+        mark(
+            "worker_reuse",
+            first_generation=first_gen,
+            second_generation=second_gen,
+            reused=first_gen is not None and first_gen == second_gen,
+        )
+
+        args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(json.dumps(timeline, indent=2), encoding="utf-8")
-        print(json.dumps(timeline, indent=2))
-        return 1
+        print(json.dumps(timeline[-8:], indent=2))
+        return 0 if second_status in terminal else 1
 
 
 if __name__ == "__main__":
