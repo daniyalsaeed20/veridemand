@@ -16,9 +16,9 @@ export function fixture(name: string): string {
   return path.join(UPLOADS_DIR, name);
 }
 
-/** Queue/doc ready after Phase 3 native + Phase 4 printed OCR (progress capped at 65%). */
+/** Queue/doc ready after Phase 3 native (+ optional Phase 4 OCR when enabled). */
 export const PROCESSING_COMPLETE_RE =
-  /Printed OCR complete|Printed visual OCR complete|Native text accepted|requires visual processing|native text layer was rejected|No native text is available|canonical document ready|ready for extraction|Decision:\s*accepted/i;
+  /Printed OCR complete|Printed visual OCR complete|Printed visual OCR failed|Printed OCR failed|Native text accepted|requires visual processing|native text layer was rejected|No native text is available|canonical document ready|ready for extraction|Decision:\s*accepted|Decision:\s*rejected|Decision:\s*absent/i;
 
 export async function waitForProcessingComplete(page: Page, timeout = 180_000): Promise<void> {
   await expect(page.getByText(PROCESSING_COMPLETE_RE).first()).toBeVisible({ timeout });
