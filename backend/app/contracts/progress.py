@@ -148,8 +148,15 @@ class ProgressEvent(ApiModel):
     progress_kind: str | None = Field(
         default=None, description="determinate|indeterminate|heartbeat."
     )
-    elapsed_seconds: float | None = Field(default=None, ge=0.0)
-    stage_elapsed_seconds: float | None = Field(default=None, ge=0.0)
+    elapsed_seconds: float | None = Field(
+        default=None, ge=0.0, description="Document-level elapsed (alias)."
+    )
+    document_elapsed_seconds: float | None = Field(default=None, ge=0.0)
+    page_elapsed_seconds: float | None = Field(default=None, ge=0.0)
+    operation_elapsed_seconds: float | None = Field(default=None, ge=0.0)
+    stage_elapsed_seconds: float | None = Field(
+        default=None, ge=0.0, description="Alias of operation_elapsed_seconds."
+    )
     deadline_remaining_seconds: float | None = Field(default=None, ge=0.0)
     worker_pid: int | None = Field(default=None, ge=0)
     worker_generation: int | None = Field(default=None, ge=0)

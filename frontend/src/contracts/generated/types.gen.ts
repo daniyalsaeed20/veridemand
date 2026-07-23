@@ -434,6 +434,12 @@ export type DocumentSummary = {
      */
     display_filename: string;
     /**
+     * Document Elapsed Seconds
+     *
+     * Monotonic elapsed seconds since the job started.
+     */
+    document_elapsed_seconds?: number | null;
+    /**
      * Document Id
      *
      * Opaque document identifier.
@@ -446,7 +452,7 @@ export type DocumentSummary = {
     /**
      * Elapsed Seconds
      *
-     * Monotonic elapsed seconds for the active job.
+     * Document-level elapsed seconds (alias of document_elapsed_seconds).
      */
     elapsed_seconds?: number | null;
     /**
@@ -532,6 +538,12 @@ export type DocumentSummary = {
      */
     native_summary_url?: string | null;
     /**
+     * Operation Elapsed Seconds
+     *
+     * Monotonic elapsed seconds for the active operation.
+     */
+    operation_elapsed_seconds?: number | null;
+    /**
      * Operation Status
      *
      * Operation lifecycle status (started/running/completed/...).
@@ -547,6 +559,12 @@ export type DocumentSummary = {
      * Whether the page count is known.
      */
     page_count_status: PageCountStatus;
+    /**
+     * Page Elapsed Seconds
+     *
+     * Monotonic elapsed seconds for the active visual page.
+     */
+    page_elapsed_seconds?: number | null;
     /**
      * Page Percent
      *
@@ -1999,6 +2017,10 @@ export type ProgressEvent = {
      */
     decision?: string | null;
     /**
+     * Document Elapsed Seconds
+     */
+    document_elapsed_seconds?: number | null;
+    /**
      * Document Id
      *
      * Related document, if any.
@@ -2010,6 +2032,8 @@ export type ProgressEvent = {
     document_status?: DocumentStatus | null;
     /**
      * Elapsed Seconds
+     *
+     * Document-level elapsed (alias).
      */
     elapsed_seconds?: number | null;
     /**
@@ -2073,6 +2097,10 @@ export type ProgressEvent = {
      */
     operation?: string | null;
     /**
+     * Operation Elapsed Seconds
+     */
+    operation_elapsed_seconds?: number | null;
+    /**
      * Operation Status
      *
      * Operation status.
@@ -2084,6 +2112,10 @@ export type ProgressEvent = {
      * Document overall progress (Phase 4 cap 65).
      */
     overall_percent?: number | null;
+    /**
+     * Page Elapsed Seconds
+     */
+    page_elapsed_seconds?: number | null;
     /**
      * Page Number
      *
@@ -2158,6 +2190,8 @@ export type ProgressEvent = {
     stage?: string | null;
     /**
      * Stage Elapsed Seconds
+     *
+     * Alias of operation_elapsed_seconds.
      */
     stage_elapsed_seconds?: number | null;
     /**
@@ -2704,6 +2738,10 @@ export type VisualModelInfo = {
  */
 export type VisualPageResult = {
     /**
+     * Adapt Duration Seconds
+     */
+    adapt_duration_seconds?: number | null;
+    /**
      * Average Detection Score
      */
     average_detection_score?: number | null;
@@ -2716,6 +2754,22 @@ export type VisualPageResult = {
      */
     blocks?: Array<VisualTextBlock>;
     /**
+     * Cpu Threads
+     */
+    cpu_threads?: number | null;
+    /**
+     * Detection Model Name
+     */
+    detection_model_name?: string | null;
+    /**
+     * Detector Input Height
+     */
+    detector_input_height?: number | null;
+    /**
+     * Detector Input Width
+     */
+    detector_input_width?: number | null;
+    /**
      * Duration Ms
      */
     duration_ms?: number | null;
@@ -2727,6 +2781,10 @@ export type VisualPageResult = {
      * Fallback Used
      */
     fallback_used?: boolean;
+    /**
+     * Grouping Duration Seconds
+     */
+    grouping_duration_seconds?: number | null;
     handwriting_assessment?: HandwritingAssessment;
     /**
      * Line Count
@@ -2740,7 +2798,15 @@ export type VisualPageResult = {
      * Low Confidence Line Count
      */
     low_confidence_line_count?: number;
+    /**
+     * Mapping Duration Seconds
+     */
+    mapping_duration_seconds?: number | null;
     native_visibility_result?: NativeVisibilityResult | null;
+    /**
+     * Paddle Pipeline Duration Seconds
+     */
+    paddle_pipeline_duration_seconds?: number | null;
     /**
      * Page Number
      */
@@ -2749,21 +2815,49 @@ export type VisualPageResult = {
      * Peak Rss Mb
      */
     peak_rss_mb?: number | null;
+    /**
+     * Preprocess Duration Seconds
+     */
+    preprocess_duration_seconds?: number | null;
     preprocessing_variant?: PreprocessingVariant | null;
     reading_order?: VisualReadingOrder | null;
+    /**
+     * Recognition Model Name
+     */
+    recognition_model_name?: string | null;
     /**
      * Render Dpi
      */
     render_dpi?: number | null;
     /**
+     * Render Duration Seconds
+     */
+    render_duration_seconds?: number | null;
+    /**
      * Render Height Pixels
      */
     render_height_pixels?: number | null;
     /**
+     * Render Source Policy
+     */
+    render_source_policy?: string | null;
+    /**
      * Render Width Pixels
      */
     render_width_pixels?: number | null;
+    /**
+     * Requested Dpi
+     */
+    requested_dpi?: number | null;
+    /**
+     * Source Height Px
+     */
+    source_height_px?: number | null;
     source_mode: SourceMode;
+    /**
+     * Source Width Px
+     */
+    source_width_px?: number | null;
     status: VisualPageStatus;
     /**
      * Visual Processing Attempted

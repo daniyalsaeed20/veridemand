@@ -191,7 +191,18 @@ class DocumentSummary(ApiModel):
         default=None, description="determinate, indeterminate, or heartbeat."
     )
     elapsed_seconds: float | None = Field(
-        default=None, ge=0.0, description="Monotonic elapsed seconds for the active job."
+        default=None,
+        ge=0.0,
+        description="Document-level elapsed seconds (alias of document_elapsed_seconds).",
+    )
+    document_elapsed_seconds: float | None = Field(
+        default=None, ge=0.0, description="Monotonic elapsed seconds since the job started."
+    )
+    page_elapsed_seconds: float | None = Field(
+        default=None, ge=0.0, description="Monotonic elapsed seconds for the active visual page."
+    )
+    operation_elapsed_seconds: float | None = Field(
+        default=None, ge=0.0, description="Monotonic elapsed seconds for the active operation."
     )
     deadline_remaining_seconds: float | None = Field(
         default=None, ge=0.0, description="Seconds remaining before the active deadline."

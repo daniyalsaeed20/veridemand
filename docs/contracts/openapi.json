@@ -650,6 +650,19 @@
             "title": "Display Filename",
             "type": "string"
           },
+          "document_elapsed_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Monotonic elapsed seconds since the job started.",
+            "title": "Document Elapsed Seconds"
+          },
           "document_id": {
             "description": "Opaque document identifier.",
             "pattern": "^doc_[0-9a-f]{32}$",
@@ -677,7 +690,7 @@
                 "type": "null"
               }
             ],
-            "description": "Monotonic elapsed seconds for the active job.",
+            "description": "Document-level elapsed seconds (alias of document_elapsed_seconds).",
             "title": "Elapsed Seconds"
           },
           "extension": {
@@ -812,6 +825,19 @@
             "description": "Relative URL for the native extraction summary.",
             "title": "Native Summary Url"
           },
+          "operation_elapsed_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Monotonic elapsed seconds for the active operation.",
+            "title": "Operation Elapsed Seconds"
+          },
           "operation_status": {
             "anyOf": [
               {
@@ -840,6 +866,19 @@
           "page_count_status": {
             "$ref": "#/components/schemas/PageCountStatus",
             "description": "Whether the page count is known."
+          },
+          "page_elapsed_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Monotonic elapsed seconds for the active visual page.",
+            "title": "Page Elapsed Seconds"
           },
           "page_percent": {
             "anyOf": [
@@ -3056,6 +3095,18 @@
             "description": "Native page decision when relevant.",
             "title": "Decision"
           },
+          "document_elapsed_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Elapsed Seconds"
+          },
           "document_id": {
             "anyOf": [
               {
@@ -3090,6 +3141,7 @@
                 "type": "null"
               }
             ],
+            "description": "Document-level elapsed (alias).",
             "title": "Elapsed Seconds"
           },
           "event": {
@@ -3208,6 +3260,18 @@
             "description": "Stable operation identifier.",
             "title": "Operation"
           },
+          "operation_elapsed_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operation Elapsed Seconds"
+          },
           "operation_status": {
             "anyOf": [
               {
@@ -3233,6 +3297,18 @@
             ],
             "description": "Document overall progress (Phase 4 cap 65).",
             "title": "Overall Percent"
+          },
+          "page_elapsed_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Elapsed Seconds"
           },
           "page_number": {
             "anyOf": [
@@ -3393,6 +3469,7 @@
                 "type": "null"
               }
             ],
+            "description": "Alias of operation_elapsed_seconds.",
             "title": "Stage Elapsed Seconds"
           },
           "timestamp": {
@@ -4252,6 +4329,18 @@
         "additionalProperties": false,
         "description": "Published per-page visual/OCR result.",
         "properties": {
+          "adapt_duration_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adapt Duration Seconds"
+          },
           "average_detection_score": {
             "anyOf": [
               {
@@ -4285,6 +4374,53 @@
             "title": "Blocks",
             "type": "array"
           },
+          "cpu_threads": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cpu Threads"
+          },
+          "detection_model_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detection Model Name"
+          },
+          "detector_input_height": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detector Input Height"
+          },
+          "detector_input_width": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detector Input Width"
+          },
           "duration_ms": {
             "anyOf": [
               {
@@ -4313,6 +4449,18 @@
             "title": "Fallback Used",
             "type": "boolean"
           },
+          "grouping_duration_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grouping Duration Seconds"
+          },
           "handwriting_assessment": {
             "$ref": "#/components/schemas/HandwritingAssessment",
             "default": "pending_phase_5"
@@ -4336,6 +4484,18 @@
             "title": "Low Confidence Line Count",
             "type": "integer"
           },
+          "mapping_duration_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mapping Duration Seconds"
+          },
           "native_visibility_result": {
             "anyOf": [
               {
@@ -4345,6 +4505,18 @@
                 "type": "null"
               }
             ]
+          },
+          "paddle_pipeline_duration_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paddle Pipeline Duration Seconds"
           },
           "page_number": {
             "minimum": 1.0,
@@ -4362,6 +4534,18 @@
               }
             ],
             "title": "Peak Rss Mb"
+          },
+          "preprocess_duration_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preprocess Duration Seconds"
           },
           "preprocessing_variant": {
             "anyOf": [
@@ -4383,6 +4567,17 @@
               }
             ]
           },
+          "recognition_model_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recognition Model Name"
+          },
           "render_dpi": {
             "anyOf": [
               {
@@ -4394,6 +4589,18 @@
               }
             ],
             "title": "Render Dpi"
+          },
+          "render_duration_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Render Duration Seconds"
           },
           "render_height_pixels": {
             "anyOf": [
@@ -4407,6 +4614,17 @@
             ],
             "title": "Render Height Pixels"
           },
+          "render_source_policy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Render Source Policy"
+          },
           "render_width_pixels": {
             "anyOf": [
               {
@@ -4419,8 +4637,44 @@
             ],
             "title": "Render Width Pixels"
           },
+          "requested_dpi": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested Dpi"
+          },
+          "source_height_px": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Height Px"
+          },
           "source_mode": {
             "$ref": "#/components/schemas/SourceMode"
+          },
+          "source_width_px": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Width Px"
           },
           "status": {
             "$ref": "#/components/schemas/VisualPageStatus"

@@ -35,10 +35,12 @@ from backend.app.processing.progress_model import (
     OVERALL_CAP,
     OVERALL_NATIVE_POLICY_END,
     OVERALL_VISUAL_SELECT_END,
+    PAGE_GROUPED,
+    PAGE_MAPPING_DONE,
+    PAGE_OCR_PIPELINE_DONE,
     PAGE_PREPROCESSED,
     PAGE_PUBLISHED,
     PAGE_QUEUED,
-    PAGE_RECOGNITION_DONE,
     PAGE_RENDERED,
     MajorPhase,
     OperationStatus,
@@ -761,6 +763,9 @@ class ProcessingCoordinator:
 
         document.status = DocumentStatus.VISUAL_PROCESSING
         pages_completed = 0
+        pages_selected = page_count
+        selection_started = False
+        selection_completed = False
         snapshot = ProgressSnapshot(
             overall_percent=float(max(document.progress_percent, int(OVERALL_NATIVE_POLICY_END))),
             major_phase=MajorPhase.VISUAL_OCR,
@@ -768,11 +773,11 @@ class ProcessingCoordinator:
             pages_selected=page_count,
             pages_total=page_count,
             operation="visual_page_selection",
-            operation_status=OperationStatus.STARTED,
+            operation_status=OperationStatus.QUEUED,
         )
         document.major_phase = MajorPhase.VISUAL_OCR.value
         document.current_operation = "visual_page_selection"
-        document.operation_status = OperationStatus.STARTED.value
+        document.operation_status = OperationStatus.QUEUED.value
         document.max_attempts = 2
         document.attempt_number = 1
 
@@ -783,11 +788,14 @@ class ProcessingCoordinator:
             document.page_percent = snapshot.page_percent
             document.active_page_number = snapshot.page_number
             document.pages_completed = snapshot.pages_completed
-            document.pages_total = snapshot.pages_selected or page_count
+            document.pages_total = snapshot.pages_selected or pages_selected
             document.current_operation = snapshot.operation
             document.operation_status = snapshot.operation_status.value
             document.progress_kind = snapshot.progress_kind.value
-            document.elapsed_seconds = snapshot.elapsed_seconds
+            document.elapsed_seconds = snapshot.document_elapsed_seconds
+            document.document_elapsed_seconds = snapshot.document_elapsed_seconds
+            document.page_elapsed_seconds = snapshot.page_elapsed_seconds
+            document.operation_elapsed_seconds = snapshot.operation_elapsed_seconds
             document.deadline_remaining_seconds = snapshot.deadline_remaining_seconds
             document.worker_generation = snapshot.worker_generation
             document.worker_restart_count = snapshot.worker_restart_count
@@ -797,8 +805,65 @@ class ProcessingCoordinator:
             if snapshot.safe_message:
                 document.user_status_message = snapshot.safe_message
 
+        def _stamp_deadline(payload: dict[str, object]) -> None:
+            deadline_remaining = payload.get("deadline_remaining_seconds")
+            if isinstance(deadline_remaining, (int, float)):
+                snapshot.deadline_remaining_seconds = float(deadline_remaining)
+
+        def _begin_op(op: str, *, kind: ProgressKind = ProgressKind.DETERMINATE) -> None:
+            snapshot.complete_open_operation(OperationStatus.COMPLETED)
+            snapshot.progress_kind = kind
+            snapshot.begin_operation(op)
+
+        def _set_page_progress(page_number: int | None, page_pct: float) -> None:
+            snapshot.set_visual_page_progress(
+                pages_completed=pages_completed,
+                pages_selected=pages_selected,
+                page_number=page_number,
+                page_percent=page_pct,
+                include_page_in_fraction=True,
+            )
+
+        async def _publish_visual(
+            event: ProgressEventType,
+            *,
+            page_number: int | None = None,
+            reasons: list[str] | None = None,
+        ) -> None:
+            snapshot.mark_real_progress()
+            _apply_snapshot()
+            await _safe_publish(
+                session.broker,
+                event,
+                document_id=document.document_id,
+                job_id=job.job_id,
+                page_number=page_number,
+                pages_completed=pages_completed,
+                pages_total=pages_selected,
+                percent=document.progress_percent,
+                overall_percent=snapshot.overall_percent,
+                major_phase=snapshot.major_phase.value,
+                major_phase_percent=snapshot.major_phase_percent,
+                page_percent=snapshot.page_percent,
+                operation=snapshot.operation,
+                operation_status=snapshot.operation_status.value,
+                progress_kind=snapshot.progress_kind.value,
+                elapsed_seconds=snapshot.document_elapsed_seconds,
+                document_elapsed_seconds=snapshot.document_elapsed_seconds,
+                page_elapsed_seconds=snapshot.page_elapsed_seconds,
+                operation_elapsed_seconds=snapshot.operation_elapsed_seconds,
+                stage_elapsed_seconds=snapshot.operation_elapsed_seconds,
+                deadline_remaining_seconds=snapshot.deadline_remaining_seconds,
+                worker_generation=snapshot.worker_generation,
+                worker_restart_count=snapshot.worker_restart_count,
+                attempt_number=snapshot.attempt_number,
+                max_attempts=snapshot.max_attempts,
+                reason_codes=reasons,
+                message=document.user_status_message,
+            )
+
         async def on_visual_progress(payload: dict[str, object]) -> None:
-            nonlocal pages_completed
+            nonlocal pages_completed, pages_selected, selection_started, selection_completed
             event_type = str(payload.get("type", ""))
             raw_page = payload.get("page_number")
             page_number = int(raw_page) if isinstance(raw_page, (int, float, str)) else None
@@ -817,13 +882,12 @@ class ProcessingCoordinator:
             worker_pid = payload.get("pid")
             if isinstance(worker_pid, int):
                 snapshot.worker_pid = worker_pid
-            deadline_remaining = payload.get("deadline_remaining_seconds")
-            if isinstance(deadline_remaining, (int, float)):
-                snapshot.deadline_remaining_seconds = float(deadline_remaining)
+            _stamp_deadline(payload)
 
             if event_type == "worker.heartbeat":
                 snapshot.progress_kind = ProgressKind.HEARTBEAT
-                snapshot.operation_status = OperationStatus.HEARTBEAT
+                if snapshot.operation_is_open:
+                    snapshot.operation_status = OperationStatus.HEARTBEAT
                 snapshot.mark_heartbeat()
                 document.user_status_message = (
                     f"OCR in progress ({snapshot.operation.replace('_', ' ')})"
@@ -837,12 +901,15 @@ class ProcessingCoordinator:
                     major_phase=snapshot.major_phase.value,
                     major_phase_percent=snapshot.major_phase_percent,
                     page_number=page_number or snapshot.page_number,
-                    pages_total=page_count,
+                    pages_total=pages_selected,
                     page_percent=snapshot.page_percent,
                     operation=snapshot.operation,
                     operation_status="heartbeat",
                     progress_kind="heartbeat",
-                    elapsed_seconds=snapshot.elapsed_seconds,
+                    elapsed_seconds=snapshot.document_elapsed_seconds,
+                    document_elapsed_seconds=snapshot.document_elapsed_seconds,
+                    page_elapsed_seconds=snapshot.page_elapsed_seconds,
+                    operation_elapsed_seconds=snapshot.operation_elapsed_seconds,
                     deadline_remaining_seconds=snapshot.deadline_remaining_seconds,
                     worker_pid=snapshot.worker_pid,
                     worker_generation=snapshot.worker_generation,
@@ -851,102 +918,229 @@ class ProcessingCoordinator:
                 )
                 return
 
-            page_pct: float | None = None
-            op = snapshot.operation
-            if event_type in {"visual_pages_selected", "worker.request"}:
-                op = "visual_page_selection"
-                snapshot.bump_overall(OVERALL_VISUAL_SELECT_END)
-                page_pct = PAGE_QUEUED
-                document.user_status_message = "Selecting pages for printed OCR"
+            publish_event: ProgressEventType | None = None
+            reasons_raw = payload.get("reason_codes")
+            reasons = [str(item) for item in reasons_raw] if isinstance(reasons_raw, list) else None
+
+            if event_type == "visual_pages_selected":
+                if not selection_started:
+                    selection_started = True
+                    _begin_op("visual_page_selection")
+                    document.user_status_message = "Selecting pages for printed OCR"
+                raw_selected = payload.get("pages_selected")
+                if isinstance(raw_selected, (int, float)):
+                    pages_selected = max(0, int(raw_selected))
+                else:
+                    page_numbers = payload.get("page_numbers")
+                    if isinstance(page_numbers, list):
+                        pages_selected = len(page_numbers)
+                if not selection_completed:
+                    selection_completed = True
+                    snapshot.set_visual_selection_complete(pages_selected=pages_selected)
+                    snapshot.terminal_operation(OperationStatus.COMPLETED)
+                    document.user_status_message = "Visual pages selected"
+                publish_event = ProgressEventType.DOCUMENT_VISUAL_PAGES_SELECTED
+
+            elif event_type == "worker.request":
+                # Do not re-start visual_page_selection; selection is owned by
+                # visual_pages_selected. Worker request is diagnostic only.
+                if not selection_completed:
+                    snapshot.bump_overall(OVERALL_VISUAL_SELECT_END)
+                document.user_status_message = "Dispatching printed OCR request"
+                _apply_snapshot()
+                log_progress(
+                    "visual_progress",
+                    document_id=document.document_id,
+                    job_id=job.job_id,
+                    overall_percent=snapshot.overall_percent,
+                    operation="worker_request",
+                    operation_status="started",
+                    pages_completed=pages_completed,
+                    pages_total=pages_selected,
+                )
+                return
+
+            elif event_type in {
+                "native_visibility_started",
+                "native_visibility_supported",
+                "native_visibility_rejected",
+                "native_visibility_skipped",
+            }:
+                snapshot.set_visual_visibility_complete()
+                document.user_status_message = "Native visibility evaluated"
+                publish_event = {
+                    "native_visibility_started": (
+                        ProgressEventType.DOCUMENT_NATIVE_VISIBILITY_STARTED
+                    ),
+                    "native_visibility_supported": (
+                        ProgressEventType.DOCUMENT_NATIVE_VISIBILITY_SUPPORTED
+                    ),
+                    "native_visibility_rejected": (
+                        ProgressEventType.DOCUMENT_NATIVE_VISIBILITY_REJECTED
+                    ),
+                }.get(event_type)
+
             elif event_type == "worker.retry":
-                op = "worker_retry"
+                snapshot.complete_open_operation(OperationStatus.FAILED)
+                _begin_op("worker_retry")
                 snapshot.operation_status = OperationStatus.RETRYING
                 document.user_status_message = (
                     f"Retrying after OCR worker restart "
                     f"(attempt {snapshot.attempt_number} of {snapshot.max_attempts})"
                 )
+
             elif event_type == "page.started":
-                op = "visual_page_render"
-                page_pct = PAGE_QUEUED
+                if page_number is not None:
+                    snapshot.begin_page(page_number)
+                _begin_op("visual_page_render")
+                _set_page_progress(page_number, PAGE_QUEUED)
                 document.user_status_message = (
-                    f"Rendering page {page_number} of {page_count}"
+                    f"Rendering page {page_number} of {pages_selected}"
                     if page_number
                     else "Rendering page"
                 )
+                publish_event = ProgressEventType.DOCUMENT_VISUAL_PAGE_STARTED
+
             elif event_type == "page.rendered":
-                op = "visual_preprocessing"
-                page_pct = PAGE_RENDERED
+                snapshot.complete_open_operation(OperationStatus.COMPLETED)
+                _begin_op("visual_preprocessing")
+                _set_page_progress(page_number, PAGE_RENDERED)
                 document.user_status_message = (
-                    f"Rendered page {page_number} of {page_count}"
+                    f"Rendered page {page_number} of {pages_selected}"
                     if page_number
                     else "Page rendered"
                 )
+                publish_event = ProgressEventType.DOCUMENT_VISUAL_PAGE_RENDERED
+
             elif event_type == "page.ocr_started":
-                op = "paddle_text_detection"
-                page_pct = PAGE_PREPROCESSED
-                snapshot.progress_kind = ProgressKind.INDETERMINATE
+                snapshot.complete_open_operation(OperationStatus.COMPLETED)
+                _begin_op("paddle_ocr_pipeline", kind=ProgressKind.INDETERMINATE)
+                _set_page_progress(page_number, PAGE_PREPROCESSED)
                 document.user_status_message = (
-                    f"Recognising page {page_number} of {page_count}"
+                    f"Recognising page {page_number} of {pages_selected}"
                     if page_number
                     else "Recognising printed text"
                 )
-            elif event_type == "page.completed":
-                op = "visual_page_publication"
-                page_pct = PAGE_PUBLISHED
-                pages_completed += 1
-                snapshot.progress_kind = ProgressKind.DETERMINATE
+                publish_event = ProgressEventType.DOCUMENT_VISUAL_PAGE_OCR_STARTED
+
+            elif event_type == "page.ocr_completed":
+                if snapshot.operation == "paddle_ocr_pipeline" and snapshot.operation_is_open:
+                    snapshot.progress_kind = ProgressKind.DETERMINATE
+                    _set_page_progress(page_number, PAGE_OCR_PIPELINE_DONE)
+                    snapshot.terminal_operation(OperationStatus.COMPLETED)
+                else:
+                    _set_page_progress(page_number, PAGE_OCR_PIPELINE_DONE)
+
+            elif event_type == "page.mapping_started":
+                _begin_op("visual_coordinate_mapping")
                 document.user_status_message = (
-                    f"Publishing page {page_number} of {page_count}"
+                    f"Mapping coordinates on page {page_number}"
                     if page_number
-                    else "Publishing page"
+                    else "Mapping coordinates"
                 )
-            elif event_type == "page.failed":
-                op = "visual_page_publication"
-                page_pct = PAGE_PUBLISHED
+
+            elif event_type == "page.mapping_completed":
+                if snapshot.operation == "visual_coordinate_mapping":
+                    _set_page_progress(page_number, PAGE_MAPPING_DONE)
+                    snapshot.terminal_operation(OperationStatus.COMPLETED)
+
+            elif event_type == "page.grouping_started":
+                _begin_op("visual_line_grouping")
+                document.user_status_message = (
+                    f"Grouping lines on page {page_number}" if page_number else "Grouping lines"
+                )
+
+            elif event_type == "page.grouping_completed":
+                if snapshot.operation == "visual_line_grouping":
+                    _set_page_progress(page_number, PAGE_GROUPED)
+                    snapshot.terminal_operation(OperationStatus.COMPLETED)
+
+            elif event_type == "page.completed":
+                snapshot.complete_open_operation(OperationStatus.COMPLETED)
+                _begin_op("visual_page_publication")
+                # Page at 100% while still counting prior completed pages only.
+                snapshot.set_visual_page_progress(
+                    pages_completed=pages_completed,
+                    pages_selected=pages_selected,
+                    page_number=page_number,
+                    page_percent=PAGE_PUBLISHED,
+                    include_page_in_fraction=True,
+                )
+                snapshot.terminal_operation(OperationStatus.COMPLETED)
                 pages_completed += 1
-                snapshot.operation_status = OperationStatus.FAILED
+                # After publish: finished pages counted once; no double-count.
+                snapshot.set_visual_page_progress(
+                    pages_completed=pages_completed,
+                    pages_selected=pages_selected,
+                    page_number=page_number,
+                    page_percent=PAGE_PUBLISHED,
+                    include_page_in_fraction=False,
+                )
+                document.user_status_message = (
+                    f"Published page {page_number} of {pages_selected}"
+                    if page_number
+                    else "Published page"
+                )
+                status = str(payload.get("status", ""))
+                if status == "completed_no_text":
+                    publish_event = ProgressEventType.DOCUMENT_VISUAL_PAGE_NO_TEXT
+                else:
+                    publish_event = ProgressEventType.DOCUMENT_VISUAL_PAGE_OCR_COMPLETED
+
+            elif event_type == "page.failed":
+                snapshot.complete_open_operation(OperationStatus.FAILED)
+                _begin_op("visual_page_publication")
+                snapshot.set_visual_page_progress(
+                    pages_completed=pages_completed,
+                    pages_selected=pages_selected,
+                    page_number=page_number,
+                    page_percent=PAGE_PUBLISHED,
+                    include_page_in_fraction=True,
+                )
+                reason = payload.get("reason_code") or payload.get("code")
+                snapshot.terminal_operation(
+                    OperationStatus.FAILED,
+                    reason_code=str(reason) if reason else None,
+                )
+                pages_completed += 1
+                snapshot.set_visual_page_progress(
+                    pages_completed=pages_completed,
+                    pages_selected=pages_selected,
+                    page_number=page_number,
+                    page_percent=PAGE_PUBLISHED,
+                    include_page_in_fraction=False,
+                )
                 document.user_status_message = (
                     f"Page {page_number} failed" if page_number else "Visual page failed"
                 )
-            elif event_type == "visual_pages_selected":
-                op = "visual_page_selection"
+                publish_event = ProgressEventType.DOCUMENT_VISUAL_PAGE_FAILED
+                if reason:
+                    reasons = [str(reason)]
 
-            if page_pct is not None:
-                snapshot.begin_operation(op)
-                snapshot.set_visual_page_progress(
-                    pages_completed=max(
-                        0, pages_completed - (1 if page_pct >= PAGE_PUBLISHED else 0)
-                    ),
-                    pages_selected=page_count,
-                    page_number=page_number,
-                    page_percent=page_pct if page_pct < PAGE_PUBLISHED else PAGE_RECOGNITION_DONE,
-                )
-                if page_pct >= PAGE_PUBLISHED:
-                    snapshot.set_visual_page_progress(
-                        pages_completed=pages_completed,
-                        pages_selected=page_count,
-                        page_number=page_number,
-                        page_percent=100.0,
-                    )
-                    snapshot.terminal_operation(
-                        OperationStatus.COMPLETED
-                        if event_type == "page.completed"
-                        else OperationStatus.FAILED,
-                        reason_code=str(payload.get("reason_code"))
-                        if payload.get("reason_code")
-                        else None,
-                    )
-                elif event_type == "page.ocr_started":
-                    snapshot.progress_kind = ProgressKind.INDETERMINATE
-                    # Hold at detection start while Paddle runs (no fabricated %).
-                    snapshot.set_visual_page_progress(
-                        pages_completed=pages_completed,
-                        pages_selected=page_count,
-                        page_number=page_number,
-                        page_percent=PAGE_PREPROCESSED,
-                    )
+            elif event_type == "visual_summary_publication.started":
+                _begin_op("visual_summary_publication")
+                snapshot.set_visual_summary_progress()
+                document.user_status_message = "Publishing visual summary"
+
+            elif event_type == "visual_summary_publication.completed":
+                if snapshot.operation == "visual_summary_publication":
+                    snapshot.terminal_operation(OperationStatus.COMPLETED)
+                snapshot.set_visual_summary_progress()
+                document.user_status_message = "Visual summary published"
+
+            elif event_type == "visual_authority_reconciliation.started":
+                _begin_op("visual_authority_reconciliation")
+                snapshot.set_visual_authority_progress()
+                document.user_status_message = "Reconciling document authority"
+
+            elif event_type == "visual_authority_reconciliation.completed":
+                if snapshot.operation == "visual_authority_reconciliation":
+                    snapshot.terminal_operation(OperationStatus.COMPLETED)
+                snapshot.set_visual_authority_progress()
+                document.user_status_message = "Document authority reconciled"
+
             else:
-                snapshot.begin_operation(op)
+                return
 
             snapshot.safe_message = document.user_status_message
             _apply_snapshot()
@@ -958,13 +1152,16 @@ class ProcessingCoordinator:
                 major_phase=snapshot.major_phase.value,
                 major_phase_percent=snapshot.major_phase_percent,
                 page_number=page_number,
-                pages_total=page_count,
+                pages_total=pages_selected,
                 pages_completed=pages_completed,
                 page_percent=snapshot.page_percent,
                 operation=snapshot.operation,
                 operation_status=snapshot.operation_status.value,
                 progress_kind=snapshot.progress_kind.value,
-                elapsed_seconds=snapshot.elapsed_seconds,
+                elapsed_seconds=snapshot.document_elapsed_seconds,
+                document_elapsed_seconds=snapshot.document_elapsed_seconds,
+                page_elapsed_seconds=snapshot.page_elapsed_seconds,
+                operation_elapsed_seconds=snapshot.operation_elapsed_seconds,
                 deadline_remaining_seconds=snapshot.deadline_remaining_seconds,
                 worker_pid=snapshot.worker_pid,
                 worker_generation=snapshot.worker_generation,
@@ -973,57 +1170,8 @@ class ProcessingCoordinator:
                 max_attempts=snapshot.max_attempts,
                 reason_code=snapshot.reason_code,
             )
-
-            event_map = {
-                "visual_pages_selected": ProgressEventType.DOCUMENT_VISUAL_PAGES_SELECTED,
-                "native_visibility_started": (ProgressEventType.DOCUMENT_NATIVE_VISIBILITY_STARTED),
-                "native_visibility_supported": (
-                    ProgressEventType.DOCUMENT_NATIVE_VISIBILITY_SUPPORTED
-                ),
-                "native_visibility_rejected": (
-                    ProgressEventType.DOCUMENT_NATIVE_VISIBILITY_REJECTED
-                ),
-                "page.started": ProgressEventType.DOCUMENT_VISUAL_PAGE_STARTED,
-                "page.rendered": ProgressEventType.DOCUMENT_VISUAL_PAGE_RENDERED,
-                "page.ocr_started": ProgressEventType.DOCUMENT_VISUAL_PAGE_OCR_STARTED,
-                "page.failed": ProgressEventType.DOCUMENT_VISUAL_PAGE_FAILED,
-            }
-            event = event_map.get(event_type)
-            if event is None and event_type == "page.completed":
-                status = str(payload.get("status", ""))
-                if status == "completed_no_text":
-                    event = ProgressEventType.DOCUMENT_VISUAL_PAGE_NO_TEXT
-                else:
-                    event = ProgressEventType.DOCUMENT_VISUAL_PAGE_OCR_COMPLETED
-            if event is None:
-                return
-            reasons_raw = payload.get("reason_codes")
-            reasons = [str(item) for item in reasons_raw] if isinstance(reasons_raw, list) else None
-            await _safe_publish(
-                session.broker,
-                event,
-                document_id=document.document_id,
-                job_id=job.job_id,
-                page_number=page_number,
-                pages_completed=pages_completed,
-                pages_total=page_count,
-                percent=document.progress_percent,
-                overall_percent=snapshot.overall_percent,
-                major_phase=snapshot.major_phase.value,
-                major_phase_percent=snapshot.major_phase_percent,
-                page_percent=snapshot.page_percent,
-                operation=snapshot.operation,
-                operation_status=snapshot.operation_status.value,
-                progress_kind=snapshot.progress_kind.value,
-                elapsed_seconds=snapshot.elapsed_seconds,
-                deadline_remaining_seconds=snapshot.deadline_remaining_seconds,
-                worker_generation=snapshot.worker_generation,
-                worker_restart_count=snapshot.worker_restart_count,
-                attempt_number=snapshot.attempt_number,
-                max_attempts=snapshot.max_attempts,
-                reason_codes=reasons,
-                message=document.user_status_message,
-            )
+            if publish_event is not None:
+                await _publish_visual(publish_event, page_number=page_number, reasons=reasons)
 
         canonical_pdf = self._file_store.canonical_path(session.session_id, document.document_id)
         try:
@@ -1043,7 +1191,7 @@ class ProcessingCoordinator:
         except VisualOcrError as exc:
             document.status = DocumentStatus.VISUAL_PROCESSING_FAILED
             document.progress_percent = _MAX_PROGRESS_PERCENT
-            document.failure_stage = exc.operation or "paddle_text_detection"
+            document.failure_stage = exc.operation or "paddle_ocr_pipeline"
             document.failure_code = exc.code.value
             document.failure_message = (
                 "OCR page timed out"
@@ -1071,6 +1219,7 @@ class ProcessingCoordinator:
         # Persist visibility downgrades onto published native results so public
         # APIs (including summary.page_decisions used by smoke) never keep
         # suppressed native authority after Phase 4.
+        await on_visual_progress({"type": "visual_authority_reconciliation.started"})
         downgraded_any = False
         for page in native_pages.values():
             phase4_visibility = (
@@ -1122,6 +1271,7 @@ class ProcessingCoordinator:
                     }
                 )
                 self._native.republish_summary(session.session_id, document.document_id, updated)
+        await on_visual_progress({"type": "visual_authority_reconciliation.completed"})
 
         from backend.app.contracts.visual import VisualProcessingStatus
 
@@ -1137,7 +1287,7 @@ class ProcessingCoordinator:
                 document.failure_code = first.error_code
                 document.failure_page_number = first.page_number
                 document.failure_stage = (
-                    "paddle_text_detection"
+                    "paddle_ocr_pipeline"
                     if first.error_code == "ocr_page_timeout"
                     else _VISUAL_STAGE
                 )
@@ -1154,6 +1304,8 @@ class ProcessingCoordinator:
             document.status = DocumentStatus.VISUAL_PROCESSING_COMPLETE
             complete_event = ProgressEventType.DOCUMENT_VISUAL_PROCESSING_COMPLETED
 
+        snapshot.set_visual_complete()
+        snapshot.complete_open_operation(OperationStatus.COMPLETED)
         document.progress_percent = _MAX_PROGRESS_PERCENT
         document.visual_processing_performed = True
         document.visual_result_available = summary.visual_result_available
@@ -1162,7 +1314,12 @@ class ProcessingCoordinator:
             document.document_source_policy = summary.document_source_policy
         document.user_status_message = summary.user_status_message or _PHASE4_COMPLETE_MESSAGE
         document.pages_completed = summary.pages_completed
-        document.pages_total = summary.page_count
+        document.pages_total = summary.pages_selected or summary.page_count
+        document.major_phase = MajorPhase.VISUAL_OCR.value
+        document.major_phase_percent = 100.0
+        document.operation_status = OperationStatus.COMPLETED.value
+        document.current_operation = "visual_processing_complete"
+        _apply_snapshot()
 
         await _safe_publish(
             session.broker,
@@ -1170,6 +1327,11 @@ class ProcessingCoordinator:
             document_id=document.document_id,
             job_id=job.job_id,
             percent=_VISUAL_GROUP_PROGRESS,
+            overall_percent=snapshot.overall_percent,
+            major_phase=snapshot.major_phase.value,
+            major_phase_percent=snapshot.major_phase_percent,
+            operation=snapshot.operation,
+            operation_status=snapshot.operation_status.value,
         )
         await _safe_publish(
             session.broker,
@@ -1177,9 +1339,14 @@ class ProcessingCoordinator:
             document_id=document.document_id,
             job_id=job.job_id,
             percent=_MAX_PROGRESS_PERCENT,
+            overall_percent=OVERALL_CAP,
+            major_phase=MajorPhase.VISUAL_OCR.value,
+            major_phase_percent=100.0,
             document_status=document.status,
             pages_completed=document.pages_completed,
             pages_total=document.pages_total,
+            operation="visual_processing_complete",
+            operation_status=OperationStatus.COMPLETED.value,
             message=document.user_status_message,
         )
 

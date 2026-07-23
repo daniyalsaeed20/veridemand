@@ -137,6 +137,9 @@ class RuntimeDocument:
     operation_status: str | None = None
     progress_kind: str | None = None
     elapsed_seconds: float | None = None
+    document_elapsed_seconds: float | None = None
+    page_elapsed_seconds: float | None = None
+    operation_elapsed_seconds: float | None = None
     deadline_remaining_seconds: float | None = None
     worker_generation: int | None = None
     worker_restart_count: int | None = None
@@ -210,6 +213,9 @@ class RuntimeDocument:
             operation_status=self.operation_status,
             progress_kind=self.progress_kind,
             elapsed_seconds=self.elapsed_seconds,
+            document_elapsed_seconds=self.document_elapsed_seconds,
+            page_elapsed_seconds=self.page_elapsed_seconds,
+            operation_elapsed_seconds=self.operation_elapsed_seconds,
             deadline_remaining_seconds=self.deadline_remaining_seconds,
             worker_generation=self.worker_generation,
             worker_restart_count=self.worker_restart_count,
