@@ -33,6 +33,12 @@ def _visual_service(request: Request, settings: SettingsDep) -> VisualOcrService
     existing = getattr(request.app.state, "visual_service", None)
     if isinstance(existing, VisualOcrService):
         return existing
+    if not settings.ocr_enabled:
+        raise ApiException(
+            status_code=503,
+            code=ErrorCode.OCR_RUNTIME_UNAVAILABLE,
+            message="Printed OCR is not enabled in this runtime.",
+        )
     return VisualOcrService(settings)
 
 
