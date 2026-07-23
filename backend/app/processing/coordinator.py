@@ -818,15 +818,21 @@ class ProcessingCoordinator:
         # suppressed native authority after Phase 4.
         downgraded_any = False
         for page in native_pages.values():
-            if page.trust.visual_processing_required and not page.trust.native_result_available:
-                if page.decision is NativePageDecision.REJECTED or (
-                    "native_text_not_visually_present" in page.trust.reason_codes
-                    or "native_text_visibility_uncertain" in page.trust.reason_codes
-                ):
-                    # Only rewrite pages mutated by the visibility probe, not Phase-3 rejects.
-                    if page.trust.visual_agreement_status.value == "evaluated_phase_4_visibility":
-                        self._native.republish_page(session.session_id, document.document_id, page)
-                        downgraded_any = True
+            phase4_visibility = (
+                page.trust.visual_agreement_status.value == "evaluated_phase_4_visibility"
+            )
+            visibility_reason = (
+                "native_text_not_visually_present" in page.trust.reason_codes
+                or "native_text_visibility_uncertain" in page.trust.reason_codes
+            )
+            if (
+                phase4_visibility
+                and page.trust.visual_processing_required
+                and not page.trust.native_result_available
+                and (page.decision is NativePageDecision.REJECTED or visibility_reason)
+            ):
+                self._native.republish_page(session.session_id, document.document_id, page)
+                downgraded_any = True
 
         if downgraded_any or summary.native_pages_downgraded > 0:
             document.native_result_available = False
