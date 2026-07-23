@@ -108,7 +108,7 @@ def render_page(
     from backend.app.extraction.visual.page_raster_policy import (
         RenderSourcePolicy,
         extract_embedded_full_page_image,
-        inspect_page_rasters,
+        inspect_page_rasters_from_pdf,
         plan_render,
     )
 
@@ -146,8 +146,9 @@ def render_page(
 
         if plan is None:
             try:
-                assessment = inspect_page_rasters(
-                    page,
+                assessment = inspect_page_rasters_from_pdf(
+                    pdf_path,
+                    page_number=page_number,
                     page_width_points=page_width_points,
                     page_height_points=page_height_points,
                 )
@@ -202,7 +203,11 @@ def render_page(
         image: Image.Image
         if plan.policy is RenderSourcePolicy.EMBEDDED_FULL_PAGE_IMAGE and plan.embedded is not None:
             try:
-                image = extract_embedded_full_page_image(page, embedded=plan.embedded)
+                image = extract_embedded_full_page_image(
+                    pdf_path,
+                    page_number=page_number,
+                    embedded=plan.embedded,
+                )
                 # Downscale only if source exceeds resource caps (never upscale).
                 max_side = limits.max_render_side_pixels
                 w, h = image.size

@@ -1,22 +1,20 @@
 """Full-page raster detection and OCR render-source policy.
 
 Uses generic page geometry only (coverage, dimensions, object counts).
-Never uses filenames or content hashes.
+Never uses filenames or content hashes. Image metadata is read via ``pypdf``
+(not pdfium PdfImage) to avoid native finalizer crashes observed on CI.
 """
 
 from __future__ import annotations
 
-import contextlib
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import Path
 from typing import Any
-
-import pypdfium2 as pdfium
-from pypdfium2 import raw as pdfium_raw
 
 _POINTS_PER_INCH = 72.0
 _FULL_PAGE_COVERAGE = 0.88
-_DIM_MATCH_RATIO = 0.92  # image px vs page points when MediaBox ≈ source pixels
+_DIM_MATCH_RATIO = 0.92  # image px vs page points when MediaBox ~= source pixels
 
 
 class RenderSourcePolicy(StrEnum):
@@ -34,7 +32,6 @@ class EmbeddedImageInfo:
     width_px: int
     height_px: int
     coverage_ratio: float
-    # Placement in page space (points), origin top-left after normalisation helpers.
     x0: float
     y0: float
     x1: float
@@ -72,130 +69,80 @@ class RenderPlan:
     embedded: EmbeddedImageInfo | None
 
 
-def _page_object_counts(page: pdfium.PdfPage) -> tuple[int, int, int]:
-    """Return (image_count, text_count, path_count)."""
-
-    images = 0
-    texts = 0
-    paths = 0
-    for obj in page.get_objects():
-        try:
-            obj_type = int(obj.type)
-        except Exception:
-            continue
-        if obj_type == int(pdfium_raw.FPDF_PAGEOBJ_IMAGE):
-            images += 1
-        elif obj_type == int(pdfium_raw.FPDF_PAGEOBJ_TEXT):
-            texts += 1
-        elif obj_type == int(pdfium_raw.FPDF_PAGEOBJ_PATH):
-            paths += 1
-    return images, texts, paths
-
-
-def _coverage_from_bounds(
-    bounds: tuple[float, float, float, float],
+def inspect_page_rasters_from_pdf(
+    pdf_path: Path,
     *,
-    page_width: float,
-    page_height: float,
-) -> tuple[float, float, float, float, float]:
-    """Return coverage_ratio and clipped x0,y0,x1,y1 in top-left page space.
-
-    PDFium bounds are typically left, bottom, right, top in PDF user space
-    (origin bottom-left). Convert y to top-left for consistent logging.
-    """
-
-    left, bottom, right, top = bounds
-    x0 = max(0.0, min(float(left), float(right)))
-    x1 = min(page_width, max(float(left), float(right)))
-    # PDF y: bottom < top in user space usually; convert to top-origin.
-    y_top_pdf = max(float(bottom), float(top))
-    y_bottom_pdf = min(float(bottom), float(top))
-    y0 = max(0.0, page_height - y_top_pdf)
-    y1 = min(page_height, page_height - y_bottom_pdf)
-    if x1 <= x0 or y1 <= y0:
-        return 0.0, x0, y0, x1, y1
-    area = (x1 - x0) * (y1 - y0)
-    page_area = max(page_width * page_height, 1.0)
-    return min(1.0, area / page_area), x0, y0, x1, y1
-
-
-def inspect_page_rasters(
-    page: pdfium.PdfPage,
-    *,
+    page_number: int,
     page_width_points: float,
     page_height_points: float,
 ) -> PageRasterAssessment:
-    """Inspect embedded images without decoding pixel payloads into OCR yet."""
+    """Inspect embedded images with pypdf (1-based page_number)."""
 
-    image_count, text_count, path_count = _page_object_counts(page)
-    best: EmbeddedImageInfo | None = None
-    best_coverage = 0.0
+    from pypdf import PdfReader
 
-    for obj in page.get_objects(max_depth=2):
-        image: Any | None = None
-        try:
-            if int(obj.type) != int(pdfium_raw.FPDF_PAGEOBJ_IMAGE):
-                continue
-            image = pdfium.PdfImage(obj)
-            width_px, height_px = image.get_px_size()
-        except Exception:
-            if image is not None:
-                with contextlib.suppress(Exception):
-                    image.close()
-            continue
+    reader = PdfReader(str(pdf_path))
+    if page_number < 1 or page_number > len(reader.pages):
+        return PageRasterAssessment(0, 0.0, 0, 0, None, False, None, None)
 
-        try:
-            coverage = 0.0
-            x0 = y0 = 0.0
-            x1 = page_width_points
-            y1 = page_height_points
+    page = reader.pages[page_number - 1]
+    resources = page.get("/Resources")
+    if resources is None:
+        return PageRasterAssessment(0, 0.0, 0, 0, None, False, None, None)
+    resources = resources.get_object()
+    xobjects = resources.get("/XObject") if resources else None
+    images: list[EmbeddedImageInfo] = []
+    if xobjects is not None:
+        xobjects = xobjects.get_object()
+        for _name, ref in xobjects.items():
             try:
-                bounds = image.get_bounds()
-                coverage, x0, y0, x1, y1 = _coverage_from_bounds(
-                    bounds,
-                    page_width=page_width_points,
-                    page_height=page_height_points,
-                )
+                obj = ref.get_object()
             except Exception:
-                # Loose page objects may not expose bounds; fall back to dimension match.
-                w_ratio = float(width_px) / max(page_width_points, 1.0)
-                h_ratio = float(height_px) / max(page_height_points, 1.0)
-                if w_ratio >= _DIM_MATCH_RATIO and h_ratio >= _DIM_MATCH_RATIO:
-                    coverage = min(1.0, w_ratio * h_ratio)
-                else:
-                    coverage = min(1.0, w_ratio * h_ratio * 0.5)
-
-            info = EmbeddedImageInfo(
-                width_px=int(width_px),
-                height_px=int(height_px),
-                coverage_ratio=coverage,
-                x0=x0,
-                y0=y0,
-                x1=x1,
-                y1=y1,
+                continue
+            if str(obj.get("/Subtype", "")) != "/Image":
+                continue
+            try:
+                width_px = int(obj["/Width"])
+                height_px = int(obj["/Height"])
+            except Exception:
+                continue
+            # Without a placement box, treat a single near page-sized image as full-page.
+            w_ratio = width_px / max(page_width_points, 1.0)
+            h_ratio = height_px / max(page_height_points, 1.0)
+            coverage = min(1.0, w_ratio * h_ratio) if w_ratio >= 0.5 and h_ratio >= 0.5 else 0.0
+            images.append(
+                EmbeddedImageInfo(
+                    width_px=width_px,
+                    height_px=height_px,
+                    coverage_ratio=coverage,
+                    x0=0.0,
+                    y0=0.0,
+                    x1=page_width_points,
+                    y1=page_height_points,
+                )
             )
-            if coverage >= best_coverage:
-                best_coverage = coverage
-                best = info
-        finally:
-            with contextlib.suppress(Exception):
-                image.close()
 
+    # Text operator presence is approximated: empty ExtractText => sparse.
+    try:
+        extracted = page.extract_text() or ""
+        text_object_count = 0 if not extracted.strip() else max(1, extracted.count("\n") + 1)
+    except Exception:
+        text_object_count = 0
+
+    best = max(images, key=lambda item: item.coverage_ratio) if images else None
+    best_coverage = best.coverage_ratio if best else 0.0
     is_full = False
-    if best is not None and image_count == 1:
+    if best is not None and len(images) == 1:
         w_ratio = best.width_px / max(page_width_points, 1.0)
         h_ratio = best.height_px / max(page_height_points, 1.0)
         dim_match = w_ratio >= _DIM_MATCH_RATIO and h_ratio >= _DIM_MATCH_RATIO
-        sparse_vectors = text_count <= 2
-        is_full = (best.coverage_ratio >= _FULL_PAGE_COVERAGE and sparse_vectors) or (
-            dim_match and sparse_vectors
-        )
+        sparse = text_object_count <= 2
+        is_full = (best_coverage >= _FULL_PAGE_COVERAGE and sparse) or (dim_match and sparse)
 
     return PageRasterAssessment(
-        image_count=image_count,
+        image_count=len(images),
         largest_coverage_ratio=best_coverage,
-        text_object_count=text_count,
-        path_object_count=path_count,
+        text_object_count=text_object_count,
+        path_object_count=0,
         embedded=best,
         is_full_page_raster=is_full,
         source_width_px=best.width_px if best else None,
@@ -212,7 +159,7 @@ def plan_render(
     min_effective_dpi: float,
     max_render_pixels: int,
     max_render_side_pixels: int,
-    prefer_embedded: bool = True,
+    prefer_embedded: bool = False,
 ) -> RenderPlan:
     """Choose render policy and target DPI before producing a bitmap."""
 
@@ -226,24 +173,17 @@ def plan_render(
     target = float(requested_dpi)
 
     if assessment.is_full_page_raster and source_w and source_h:
-        # DPI that maps page points to at most source pixels (no upscale).
         dpi_from_w = source_w * _POINTS_PER_INCH / max(page_width_points, 1.0)
         dpi_from_h = source_h * _POINTS_PER_INCH / max(page_height_points, 1.0)
         source_dpi = min(dpi_from_w, dpi_from_h)
         if prefer_embedded and assessment.embedded is not None:
             policy = RenderSourcePolicy.EMBEDDED_FULL_PAGE_IMAGE
-            target = min(float(requested_dpi), source_dpi)
-            if target + 1e-6 < float(requested_dpi):
-                source_cap = True
-                downscale_reason = "source_resolution_cap_no_upscale"
         else:
             policy = RenderSourcePolicy.PDFIUM_RENDER_CAPPED_TO_SOURCE_RESOLUTION
-            target = min(float(requested_dpi), source_dpi)
-            source_cap = target + 1e-6 < float(requested_dpi)
-            downscale_reason = "source_resolution_cap_no_upscale" if source_cap else None
+        target = min(float(requested_dpi), source_dpi)
+        source_cap = target + 1e-6 < float(requested_dpi)
+        downscale_reason = "source_resolution_cap_no_upscale" if source_cap else None
 
-    # Never go below a tiny floor for embedded 1:1 scans; allow below configured
-    # min_effective_dpi when source-capping (72 DPI identity scans).
     floor = float(min_effective_dpi)
     if policy != RenderSourcePolicy.PDFIUM_RENDER and source_cap:
         floor = min(floor, max(36.0, target * 0.5))
@@ -258,7 +198,6 @@ def plan_render(
             max_render_side_pixels=max_render_side_pixels,
         )
     except Exception:
-        # Fall back to pdfium render with standard caps.
         policy = RenderSourcePolicy.PDFIUM_RENDER
         effective = compute_effective_dpi(
             page_width_points=page_width_points,
@@ -290,40 +229,46 @@ def plan_render(
 
 
 def extract_embedded_full_page_image(
-    page: pdfium.PdfPage,
+    pdf_path: Path,
     *,
+    page_number: int,
     embedded: EmbeddedImageInfo,
 ) -> Any:
-    """Decode the embedded full-page raster as a PIL RGB image (caller owns it)."""
+    """Decode the largest matching embedded image via pypdf (caller owns PIL image)."""
+
+    from io import BytesIO
 
     from PIL import Image
+    from pypdf import PdfReader
 
-    for obj in page.get_objects():
-        try:
-            if int(obj.type) != int(pdfium_raw.FPDF_PAGEOBJ_IMAGE):
-                continue
-        except Exception:
+    reader = PdfReader(str(pdf_path))
+    page = reader.pages[page_number - 1]
+    resources = page.get("/Resources")
+    if resources is None:
+        raise RuntimeError("embedded_full_page_image_not_found")
+    resources = resources.get_object()
+    xobjects = resources.get("/XObject")
+    if xobjects is None:
+        raise RuntimeError("embedded_full_page_image_not_found")
+    xobjects = xobjects.get_object()
+    for _name, ref in xobjects.items():
+        obj = ref.get_object()
+        if str(obj.get("/Subtype", "")) != "/Image":
             continue
-        try:
-            image = pdfium.PdfImage(obj)
-            width_px, height_px = image.get_px_size()
-        except Exception:
+        if int(obj["/Width"]) != embedded.width_px or int(obj["/Height"]) != embedded.height_px:
             continue
-        if int(width_px) != embedded.width_px or int(height_px) != embedded.height_px:
-            continue
+        data = obj.get_data()
+        # DCTDecode JPEG often opens directly; FlateDecode may need filters.
         try:
-            bitmap = image.get_bitmap(render=False, scale_to_original=True)
-            pil = bitmap.to_pil().copy()
-            bitmap.close()
+            pil = Image.open(BytesIO(data))
+            pil.load()
         except Exception:
-            # JPEG/JBIG may need extract path.
-            try:
-                data = image.get_data()
-                from io import BytesIO
-
-                pil = Image.open(BytesIO(data)).convert("RGB")
-            except Exception as exc:
-                raise RuntimeError(f"embedded_image_decode_failed:{type(exc).__name__}") from exc
+            # Fallback: reconstruct from raw samples when possible.
+            mode = "RGB"
+            color_space = str(obj.get("/ColorSpace", ""))
+            if "Gray" in color_space:
+                mode = "L"
+            pil = Image.frombytes(mode, (embedded.width_px, embedded.height_px), data)
         if pil.mode != "RGB":
             if pil.mode in {"RGBA", "LA"} or "A" in pil.getbands():
                 background = Image.new("RGB", pil.size, (255, 255, 255))
