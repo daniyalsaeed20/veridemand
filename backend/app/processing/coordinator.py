@@ -802,18 +802,24 @@ class ProcessingCoordinator:
             event_type = str(payload.get("type", ""))
             raw_page = payload.get("page_number")
             page_number = int(raw_page) if isinstance(raw_page, (int, float, str)) else None
-            if isinstance(payload.get("attempt_number"), int):
-                snapshot.attempt_number = int(payload["attempt_number"])
-            if isinstance(payload.get("max_attempts"), int):
-                snapshot.max_attempts = int(payload["max_attempts"])
-            if isinstance(payload.get("worker_generation"), int):
-                snapshot.worker_generation = int(payload["worker_generation"])
-            if isinstance(payload.get("worker_restart_count"), int):
-                snapshot.worker_restart_count = int(payload["worker_restart_count"])
-            if isinstance(payload.get("pid"), int):
-                snapshot.worker_pid = int(payload["pid"])
-            if isinstance(payload.get("deadline_remaining_seconds"), (int, float)):
-                snapshot.deadline_remaining_seconds = float(payload["deadline_remaining_seconds"])
+            attempt_number = payload.get("attempt_number")
+            if isinstance(attempt_number, int):
+                snapshot.attempt_number = attempt_number
+            max_attempts = payload.get("max_attempts")
+            if isinstance(max_attempts, int):
+                snapshot.max_attempts = max_attempts
+            worker_generation = payload.get("worker_generation")
+            if isinstance(worker_generation, int):
+                snapshot.worker_generation = worker_generation
+            worker_restart_count = payload.get("worker_restart_count")
+            if isinstance(worker_restart_count, int):
+                snapshot.worker_restart_count = worker_restart_count
+            worker_pid = payload.get("pid")
+            if isinstance(worker_pid, int):
+                snapshot.worker_pid = worker_pid
+            deadline_remaining = payload.get("deadline_remaining_seconds")
+            if isinstance(deadline_remaining, (int, float)):
+                snapshot.deadline_remaining_seconds = float(deadline_remaining)
 
             if event_type == "worker.heartbeat":
                 snapshot.progress_kind = ProgressKind.HEARTBEAT

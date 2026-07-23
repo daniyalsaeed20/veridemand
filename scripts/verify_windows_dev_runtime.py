@@ -157,7 +157,8 @@ def _run_mode(*, reload: bool, port: int, skip_ocr: bool) -> dict[str, object]:
         ready_timeout = 180.0 if not skip_ocr else 90.0
         ready = _wait_http(f"http://127.0.0.1:{port}/health/ready", timeout=ready_timeout)
         parsed = _parse_ready(lines)
-        worker_pid = parsed.get("worker_pid")  # type: ignore[assignment]
+        raw_pid = parsed.get("worker_pid")
+        worker_pid = int(raw_pid) if isinstance(raw_pid, int) else None
         return {
             "reload": reload,
             "parent_pid": process.pid,
@@ -166,9 +167,7 @@ def _run_mode(*, reload: bool, port: int, skip_ocr: bool) -> dict[str, object]:
             "checks": ready.get("checks"),
             "worker_generation": parsed.get("worker_generation"),
             "worker_pid": worker_pid,
-            "parent_equals_worker": (
-                worker_pid is not None and int(worker_pid) == int(process.pid)
-            ),
+            "parent_equals_worker": (worker_pid is not None and worker_pid == int(process.pid)),
         }
     finally:
         _stop(process)
