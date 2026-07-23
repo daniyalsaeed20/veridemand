@@ -92,7 +92,7 @@ corpus and attach opaque metrics before claiming production pass on that file.
 
 ## Commits
 
-See branch `fix/phase-4-adaptive-image-ocr-performance` history.
+Branch `fix/phase-4-adaptive-image-ocr-performance` from `phase-4-visual-detection-printed-ocr-v1.2` (`606f041`).
 
 ## Corrective Tag
 
@@ -101,7 +101,8 @@ Does not move v1 / v1.1 / v1.2.
 
 ## CI
 
-Filled after green run on the tagged SHA.
+https://github.com/daniyalsaeed20/veridemand/actions/runs/30017694569  
+Final SHA: `b7c601d5f69a712edb44e5ea00410a3203fe6988` (pre-report polish may add a docs commit; tag peels to the CI-green delivery SHA after report update).
 
 ## Phase Boundary Confirmation
 
