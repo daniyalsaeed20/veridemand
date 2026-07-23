@@ -1,7 +1,11 @@
 // Two-column viewer body (Phase 2+4): orchestrates canonical metadata, the
 // PDF.js document/page, native/OCR overlays and ephemeral viewer UI state.
+//
+// Canonical PDF rendering depends only on session + document + metadata + PDF.
+// Native/visual summaries are optional inspection panels and must not block
+// the canvas when they 404/409/fail.
 
-import { Card, CardContent, Divider, Stack, Typography } from "@mui/material";
+import { Alert, Card, CardContent, Divider, Stack, Typography } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
@@ -93,12 +97,16 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
 
   const pdfUrl =
     canonicalReady && selectedDocumentId ? canonicalPdfUrl(sessionId, selectedDocumentId) : null;
-  const { pdfDocument, error: pdfError } = usePdfDocument(pdfUrl);
+  const {
+    pdfDocument,
+    error: pdfError,
+    retry: retryPdf,
+  } = usePdfDocument(pdfUrl, selectedDocumentId);
 
-  const pageCount = metadataQuery.data?.page_count ?? 1;
+  const pageCount = metadataQuery.data?.page_count ?? pdfDocument?.numPages ?? 1;
   const clampedPageNumber = Math.min(Math.max(1, pageNumber), pageCount);
 
-  const { page } = usePdfPage(pdfDocument, clampedPageNumber);
+  const { page, error: pageError } = usePdfPage(pdfDocument, clampedPageNumber);
   const nativeReady =
     selectedDocument?.native_extraction_performed === true ||
     selectedDocument?.status === "native_trust_complete" ||
@@ -111,6 +119,7 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
     selectedDocument?.status === "visual_processing_partial" ||
     selectedDocument?.status === "visual_processing_failed";
 
+  // Optional panels — failures must not affect PDF canvas gating.
   const nativeSummaryQuery = useQuery({
     queryKey:
       sessionId && selectedDocumentId
@@ -171,7 +180,11 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
   }, []);
 
   const effectiveScale = useMemo(() => {
-    if (!backendPage) {
+    // Prefer backend geometry; fall back to PDF.js page view so a metadata
+    // hiccup cannot permanently blank a successfully loaded PDF.
+    const widthPoints = backendPage?.width_points ?? page?.view?.[2];
+    const heightPoints = backendPage?.height_points ?? page?.view?.[3];
+    if (widthPoints == null || heightPoints == null) {
       return clampScale(manualScale);
     }
     if (
@@ -184,24 +197,19 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
       case "manual":
         return clampScale(manualScale);
       case "fit_width":
-        return computeFitWidthScale(
-          containerSize.width,
-          backendPage.width_points,
-          backendPage.height_points,
-          userRotation,
-        );
+        return computeFitWidthScale(containerSize.width, widthPoints, heightPoints, userRotation);
       case "fit_page":
         return computeFitPageScale(
           containerSize.width,
           containerSize.height,
-          backendPage.width_points,
-          backendPage.height_points,
+          widthPoints,
+          heightPoints,
           userRotation,
         );
       default:
         return clampScale(manualScale);
     }
-  }, [backendPage, zoomMode, manualScale, userRotation, containerSize]);
+  }, [backendPage, page, zoomMode, manualScale, userRotation, containerSize]);
 
   const overlayDisabledReason = dimensionMismatch
     ? "Alignment overlay disabled: this page's rendered size does not match the canonical metadata within tolerance."
@@ -212,6 +220,9 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
     (ocrLineOverlayEnabled || ocrWordOverlayEnabled) &&
     Boolean(visualPageQuery.data) &&
     !dimensionMismatch;
+
+  const pdfHardError = Boolean(pdfError || pageError);
+  const metadataHardError = metadataQuery.isError && !pdfDocument;
 
   let body: ReactNode;
   if (!selectedDocument) {
@@ -225,9 +236,19 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
         }
       />
     );
-  } else if (pdfError || metadataQuery.isError) {
-    body = <ViewerEmptyState variant="load_error" />;
-  } else if (!page || !backendPage) {
+  } else if (pdfHardError || metadataHardError) {
+    body = (
+      <ViewerEmptyState
+        variant="load_error"
+        errorCode={pdfError?.name ?? pageError?.name ?? "CANONICAL_LOAD_FAILED"}
+        stage={pdfError ? "PDF load" : pageError ? "page load" : "canonical metadata"}
+        metadataLoaded={metadataQuery.isSuccess}
+        canonicalFileAvailable={canonicalReady}
+        onRetry={retryPdf}
+        canonicalPdfHref={pdfUrl}
+      />
+    );
+  } else if (!page) {
     body = (
       <ViewerEmptyState
         variant="not_ready"
@@ -272,6 +293,8 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
             onToggleNativeOverlay={toggleNativeOverlay}
             overlaysDisabled={dimensionMismatch}
           />
+        ) : nativeReady && nativeSummaryQuery.isError ? (
+          <Alert severity="info">Native extraction result unavailable.</Alert>
         ) : null}
         {visualSummaryQuery.data ? (
           <VisualInspectionPanel
@@ -283,6 +306,10 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
             onToggleOcrWordOverlay={toggleOcrWordOverlay}
             overlaysDisabled={dimensionMismatch}
           />
+        ) : visualReady && (visualSummaryQuery.isError || visualSummaryQuery.isFetched) ? (
+          <Alert severity="info" data-testid="visual-result-unavailable">
+            Visual OCR result unavailable.
+          </Alert>
         ) : null}
 
         <Stack
@@ -303,6 +330,8 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
               scale={effectiveScale}
               rotation={userRotation}
               backendPage={backendPage}
+              documentId={selectedDocumentId}
+              expectVisibleContent
               onViewportChange={handleViewportChange}
               onDimensionMismatchChange={handleDimensionMismatchChange}
             />
