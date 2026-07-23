@@ -4,6 +4,7 @@ import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { Box, Button, Chip, LinearProgress, Paper, Stack, Typography } from "@mui/material";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRef } from "react";
 
 import { STATUS_TONE_COLOR, type StatusTone } from "../../app/theme";
 import { formatBytes } from "../upload/clientChecks";
@@ -17,6 +18,7 @@ import type {
   DocumentSummary,
 } from "../viewer/viewerApi";
 import { cancelDocument, removeDocument } from "./documentApi";
+import { applyMonotonicProgress, type ProgressFloor } from "./monotonicProgress";
 
 const STATUS_LABEL: Record<DocumentStatus, string> = {
   uploaded: "Uploaded",
@@ -77,13 +79,16 @@ interface DocumentCardProps {
 
 export function DocumentCard({
   sessionId,
-  document,
+  document: rawDocument,
   disabled = false,
   processBlocked = false,
 }: DocumentCardProps) {
   const queryClient = useQueryClient();
   const selectDocument = useViewerStore((state) => state.selectDocument);
   const selectedDocumentId = useViewerStore((state) => state.selectedDocumentId);
+  const floorRef = useRef<ProgressFloor | undefined>(undefined);
+  const { document, floor } = applyMonotonicProgress(rawDocument, floorRef.current);
+  floorRef.current = floor;
 
   const invalidate = () =>
     void queryClient.invalidateQueries({ queryKey: sessionKeys.detail(sessionId) });
@@ -250,9 +255,10 @@ export function DocumentCard({
             </Typography>
             <Typography variant="caption" color="text.secondary">
               Failed operation:{" "}
-              {(document.failure_stage ?? document.current_operation ?? "Printed-text detection")
+              {(document.failure_stage ?? document.current_operation ?? "paddle_ocr_pipeline")
                 .replaceAll("_", " ")
-                .replace("paddle text detection", "Printed-text detection")}
+                .replace("paddle ocr pipeline", "Printed OCR pipeline")
+                .replace("paddle text detection", "Printed OCR pipeline")}
             </Typography>
             {document.pages_total != null && document.pages_total > 0 ? (
               <Typography variant="caption" color="text.secondary">

@@ -73,6 +73,18 @@ describe("useSessionEvents", () => {
     expect(source.readyState).toBe(2);
   });
 
+  it("invalidates the session query on a visual OCR progress event", async () => {
+    const { invalidateSpy } = setup();
+    MockEventSource.latest().emit(
+      "document.visual_page_ocr_started",
+      makeEvent("document.visual_page_ocr_started", 3),
+    );
+
+    await waitFor(() =>
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["session", SESSION_ID] }),
+    );
+  });
+
   it("ignores malformed event payloads", async () => {
     const { invalidateSpy } = setup();
     MockEventSource.latest().emitRaw("document.uploaded", "{not valid json");

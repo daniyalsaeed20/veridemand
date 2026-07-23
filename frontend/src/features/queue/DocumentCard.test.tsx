@@ -178,7 +178,7 @@ describe("DocumentCard", () => {
           document_id: DOC_ID,
           status: "visual_processing_failed",
           progress_percent: 32,
-          failure_stage: "paddle_text_detection",
+          failure_stage: "paddle_ocr_pipeline",
           failure_code: "ocr_page_timeout",
           failure_page_number: 1,
           pages_total: 2,
@@ -189,7 +189,7 @@ describe("DocumentCard", () => {
       />,
     );
     expect(screen.getByText(/Visual OCR could not complete/)).toBeInTheDocument();
-    expect(screen.getByText(/Printed-text detection/i)).toBeInTheDocument();
+    expect(screen.getByText(/Printed OCR pipeline/i)).toBeInTheDocument();
     expect(screen.getByText(/Attempts:\s*2 of 2/)).toBeInTheDocument();
     expect(screen.getByText(/OCR page timed out/)).toBeInTheDocument();
     expect(screen.getByText(/Canonical document available:\s*Yes/)).toBeInTheDocument();
