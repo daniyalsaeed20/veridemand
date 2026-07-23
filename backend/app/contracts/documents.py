@@ -163,8 +163,7 @@ class DocumentSummary(ApiModel):
     major_phase: str | None = Field(
         default=None,
         description=(
-            "Current major processing phase "
-            "(admission/canonicalisation/native_trust/visual_ocr)."
+            "Current major processing phase (admission/canonicalisation/native_trust/visual_ocr)."
         ),
     )
     major_phase_percent: float | None = Field(

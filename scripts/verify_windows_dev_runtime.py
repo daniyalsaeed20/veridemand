@@ -2,7 +2,8 @@
 
 Compares uvicorn without --reload vs with --reload: lifespan (and therefore
 OCR worker spawn) runs only in the serving child. Uses VERIDEMAND_SKIP_OCR_WORKER
-for the light path; optional --with-ocr exercises a real worker handshake.
+for the light path; optional --with-ocr exercises a real worker handshake and
+asserts generation / single owned worker / shutdown cleanup.
 """
 
 from __future__ import annotations
@@ -10,15 +11,26 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+_READY_RE = re.compile(
+    r"ocr_worker_ready.*?worker_generation=(?P<gen>\d+).*?worker_pid=(?P<pid>\d+)",
+    re.IGNORECASE,
+)
+_READY_RE_ALT = re.compile(
+    r"ocr_worker_ready.*?worker_pid=(?P<pid>\d+).*?worker_generation=(?P<gen>\d+)",
+    re.IGNORECASE,
+)
 
 
 def _wait_http(url: str, timeout: float = 45.0) -> dict[str, object]:
@@ -78,7 +90,43 @@ def _start_uvicorn(*, reload: bool, port: int, skip_ocr: bool) -> subprocess.Pop
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
+        bufsize=1,
     )
+
+
+def _drain_stdout(process: subprocess.Popen[str], lines: list[str]) -> None:
+    assert process.stdout is not None
+    for line in process.stdout:
+        lines.append(line.rstrip("\n"))
+
+
+def _parse_ready(lines: list[str]) -> dict[str, int | None]:
+    gen: int | None = None
+    pid: int | None = None
+    for line in lines:
+        match = _READY_RE.search(line) or _READY_RE_ALT.search(line)
+        if match:
+            gen = int(match.group("gen"))
+            pid = int(match.group("pid"))
+    return {"worker_generation": gen, "worker_pid": pid}
+
+
+def _process_alive(pid: int | None) -> bool:
+    if pid is None or pid <= 0:
+        return False
+    if sys.platform == "win32":
+        result = subprocess.run(
+            ["tasklist", "/FI", f"PID eq {pid}"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        return str(pid) in result.stdout and "No tasks" not in result.stdout
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
 
 
 def _stop(process: subprocess.Popen[str]) -> None:
@@ -100,18 +148,35 @@ def _stop(process: subprocess.Popen[str]) -> None:
 
 def _run_mode(*, reload: bool, port: int, skip_ocr: bool) -> dict[str, object]:
     process = _start_uvicorn(reload=reload, port=port, skip_ocr=skip_ocr)
+    lines: list[str] = []
+    drain = threading.Thread(target=_drain_stdout, args=(process, lines), daemon=True)
+    drain.start()
+    worker_pid: int | None = None
     try:
         live = _wait_http(f"http://127.0.0.1:{port}/health/live")
-        ready = _wait_http(f"http://127.0.0.1:{port}/health/ready", timeout=90.0)
+        ready_timeout = 180.0 if not skip_ocr else 90.0
+        ready = _wait_http(f"http://127.0.0.1:{port}/health/ready", timeout=ready_timeout)
+        parsed = _parse_ready(lines)
+        worker_pid = parsed.get("worker_pid")  # type: ignore[assignment]
         return {
             "reload": reload,
             "parent_pid": process.pid,
             "live_status": live.get("status"),
             "ready_status": ready.get("status"),
             "checks": ready.get("checks"),
+            "worker_generation": parsed.get("worker_generation"),
+            "worker_pid": worker_pid,
+            "parent_equals_worker": (
+                worker_pid is not None and int(worker_pid) == int(process.pid)
+            ),
         }
     finally:
         _stop(process)
+        drain.join(timeout=5)
+        # Allow OS to reap the process tree before asserting cleanup.
+        time.sleep(1.0)
+        if worker_pid is not None and _process_alive(int(worker_pid)):
+            raise RuntimeError(f"OCR worker pid {worker_pid} still alive after shutdown")
 
 
 def main() -> int:
@@ -135,9 +200,26 @@ def main() -> int:
         print("FAIL: reload liveness")
         return 1
     if no_reload.get("ready_status") != "ready" or with_reload.get("ready_status") != "ready":
-        print("FAIL: readiness not ready (OCR-disabled path)")
+        print("FAIL: readiness not ready")
         return 1
-    print("OK: serving process reached liveness under reload and no-reload.")
+
+    if not skip:
+        for label, mode in (("no_reload", no_reload), ("with_reload", with_reload)):
+            gen = mode.get("worker_generation")
+            pid = mode.get("worker_pid")
+            if not isinstance(gen, int) or gen < 1:
+                print(f"FAIL: {label} missing worker_generation>=1 (got {gen})")
+                return 1
+            if not isinstance(pid, int) or pid <= 0:
+                print(f"FAIL: {label} missing worker_pid (got {pid})")
+                return 1
+            if mode.get("parent_equals_worker"):
+                print(f"FAIL: {label} worker pid must not equal uvicorn parent pid")
+                return 1
+        print("OK: single owned OCR worker generation observed under reload and no-reload.")
+    else:
+        print("OK: serving process reached liveness under reload and no-reload.")
+
     print(
         "Note: uvicorn --reload runs ASGI lifespan only in the child; "
         "OCR worker must not use CREATE_NEW_PROCESS_GROUP on Windows."
