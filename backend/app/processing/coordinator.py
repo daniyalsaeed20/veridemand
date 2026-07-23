@@ -813,6 +813,26 @@ class ProcessingCoordinator:
             )
             return
 
+        # Persist visibility downgrades onto published native results so public
+        # APIs never keep suppressed native words/text after Phase 4.
+        for page in native_pages.values():
+            if "native_text_not_visually_present" in page.trust.reason_codes:
+                self._native.republish_page(session.session_id, document.document_id, page)
+
+        if summary.native_pages_downgraded > 0:
+            document.native_result_available = False
+            document.visual_processing_required = True
+            existing_summary = self._native.load_summary(session.session_id, document.document_id)
+            if existing_summary is not None and summary.document_source_policy is not None:
+                updated = existing_summary.model_copy(
+                    update={
+                        "document_source_policy": summary.document_source_policy,
+                        "native_result_available": False,
+                        "visual_processing_required": True,
+                    }
+                )
+                self._native.republish_summary(session.session_id, document.document_id, updated)
+
         from backend.app.contracts.visual import VisualProcessingStatus
 
         if summary.visual_processing_status is VisualProcessingStatus.VISUAL_PROCESSING_PARTIAL:

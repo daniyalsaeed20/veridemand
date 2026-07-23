@@ -146,11 +146,14 @@ class VisualOcrService:
                 "native_result_available": False,
                 "source_mode": SourceMode.VISUAL_AUTHORITY,
                 "decision": NativePageDecision.REJECTED,
+                "hard_rejection": True,
                 "reason_codes": list(
                     dict.fromkeys(
                         [
                             *page.trust.reason_codes,
                             "native_text_not_visually_present",
+                            "visual_agreement_required",
+                            "native_text_rejected",
                         ]
                     )
                 ),

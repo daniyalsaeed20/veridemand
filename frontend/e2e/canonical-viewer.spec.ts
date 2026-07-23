@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { chooseFiles, fixture } from "./utils";
+import { chooseFiles, fixture, waitForProcessingComplete } from "./utils";
 
 test.describe("Canonical viewer (Phase 2)", () => {
   test("opens a canonical PDF and survives rapid navigation and zoom", async ({ page }) => {
@@ -11,15 +11,7 @@ test.describe("Canonical viewer (Phase 2)", () => {
     await expect(page.getByText(/1 file accepted/)).toBeVisible();
 
     await page.getByRole("button", { name: /process all uploaded/i }).click();
-    await expect(
-      page
-        .getByText(
-          /Native text accepted|requires visual processing|native text layer was rejected|canonical document ready/i,
-        )
-        .first(),
-    ).toBeVisible({
-      timeout: 60_000,
-    });
+    await waitForProcessingComplete(page);
     await expect(page.getByText(/extraction complete/i)).toHaveCount(0);
 
     await page.getByRole("button", { name: /open canonical document/i }).click();
@@ -54,7 +46,7 @@ test.describe("Canonical viewer (Phase 2)", () => {
     await expect(
       page
         .getByText(
-          /Native text accepted|requires visual processing|native text layer was rejected/i,
+          /Printed OCR complete|Printed visual OCR complete|requires visual processing|native text layer was rejected|Decision:\s*accepted|Decision:\s*absent/i,
         )
         .first(),
     ).toBeVisible();
@@ -66,15 +58,7 @@ test.describe("Canonical viewer (Phase 2)", () => {
     await chooseFiles(page, [fixture("valid.png")]);
     await expect(page.getByText(/1 file accepted/)).toBeVisible();
     await page.getByRole("button", { name: /process all uploaded/i }).click();
-    await expect(
-      page
-        .getByText(
-          /Native text accepted|requires visual processing|native text layer was rejected|canonical document ready/i,
-        )
-        .first(),
-    ).toBeVisible({
-      timeout: 60_000,
-    });
+    await waitForProcessingComplete(page);
     await page.getByRole("button", { name: /open canonical document/i }).click();
     const canvas = page.getByRole("img", { name: /page 1 of/i });
     await expect(canvas).toHaveAttribute("data-render-status", "rendered", { timeout: 20_000 });
@@ -112,13 +96,7 @@ test.describe("Canonical viewer (Phase 2)", () => {
     ]);
     await expect(page.getByText(/5 files accepted/)).toBeVisible();
     await page.getByRole("button", { name: /process all uploaded/i }).click();
-    await expect(
-      page
-        .getByText(
-          /Native text accepted|requires visual processing|native text layer was rejected|ready for extraction/i,
-        )
-        .first(),
-    ).toBeVisible({ timeout: 90_000 });
+    await waitForProcessingComplete(page, 300_000);
     await expect(
       page.getByRole("button", { name: /open canonical document/i }).first(),
     ).toBeEnabled();

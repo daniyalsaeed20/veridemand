@@ -26,21 +26,29 @@ export default defineConfig({
   forbidOnly: isCI,
   retries: isCI ? 1 : 0,
   workers: 1,
-  timeout: 60_000,
+  // Phase 4 printed OCR on CPU can exceed one minute per document in CI.
+  timeout: 360_000,
+  expect: {
+    timeout: 180_000,
+  },
   reporter: [["html", { open: "never" }]],
   use: {
     trace: "on-first-retry",
+    actionTimeout: 60_000,
   },
   projects: [
     {
       name: "chromium",
       testIgnore: HOLDS_SPECS,
       use: { ...devices["Desktop Chrome"], baseURL: NORMAL_FRONTEND },
+      timeout: 360_000,
     },
     {
       name: "chromium-holds",
       testMatch: HOLDS_SPECS,
       use: { ...devices["Desktop Chrome"], baseURL: HOLDS_FRONTEND },
+      // Holds specs stay short (cancel/TTL); keep a tighter budget.
+      timeout: 90_000,
     },
   ],
   webServer: [
@@ -49,7 +57,10 @@ export default defineConfig({
       cwd: "..",
       url: `${NORMAL_BACKEND}/health/live`,
       reuseExistingServer: true,
-      timeout: 120_000,
+      timeout: 180_000,
+      env: {
+        OCR_ENABLED: nodeProcess?.env?.OCR_ENABLED ?? "true",
+      },
     },
     {
       command: "pnpm dev",

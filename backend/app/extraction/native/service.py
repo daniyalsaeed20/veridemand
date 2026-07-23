@@ -228,6 +228,43 @@ class NativeExtractionService:
             return None
         return NativePageResult.model_validate_json(path.read_text(encoding="utf-8"))
 
+    def republish_page(self, session_id: str, document_id: str, page: NativePageResult) -> None:
+        """Atomically replace one published native page (e.g. after visibility downgrade)."""
+
+        results = storage_paths.native_results_dir(
+            self._settings.temp_root, session_id, document_id
+        )
+        if not results.is_dir():
+            raise FileNotFoundError(f"Native results missing for document {document_id}")
+        name = f"page-{page.page_number:04d}.json"
+        final_path = results / name
+        part_path = results / f"{name}.part"
+        payload = page.model_dump(mode="json")
+        if page.decision.value != "accepted":
+            payload["words"] = []
+            payload["characters"] = []
+            payload["provisional_native_text"] = None
+        part_path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
+        os.replace(part_path, final_path)
+
+    def republish_summary(
+        self, session_id: str, document_id: str, summary: NativeDocumentSummary
+    ) -> None:
+        """Atomically replace the published native document summary."""
+
+        results = storage_paths.native_results_dir(
+            self._settings.temp_root, session_id, document_id
+        )
+        if not results.is_dir():
+            raise FileNotFoundError(f"Native results missing for document {document_id}")
+        final_path = results / "summary.json"
+        part_path = results / "summary.json.part"
+        part_path.write_text(
+            json.dumps(summary.model_dump(mode="json"), separators=(",", ":")),
+            encoding="utf-8",
+        )
+        os.replace(part_path, final_path)
+
     def delete_results(self, session_id: str, document_id: str) -> None:
         path = storage_paths.native_results_dir(self._settings.temp_root, session_id, document_id)
         shutil.rmtree(path, ignore_errors=True)

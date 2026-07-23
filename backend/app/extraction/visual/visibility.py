@@ -56,6 +56,7 @@ def _sample_word_region(
 
     region = gray[y0:y1, x0:x1].astype(np.float32)
     variance = float(region.var())
+    mean_luma = float(region.mean())
     gx = np.abs(np.diff(region, axis=1)).mean() if region.shape[1] > 1 else 0.0
     gy = np.abs(np.diff(region, axis=0)).mean() if region.shape[0] > 1 else 0.0
     edge_density = float((gx + gy) / 255.0)
@@ -66,11 +67,14 @@ def _sample_word_region(
     rx1 = min(width, x1 + pad)
     ry1 = min(height, y1 + pad)
     surround = gray[ry0:ry1, rx0:rx1].astype(np.float32)
-    contrast = abs(float(region.mean()) - float(surround.mean()))
+    contrast = abs(mean_luma - float(surround.mean()))
+    # Near-white, low-contrast patches are blank-like even if render noise
+    # elevates variance slightly above the ink threshold.
+    blank_like = mean_luma >= 245.0 and contrast < 8.0 and edge_density < 0.02
 
     return _WordVisibility(
         visible=False,
-        blank_like=False,
+        blank_like=blank_like,
         variance=variance,
         edge_density=edge_density,
         contrast=contrast,
@@ -121,9 +125,13 @@ def probe_native_visibility(
         if sample is None:
             continue
         sampled += 1
-        is_visible = sample.variance >= thresholds.min_region_variance and (
-            sample.edge_density >= thresholds.min_edge_density
-            or sample.contrast >= thresholds.min_region_variance
+        is_visible = (
+            (not sample.blank_like)
+            and sample.variance >= thresholds.min_region_variance
+            and (
+                sample.edge_density >= thresholds.min_edge_density
+                or sample.contrast >= thresholds.min_region_variance
+            )
         )
         if is_visible:
             visible += 1
@@ -131,15 +139,20 @@ def probe_native_visibility(
             blank_like += 1
 
     if sampled < thresholds.min_words:
+        # Accepted pages claiming enough words but yielding few sampleable
+        # regions are treated as uncertain and routed to visual OCR.
+        uncertain = len(words) >= thresholds.min_words
         return NativeVisibilityResult(
             visual_agreement_status=VisualAgreementStatusPhase4.EVALUATED_PHASE_4_VISIBILITY,
             native_visibility_score=None,
             native_visible_word_ratio=None,
             native_blank_like_word_ratio=None,
             sampled_word_count=sampled,
-            native_visibility_decision=NativeVisibilityDecision.INSUFFICIENT_WORDS,
+            native_visibility_decision=NativeVisibilityDecision.INSUFFICIENT_WORDS
+            if not uncertain
+            else NativeVisibilityDecision.NATIVE_TEXT_VISIBILITY_UNCERTAIN,
             reason_codes=[NativeReasonCode.NATIVE_TEXT_VISIBILITY_UNCERTAIN.value],
-            downgraded=False,
+            downgraded=uncertain,
         )
 
     visible_ratio = visible / sampled

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { chooseFiles, fixture } from "./utils";
+import { chooseFiles, fixture, waitForProcessingComplete } from "./utils";
 
 test.describe("Bulk upload and processing queue", () => {
   test("accepts several documents, queues them, and reaches ready for extraction", async ({
@@ -24,15 +24,7 @@ test.describe("Bulk upload and processing queue", () => {
     // Queue everything and wait, event-driven, for readiness.
     await page.getByRole("button", { name: /process all uploaded/i }).click();
 
-    await expect(
-      page
-        .getByText(
-          /Native text accepted|requires visual processing|native text layer was rejected|canonical document ready|ready for extraction/i,
-        )
-        .first(),
-    ).toBeVisible({
-      timeout: 90_000,
-    });
+    await waitForProcessingComplete(page, 180_000);
     await expect(page.getByText(/extraction complete/i)).toHaveCount(0);
   });
 

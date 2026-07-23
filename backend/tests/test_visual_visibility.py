@@ -154,6 +154,27 @@ def test_blank_page_downgrades_native() -> None:
     }
 
 
+def test_unsampleable_words_downgrade_when_count_meets_min() -> None:
+    image = Image.new("RGB", (200, 200), (255, 255, 255))
+    # Tiny boxes that fail the 2px sample gate.
+    words = [_word(i, f"W{i}", x=0.01 * i, y=0.01, w=0.001, h=0.001) for i in range(8)]
+    result = probe_native_visibility(
+        image,
+        _page(words),
+        thresholds=VisibilityThresholds(
+            min_words=3,
+            min_visible_word_ratio=0.6,
+            min_region_variance=20.0,
+            min_edge_density=0.02,
+        ),
+    )
+    assert result.downgraded is True
+    assert (
+        result.native_visibility_decision
+        is NativeVisibilityDecision.NATIVE_TEXT_VISIBILITY_UNCERTAIN
+    )
+
+
 def test_high_contrast_ink_supports_native() -> None:
     image = Image.new("RGB", (200, 200), (255, 255, 255))
     for x0, y0, x1, y1 in ((20, 20, 60, 40), (80, 20, 120, 40), (20, 80, 60, 100)):
