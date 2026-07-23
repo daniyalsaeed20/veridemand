@@ -53,7 +53,9 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     native_service = NativeExtractionService(settings)
     ocr_worker_manager = OcrWorkerManager(settings)
-    visual_service = VisualOcrService(settings, ocr_worker_manager)
+    visual_service = (
+        VisualOcrService(settings, ocr_worker_manager) if settings.ocr_enabled else None
+    )
     coordinator = ProcessingCoordinator(
         registry,
         job_queue,
