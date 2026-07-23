@@ -90,8 +90,18 @@ async def process_documents(
     registry: RegistryDep,
     coordinator: CoordinatorDep,
     settings: SettingsDep,
+    request: Request,
 ) -> ProcessResponse:
     session = await registry.get(session_id)
+    if settings.ocr_enabled:
+        worker = getattr(request.app.state, "ocr_worker_manager", None)
+        ready = bool(worker is not None and getattr(worker, "ready", False))
+        if not ready:
+            raise ApiException(
+                status_code=503,
+                code=ErrorCode.OCR_WORKER_NOT_READY,
+                message=("Printed OCR is still starting or unavailable. Check runtime readiness."),
+            )
     queued, ignored = await coordinator.enqueue_documents(session, payload.document_ids)
     return ProcessResponse(
         queued=queued,

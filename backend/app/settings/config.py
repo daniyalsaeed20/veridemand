@@ -253,6 +253,17 @@ class Settings(BaseSettings):
         return level
 
     @model_validator(mode="after")
+    def _resolve_ocr_model_root(self) -> Settings:
+        # Resolve relative OCR model paths against the repository root so
+        # uvicorn --reload, workers, and scripts share one tree offline.
+        from backend.app.extraction.visual.model_paths import resolve_ocr_model_root
+
+        resolved = resolve_ocr_model_root(self.ocr_model_root)
+        if resolved != self.ocr_model_root:
+            object.__setattr__(self, "ocr_model_root", resolved)
+        return self
+
+    @model_validator(mode="after")
     def _validate_lifecycle_windows(self) -> Settings:
         if self.session_cleanup_interval_seconds >= self.session_ttl_seconds:
             raise ValueError(

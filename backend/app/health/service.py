@@ -468,12 +468,20 @@ class HealthService:
         record_path = model_root / "model-record.json"
         det = model_root / self._settings.ocr_detection_model_name
         rec = model_root / self._settings.ocr_recognition_model_name
-        if not record_path.is_file() or not det.is_dir() or not rec.is_dir():
+        det_empty = det.is_dir() and not any(det.iterdir())
+        rec_empty = rec.is_dir() and not any(rec.iterdir())
+        if (
+            not record_path.is_file()
+            or not det.is_dir()
+            or not rec.is_dir()
+            or det_empty
+            or rec_empty
+        ):
             return DependencyCheck(
                 name="paddle_ocr",
                 status=CheckState.FAIL,
                 required=True,
-                message="OCR model directories or model-record.json are missing.",
+                message="OCR model directories are missing, empty, or model-record.json is absent.",
             )
 
         try:

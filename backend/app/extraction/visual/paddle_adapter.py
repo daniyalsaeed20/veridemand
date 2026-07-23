@@ -68,9 +68,15 @@ class PaddleOcrAdapter:
 
         import os
 
+        # Windows + Linux: force plain CPU. Do not rely on Paddle defaults.
         os.environ.setdefault("FLAGS_use_mkldnn", "0")
         os.environ.setdefault("FLAGS_onednn", "0")
         os.environ.setdefault("PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT", "0")
+        # Discourage hub downloads during document processing.
+        os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
+        os.environ["FLAGS_paddle_num_threads"] = str(  # noqa: SIM112
+            max(1, int(self._config.ocr_cpu_threads))
+        )
 
         try:
             import paddle
@@ -88,18 +94,26 @@ class PaddleOcrAdapter:
         self._paddleocr_version = getattr(paddleocr, "__version__", None)
         self._paddlepaddle_version = getattr(paddle, "__version__", None)
 
-        from pathlib import Path
+        from backend.app.extraction.visual.model_paths import (
+            require_local_model_dirs,
+            resolve_ocr_model_root,
+        )
 
-        model_root = Path(self._config.ocr_model_root)
-        det_dir = model_root / self._config.ocr_detection_model_name
-        rec_dir = model_root / self._config.ocr_recognition_model_name
-        if not det_dir.is_dir() or not rec_dir.is_dir():
+        model_root = resolve_ocr_model_root(self._config.ocr_model_root)
+        try:
+            det_dir, rec_dir = require_local_model_dirs(
+                model_root,
+                detection_model_name=self._config.ocr_detection_model_name,
+                recognition_model_name=self._config.ocr_recognition_model_name,
+            )
+        except FileNotFoundError as exc:
             raise VisualOcrError(
                 ErrorCode.OCR_MODEL_NOT_FOUND,
-                "Local OCR model directories are missing.",
+                "Local OCR model directories are missing or incomplete.",
                 operation="resolve_model_dirs",
                 failing_component="paddle_adapter",
-            )
+                exception_type=type(exc).__name__,
+            ) from exc
 
         kwargs: dict[str, Any] = {
             "text_detection_model_name": self._config.ocr_detection_model_name,
@@ -112,7 +126,9 @@ class PaddleOcrAdapter:
             "return_word_box": True,
             "device": self._config.ocr_device,
             "enable_hpi": False,
+            # Explicit Windows/Linux CPU choice — never leave mkldnn to defaults.
             "enable_mkldnn": False,
+            "cpu_threads": max(1, int(self._config.ocr_cpu_threads)),
             "text_recognition_batch_size": self._config.ocr_recognition_batch_size,
             "text_det_limit_side_len": self._config.ocr_text_det_limit_side_len,
             "text_det_limit_type": self._config.ocr_text_det_limit_type,
@@ -124,8 +140,13 @@ class PaddleOcrAdapter:
         try:
             self._ocr = PaddleOCR(engine=self._config.ocr_engine, **kwargs)
         except TypeError:
-            # Some builds reject engine=; retry without it.
-            self._ocr = PaddleOCR(**kwargs)
+            # Some builds reject engine= or cpu_threads=; strip optional kwargs.
+            fallback = dict(kwargs)
+            fallback.pop("cpu_threads", None)
+            try:
+                self._ocr = PaddleOCR(engine=self._config.ocr_engine, **fallback)
+            except TypeError:
+                self._ocr = PaddleOCR(**fallback)
         except Exception as exc:
             raise VisualOcrError(
                 ErrorCode.OCR_MODEL_LOAD_FAILED,
