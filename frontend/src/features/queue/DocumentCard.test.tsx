@@ -140,7 +140,34 @@ describe("DocumentCard", () => {
         })}
       />,
     );
-    expect(screen.getByText("Recognising page 2 of 2")).toBeInTheDocument();
+    expect(screen.getByText(/Recognising page 2 of 2/)).toBeInTheDocument();
+  });
+
+  it("shows overall, phase, and page progress meters during visual processing", () => {
+    renderWithClient(
+      <DocumentCard
+        sessionId={SESSION_ID}
+        document={makeDocument({
+          document_id: DOC_ID,
+          status: "visual_processing",
+          progress_percent: 48,
+          major_phase: "visual_ocr",
+          major_phase_percent: 40,
+          page_percent: 55,
+          active_page_number: 2,
+          pages_total: 2,
+          pages_completed: 1,
+          attempt_number: 2,
+          max_attempts: 2,
+          current_operation: "paddle_text_recognition",
+          user_status_message: "Retrying recognition",
+        })}
+      />,
+    );
+    expect(screen.getByText(/Overall processing:\s*48\.0%/)).toBeInTheDocument();
+    expect(screen.getByText(/Current phase:.*40\.0%/)).toBeInTheDocument();
+    expect(screen.getByText(/Current page:\s*2 of 2/)).toBeInTheDocument();
+    expect(screen.getByText(/Worker attempt:\s*2 of 2/)).toBeInTheDocument();
   });
 
   it("disables Process when processBlocked is set", () => {
