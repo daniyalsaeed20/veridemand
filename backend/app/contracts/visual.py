@@ -234,6 +234,7 @@ class VisualDocumentSummary(ApiModel):
     visual_result_available: bool = False
     handwriting_assessment_pending: bool = True
     final_result_available: bool = False
+    canonical_document_available: bool = False
     document_source_policy: DocumentSourcePolicy | None = None
     progress: VisualProgress
     model_info: VisualModelInfo | None = None
@@ -242,3 +243,4 @@ class VisualDocumentSummary(ApiModel):
     created_at: datetime
     completed_at: datetime | None = None
     user_status_message: str | None = None
+    error_codes: list[str] = Field(default_factory=list)

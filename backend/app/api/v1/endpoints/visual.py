@@ -71,6 +71,7 @@ async def get_visual_summary(
     visual: VisualServiceDep,
 ) -> VisualDocumentSummary:
     session, document = await _require_document(registry, session_id, document_id)
+    # 409 only while visual work has not yet reached a readable terminal state.
     if document.status in _NOT_READY and not document.visual_processing_performed:
         raise ApiException(
             status_code=409,
@@ -80,6 +81,9 @@ async def get_visual_summary(
         )
     summary = visual.load_summary(session.session_id, document_id)
     if summary is None:
+        # After a visual attempt, a terminal summary must exist. Missing file
+        # for a performed attempt is treated as not found; missing session/doc
+        # already returned 404 above.
         raise ApiException(
             status_code=404,
             code=ErrorCode.VISUAL_RESULT_NOT_FOUND,

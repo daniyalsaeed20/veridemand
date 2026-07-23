@@ -30,6 +30,7 @@ from backend.app.contracts.visual import (
     VisualPageSummary,
     VisualProcessingStatus,
     VisualProgress,
+    VisualWarning,
 )
 from backend.app.extraction.visual.errors import VisualOcrError
 from backend.app.extraction.visual.models import (
@@ -136,6 +137,65 @@ class VisualOcrService:
         delete_results(
             storage_paths.visual_results_dir(self._settings.temp_root, session_id, document_id)
         )
+
+    def publish_terminal_failure_summary(
+        self,
+        *,
+        session_id: str,
+        document_id: str,
+        page_count: int,
+        error_code: str,
+        canonical_document_available: bool,
+        native_pages_retained: int = 0,
+        native_pages_downgraded: int = 0,
+        pages_selected: int = 0,
+        status: VisualProcessingStatus = VisualProcessingStatus.VISUAL_PROCESSING_FAILED,
+        user_status_message: str = "Visual OCR could not complete.",
+    ) -> VisualDocumentSummary:
+        """Atomically publish a terminal visual summary after any failed attempt.
+
+        Contains no document text. Always callable so GET /visual/summary returns
+        200 after a visual attempt rather than 404.
+        """
+
+        results = storage_paths.visual_results_dir(
+            self._settings.temp_root, session_id, document_id
+        )
+        results.mkdir(parents=True, exist_ok=True)
+        now = datetime.now(UTC)
+        summary = VisualDocumentSummary(
+            document_id=document_id,
+            visual_processing_status=status,
+            page_count=max(0, page_count),
+            pages_selected=max(0, pages_selected),
+            pages_completed=0,
+            pages_no_text=0,
+            pages_failed=max(1, pages_selected) if pages_selected else 1,
+            pages_cancelled=0,
+            native_pages_retained=max(0, native_pages_retained),
+            native_pages_downgraded=max(0, native_pages_downgraded),
+            visual_result_available=False,
+            handwriting_assessment_pending=True,
+            final_result_available=False,
+            canonical_document_available=canonical_document_available,
+            progress=VisualProgress(
+                percent=65,
+                pages_completed=0,
+                pages_total=max(0, page_count),
+            ),
+            warnings=[
+                VisualWarning(
+                    code=error_code,
+                    message=user_status_message,
+                )
+            ],
+            error_codes=[error_code],
+            created_at=now,
+            completed_at=now,
+            user_status_message=user_status_message,
+        )
+        publish_summary_atomic(summary, results)
+        return summary
 
     def suppress_native_page_text(self, page: NativePageResult) -> NativePageResult:
         """Remove public native words/chars after visibility downgrade."""
@@ -518,6 +578,7 @@ class VisualOcrService:
             visual_result_available=visual_available,
             handwriting_assessment_pending=True,
             final_result_available=False,
+            canonical_document_available=True,
             document_source_policy=policy,
             progress=VisualProgress(
                 percent=65,
