@@ -225,6 +225,16 @@ export function PdfCanvas({
           updateStatus("error");
           return;
         }
+        if (import.meta.env.DEV && canvasLooksBlank(canvas)) {
+          // Diagnostic only — intentionally blank pages must not fail render.
+          console.info("[pdfjs] blank_render_sampled", {
+            document_id: documentId,
+            canvas_width: canvas.width,
+            canvas_height: canvas.height,
+            blank_render_detected: true,
+            expect_visible_content: false,
+          });
+        }
         if (import.meta.env.DEV) {
           console.info("[pdfjs] render_task_completed", {
             document_id: documentId,

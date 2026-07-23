@@ -331,7 +331,8 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
               rotation={userRotation}
               backendPage={backendPage}
               documentId={selectedDocumentId}
-              expectVisibleContent
+              // Blank synthetic pages are valid; only opt into blank-fail via tests.
+              expectVisibleContent={false}
               onViewportChange={handleViewportChange}
               onDimensionMismatchChange={handleDimensionMismatchChange}
             />
