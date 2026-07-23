@@ -258,12 +258,12 @@ def extract_embedded_full_page_image(
         if int(obj["/Width"]) != embedded.width_px or int(obj["/Height"]) != embedded.height_px:
             continue
         data = obj.get_data()
-        # DCTDecode JPEG often opens directly; FlateDecode may need filters.
+        pil: Image.Image
         try:
-            pil = Image.open(BytesIO(data))
-            pil.load()
+            opened = Image.open(BytesIO(data))
+            opened.load()
+            pil = opened
         except Exception:
-            # Fallback: reconstruct from raw samples when possible.
             mode = "RGB"
             color_space = str(obj.get("/ColorSpace", ""))
             if "Gray" in color_space:
