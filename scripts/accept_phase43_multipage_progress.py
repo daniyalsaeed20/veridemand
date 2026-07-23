@@ -38,10 +38,7 @@ def main() -> int:
     ready = client.get("/health/ready")
     body = ready.json()
     if ready.status_code != 200 or body.get("status") != "ready":
-        print(
-            f"FAIL: health/ready status_code={ready.status_code} "
-            f"status={body.get('status')!r}"
-        )
+        print(f"FAIL: health/ready status_code={ready.status_code} status={body.get('status')!r}")
         return 2
 
     session = client.post("/api/v1/sessions").json()
