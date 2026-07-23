@@ -2,11 +2,16 @@
 
 ## Status
 
-**PHASE 4 PASSED — READY FOR PHASE 5** (pending remote CI confirmation on tagged commit).
+**PHASE 4 PASSED — READY FOR PHASE 5**
 
-Local evidence: ruff/mypy clean; 249 backend tests passed; 118 frontend tests passed;
-frontend build OK; OCR runtime verify OK; synthetic OCR eval pass (clean mean CER 0.009);
-ADRs 0017–0021 and architecture docs committed with the Phase 4 branch.
+Remote CI on the Phase 4 branch is green (lint/test, Phase 4 smoke with real OCR,
+Playwright e2e with `OCR_ENABLED=false`). Annotated tag
+`phase-4-visual-detection-printed-ocr-v1` tracks the delivery commit on
+`phase/4-visual-detection-printed-ocr`.
+
+Local evidence: ruff/mypy clean; backend/frontend unit suites green; frontend build OK;
+OCR runtime verify OK; synthetic OCR eval pass (clean mean CER ~0.009);
+ADRs 0017–0021 and architecture docs on the Phase 4 branch.
 
 ## Baseline
 
@@ -29,13 +34,13 @@ ADRs 0017–0021 and architecture docs committed with the Phase 4 branch.
 - Scripts: model bootstrap/verify, printed OCR eval, private opaque eval, Phase 4 smoke subset.
 - Docs: architecture, ADRs 0017–0021, dependency/licence inventories, smoke README.
 
-## Exit evidence (to confirm before tag)
+## Exit evidence
 
 1. `pnpm check` (OCR verify + integration when `.models/paddleocr/model-record.json` exists).
-2. `pnpm smoke:corpus:phase4` with `OCR_ENABLED=true` and models present.
-3. `pnpm evaluate:ocr` baseline written under `docs/evaluation/`.
-4. CI: lint/test + OCR job + Phase 4 smoke on tagged commit.
-5. Annotated tag `phase-4-visual-detection-printed-ocr-v1` pushed with branch only.
+2. `pnpm smoke:corpus:phase4` with `OCR_ENABLED=true` and models present (CI smoke job).
+3. `pnpm evaluate:ocr` baseline under `docs/evaluation/`.
+4. CI: lint/test + real CPU OCR + Phase 4 smoke; Playwright e2e OCR-off for Phase 2/3 UX.
+5. Annotated tag `phase-4-visual-detection-printed-ocr-v1` on the Phase 4 branch (not `main`).
 
 ## Explicit non-goals (Phase 5+)
 
