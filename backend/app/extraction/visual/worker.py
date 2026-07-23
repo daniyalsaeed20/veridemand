@@ -319,10 +319,10 @@ def process_page(
             "detector_input_width": det_w,
             "detector_input_height": det_h,
             "detector_limit_side_len": limit,
-            "operation": "paddle_text_detection",
+            "operation": "paddle_ocr_pipeline",
         }
     )
-    detect_started = time.perf_counter()
+    pipeline_started = time.perf_counter()
     try:
         with ThreadPoolExecutor(max_workers=1) as pool:
             raw_lines = pool.submit(adapter.recognise, primary_image).result(timeout=page_timeout)
@@ -330,18 +330,18 @@ def process_page(
         raise VisualOcrError(
             ErrorCode.OCR_PAGE_TIMEOUT,
             "OCR inference timed out.",
-            operation="paddle_text_detection",
+            operation="paddle_ocr_pipeline",
             failing_component="visual.worker",
             exception_type=type(exc).__name__,
         ) from exc
-    detection_duration_s = time.perf_counter() - detect_started
+    paddle_pipeline_duration_s = time.perf_counter() - pipeline_started
     emit_message(
         {
-            "type": "page.ocr_progress",
+            "type": "page.ocr_completed",
             "request_id": request_id,
             "page_number": page_ref.page_number,
-            "operation": "paddle_text_detection",
-            "detection_duration_seconds": round(detection_duration_s, 3),
+            "operation": "paddle_ocr_pipeline",
+            "paddle_pipeline_duration_seconds": round(paddle_pipeline_duration_s, 3),
             "detected_line_count": len(raw_lines),
             "peak_rss_mb": monitor.snapshot().rss_mb,
         }
@@ -363,7 +363,7 @@ def process_page(
             raise VisualOcrError(
                 ErrorCode.OCR_PAGE_TIMEOUT,
                 "OCR fallback inference timed out.",
-                operation="recognise_fallback",
+                operation="paddle_ocr_pipeline",
                 failing_component="visual.worker",
                 exception_type=type(exc).__name__,
             ) from exc
@@ -373,6 +373,15 @@ def process_page(
     primary_image.close()
     rendered.image.close()
 
+    emit_message(
+        {
+            "type": "page.mapping_started",
+            "request_id": request_id,
+            "page_number": page_ref.page_number,
+            "operation": "visual_coordinate_mapping",
+        }
+    )
+    map_started = time.perf_counter()
     lines, words = _build_contract_lines(
         raw_lines,
         page_number=page_ref.page_number,
@@ -381,6 +390,28 @@ def process_page(
         variant=variant,
         config=config,
     )
+    mapping_duration_s = time.perf_counter() - map_started
+    emit_message(
+        {
+            "type": "page.mapping_completed",
+            "request_id": request_id,
+            "page_number": page_ref.page_number,
+            "operation": "visual_coordinate_mapping",
+            "mapping_duration_seconds": round(mapping_duration_s, 3),
+            "line_count": len(lines),
+            "word_count": len(words),
+        }
+    )
+
+    emit_message(
+        {
+            "type": "page.grouping_started",
+            "request_id": request_id,
+            "page_number": page_ref.page_number,
+            "operation": "visual_line_grouping",
+        }
+    )
+    group_started = time.perf_counter()
     blocks = group_lines_into_blocks(
         lines,
         page_number=page_ref.page_number,
@@ -392,6 +423,17 @@ def process_page(
     )
     blocks = apply_block_reading_order_indices(blocks)
     reading_order = build_reading_order(lines, blocks)
+    grouping_duration_s = time.perf_counter() - group_started
+    emit_message(
+        {
+            "type": "page.grouping_completed",
+            "request_id": request_id,
+            "page_number": page_ref.page_number,
+            "operation": "visual_line_grouping",
+            "grouping_duration_seconds": round(grouping_duration_s, 3),
+            "block_count": len(blocks),
+        }
+    )
     avg_det, avg_rec, low_count = _aggregate_scores(lines)
 
     warnings: list[VisualWarning] = []
@@ -446,6 +488,20 @@ def process_page(
         warnings=warnings,
         duration_ms=duration_ms,
         peak_rss_mb=snap.rss_mb,
+        render_duration_seconds=round(render_duration_s, 3),
+        preprocess_duration_seconds=round(preprocess_duration_s, 3),
+        paddle_pipeline_duration_seconds=round(paddle_pipeline_duration_s, 3),
+        mapping_duration_seconds=round(mapping_duration_s, 3),
+        grouping_duration_seconds=round(grouping_duration_s, 3),
+        source_width_px=rendered.source_width_px,
+        source_height_px=rendered.source_height_px,
+        detector_input_width=det_w,
+        detector_input_height=det_h,
+        requested_dpi=rendered.requested_dpi,
+        render_source_policy=rendered.render_source_policy,
+        detection_model_name=config.ocr_detection_model_name,
+        recognition_model_name=config.ocr_recognition_model_name,
+        cpu_threads=config.ocr_cpu_threads,
         error_code=NativeReasonCode.OCR_NO_TEXT_DETECTED.value if not lines else None,
     )
 

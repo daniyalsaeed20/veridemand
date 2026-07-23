@@ -438,7 +438,7 @@ class VisualOcrService:
                             "type": "page.failed",
                             "page_number": n,
                             "reason_code": last_error.code.value,
-                            "failed_operation": last_error.operation or "paddle_text_detection",
+                            "failed_operation": last_error.operation or "paddle_ocr_pipeline",
                             "attempt_number": max_attempts,
                             "max_attempts": max_attempts,
                         }
@@ -531,6 +531,8 @@ class VisualOcrService:
             completed_at=datetime.now(UTC),
             user_status_message=_PHASE4_USER_MESSAGE,
         )
+        await _progress({"type": "visual_summary_publication.started"})
         publish_summary_atomic(summary, results)
+        await _progress({"type": "visual_summary_publication.completed"})
         cleanup_staging(staging)
         return summary

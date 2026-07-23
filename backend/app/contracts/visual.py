@@ -184,6 +184,22 @@ class VisualPageResult(ApiModel):
     warnings: list[VisualWarning] = Field(default_factory=list)
     duration_ms: int | None = Field(default=None, ge=0)
     peak_rss_mb: float | None = Field(default=None, ge=0.0)
+    # Privacy-safe performance observability (no OCR text).
+    render_duration_seconds: float | None = Field(default=None, ge=0.0)
+    preprocess_duration_seconds: float | None = Field(default=None, ge=0.0)
+    paddle_pipeline_duration_seconds: float | None = Field(default=None, ge=0.0)
+    adapt_duration_seconds: float | None = Field(default=None, ge=0.0)
+    mapping_duration_seconds: float | None = Field(default=None, ge=0.0)
+    grouping_duration_seconds: float | None = Field(default=None, ge=0.0)
+    source_width_px: int | None = Field(default=None, ge=0)
+    source_height_px: int | None = Field(default=None, ge=0)
+    detector_input_width: int | None = Field(default=None, ge=0)
+    detector_input_height: int | None = Field(default=None, ge=0)
+    requested_dpi: float | None = Field(default=None, gt=0)
+    render_source_policy: str | None = None
+    detection_model_name: str | None = None
+    recognition_model_name: str | None = None
+    cpu_threads: int | None = Field(default=None, ge=0)
     error_code: str | None = None
 
 

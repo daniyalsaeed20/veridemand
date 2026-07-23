@@ -86,6 +86,7 @@ class ActiveRequest:
     future: asyncio.Future[list[dict[str, Any]]]
     state: str = "queued"
     page_number: int | None = None
+    page_started_at: float | None = None
     operation: str = "visual_worker_wait"
     events: list[dict[str, Any]] = field(default_factory=list)
 
@@ -658,7 +659,7 @@ class OcrWorkerManager:
                     err = VisualOcrError(
                         ErrorCode.OCR_PAGE_TIMEOUT,
                         "Visual OCR page processing timed out.",
-                        operation=active.operation or "paddle_text_detection",
+                        operation=active.operation or "paddle_ocr_pipeline",
                         failing_component="OcrWorkerManager",
                     )
                     # Final attempt: do not spawn an unused worker after failing the request.
@@ -677,13 +678,22 @@ class OcrWorkerManager:
                 if now - last_heartbeat >= 5.0:
                     last_heartbeat = now
                     if on_progress is not None:
+                        now_hb = loop.time()
+                        remaining_doc_hb = active.document_deadline - now_hb
+                        remaining_page_hb = active.page_deadline - now_hb
+                        remaining = remaining_doc_hb
+                        if page_deadline_armed:
+                            remaining = min(remaining_doc_hb, remaining_page_hb)
+                        page_elapsed = None
+                        if active.page_started_at is not None:
+                            page_elapsed = round(now_hb - active.page_started_at, 1)
                         heartbeat = {
                             "type": "worker.heartbeat",
                             "request_id": request.request_id,
-                            "elapsed_seconds": round(now - active.created_at, 1),
-                            "deadline_remaining_seconds": round(
-                                min(remaining_doc, remaining_page), 1
-                            ),
+                            "elapsed_seconds": round(now_hb - active.created_at, 1),
+                            "document_elapsed_seconds": round(now_hb - active.created_at, 1),
+                            "page_elapsed_seconds": page_elapsed,
+                            "deadline_remaining_seconds": round(max(0.0, remaining), 1),
                             "pid": process.pid,
                             "worker_generation": generation,
                             "attempt_number": attempt_number,
@@ -734,6 +744,16 @@ class OcrWorkerManager:
                 message["worker_generation"] = generation
                 message["attempt_number"] = attempt_number
                 message["worker_restart_count"] = self._state.restarts
+                emit_now = loop.time()
+                remaining_doc_emit = active.document_deadline - emit_now
+                remaining_page_emit = active.page_deadline - emit_now
+                remaining_emit = remaining_doc_emit
+                if page_deadline_armed:
+                    remaining_emit = min(remaining_doc_emit, remaining_page_emit)
+                message["deadline_remaining_seconds"] = round(max(0.0, remaining_emit), 1)
+                message["document_elapsed_seconds"] = round(emit_now - active.created_at, 1)
+                if active.page_started_at is not None:
+                    message["page_elapsed_seconds"] = round(emit_now - active.page_started_at, 1)
                 active.events.append(message)
                 msg_type = str(message.get("type") or "")
                 if msg_type == "page.started":
@@ -744,17 +764,27 @@ class OcrWorkerManager:
                     )
                     active.operation = "visual_page_render"
                     active.state = "running"
+                    active.page_started_at = emit_now
                     # End-to-end page deadline from page start (not sliding per event).
-                    active.page_deadline = loop.time() + page_timeout
+                    active.page_deadline = emit_now + page_timeout
                     page_deadline_armed = True
+                    message["deadline_remaining_seconds"] = round(page_timeout, 1)
+                    message["page_elapsed_seconds"] = 0.0
                 elif msg_type == "page.rendered":
                     active.operation = "visual_preprocessing"
-                elif msg_type == "page.ocr_started":
-                    active.operation = "paddle_text_detection"
+                elif msg_type in {"page.ocr_started", "page.ocr_completed"}:
+                    active.operation = "paddle_ocr_pipeline"
+                elif msg_type in {"page.mapping_started", "page.mapping_completed"}:
+                    active.operation = "visual_coordinate_mapping"
+                elif msg_type in {"page.grouping_started", "page.grouping_completed"}:
+                    active.operation = "visual_line_grouping"
                 elif msg_type in {"page.completed", "page.failed"}:
                     active.operation = "visual_page_publication"
                     page_deadline_armed = False
-                    active.page_deadline = loop.time() + page_timeout
+                    # Recalculate remaining at completion; do not copy heartbeat value.
+                    message["deadline_remaining_seconds"] = round(
+                        max(0.0, active.document_deadline - emit_now), 1
+                    )
                 if on_progress is not None:
                     result = on_progress(message)
                     if asyncio.iscoroutine(result):
@@ -792,6 +822,8 @@ class OcrWorkerManager:
                     with contextlib.suppress(VisualOcrError):
                         await self._restart_locked(reason="worker_protocol_error")
                     raise err
+
+        return []  # unreachable; satisfies type checkers when loop exits unexpectedly
 
 
 # Public alias matching package exports.
