@@ -63,6 +63,7 @@ def _bounded_stderr(message: str) -> None:
 
 
 def _config_from_env_settings() -> OcrRuntimeConfig:
+    from backend.app.extraction.visual.model_paths import resolve_ocr_model_root
     from backend.app.settings.config import Settings
 
     settings = Settings()
@@ -72,7 +73,7 @@ def _config_from_env_settings() -> OcrRuntimeConfig:
         ocr_engine=settings.ocr_engine,
         ocr_detection_model_name=settings.ocr_detection_model_name,
         ocr_recognition_model_name=settings.ocr_recognition_model_name,
-        ocr_model_root=str(settings.ocr_model_root),
+        ocr_model_root=str(resolve_ocr_model_root(settings.ocr_model_root)),
         ocr_cpu_threads=settings.ocr_cpu_threads,
         ocr_recognition_batch_size=settings.ocr_recognition_batch_size,
         ocr_render_dpi=settings.ocr_render_dpi,
@@ -228,7 +229,11 @@ def process_page(
     monitor: ResourceMonitor,
     request_id: str,
 ) -> VisualPageResult:
+    from concurrent.futures import ThreadPoolExecutor
+    from concurrent.futures import TimeoutError as FuturesTimeout
+
     started = time.perf_counter()
+    page_timeout = float(config.ocr_page_timeout_seconds)
     limits = RenderLimits(
         target_dpi=float(config.ocr_render_dpi),
         min_effective_dpi=float(config.ocr_min_effective_dpi),
@@ -243,14 +248,28 @@ def process_page(
             "page_number": page_ref.page_number,
         }
     )
-    rendered = render_page(
-        pdf_path,
-        page_number=page_ref.page_number,
-        page_width_points=page_ref.width_points,
-        page_height_points=page_ref.height_points,
-        limits=limits,
-        pdf_document=pdf_document,
-    )
+
+    def _render() -> Any:
+        return render_page(
+            pdf_path,
+            page_number=page_ref.page_number,
+            page_width_points=page_ref.width_points,
+            page_height_points=page_ref.height_points,
+            limits=limits,
+            pdf_document=pdf_document,
+        )
+
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            rendered = pool.submit(_render).result(timeout=page_timeout)
+    except FuturesTimeout as exc:
+        raise VisualOcrError(
+            ErrorCode.OCR_PAGE_TIMEOUT,
+            "Page render timed out.",
+            operation="render_page",
+            failing_component="visual.worker",
+            exception_type=type(exc).__name__,
+        ) from exc
     emit_message(
         {
             "type": "page.rendered",
@@ -266,7 +285,17 @@ def process_page(
     emit_message(
         {"type": "page.ocr_started", "request_id": request_id, "page_number": page_ref.page_number}
     )
-    raw_lines = adapter.recognise(primary_image)
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            raw_lines = pool.submit(adapter.recognise, primary_image).result(timeout=page_timeout)
+    except FuturesTimeout as exc:
+        raise VisualOcrError(
+            ErrorCode.OCR_PAGE_TIMEOUT,
+            "OCR inference timed out.",
+            operation="recognise",
+            failing_component="visual.worker",
+            exception_type=type(exc).__name__,
+        ) from exc
     fallback_used = False
     if (
         config.ocr_enable_grayscale_fallback
@@ -274,7 +303,20 @@ def process_page(
         and _raw_needs_fallback(raw_lines, config)
     ):
         fallback_image, variant = prepare_grayscale_fallback(rendered.image)
-        raw_lines = adapter.recognise(fallback_image)
+        try:
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                raw_lines = pool.submit(adapter.recognise, fallback_image).result(
+                    timeout=page_timeout
+                )
+        except FuturesTimeout as exc:
+            fallback_image.close()
+            raise VisualOcrError(
+                ErrorCode.OCR_PAGE_TIMEOUT,
+                "OCR fallback inference timed out.",
+                operation="recognise_fallback",
+                failing_component="visual.worker",
+                exception_type=type(exc).__name__,
+            ) from exc
         fallback_used = True
         fallback_image.close()
 

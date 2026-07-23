@@ -9,6 +9,7 @@ the application lifespan and torn down on shutdown.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -39,6 +40,9 @@ _DESCRIPTION = "Runtime-only document extraction platform API."
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Start and stop the Phase 2 runtime services around request serving."""
+
+    import asyncio
+    import os
 
     settings: Settings = app.state.settings
 
@@ -71,11 +75,40 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     cleanup_worker = CleanupWorker(cleanup_service, settings.session_cleanup_interval_seconds)
 
     cleanup_service.startup_sweep()
-    if settings.ocr_enabled:
+    ocr_start_task: asyncio.Task[None] | None = None
+
+    async def _start_ocr_background() -> None:
         try:
+            logging.getLogger("veridemand").info(
+                "OCR worker startup beginning",
+                extra={
+                    "component": "lifespan",
+                    "operation": "ocr_worker_start",
+                    "pid": os.getpid(),
+                },
+            )
             await ocr_worker_manager.start()
+            logging.getLogger("veridemand").info(
+                "OCR worker startup finished",
+                extra={
+                    "component": "lifespan",
+                    "operation": "ocr_worker_ready",
+                    "pid": os.getpid(),
+                    **ocr_worker_manager.describe(),
+                },
+            )
         except Exception:
-            logging.getLogger("veridemand").exception("OCR worker failed to start")
+            logging.getLogger("veridemand").exception(
+                "OCR worker failed to start",
+                extra={"component": "lifespan", "operation": "ocr_worker_start"},
+            )
+
+    # Uvicorn --reload: lifespan runs only in the serving child, not the
+    # reloader parent — so exactly one OCR worker attaches to the process that
+    # accepts requests. Do not block API accept on cold Paddle load; readiness
+    # stays 503 and POST /process rejects until the worker is ready.
+    if settings.ocr_enabled and os.environ.get("VERIDEMAND_SKIP_OCR_WORKER") != "1":
+        ocr_start_task = asyncio.create_task(_start_ocr_background(), name="ocr-worker-start")
     coordinator.start()
     cleanup_worker.start()
 
@@ -100,6 +133,10 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
+        if ocr_start_task is not None and not ocr_start_task.done():
+            ocr_start_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await ocr_start_task
         await cleanup_worker.stop()
         await coordinator.stop()
         await ocr_worker_manager.stop()
