@@ -40,3 +40,17 @@ def test_paddle_adapter_warmup_and_recognise() -> None:
         assert all(line.text for line in lines)
         assert all(0.0 <= line.recognition_score <= 1.0 for line in lines)
     del np
+
+
+def test_worker_uses_combined_paddle_ocr_pipeline_operation() -> None:
+    """Real stack uses one combined predict; public op name must match."""
+
+    worker_src = (ROOT / "backend" / "app" / "extraction" / "visual" / "worker.py").read_text(
+        encoding="utf-8"
+    )
+    adapter_src = (
+        ROOT / "backend" / "app" / "extraction" / "visual" / "paddle_adapter.py"
+    ).read_text(encoding="utf-8")
+    assert "paddle_ocr_pipeline" in worker_src
+    assert "paddle_text_detection" not in worker_src
+    assert "self._ocr.predict(" in adapter_src

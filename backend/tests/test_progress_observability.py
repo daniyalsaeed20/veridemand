@@ -22,6 +22,9 @@ def test_overall_progress_is_monotonic_and_capped() -> None:
 
 def test_heartbeat_does_not_advance_percent() -> None:
     snap = ProgressSnapshot()
+    from backend.app.processing.progress_model import MajorPhase
+
+    snap.major_phase = MajorPhase.VISUAL_OCR
     snap.set_visual_page_progress(
         pages_completed=0, pages_selected=2, page_number=1, page_percent=25
     )
@@ -42,12 +45,12 @@ def test_dev_formatter_renders_fields() -> None:
         exc_info=None,
     )
     record.overall_percent = 48.0
-    record.operation = "paddle_text_detection"
+    record.operation = "paddle_ocr_pipeline"
     record.document_id = "doc_abc"
     formatted = DevProgressFormatter().format(record)
     assert "visual_progress" in formatted
     assert "overall_percent=48.0" in formatted
-    assert "operation=paddle_text_detection" in formatted
+    assert "operation=paddle_ocr_pipeline" in formatted
     assert "processing_stage" not in formatted
 
 

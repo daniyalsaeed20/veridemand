@@ -112,7 +112,7 @@ def test_visual_failure_progress_not_stuck_at_native_32() -> None:
         page_count_status="known",  # type: ignore[arg-type]
         status=DocumentStatus.VISUAL_PROCESSING_FAILED,
         progress_percent=32,
-        failure_stage="paddle_text_detection",
+        failure_stage="paddle_ocr_pipeline",
         failure_code="ocr_page_timeout",
     )
     assert _document_progress_percent(doc) == 65
