@@ -15,6 +15,7 @@ import { computeEffectivePageDimensions, dimensionsExceedTolerance } from "./geo
 import { DIMENSION_TOLERANCE_POINTS, type RotationDegrees } from "./constants";
 import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from "./pdfjs";
 import {
+  canvasLooksBlank,
   isRenderingCancelledError,
   resolveDevicePixelRatio,
   type PdfRenderDiagnosticCode,
@@ -60,6 +61,9 @@ export interface PdfCanvasProps {
   readonly scale: number;
   readonly rotation: RotationDegrees;
   readonly backendPage?: CanonicalPageMetadata;
+  /** When true (default), a fully white canvas after render is treated as failure. */
+  readonly expectVisibleContent?: boolean;
+  readonly documentId?: string | null;
   readonly onViewportChange?: (viewport: PdfCanvasRenderedViewport) => void;
   readonly onDimensionMismatchChange?: (mismatch: boolean) => void;
   readonly onRenderStatusChange?: (status: PdfRenderStatus) => void;
@@ -73,6 +77,8 @@ export function PdfCanvas({
   scale,
   rotation,
   backendPage,
+  expectVisibleContent = true,
+  documentId = null,
   onViewportChange,
   onDimensionMismatchChange,
   onRenderStatusChange,
@@ -201,6 +207,30 @@ export function PdfCanvas({
         if (!effectActive || renderGenerationRef.current !== generation) {
           return;
         }
+        if (expectVisibleContent && canvasLooksBlank(canvas)) {
+          const sampleStep = 8;
+          const sampled =
+            Math.ceil(canvas.width / sampleStep) * Math.ceil(canvas.height / sampleStep);
+          if (import.meta.env.DEV) {
+            console.info("[pdfjs] blank_render_detected", {
+              document_id: documentId,
+              canvas_width: canvas.width,
+              canvas_height: canvas.height,
+              sampled_pixel_count: sampled,
+              non_white_pixel_ratio: 0,
+              blank_render_detected: true,
+            });
+          }
+          setDiagnosticCode("PDFJS_BLANK_PAGE");
+          updateStatus("error");
+          return;
+        }
+        if (import.meta.env.DEV) {
+          console.info("[pdfjs] render_task_completed", {
+            document_id: documentId,
+            page_number: pageNumber,
+          });
+        }
         updateStatus("rendered");
         onViewportChange?.({
           widthPx: cssWidth,
@@ -209,10 +239,25 @@ export function PdfCanvas({
         });
       } catch (cause: unknown) {
         if (isRenderingCancelledError(cause)) {
+          if (import.meta.env.DEV) {
+            console.info("[pdfjs] render_task_cancelled", {
+              document_id: documentId,
+              page_number: pageNumber,
+            });
+          }
           return;
         }
         if (!effectActive || renderGenerationRef.current !== generation) {
           return;
+        }
+        if (import.meta.env.DEV) {
+          const err = cause instanceof Error ? cause : null;
+          console.info("[pdfjs] render_task_failed", {
+            document_id: documentId,
+            page_number: pageNumber,
+            pdfjs_error_name: err?.name ?? "unknown",
+            pdfjs_error_message_safe: (err?.message ?? "render failed").slice(0, 200),
+          });
         }
         setDiagnosticCode("PDFJS_RENDER_FAILED");
         updateStatus("error");
@@ -241,7 +286,18 @@ export function PdfCanvas({
       }
       // Intentionally do not clear canvas.width/height here.
     };
-  }, [page, pdfDocument, scale, rotation, onViewportChange, updateStatus, retryToken]);
+  }, [
+    page,
+    pdfDocument,
+    scale,
+    rotation,
+    onViewportChange,
+    updateStatus,
+    retryToken,
+    expectVisibleContent,
+    documentId,
+    pageNumber,
+  ]);
 
   const handleRetry = () => {
     setRetryToken((token) => token + 1);
@@ -275,11 +331,11 @@ export function PdfCanvas({
           sx={{ maxWidth: 480 }}
         >
           <Typography component="div" variant="body2">
-            This page could not be rendered.
+            Canonical document could not be rendered.
           </Typography>
           {diagnosticCode ? (
             <Typography component="div" variant="caption" sx={{ display: "block", mt: 0.5 }}>
-              Diagnostic code: {diagnosticCode}
+              Error code: {diagnosticCode} · stage: canvas render
             </Typography>
           ) : null}
         </Alert>
