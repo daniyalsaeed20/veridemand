@@ -3034,6 +3034,18 @@
             ],
             "title": "Attempt Number"
           },
+          "average_page_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Page Seconds"
+          },
           "canonical_page_count": {
             "anyOf": [
               {
@@ -3120,6 +3132,18 @@
             "description": "Related document, if any.",
             "title": "Document Id"
           },
+          "document_pages_total": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Pages Total"
+          },
           "document_status": {
             "anyOf": [
               {
@@ -3143,6 +3167,53 @@
             ],
             "description": "Document-level elapsed (alias).",
             "title": "Elapsed Seconds"
+          },
+          "estimate_confidence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimate Confidence"
+          },
+          "estimated_completion_time": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Completion Time"
+          },
+          "estimated_document_seconds_remaining": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Document Seconds Remaining"
+          },
+          "estimated_queue_seconds_remaining": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Queue Seconds Remaining"
           },
           "event": {
             "$ref": "#/components/schemas/ProgressEventType",
@@ -3233,6 +3304,18 @@
             ],
             "description": "Optional safe, non-sensitive message.",
             "title": "Message"
+          },
+          "native_pages_retained": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Native Pages Retained"
           },
           "native_trust_score": {
             "anyOf": [
@@ -3349,6 +3432,18 @@
             ],
             "description": "Reserved; unused in Phase 1.",
             "title": "Pages Completed"
+          },
+          "pages_per_minute": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pages Per Minute"
           },
           "pages_total": {
             "anyOf": [
@@ -3477,6 +3572,42 @@
             "format": "date-time",
             "title": "Timestamp",
             "type": "string"
+          },
+          "visual_pages_completed": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visual Pages Completed"
+          },
+          "visual_pages_remaining": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visual Pages Remaining"
+          },
+          "visual_pages_selected": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visual Pages Selected"
           },
           "worker_generation": {
             "anyOf": [
@@ -4105,6 +4236,11 @@
         "additionalProperties": false,
         "description": "Public visual-processing summary for a document.",
         "properties": {
+          "canonical_document_available": {
+            "default": false,
+            "title": "Canonical Document Available",
+            "type": "boolean"
+          },
           "completed_at": {
             "anyOf": [
               {
@@ -4136,6 +4272,13 @@
                 "type": "null"
               }
             ]
+          },
+          "error_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Error Codes",
+            "type": "array"
           },
           "final_result_available": {
             "default": false,

@@ -754,6 +754,7 @@ export const zProgressEventType = z.enum([
  */
 export const zProgressEvent = z.object({
     attempt_number: z.int().gte(1).nullish(),
+    average_page_seconds: z.number().gte(0).nullish(),
     canonical_page_count: z.int().gte(0).nullish(),
     canonical_status: z.string().nullish(),
     canonicalisation_method: z.string().nullish(),
@@ -761,8 +762,13 @@ export const zProgressEvent = z.object({
     decision: z.string().nullish(),
     document_elapsed_seconds: z.number().gte(0).nullish(),
     document_id: z.string().regex(/^doc_[0-9a-f]{32}$/).nullish(),
+    document_pages_total: z.int().gte(0).nullish(),
     document_status: zDocumentStatus.nullish(),
     elapsed_seconds: z.number().gte(0).nullish(),
+    estimate_confidence: z.string().nullish(),
+    estimated_completion_time: z.iso.datetime().nullish(),
+    estimated_document_seconds_remaining: z.number().gte(0).nullish(),
+    estimated_queue_seconds_remaining: z.number().gte(0).nullish(),
     event: zProgressEventType,
     event_id: z.string().regex(/^evt_[0-9]{12}$/),
     event_sequence: z.int().gte(1),
@@ -772,6 +778,7 @@ export const zProgressEvent = z.object({
     major_phase_percent: z.number().gte(0).lte(100).nullish(),
     max_attempts: z.int().gte(1).nullish(),
     message: z.string().nullish(),
+    native_pages_retained: z.int().gte(0).nullish(),
     native_trust_score: z.number().gte(0).lte(1).nullish(),
     operation: z.string().nullish(),
     operation_elapsed_seconds: z.number().gte(0).nullish(),
@@ -781,6 +788,7 @@ export const zProgressEvent = z.object({
     page_number: z.int().gte(1).nullish(),
     page_percent: z.number().gte(0).lte(100).nullish(),
     pages_completed: z.int().gte(0).nullish(),
+    pages_per_minute: z.number().gte(0).nullish(),
     pages_total: z.int().gte(0).nullish(),
     percent: z.int().gte(0).lte(100).nullish(),
     progress_kind: z.string().nullish(),
@@ -792,6 +800,9 @@ export const zProgressEvent = z.object({
     stage: z.string().nullish(),
     stage_elapsed_seconds: z.number().gte(0).nullish(),
     timestamp: z.iso.datetime(),
+    visual_pages_completed: z.int().gte(0).nullish(),
+    visual_pages_remaining: z.int().gte(0).nullish(),
+    visual_pages_selected: z.int().gte(0).nullish(),
     worker_generation: z.int().gte(0).nullish(),
     worker_pid: z.int().gte(0).nullish(),
     worker_restart_count: z.int().gte(0).nullish()
@@ -1239,10 +1250,12 @@ export const zVisualWarning = z.object({
  * Public visual-processing summary for a document.
  */
 export const zVisualDocumentSummary = z.object({
+    canonical_document_available: z.boolean().optional().default(false),
     completed_at: z.iso.datetime().nullish(),
     created_at: z.iso.datetime(),
     document_id: z.string().regex(/^doc_[0-9a-f]{32}$/),
     document_source_policy: zDocumentSourcePolicy.nullish(),
+    error_codes: z.array(z.string()).optional(),
     final_result_available: z.boolean().optional().default(false),
     handwriting_assessment_pending: z.boolean().optional().default(true),
     model_info: zVisualModelInfo.nullish(),

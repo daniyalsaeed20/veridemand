@@ -1989,6 +1989,10 @@ export type ProgressEvent = {
      */
     attempt_number?: number | null;
     /**
+     * Average Page Seconds
+     */
+    average_page_seconds?: number | null;
+    /**
      * Canonical Page Count
      *
      * Canonical page count when known.
@@ -2027,6 +2031,10 @@ export type ProgressEvent = {
      */
     document_id?: string | null;
     /**
+     * Document Pages Total
+     */
+    document_pages_total?: number | null;
+    /**
      * Document status at the time of the event, if relevant.
      */
     document_status?: DocumentStatus | null;
@@ -2036,6 +2044,22 @@ export type ProgressEvent = {
      * Document-level elapsed (alias).
      */
     elapsed_seconds?: number | null;
+    /**
+     * Estimate Confidence
+     */
+    estimate_confidence?: string | null;
+    /**
+     * Estimated Completion Time
+     */
+    estimated_completion_time?: string | null;
+    /**
+     * Estimated Document Seconds Remaining
+     */
+    estimated_document_seconds_remaining?: number | null;
+    /**
+     * Estimated Queue Seconds Remaining
+     */
+    estimated_queue_seconds_remaining?: number | null;
     /**
      * Event type.
      */
@@ -2084,6 +2108,10 @@ export type ProgressEvent = {
      * Optional safe, non-sensitive message.
      */
     message?: string | null;
+    /**
+     * Native Pages Retained
+     */
+    native_pages_retained?: number | null;
     /**
      * Native Trust Score
      *
@@ -2134,6 +2162,10 @@ export type ProgressEvent = {
      * Reserved; unused in Phase 1.
      */
     pages_completed?: number | null;
+    /**
+     * Pages Per Minute
+     */
+    pages_per_minute?: number | null;
     /**
      * Pages Total
      *
@@ -2200,6 +2232,18 @@ export type ProgressEvent = {
      * Timezone-aware UTC time of the event.
      */
     timestamp: string;
+    /**
+     * Visual Pages Completed
+     */
+    visual_pages_completed?: number | null;
+    /**
+     * Visual Pages Remaining
+     */
+    visual_pages_remaining?: number | null;
+    /**
+     * Visual Pages Selected
+     */
+    visual_pages_selected?: number | null;
     /**
      * Worker Generation
      */
@@ -2618,6 +2662,10 @@ export type VisualBlockType = 'text_unknown';
  */
 export type VisualDocumentSummary = {
     /**
+     * Canonical Document Available
+     */
+    canonical_document_available?: boolean;
+    /**
      * Completed At
      */
     completed_at?: string | null;
@@ -2630,6 +2678,10 @@ export type VisualDocumentSummary = {
      */
     document_id: string;
     document_source_policy?: DocumentSourcePolicy | null;
+    /**
+     * Error Codes
+     */
+    error_codes?: Array<string>;
     /**
      * Final Result Available
      */
