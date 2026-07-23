@@ -14,9 +14,19 @@ export function useLiveness() {
   });
 }
 
-export function useReadiness() {
+export function useReadiness(options?: { pollWhileNotReady?: boolean }) {
+  const pollWhileNotReady = options?.pollWhileNotReady ?? false;
   return useQuery({
     queryKey: healthQueryKeys.readiness,
     queryFn: ({ signal }) => fetchReadiness(signal),
+    refetchInterval: (query) => {
+      if (!pollWhileNotReady) {
+        return false;
+      }
+      if (query.state.data?.status === "ready") {
+        return false;
+      }
+      return 3000;
+    },
   });
 }

@@ -128,18 +128,29 @@ describe("DocumentCard", () => {
     expect(screen.getByText(/Canonical document ready/i)).toBeInTheDocument();
   });
 
-  it('selects the document in the viewer store when "Open canonical document" is clicked', () => {
+  it("shows OCR stage captions from user_status_message during visual processing", () => {
     renderWithClient(
       <DocumentCard
         sessionId={SESSION_ID}
         document={makeDocument({
           document_id: DOC_ID,
-          status: "ready_for_extraction",
-          canonical_view_available: true,
+          status: "visual_processing",
+          progress_percent: 48,
+          user_status_message: "Recognising page 2 of 2",
         })}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /open canonical document/i }));
-    expect(useViewerStore.getState().selectedDocumentId).toBe(DOC_ID);
+    expect(screen.getByText("Recognising page 2 of 2")).toBeInTheDocument();
+  });
+
+  it("disables Process when processBlocked is set", () => {
+    renderWithClient(
+      <DocumentCard
+        sessionId={SESSION_ID}
+        document={makeDocument({ document_id: DOC_ID, status: "uploaded" })}
+        processBlocked
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Process" })).toBeDisabled();
   });
 });

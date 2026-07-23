@@ -28,6 +28,7 @@ from backend.app.extraction.native.service import NativeExtractionService
 from backend.app.extraction.visual.errors import VisualOcrError
 from backend.app.extraction.visual.service import VisualOcrService
 from backend.app.observability.errors import ApiException
+from backend.app.observability.stage_log import log_stage
 from backend.app.processing.cancellation import JobCancelledError
 from backend.app.processing.models import ProcessingJob
 from backend.app.processing.queue import JobQueue, QueueClosedError
@@ -616,6 +617,15 @@ class ProcessingCoordinator:
                 event = ProgressEventType.DOCUMENT_NATIVE_PAGE_ABSENT
             elif decision == NativePageDecision.ERROR.value:
                 event = ProgressEventType.DOCUMENT_NATIVE_PAGE_ERROR
+            log_stage(
+                component="native",
+                operation="page_completed",
+                document_id=document.document_id,
+                job_id=job.job_id,
+                page_number=page_number,
+                decision=decision,
+                percent=percent,
+            )
             score_raw = payload.get("native_trust_score")
             score = float(score_raw) if isinstance(score_raw, (int, float)) else None
             reasons_raw = payload.get("reason_codes")
@@ -709,6 +719,14 @@ class ProcessingCoordinator:
 
         document.status = DocumentStatus.VISUAL_PENDING
         document.progress_percent = _VISUAL_SELECT_PROGRESS
+        document.user_status_message = "Waiting for OCR worker"
+        log_stage(
+            component="visual",
+            operation="visual_pending",
+            document_id=document.document_id,
+            job_id=job.job_id,
+            percent=_VISUAL_SELECT_PROGRESS,
+        )
         await _safe_publish(
             session.broker,
             ProgressEventType.DOCUMENT_VISUAL_PROCESSING_STARTED,
@@ -717,6 +735,7 @@ class ProcessingCoordinator:
             stage=_VISUAL_STAGE,
             percent=_VISUAL_SELECT_PROGRESS,
             document_status=DocumentStatus.VISUAL_PENDING,
+            message=document.user_status_message,
         )
 
         native_pages = {}
@@ -742,6 +761,41 @@ class ProcessingCoordinator:
             document.progress_percent = percent
             document.pages_completed = pages_completed
             document.pages_total = page_count
+
+            if event_type == "worker.heartbeat":
+                document.user_status_message = "Waiting for OCR worker"
+                log_stage(
+                    component="visual",
+                    operation="worker_heartbeat",
+                    document_id=document.document_id,
+                    job_id=job.job_id,
+                    page_number=page_number,
+                    elapsed_s=(
+                        float(elapsed_raw)
+                        if isinstance(elapsed_raw := payload.get("elapsed_seconds"), (int, float))
+                        else None
+                    ),
+                )
+                return
+            if event_type == "visual_pages_selected":
+                document.user_status_message = "Selecting pages for printed OCR"
+            elif event_type == "page.started" and page_number is not None:
+                document.user_status_message = f"Rendering page {page_number} of {page_count}"
+            elif event_type == "page.rendered" and page_number is not None:
+                document.user_status_message = f"Rendered page {page_number} of {page_count}"
+            elif event_type == "page.ocr_started" and page_number is not None:
+                document.user_status_message = f"Recognising page {page_number} of {page_count}"
+            elif event_type == "page.completed" and page_number is not None:
+                document.user_status_message = f"Publishing page {page_number} of {page_count}"
+
+            log_stage(
+                component="visual",
+                operation=event_type.replace(".", "_"),
+                document_id=document.document_id,
+                job_id=job.job_id,
+                page_number=page_number,
+                percent=percent,
+            )
 
             event_map = {
                 "visual_pages_selected": ProgressEventType.DOCUMENT_VISUAL_PAGES_SELECTED,
@@ -778,6 +832,7 @@ class ProcessingCoordinator:
                 pages_total=page_count,
                 percent=percent,
                 reason_codes=reasons,
+                message=document.user_status_message,
             )
 
         canonical_pdf = self._file_store.canonical_path(session.session_id, document.document_id)

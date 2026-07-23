@@ -72,9 +72,15 @@ interface DocumentCardProps {
   readonly sessionId: string;
   readonly document: DocumentSummary;
   readonly disabled?: boolean;
+  readonly processBlocked?: boolean;
 }
 
-export function DocumentCard({ sessionId, document, disabled = false }: DocumentCardProps) {
+export function DocumentCard({
+  sessionId,
+  document,
+  disabled = false,
+  processBlocked = false,
+}: DocumentCardProps) {
   const queryClient = useQueryClient();
   const selectDocument = useViewerStore((state) => state.selectDocument);
   const selectedDocumentId = useViewerStore((state) => state.selectedDocumentId);
@@ -96,7 +102,11 @@ export function DocumentCard({ sessionId, document, disabled = false }: Document
   });
 
   const busy =
-    disabled || processMutation.isPending || cancelMutation.isPending || removeMutation.isPending;
+    disabled ||
+    processBlocked ||
+    processMutation.isPending ||
+    cancelMutation.isPending ||
+    removeMutation.isPending;
 
   const canProcess = document.status === "uploaded";
   const canCancel =
@@ -164,11 +174,13 @@ export function DocumentCard({ sessionId, document, disabled = false }: Document
               aria-label="Document processing progress"
             />
             <Typography variant="caption" color="text.secondary">
-              {document.status === "canonicalising"
-                ? "Canonicalising for the viewer — no extraction has been performed yet."
-                : document.status === "visual_pending" || document.status === "visual_processing"
-                  ? "Printed visual OCR in progress — capped at 65% until handwriting/structure phases."
-                  : "Inspecting native PDF text — visual OCR follows when native trust completes."}
+              {document.user_status_message
+                ? document.user_status_message
+                : document.status === "canonicalising"
+                  ? "Canonicalising for the viewer — no extraction has been performed yet."
+                  : document.status === "visual_pending" || document.status === "visual_processing"
+                    ? "Printed visual OCR in progress — capped at 65% until handwriting/structure phases."
+                    : "Inspecting native PDF text — visual OCR follows when native trust completes."}
             </Typography>
           </Box>
         ) : null}
@@ -227,7 +239,14 @@ export function DocumentCard({ sessionId, document, disabled = false }: Document
           </Stack>
         ) : null}
 
-        {document.status !== "failed" && document.user_status_message ? (
+        {document.status !== "failed" &&
+        document.user_status_message &&
+        document.status !== "queued" &&
+        document.status !== "canonicalising" &&
+        document.status !== "inspecting_native" &&
+        document.status !== "extracting_native" &&
+        document.status !== "visual_pending" &&
+        document.status !== "visual_processing" ? (
           <Typography variant="caption" color="text.secondary">
             {document.user_status_message}
           </Typography>

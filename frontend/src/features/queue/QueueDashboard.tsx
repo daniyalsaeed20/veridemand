@@ -1,5 +1,15 @@
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import { Box, Button, Card, CardContent, Chip, Divider, Stack, Typography } from "@mui/material";
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Divider,
+  Stack,
+  Typography,
+} from "@mui/material";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { processDocuments } from "../session/sessionApi";
@@ -11,9 +21,18 @@ interface QueueDashboardProps {
   readonly sessionId: string;
   readonly snapshot: SessionSnapshot;
   readonly disabled?: boolean;
+  /** When true, Process actions are disabled (OCR worker / readiness gate). */
+  readonly processBlocked?: boolean;
+  readonly processBlockedReason?: string;
 }
 
-export function QueueDashboard({ sessionId, snapshot, disabled = false }: QueueDashboardProps) {
+export function QueueDashboard({
+  sessionId,
+  snapshot,
+  disabled = false,
+  processBlocked = false,
+  processBlockedReason,
+}: QueueDashboardProps) {
   const queryClient = useQueryClient();
   const { counts, queue, documents } = snapshot;
 
@@ -23,6 +42,7 @@ export function QueueDashboard({ sessionId, snapshot, disabled = false }: QueueD
   });
 
   const hasQueueable = (counts.uploaded ?? 0) > 0;
+  const processingDisabled = disabled || processBlocked;
 
   return (
     <Card variant="outlined">
@@ -40,12 +60,19 @@ export function QueueDashboard({ sessionId, snapshot, disabled = false }: QueueD
               variant="contained"
               size="small"
               startIcon={<PlayArrowIcon />}
-              disabled={disabled || !hasQueueable || processAll.isPending}
+              disabled={processingDisabled || !hasQueueable || processAll.isPending}
               onClick={() => processAll.mutate()}
             >
               {processAll.isPending ? "Queuing..." : "Process all uploaded"}
             </Button>
           </Stack>
+
+          {processBlocked ? (
+            <Alert severity="warning" role="status">
+              {processBlockedReason ??
+                "Printed OCR is still starting or unavailable. Check runtime readiness."}
+            </Alert>
+          ) : null}
 
           <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
             <CountChip label="Uploaded" value={counts.uploaded ?? 0} />
@@ -58,7 +85,7 @@ export function QueueDashboard({ sessionId, snapshot, disabled = false }: QueueD
 
           <Typography variant="body2" color="text.secondary">
             Queue: {queue.pending} pending · {queue.running} running · single-worker, first-in
-            first-out. Extraction is not performed in this phase.
+            first-out. Printed OCR progress is capped at 65% in this phase.
           </Typography>
 
           <Divider />
@@ -77,6 +104,7 @@ export function QueueDashboard({ sessionId, snapshot, disabled = false }: QueueD
                   sessionId={sessionId}
                   document={document}
                   disabled={disabled}
+                  processBlocked={processBlocked}
                 />
               ))}
             </Stack>

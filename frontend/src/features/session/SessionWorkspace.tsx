@@ -2,6 +2,7 @@ import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import { Alert, AlertTitle, Box, Button, CircularProgress, Stack, Typography } from "@mui/material";
 
 import { ApiError } from "../../api/http";
+import { useReadiness } from "../health/useHealth";
 import { UploadPanel } from "../upload/UploadPanel";
 import { QueueDashboard } from "../queue/QueueDashboard";
 import { CanonicalViewer } from "../viewer/CanonicalViewer";
@@ -9,9 +10,12 @@ import { SessionStatusBar } from "./SessionStatusBar";
 import { useRuntimeSession } from "./useRuntimeSession";
 import { useSessionEvents } from "./useSessionEvents";
 
+const OCR_STARTING_COPY = "Printed OCR is still starting or unavailable. Check runtime readiness.";
+
 export function SessionWorkspace() {
   const session = useRuntimeSession();
   const events = useSessionEvents(session.sessionId, { onSessionGone: session.markGone });
+  const readiness = useReadiness({ pollWhileNotReady: true });
 
   if (session.error && !session.snapshot) {
     const message =
@@ -74,6 +78,8 @@ export function SessionWorkspace() {
   const snapshot = session.snapshot;
   const interactionsDisabled =
     session.isResetting || snapshot.status === "expired" || snapshot.status === "deleted";
+  const processBlocked =
+    !readiness.isSuccess || readiness.data.status === "not_ready" || readiness.isError;
 
   return (
     <Stack spacing={3}>
@@ -99,6 +105,8 @@ export function SessionWorkspace() {
             sessionId={session.sessionId}
             snapshot={snapshot}
             disabled={interactionsDisabled}
+            processBlocked={processBlocked}
+            processBlockedReason={OCR_STARTING_COPY}
           />
         </Stack>
 

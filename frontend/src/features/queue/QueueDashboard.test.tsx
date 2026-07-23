@@ -71,7 +71,21 @@ describe("QueueDashboard", () => {
     renderWithClient(<QueueDashboard sessionId={SESSION_ID} snapshot={snapshotWithDocuments()} />);
     expect(screen.getByText(/no results are available yet/i)).toBeInTheDocument();
     expect(screen.queryByText(/extraction complete/i)).toBeNull();
-    expect(screen.getByText(/Extraction is not performed in this phase/i)).toBeInTheDocument();
+    expect(screen.getByText(/Printed OCR progress is capped at 65%/i)).toBeInTheDocument();
+  });
+
+  it("disables Process when OCR readiness blocks processing", () => {
+    renderWithClient(
+      <QueueDashboard
+        sessionId={SESSION_ID}
+        snapshot={snapshotWithDocuments()}
+        processBlocked
+        processBlockedReason="Printed OCR is still starting or unavailable. Check runtime readiness."
+      />,
+    );
+    expect(screen.getByRole("button", { name: /process all uploaded/i })).toBeDisabled();
+    expect(screen.getByText(/Printed OCR is still starting or unavailable/i)).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Process" })[0]).toBeDisabled();
   });
 
   it("renders an empty state with no documents", () => {
