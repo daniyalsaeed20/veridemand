@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import time
 from typing import Any
 from urllib.parse import quote
 
@@ -21,6 +23,7 @@ from backend.app.observability.errors import ApiException
 from backend.app.sessions.models import RuntimeDocument, RuntimeSession
 
 router = APIRouter(tags=["canonical"])
+logger = logging.getLogger("veridemand.canonical.api")
 
 _ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     404: {"model": ApiErrorEnvelope, "description": "Session or document not found."},
@@ -74,6 +77,23 @@ async def get_canonical_pdf(
     file_store: FileStoreDep,
     settings: SettingsDep,
 ) -> Response:
+    started = time.perf_counter()
+    range_header = request.headers.get("range")
+    range_start: int | None = None
+    range_end: int | None = None
+    if range_header and range_header.lower().startswith("bytes="):
+        spec = range_header[6:].strip()
+        if "-" in spec:
+            start_s, _, end_s = spec.partition("-")
+            try:
+                range_start = int(start_s) if start_s else None
+            except ValueError:
+                range_start = None
+            try:
+                range_end = int(end_s) if end_s else None
+            except ValueError:
+                range_end = None
+
     session = await registry.get(session_id, touch=False)
     document = _require_document(session, document_id)
     _require_ready(document)
@@ -86,6 +106,20 @@ async def get_canonical_pdf(
         document.canonical_view_available = False
         document.canonical_failure_code = ErrorCode.CANONICAL_DOCUMENT_NOT_FOUND.value
         document.status = DocumentStatus.FAILED
+        duration_ms = int((time.perf_counter() - started) * 1000)
+        logger.info(
+            "canonical_request",
+            extra={
+                "document_id": document_id,
+                "response_status": 404,
+                "range_requested": range_header is not None,
+                "range_start": range_start,
+                "range_end": range_end,
+                "content_length": None,
+                "content_type": None,
+                "duration_ms": duration_ms,
+            },
+        )
         raise ApiException(
             status_code=404,
             code=ErrorCode.CANONICAL_DOCUMENT_NOT_FOUND,
@@ -94,11 +128,26 @@ async def get_canonical_pdf(
         )
 
     filename = _safe_pdf_filename(document.display_filename)
+    content_length = path.stat().st_size
     headers = {
         "Cache-Control": settings.canonical_file_cache_control,
         "Accept-Ranges": "bytes",
         "Content-Disposition": f"inline; filename*=UTF-8''{quote(filename)}",
     }
+    duration_ms = int((time.perf_counter() - started) * 1000)
+    logger.info(
+        "canonical_request",
+        extra={
+            "document_id": document_id,
+            "response_status": 206 if range_header else 200,
+            "range_requested": range_header is not None,
+            "range_start": range_start,
+            "range_end": range_end,
+            "content_length": content_length,
+            "content_type": "application/pdf",
+            "duration_ms": duration_ms,
+        },
+    )
     return FileResponse(
         path,
         media_type="application/pdf",

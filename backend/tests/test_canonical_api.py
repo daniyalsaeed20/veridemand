@@ -125,6 +125,67 @@ def test_get_canonical_pdf_range_bytes_must_match_slice(
     assert response.content != full[11:43]
 
 
+def test_get_canonical_pdf_range_1024_and_sha256_stable(
+    client: TestClient, uploads_dir: Path, tmp_path: Path
+) -> None:
+    """Phase 4.4: exact 0-1023 range + PDF integrity markers."""
+
+    from pypdf import PdfWriter
+
+    # Synthetic uploads are tiny; build a >1KiB PDF so Range 0-1023 is valid.
+    large_pdf = tmp_path / "large_range.pdf"
+    writer = PdfWriter()
+    for _ in range(8):
+        writer.add_blank_page(width=612, height=792)
+    # Pad with an embedded stream so the file exceeds 1024 bytes.
+    with large_pdf.open("wb") as handle:
+        writer.write(handle)
+    if large_pdf.stat().st_size <= 1024:
+        # Extremely defensive: append comment padding if blank pages stay tiny.
+        padded = large_pdf.read_bytes() + (b"\n% " + (b"x" * 1200) + b"\n")
+        large_pdf.write_bytes(padded)
+
+    session_id = _create_session(client)
+    files = [("files", ("large_range.pdf", large_pdf.read_bytes(), "application/pdf"))]
+    upload = client.post(f"{_API}/sessions/{session_id}/documents", files=files)
+    assert upload.status_code == 201, upload.text
+    document_id = str(upload.json()["accepted"][0]["document_id"])
+    response = client.post(f"{_API}/sessions/{session_id}/process", json={"document_ids": None})
+    assert response.status_code == 202
+    _poll_snapshot(
+        client,
+        session_id,
+        lambda snapshot: snapshot["counts"].get("ready_for_extraction", 0) >= 1,
+    )
+
+    meta = client.get(f"{_API}/sessions/{session_id}/documents/{document_id}/canonical/metadata")
+    assert meta.status_code == 200
+    sha_before = meta.json()["sha256"]
+    full = client.get(f"{_API}/sessions/{session_id}/documents/{document_id}/canonical")
+    assert full.status_code == 200
+    assert full.headers["content-type"].startswith("application/pdf")
+    assert full.headers.get("accept-ranges") == "bytes"
+    assert full.content.startswith(b"%PDF")
+    assert int(full.headers["content-length"]) == len(full.content)
+    assert len(full.content) > 1024
+
+    ranged = client.get(
+        f"{_API}/sessions/{session_id}/documents/{document_id}/canonical",
+        headers={"Range": "bytes=0-1023"},
+    )
+    assert ranged.status_code == 206
+    assert ranged.headers["content-type"].startswith("application/pdf")
+    assert ranged.headers.get("accept-ranges") == "bytes"
+    assert ranged.headers["content-length"] == "1024"
+    assert ranged.headers["content-range"] == f"bytes 0-1023/{len(full.content)}"
+    assert ranged.content == full.content[:1024]
+
+    meta_after = client.get(
+        f"{_API}/sessions/{session_id}/documents/{document_id}/canonical/metadata"
+    )
+    assert meta_after.json()["sha256"] == sha_before
+
+
 def test_get_canonical_pdf_bad_range_returns_416(client: TestClient, uploads_dir: Path) -> None:
     session_id, document_id = _process_pdf_to_ready(client, uploads_dir)
     response = client.get(
