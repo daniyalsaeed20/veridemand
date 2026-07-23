@@ -552,6 +552,10 @@ def run_worker_loop() -> int:
             "paddleocr_version": adapter.paddleocr_version,
             "paddlepaddle_version": adapter.paddlepaddle_version,
             "word_box_key": adapter.schema.word_box_key if adapter.schema else None,
+            "enable_mkldnn": False,
+            "cpu_threads": config.ocr_cpu_threads,
+            "ocr_device": config.ocr_device,
+            "ocr_engine": config.ocr_engine,
         }
     )
 

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import inspect
 import logging
 import shutil
@@ -41,14 +40,16 @@ from backend.app.extraction.visual.renderer import RenderLimits, render_page
 from backend.app.extraction.visual.result_store import (
     cleanup_staging,
     delete_results,
+    list_published_page_numbers,
     load_page,
     load_summary,
     publish_page_atomic,
     publish_summary_atomic,
+    remove_incomplete_page_parts,
 )
 from backend.app.extraction.visual.visibility import VisibilityThresholds, probe_native_visibility
 from backend.app.extraction.visual.worker_manager import OcrWorkerManager
-from backend.app.processing.cancellation import CancellationToken
+from backend.app.processing.cancellation import CancellationToken, JobCancelledError
 from backend.app.settings.config import Settings
 from backend.app.storage import paths as storage_paths
 
@@ -332,28 +333,77 @@ class VisualOcrService:
                 )
                 for n in selected
             ]
-            request = VisualWorkerRequest(
-                request_id=job_id,
-                session_id=session_id,
-                document_id=document_id,
-                job_id=job_id,
-                canonical_pdf_path=str(canonical_pdf),
-                pages=page_refs,
-                page_output_dir=str(results),
-                staging_dir=str(staging),
-                config=config,
-            )
-
-            async def _worker_progress(payload: dict[str, Any]) -> None:
-                await _progress(payload)
-
-            with contextlib.suppress(VisualOcrError):
-                # Preserve any pages already published on worker failure.
-                await self._worker.process_document(
-                    request,
-                    cancel_token=cancel_token,
-                    on_progress=_worker_progress,
+            max_attempts = 2
+            last_error: VisualOcrError | None = None
+            for attempt in range(1, max_attempts + 1):
+                published_nums = set(list_published_page_numbers(results))
+                remaining = [n for n in selected if n not in published_nums]
+                if not remaining:
+                    break
+                remove_incomplete_page_parts(results)
+                current_attempt = attempt
+                request = VisualWorkerRequest(
+                    request_id=f"{job_id}:a{attempt}",
+                    session_id=session_id,
+                    document_id=document_id,
+                    job_id=job_id,
+                    canonical_pdf_path=str(canonical_pdf),
+                    pages=[ref for ref in page_refs if ref.page_number in remaining],
+                    page_output_dir=str(results),
+                    staging_dir=str(staging),
+                    config=config,
+                    skip_page_numbers=tuple(sorted(published_nums)),
                 )
+
+                async def _worker_progress(
+                    payload: dict[str, Any], *, _attempt: int = current_attempt
+                ) -> None:
+                    payload = dict(payload)
+                    payload.setdefault("attempt_number", _attempt)
+                    payload.setdefault("max_attempts", max_attempts)
+                    await _progress(payload)
+
+                await _progress(
+                    {
+                        "type": "worker.retry" if attempt > 1 else "worker.request",
+                        "attempt_number": attempt,
+                        "max_attempts": max_attempts,
+                        "pages_remaining": len(remaining),
+                        "worker_generation": getattr(self._worker, "generation", None),
+                    }
+                )
+                try:
+                    await self._worker.process_document(
+                        request,
+                        cancel_token=cancel_token,
+                        on_progress=_worker_progress,
+                        attempt_number=attempt,
+                    )
+                    last_error = None
+                    break
+                except JobCancelledError:
+                    raise
+                except VisualOcrError as exc:
+                    last_error = exc
+                    recoverable = exc.code in {
+                        ErrorCode.OCR_WORKER_CRASHED,
+                        ErrorCode.OCR_PAGE_TIMEOUT,
+                        ErrorCode.OCR_DOCUMENT_TIMEOUT,
+                        ErrorCode.OCR_WORKER_NOT_READY,
+                    }
+                    await _progress(
+                        {
+                            "type": "worker.request_failed",
+                            "attempt_number": attempt,
+                            "max_attempts": max_attempts,
+                            "reason_code": exc.code.value,
+                            "recoverable": recoverable,
+                        }
+                    )
+                    if not recoverable or attempt >= max_attempts:
+                        break
+                    # Manager already restarted on recoverable loss; retry remaining pages.
+                    continue
 
             for n in selected:
                 page_result = load_page(results, n)
@@ -364,6 +414,32 @@ class VisualOcrService:
                         )
                         publish_page_atomic(page_result, results)
                     published[n] = page_result
+                elif last_error is not None:
+                    selected_native = native_pages.get(n)
+                    source_mode = (
+                        selected_native.source_mode
+                        if selected_native is not None
+                        else SourceMode.VISUAL_AUTHORITY
+                    )
+                    failed_page = VisualPageResult(
+                        page_number=n,
+                        status=VisualPageStatus.FAILED,
+                        source_mode=source_mode,
+                        native_visibility_result=visibility_by_page.get(n),
+                        visual_result_available=False,
+                        visual_processing_attempted=True,
+                        handwriting_assessment=HandwritingAssessment.PENDING_PHASE_5,
+                        error_code=last_error.code.value,
+                    )
+                    publish_page_atomic(failed_page, results)
+                    published[n] = failed_page
+                    await _progress(
+                        {
+                            "type": "page.failed",
+                            "page_number": n,
+                            "reason_code": last_error.code.value,
+                        }
+                    )
 
         # Ensure every canonical page has a row.
         for meta in canonical_pages:

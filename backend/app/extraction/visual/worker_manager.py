@@ -20,6 +20,7 @@ from backend.app.extraction.visual.errors import VisualOcrError
 from backend.app.extraction.visual.model_paths import resolve_ocr_model_root
 from backend.app.extraction.visual.models import OcrRuntimeConfig, VisualWorkerRequest
 from backend.app.extraction.visual.protocol import encode_message, parse_message
+from backend.app.observability.stage_log import log_progress
 from backend.app.processing.cancellation import CancellationToken, JobCancelledError
 from backend.app.settings.config import Settings
 
@@ -64,9 +65,29 @@ class WorkerState:
     process: subprocess.Popen[bytes] | None = None
     ready: bool = False
     restarts: int = 0
+    generation: int = 0
     pages_since_start: int = 0
     stdout_reader_alive: bool = False
     stderr_reader_alive: bool = False
+
+
+@dataclass
+class ActiveRequest:
+    """Tracks one in-flight document request owned by a worker generation."""
+
+    request_id: str
+    owner_generation: int
+    document_id: str
+    job_id: str
+    attempt_number: int
+    created_at: float
+    page_deadline: float
+    document_deadline: float
+    future: asyncio.Future[list[dict[str, Any]]]
+    state: str = "queued"
+    page_number: int | None = None
+    operation: str = "visual_worker_wait"
+    events: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -91,6 +112,8 @@ class OcrWorkerManager:
         self._reader_flags = _ReaderFlags()
         self._stdin_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="ocr-stdin")
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._active: ActiveRequest | None = None
+        self._last_restart_reason: str | None = None
 
     @property
     def ready(self) -> bool:
@@ -98,13 +121,20 @@ class OcrWorkerManager:
         readers_ok = self._state.stdout_reader_alive and self._state.stderr_reader_alive
         return self._state.ready and process is not None and process.poll() is None and readers_ok
 
+    @property
+    def generation(self) -> int:
+        return self._state.generation
+
     def describe(self) -> dict[str, object]:
         return {
             "ready": self.ready,
             "restarts": self._state.restarts,
+            "generation": self._state.generation,
             "pid": self._state.process.pid if self._state.process else None,
             "stdout_reader_alive": self._state.stdout_reader_alive,
             "stderr_reader_alive": self._state.stderr_reader_alive,
+            "active_request_id": self._active.request_id if self._active else None,
+            "last_restart_reason": self._last_restart_reason,
         }
 
     def last_stderr_snippet(self) -> str:
@@ -246,6 +276,8 @@ class OcrWorkerManager:
         self._stderr_chunks = []
         self._stderr_size = 0
         self._reader_flags = _ReaderFlags()
+        self._state.generation += 1
+        generation = self._state.generation
         process = self._spawn()
         self._state.process = process
         loop = asyncio.get_running_loop()
@@ -264,17 +296,16 @@ class OcrWorkerManager:
             name="ocr-worker-stderr",
             daemon=True,
         ).start()
-        # Brief yield so reader threads mark themselves alive.
         await asyncio.sleep(0)
         self._sync_reader_flags()
 
-        logger.info(
-            "OCR worker process started",
-            extra={
-                "component": "OcrWorkerManager",
-                "operation": "spawn_worker",
-                "pid": process.pid,
-            },
+        log_progress(
+            "ocr_worker_process_started",
+            worker_pid=process.pid,
+            worker_generation=generation,
+            worker_restart_count=self._state.restarts,
+            operation="spawn_worker",
+            operation_status="started",
         )
 
         deadline = loop.time() + self._settings.ocr_worker_startup_timeout_seconds
@@ -308,25 +339,25 @@ class OcrWorkerManager:
                 )
                 continue
             if message and message.get("type") == "worker.starting":
-                logger.info(
-                    "OCR worker loading models",
-                    extra={
-                        "component": "OcrWorkerManager",
-                        "operation": "model_load",
-                        "pid": process.pid,
-                    },
+                log_progress(
+                    "ocr_worker_loading_models",
+                    worker_pid=process.pid,
+                    worker_generation=generation,
+                    operation="model_load",
+                    operation_status="started",
                 )
                 continue
             if message and message.get("type") == "worker.ready":
                 self._state.ready = True
                 self._sync_reader_flags()
-                logger.info(
-                    "OCR worker ready",
-                    extra={
-                        "component": "OcrWorkerManager",
-                        "operation": "worker_ready",
-                        "pid": process.pid,
-                    },
+                log_progress(
+                    "ocr_worker_ready",
+                    worker_pid=process.pid,
+                    worker_generation=generation,
+                    worker_restart_count=self._state.restarts,
+                    operation="worker_ready",
+                    operation_status="completed",
+                    reason_code="enable_mkldnn=false",
                 )
                 return
             if message and message.get("type") == "worker.failed":
@@ -336,7 +367,7 @@ class OcrWorkerManager:
                     operation="await_ready",
                     failing_component="OcrWorkerManager",
                 )
-        await self._terminate_locked()
+        await self._terminate_locked(reason="worker_startup_timeout")
         raise VisualOcrError(
             ErrorCode.OCR_WORKER_START_FAILED,
             "OCR worker startup timed out.",
@@ -346,9 +377,66 @@ class OcrWorkerManager:
 
     async def stop(self) -> None:
         async with self._lock:
-            await self._terminate_locked()
+            await self._fail_active(
+                VisualOcrError(
+                    ErrorCode.OCR_WORKER_CRASHED,
+                    "OCR worker shut down.",
+                    operation="stop",
+                    failing_component="OcrWorkerManager",
+                ),
+                action="fail",
+                reason="worker_manual_shutdown",
+            )
+            await self._terminate_locked(reason="worker_manual_shutdown")
 
-    async def _terminate_locked(self) -> None:
+    async def _fail_active(
+        self,
+        error: BaseException,
+        *,
+        action: str,
+        reason: str,
+    ) -> None:
+        active = self._active
+        if active is None:
+            return
+        old_pid = self._state.process.pid if self._state.process else None
+        log_progress(
+            "ocr_worker_restart" if action == "retry" else "ocr_worker_request_failed",
+            level=logging.WARNING,
+            document_id=active.document_id,
+            job_id=active.job_id,
+            request_id=active.request_id,
+            page_number=active.page_number,
+            operation=active.operation,
+            operation_status="retrying" if action == "retry" else "failed",
+            worker_pid=old_pid,
+            worker_generation=active.owner_generation,
+            worker_restart_count=self._state.restarts,
+            attempt_number=active.attempt_number,
+            max_attempts=2,
+            reason_code=reason,
+            restart_reason=reason,
+            active_request_action=action,
+            previous_pid=old_pid,
+            previous_generation=active.owner_generation,
+        )
+        self._last_restart_reason = reason
+        if not active.future.done():
+            if isinstance(error, Exception):
+                active.future.set_exception(error)
+            else:
+                active.future.set_exception(
+                    VisualOcrError(
+                        ErrorCode.OCR_WORKER_CRASHED,
+                        "OCR worker lost.",
+                        operation="fail_active",
+                        failing_component="OcrWorkerManager",
+                    )
+                )
+        active.state = "failed"
+        self._active = None
+
+    async def _terminate_locked(self, *, reason: str = "worker_manual_shutdown") -> None:
         process = self._state.process
         self._state.ready = False
         if process is None:
@@ -365,19 +453,41 @@ class OcrWorkerManager:
         self._state.process = None
         self._state.stdout_reader_alive = False
         self._state.stderr_reader_alive = False
+        self._last_restart_reason = reason
 
-    async def restart(self) -> None:
+    async def restart(self, *, reason: str = "worker_healthcheck_failed") -> None:
         async with self._lock:
-            if self._state.restarts >= self._settings.ocr_max_worker_restarts:
-                raise VisualOcrError(
-                    ErrorCode.OCR_WORKER_RESTART_LIMIT,
-                    "OCR worker restart limit reached.",
-                    operation="restart",
-                    failing_component="OcrWorkerManager",
-                )
-            await self._terminate_locked()
-            self._state.restarts += 1
-            await self._start_locked()
+            await self._restart_locked(reason=reason)
+
+    async def _restart_locked(self, *, reason: str) -> None:
+        if self._state.restarts >= self._settings.ocr_max_worker_restarts:
+            raise VisualOcrError(
+                ErrorCode.OCR_WORKER_RESTART_LIMIT,
+                "OCR worker restart limit reached.",
+                operation="restart",
+                failing_component="OcrWorkerManager",
+            )
+        previous_pid = self._state.process.pid if self._state.process else None
+        previous_gen = self._state.generation
+        await self._terminate_locked(reason=reason)
+        self._state.restarts += 1
+        await self._start_locked()
+        log_progress(
+            "ocr_worker_restart",
+            level=logging.WARNING,
+            worker_pid=self._state.process.pid if self._state.process else None,
+            worker_generation=self._state.generation,
+            worker_restart_count=self._state.restarts,
+            previous_pid=previous_pid,
+            previous_generation=previous_gen,
+            new_pid=self._state.process.pid if self._state.process else None,
+            new_generation=self._state.generation,
+            restart_reason=reason,
+            reason_code=reason,
+            operation="worker_restart",
+            operation_status="completed",
+            active_request_action="retry" if self._active else "none",
+        )
 
     def config_from_settings(self) -> OcrRuntimeConfig:
         s = self._settings
@@ -422,6 +532,7 @@ class OcrWorkerManager:
         *,
         cancel_token: CancellationToken | None = None,
         on_progress: ProgressCallback | None = None,
+        attempt_number: int = 1,
     ) -> list[dict[str, Any]]:
         """Submit one document job and collect privacy-safe progress events."""
 
@@ -430,6 +541,7 @@ class OcrWorkerManager:
                 await self._start_locked()
             process = self._state.process
             queue = self._stdout_queue
+            generation = self._state.generation
             if process is None or process.stdin is None or queue is None:
                 raise VisualOcrError(
                     ErrorCode.OCR_WORKER_NOT_READY,
@@ -438,120 +550,214 @@ class OcrWorkerManager:
                     failing_component="OcrWorkerManager",
                 )
 
-            await self._write_stdin(
-                process,
-                encode_message({"type": "process_document", "request": request.to_dict()}),
+            loop = asyncio.get_running_loop()
+            page_timeout = float(self._settings.ocr_page_timeout_seconds)
+            doc_timeout = float(self._settings.ocr_document_timeout_seconds)
+            now = loop.time()
+            future: asyncio.Future[list[dict[str, Any]]] = loop.create_future()
+            active = ActiveRequest(
+                request_id=request.request_id,
+                owner_generation=generation,
+                document_id=request.document_id,
+                job_id=request.job_id,
+                attempt_number=attempt_number,
+                created_at=now,
+                page_deadline=now + page_timeout,
+                document_deadline=now + doc_timeout,
+                future=future,
+                state="writing",
+                operation="visual_worker_wait",
             )
+            self._active = active
 
-            events: list[dict[str, Any]] = []
-            timeout = self._settings.ocr_document_timeout_seconds
-            page_timeout = self._settings.ocr_page_timeout_seconds
-            deadline = asyncio.get_running_loop().time() + timeout
-            page_deadline = asyncio.get_running_loop().time() + page_timeout
-            last_heartbeat = asyncio.get_running_loop().time()
+            try:
+                await self._write_stdin(
+                    process,
+                    encode_message(
+                        {
+                            "type": "process_document",
+                            "request": request.to_dict(),
+                            "worker_generation": generation,
+                            "attempt_number": attempt_number,
+                        }
+                    ),
+                )
+            except VisualOcrError as exc:
+                await self._fail_active(exc, action="fail", reason="worker_stdin_write_failed")
+                with contextlib.suppress(VisualOcrError):
+                    await self._restart_locked(reason="worker_stdin_write_failed")
+                raise
+
+            active.state = "submitted"
+            last_heartbeat = now
+            page_deadline_armed = False
+
             while True:
                 self._sync_reader_flags()
                 if not self._state.stdout_reader_alive and process.poll() is None:
-                    raise VisualOcrError(
+                    err = VisualOcrError(
                         ErrorCode.OCR_WORKER_CRASHED,
                         "OCR worker stdout reader died.",
                         operation="process_document",
                         failing_component="OcrWorkerManager",
                     )
+                    await self._fail_active(
+                        err, action="retry", reason="worker_stdout_reader_failed"
+                    )
+                    with contextlib.suppress(VisualOcrError):
+                        await self._restart_locked(reason="worker_stdout_reader_failed")
+                    raise err
                 if cancel_token is not None and cancel_token.cancelled:
                     with contextlib.suppress(VisualOcrError):
                         await self._write_stdin(
                             process,
                             encode_message({"type": "cancel", "request_id": request.request_id}),
                         )
-                    await self._terminate_locked()
+                    await self._fail_active(
+                        JobCancelledError(),
+                        action="fail",
+                        reason="worker_manual_shutdown",
+                    )
+                    await self._terminate_locked(reason="worker_manual_shutdown")
                     with contextlib.suppress(VisualOcrError):
-                        await self._start_locked()
+                        await self._restart_locked(reason="worker_manual_shutdown")
                     raise JobCancelledError()
                 if process.poll() is not None:
                     self._state.ready = False
-                    raise VisualOcrError(
+                    err = VisualOcrError(
                         ErrorCode.OCR_WORKER_CRASHED,
                         "OCR worker crashed during document processing.",
                         operation="process_document",
                         failing_component="OcrWorkerManager",
                         worker_exit_code=process.returncode,
                     )
-                now = asyncio.get_running_loop().time()
-                remaining = deadline - now
-                if remaining <= 0:
-                    await self._terminate_locked()
+                    await self._fail_active(err, action="retry", reason="worker_process_exit")
                     with contextlib.suppress(VisualOcrError):
-                        await self._start_locked()
-                    raise VisualOcrError(
+                        await self._restart_locked(reason="worker_process_exit")
+                    raise err
+
+                now = loop.time()
+                remaining_doc = active.document_deadline - now
+                remaining_page = active.page_deadline - now
+                if remaining_doc <= 0:
+                    err = VisualOcrError(
                         ErrorCode.OCR_DOCUMENT_TIMEOUT,
                         "Visual OCR document processing timed out.",
                         operation="process_document",
                         failing_component="OcrWorkerManager",
                     )
-                if now > page_deadline:
-                    await self._terminate_locked()
+                    await self._fail_active(err, action="fail", reason="worker_response_timeout")
                     with contextlib.suppress(VisualOcrError):
-                        await self._start_locked()
-                    raise VisualOcrError(
+                        await self._restart_locked(reason="worker_response_timeout")
+                    raise err
+                if page_deadline_armed and remaining_page <= 0:
+                    err = VisualOcrError(
                         ErrorCode.OCR_PAGE_TIMEOUT,
                         "Visual OCR page processing timed out.",
-                        operation="process_document",
+                        operation=active.operation,
                         failing_component="OcrWorkerManager",
                     )
+                    await self._fail_active(err, action="retry", reason="worker_page_timeout")
+                    with contextlib.suppress(VisualOcrError):
+                        await self._restart_locked(reason="worker_page_timeout")
+                    raise err
+
                 if now - last_heartbeat >= 5.0:
                     last_heartbeat = now
                     if on_progress is not None:
                         heartbeat = {
                             "type": "worker.heartbeat",
                             "request_id": request.request_id,
-                            "elapsed_seconds": round(timeout - remaining, 1),
+                            "elapsed_seconds": round(now - active.created_at, 1),
+                            "deadline_remaining_seconds": round(
+                                min(remaining_doc, remaining_page), 1
+                            ),
                             "pid": process.pid,
+                            "worker_generation": generation,
+                            "attempt_number": attempt_number,
+                            "operation": active.operation,
+                            "page_number": active.page_number,
                         }
                         result = on_progress(heartbeat)
                         if asyncio.iscoroutine(result):
                             await result
+
+                wait_for = min(1.0, remaining_doc)
+                if page_deadline_armed:
+                    wait_for = min(wait_for, max(0.05, remaining_page))
                 try:
-                    line = await asyncio.wait_for(
-                        queue.get(), timeout=min(1.0, remaining, page_deadline - now)
-                    )
+                    line = await asyncio.wait_for(queue.get(), timeout=wait_for)
                 except TimeoutError:
                     continue
                 if line is None:
                     self._state.ready = False
-                    raise VisualOcrError(
+                    err = VisualOcrError(
                         ErrorCode.OCR_WORKER_CRASHED,
                         "OCR worker stdout closed unexpectedly.",
                         operation="process_document",
                         failing_component="OcrWorkerManager",
                     )
+                    await self._fail_active(err, action="retry", reason="worker_process_exit")
+                    with contextlib.suppress(VisualOcrError):
+                        await self._restart_locked(reason="worker_process_exit")
+                    raise err
                 try:
                     message = parse_message(line)
                 except Exception:
-                    logger.warning(
-                        "Ignoring malformed OCR worker NDJSON",
-                        extra={"component": "OcrWorkerManager", "operation": "process_document"},
+                    err = VisualOcrError(
+                        ErrorCode.OCR_WORKER_CRASHED,
+                        "OCR worker sent a malformed protocol message.",
+                        operation="process_document",
+                        failing_component="OcrWorkerManager",
                     )
-                    continue
+                    await self._fail_active(err, action="retry", reason="worker_protocol_error")
+                    with contextlib.suppress(VisualOcrError):
+                        await self._restart_locked(reason="worker_protocol_error")
+                    raise err from None
                 if message is None:
                     continue
-                events.append(message)
-                msg_type = message.get("type")
-                if msg_type in {
-                    "page.started",
-                    "page.rendered",
-                    "page.ocr_started",
-                    "page.completed",
-                    "page.failed",
-                }:
-                    page_deadline = asyncio.get_running_loop().time() + page_timeout
+                msg_gen = message.get("worker_generation")
+                if msg_gen is not None and int(msg_gen) != generation:
+                    continue  # stale generation — ignore
+                message["worker_generation"] = generation
+                message["attempt_number"] = attempt_number
+                message["worker_restart_count"] = self._state.restarts
+                active.events.append(message)
+                msg_type = str(message.get("type") or "")
+                if msg_type == "page.started":
+                    active.page_number = (
+                        int(message["page_number"])
+                        if isinstance(message.get("page_number"), (int, float, str))
+                        else active.page_number
+                    )
+                    active.operation = "visual_page_render"
+                    active.state = "running"
+                    # End-to-end page deadline from page start (not sliding per event).
+                    active.page_deadline = loop.time() + page_timeout
+                    page_deadline_armed = True
+                elif msg_type == "page.rendered":
+                    active.operation = "visual_preprocessing"
+                elif msg_type == "page.ocr_started":
+                    active.operation = "paddle_text_detection"
+                elif msg_type in {"page.completed", "page.failed"}:
+                    active.operation = "visual_page_publication"
+                    page_deadline_armed = False
+                    active.page_deadline = loop.time() + page_timeout
                 if on_progress is not None:
                     result = on_progress(message)
                     if asyncio.iscoroutine(result):
                         await result
                 if msg_type in {"document.completed", "document.failed", "document.cancelled"}:
                     if msg_type == "document.cancelled":
+                        await self._fail_active(
+                            JobCancelledError(), action="fail", reason="worker_manual_shutdown"
+                        )
                         raise JobCancelledError()
+                    events = list(active.events)
+                    if not active.future.done():
+                        active.future.set_result(events)
+                    active.state = "completed"
+                    self._active = None
                     return events
                 if msg_type in {"worker.recycle_recommended", "worker.recycle_requested"}:
                     continue
@@ -561,12 +767,16 @@ class OcrWorkerManager:
                         code = ErrorCode(code_token)
                     except ValueError:
                         code = ErrorCode.OCR_WORKER_CRASHED
-                    raise VisualOcrError(
+                    err = VisualOcrError(
                         code,
                         "OCR worker reported an error.",
                         operation=str(message.get("operation") or "process_document"),
                         failing_component="OcrWorkerManager",
                     )
+                    await self._fail_active(err, action="retry", reason="worker_protocol_error")
+                    with contextlib.suppress(VisualOcrError):
+                        await self._restart_locked(reason="worker_protocol_error")
+                    raise err
 
 
 # Public alias matching package exports.
