@@ -259,6 +259,7 @@ def process_page(
             pdf_document=pdf_document,
         )
 
+    preprocess_started = time.perf_counter()
     try:
         with ThreadPoolExecutor(max_workers=1) as pool:
             rendered = pool.submit(_render).result(timeout=page_timeout)
@@ -270,6 +271,17 @@ def process_page(
             failing_component="visual.worker",
             exception_type=type(exc).__name__,
         ) from exc
+    render_duration_s = time.perf_counter() - preprocess_started
+    rendered.detector_limit_side_len = int(config.ocr_text_det_limit_side_len)
+    # Detector input after Paddle limit_side resize (max side).
+    det_w, det_h = rendered.width_pixels, rendered.height_pixels
+    limit = max(1, int(config.ocr_text_det_limit_side_len))
+    if config.ocr_text_det_limit_type == "max":
+        long_side = max(det_w, det_h)
+        if long_side > limit:
+            scale = limit / long_side
+            det_w = max(1, int(det_w * scale))
+            det_h = max(1, int(det_h * scale))
     emit_message(
         {
             "type": "page.rendered",
@@ -277,14 +289,40 @@ def process_page(
             "page_number": page_ref.page_number,
             "width_pixels": rendered.width_pixels,
             "height_pixels": rendered.height_pixels,
+            "rendered_pixel_count": rendered.width_pixels * rendered.height_pixels,
             "effective_dpi": rendered.effective_dpi,
+            "requested_dpi": rendered.requested_dpi,
+            "canonical_width_points": rendered.page_width_points,
+            "canonical_height_points": rendered.page_height_points,
+            "source_width_px": rendered.source_width_px,
+            "source_height_px": rendered.source_height_px,
+            "render_source_policy": rendered.render_source_policy,
+            "downscale_reason": rendered.downscale_reason,
+            "source_resolution_cap_applied": rendered.source_resolution_cap_applied,
+            "detector_limit_side_len": rendered.detector_limit_side_len,
+            "detector_input_width": det_w,
+            "detector_input_height": det_h,
+            "render_duration_seconds": round(render_duration_s, 3),
+            "peak_rss_mb": monitor.snapshot().rss_mb,
         }
     )
 
+    prep_started = time.perf_counter()
     primary_image, variant = prepare_primary(rendered.image)
+    preprocess_duration_s = time.perf_counter() - prep_started
     emit_message(
-        {"type": "page.ocr_started", "request_id": request_id, "page_number": page_ref.page_number}
+        {
+            "type": "page.ocr_started",
+            "request_id": request_id,
+            "page_number": page_ref.page_number,
+            "preprocess_duration_seconds": round(preprocess_duration_s, 3),
+            "detector_input_width": det_w,
+            "detector_input_height": det_h,
+            "detector_limit_side_len": limit,
+            "operation": "paddle_text_detection",
+        }
     )
+    detect_started = time.perf_counter()
     try:
         with ThreadPoolExecutor(max_workers=1) as pool:
             raw_lines = pool.submit(adapter.recognise, primary_image).result(timeout=page_timeout)
@@ -292,10 +330,22 @@ def process_page(
         raise VisualOcrError(
             ErrorCode.OCR_PAGE_TIMEOUT,
             "OCR inference timed out.",
-            operation="recognise",
+            operation="paddle_text_detection",
             failing_component="visual.worker",
             exception_type=type(exc).__name__,
         ) from exc
+    detection_duration_s = time.perf_counter() - detect_started
+    emit_message(
+        {
+            "type": "page.ocr_progress",
+            "request_id": request_id,
+            "page_number": page_ref.page_number,
+            "operation": "paddle_text_detection",
+            "detection_duration_seconds": round(detection_duration_s, 3),
+            "detected_line_count": len(raw_lines),
+            "peak_rss_mb": monitor.snapshot().rss_mb,
+        }
+    )
     fallback_used = False
     if (
         config.ocr_enable_grayscale_fallback

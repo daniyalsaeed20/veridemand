@@ -35,31 +35,41 @@ _DEFAULT_PROGRESS_PERCENT = 5
 
 
 def _document_progress_percent(document: RuntimeDocument) -> int:
-    if document.progress_percent != _DEFAULT_PROGRESS_PERCENT:
-        return min(document.progress_percent, MAX_PHASE4_PROGRESS_PERCENT)
+    """Map status to progress floors; never let a stale native % hide visual stage."""
+
+    stored = min(document.progress_percent, MAX_PHASE4_PROGRESS_PERCENT)
     match document.status:
         case DocumentStatus.UPLOADED | DocumentStatus.QUEUED:
-            return 5
+            return 5 if stored == _DEFAULT_PROGRESS_PERCENT else max(5, stored)
         case DocumentStatus.CANONICALISING:
-            return 6
+            return max(6, stored) if stored != _DEFAULT_PROGRESS_PERCENT else 6
         case DocumentStatus.READY_FOR_EXTRACTION:
-            return 15 if document.canonical_view_available else 5
+            floor = 15 if document.canonical_view_available else 5
+            return max(floor, stored) if stored != _DEFAULT_PROGRESS_PERCENT else floor
         case DocumentStatus.INSPECTING_NATIVE:
-            return 16
+            return max(16, stored) if stored != _DEFAULT_PROGRESS_PERCENT else 16
         case DocumentStatus.EXTRACTING_NATIVE:
-            return 20
+            return max(20, stored) if stored != _DEFAULT_PROGRESS_PERCENT else 20
         case DocumentStatus.NATIVE_TRUST_COMPLETE:
-            return 35
+            return max(35, stored) if stored != _DEFAULT_PROGRESS_PERCENT else 35
         case DocumentStatus.VISUAL_PENDING:
-            return 36
+            return max(36, stored) if stored != _DEFAULT_PROGRESS_PERCENT else 36
         case DocumentStatus.VISUAL_PROCESSING:
-            return max(36, min(document.progress_percent, 64))
+            return max(36, min(stored if stored != _DEFAULT_PROGRESS_PERCENT else 36, 64))
         case DocumentStatus.VISUAL_PROCESSING_COMPLETE | DocumentStatus.VISUAL_PROCESSING_PARTIAL:
             return 65
         case DocumentStatus.VISUAL_PROCESSING_FAILED:
-            return min(document.progress_percent, MAX_PHASE4_PROGRESS_PERCENT)
+            # Terminal visual failure always reports the Phase 4 cap so the UI
+            # cannot remain stuck on a native-band percentage (e.g. 32%).
+            return MAX_PHASE4_PROGRESS_PERCENT
+        case DocumentStatus.FAILED | DocumentStatus.CANCELLED:
+            return min(stored, MAX_PHASE4_PROGRESS_PERCENT)
         case _:
-            return 5
+            return (
+                5
+                if stored == _DEFAULT_PROGRESS_PERCENT
+                else min(stored, MAX_PHASE4_PROGRESS_PERCENT)
+            )
 
 
 def _canonical_urls(

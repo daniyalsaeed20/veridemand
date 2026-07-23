@@ -175,8 +175,8 @@ class Settings(BaseSettings):
     ocr_enabled: bool = True
     ocr_device: str = "cpu"
     ocr_engine: str = "paddle_static"
-    ocr_detection_model_name: str = "PP-OCRv6_medium_det"
-    ocr_recognition_model_name: str = "PP-OCRv6_medium_rec"
+    ocr_detection_model_name: str = "PP-OCRv5_mobile_det"
+    ocr_recognition_model_name: str = "PP-OCRv5_mobile_rec"
     model_root: Path = Path("./.models")
     ocr_model_root: Path = Path("./.models/paddleocr")
     ocr_workers: int = Field(default=1, ge=1, le=1)
@@ -187,7 +187,7 @@ class Settings(BaseSettings):
     ocr_min_effective_dpi: int = Field(default=120, gt=0)
     ocr_max_render_pixels: int = Field(default=40_000_000, gt=0)
     ocr_max_render_side_pixels: int = Field(default=6000, gt=0)
-    ocr_text_det_limit_side_len: int = Field(default=2400, gt=0)
+    ocr_text_det_limit_side_len: int = Field(default=1600, gt=0)
     ocr_text_det_limit_type: str = "max"
     ocr_text_det_thresh: float = Field(default=0.30, ge=0.0, le=1.0)
     ocr_text_det_box_thresh: float = Field(default=0.60, ge=0.0, le=1.0)

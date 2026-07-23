@@ -1,0 +1,34 @@
+{
+  "detector_side_matrix": [
+    {"limit_side_len": 960, "status": "planned", "note": "run scripts/benchmark_phase43_ocr.py with local models"},
+    {"limit_side_len": 1280, "status": "planned"},
+    {"limit_side_len": 1600, "status": "chosen_default"},
+    {"limit_side_len": 2000, "status": "planned"},
+    {"limit_side_len": 2400, "status": "previous_default_timeout_risk"}
+  ],
+  "model_comparison": [
+    {
+      "detection_model": "PP-OCRv5_mobile_det",
+      "recognition_model": "PP-OCRv5_mobile_rec",
+      "role": "default_cpu_baseline"
+    },
+    {
+      "detection_model": "PP-OCRv6_medium_det",
+      "recognition_model": "PP-OCRv6_medium_rec",
+      "role": "comparison_only"
+    }
+  ],
+  "chosen_default_limit_side_len": 1600,
+  "chosen_default_models": {
+    "detection": "PP-OCRv5_mobile_det",
+    "recognition": "PP-OCRv5_mobile_rec"
+  },
+  "naive_200dpi_private_page_estimate": {
+    "canonical_points": [1704, 2190],
+    "embedded_pixels": [1704, 2190],
+    "rendered_at_200dpi": [4733.33, 6083.33],
+    "confirmed_by": "arithmetic_and_unit_test"
+  },
+  "dense_form_ruling_fallback": "not_enabled_no_measured_postprocess_domination",
+  "notes": "Default limit_side_len=1600 is the bounded midpoint of the matrix. Not tuned solely to one private PDF. Re-run benchmark_phase43_ocr.py after models:ocr:bootstrap for timed evidence."
+}

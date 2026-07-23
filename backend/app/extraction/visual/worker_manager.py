@@ -433,6 +433,10 @@ class OcrWorkerManager:
                         failing_component="OcrWorkerManager",
                     )
                 )
+        # Retrieve the exception so asyncio does not warn "Future exception was never retrieved".
+        if active.future.done() and not active.future.cancelled():
+            with contextlib.suppress(Exception):
+                active.future.exception()
         active.state = "failed"
         self._active = None
 
@@ -654,12 +658,20 @@ class OcrWorkerManager:
                     err = VisualOcrError(
                         ErrorCode.OCR_PAGE_TIMEOUT,
                         "Visual OCR page processing timed out.",
-                        operation=active.operation,
+                        operation=active.operation or "paddle_text_detection",
                         failing_component="OcrWorkerManager",
                     )
-                    await self._fail_active(err, action="retry", reason="worker_page_timeout")
-                    with contextlib.suppress(VisualOcrError):
-                        await self._restart_locked(reason="worker_page_timeout")
+                    # Final attempt: do not spawn an unused worker after failing the request.
+                    max_attempts = 2
+                    final_attempt = attempt_number >= max_attempts
+                    await self._fail_active(
+                        err,
+                        action="fail" if final_attempt else "retry",
+                        reason="worker_page_timeout",
+                    )
+                    if not final_attempt:
+                        with contextlib.suppress(VisualOcrError):
+                            await self._restart_locked(reason="worker_page_timeout")
                     raise err
 
                 if now - last_heartbeat >= 5.0:
@@ -756,6 +768,9 @@ class OcrWorkerManager:
                     events = list(active.events)
                     if not active.future.done():
                         active.future.set_result(events)
+                    if active.future.done() and not active.future.cancelled():
+                        with contextlib.suppress(Exception):
+                            _ = active.future.result()
                     active.state = "completed"
                     self._active = None
                     return events

@@ -13,8 +13,8 @@ class OcrRuntimeConfig:
     ocr_enabled: bool = True
     ocr_device: str = "cpu"
     ocr_engine: str = "paddle_static"
-    ocr_detection_model_name: str = "PP-OCRv6_medium_det"
-    ocr_recognition_model_name: str = "PP-OCRv6_medium_rec"
+    ocr_detection_model_name: str = "PP-OCRv5_mobile_det"
+    ocr_recognition_model_name: str = "PP-OCRv5_mobile_rec"
     ocr_model_root: str = "./.models/paddleocr"
     ocr_cpu_threads: int = 4
     ocr_recognition_batch_size: int = 1
@@ -23,7 +23,8 @@ class OcrRuntimeConfig:
     ocr_min_effective_dpi: int = 120
     ocr_max_render_pixels: int = 40_000_000
     ocr_max_render_side_pixels: int = 6000
-    ocr_text_det_limit_side_len: int = 2400
+    # Bounded default from Phase 4.3 detector-side matrix (see docs/phases).
+    ocr_text_det_limit_side_len: int = 1600
     ocr_text_det_limit_type: str = "max"
     ocr_text_det_thresh: float = 0.30
     ocr_text_det_box_thresh: float = 0.60
@@ -143,3 +144,10 @@ class RenderedPage:
     render_scale: float
     page_width_points: float
     page_height_points: float
+    requested_dpi: float = 200.0
+    render_source_policy: str = "pdfium_render"
+    downscale_reason: str | None = None
+    source_resolution_cap_applied: bool = False
+    source_width_px: int | None = None
+    source_height_px: int | None = None
+    detector_limit_side_len: int | None = None

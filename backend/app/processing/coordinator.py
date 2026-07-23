@@ -1043,10 +1043,19 @@ class ProcessingCoordinator:
         except VisualOcrError as exc:
             document.status = DocumentStatus.VISUAL_PROCESSING_FAILED
             document.progress_percent = _MAX_PROGRESS_PERCENT
-            document.failure_stage = _VISUAL_STAGE
+            document.failure_stage = exc.operation or "paddle_text_detection"
             document.failure_code = exc.code.value
-            document.failure_message = "The OCR service failed to process this document."
+            document.failure_message = (
+                "OCR page timed out"
+                if exc.code.value == "ocr_page_timeout"
+                else "The OCR service failed to process this document."
+            )
+            document.current_operation = document.failure_stage
+            document.operation_status = "failed"
+            document.user_status_message = "Visual OCR could not complete."
             document.visual_processing_performed = True
+            document.major_phase = "visual_ocr"
+            document.major_phase_percent = 100.0
             await _safe_publish(
                 session.broker,
                 ProgressEventType.DOCUMENT_VISUAL_PROCESSING_FAILED,
@@ -1054,7 +1063,8 @@ class ProcessingCoordinator:
                 job_id=job.job_id,
                 percent=_MAX_PROGRESS_PERCENT,
                 document_status=DocumentStatus.VISUAL_PROCESSING_FAILED,
-                message=document.failure_message,
+                message=document.user_status_message,
+                reason_codes=[exc.code.value],
             )
             return
 
@@ -1121,6 +1131,25 @@ class ProcessingCoordinator:
         elif summary.visual_processing_status is VisualProcessingStatus.VISUAL_PROCESSING_FAILED:
             document.status = DocumentStatus.VISUAL_PROCESSING_FAILED
             complete_event = ProgressEventType.DOCUMENT_VISUAL_PROCESSING_FAILED
+            failed_pages = [p for p in summary.page_summaries if p.error_code]
+            if failed_pages:
+                first = failed_pages[0]
+                document.failure_code = first.error_code
+                document.failure_page_number = first.page_number
+                document.failure_stage = (
+                    "paddle_text_detection"
+                    if first.error_code == "ocr_page_timeout"
+                    else _VISUAL_STAGE
+                )
+                document.failure_message = (
+                    "OCR page timed out"
+                    if first.error_code == "ocr_page_timeout"
+                    else "Printed visual OCR failed."
+                )
+                document.user_status_message = "Visual OCR could not complete."
+                document.current_operation = document.failure_stage
+            document.attempt_number = snapshot.attempt_number
+            document.max_attempts = snapshot.max_attempts
         else:
             document.status = DocumentStatus.VISUAL_PROCESSING_COMPLETE
             complete_event = ProgressEventType.DOCUMENT_VISUAL_PROCESSING_COMPLETED

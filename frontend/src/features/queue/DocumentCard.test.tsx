@@ -170,6 +170,31 @@ describe("DocumentCard", () => {
     expect(screen.getByText(/Worker attempt:\s*2 of 2/)).toBeInTheDocument();
   });
 
+    it("shows terminal Visual OCR failure details instead of indefinite processing", () => {
+      renderWithClient(
+        <DocumentCard
+          sessionId={SESSION_ID}
+          document={makeDocument({
+            document_id: DOC_ID,
+            status: "visual_processing_failed",
+            progress_percent: 32,
+            failure_stage: "paddle_text_detection",
+            failure_code: "ocr_page_timeout",
+            failure_page_number: 1,
+            pages_total: 2,
+            attempt_number: 2,
+            max_attempts: 2,
+            canonical_view_available: true,
+          })}
+        />,
+      );
+      expect(screen.getByText(/Visual OCR could not complete/)).toBeInTheDocument();
+      expect(screen.getByText(/Printed-text detection/i)).toBeInTheDocument();
+      expect(screen.getByText(/Attempts:\s*2 of 2/)).toBeInTheDocument();
+      expect(screen.getByText(/OCR page timed out/)).toBeInTheDocument();
+      expect(screen.getByText(/Canonical document available:\s*Yes/)).toBeInTheDocument();
+    });
+
   it("disables Process when processBlocked is set", () => {
     renderWithClient(
       <DocumentCard

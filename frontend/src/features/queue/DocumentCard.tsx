@@ -244,9 +244,38 @@ export function DocumentCard({
         ) : null}
 
         {document.status === "visual_processing_failed" ? (
-          <Typography variant="caption" color="text.secondary">
-            Printed visual OCR failed. The canonical document remains available for viewing.
-          </Typography>
+          <Stack spacing={0.5}>
+            <Typography variant="caption" color="error.main">
+              Visual OCR could not complete.
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Failed operation:{" "}
+              {(document.failure_stage ?? document.current_operation ?? "Printed-text detection")
+                .replaceAll("_", " ")
+                .replace("paddle text detection", "Printed-text detection")}
+            </Typography>
+            {document.pages_total != null && document.pages_total > 0 ? (
+              <Typography variant="caption" color="text.secondary">
+                Page: {document.failure_page_number ?? document.active_page_number ?? 1} of{" "}
+                {document.pages_total}
+              </Typography>
+            ) : null}
+            {document.attempt_number != null && document.max_attempts != null ? (
+              <Typography variant="caption" color="text.secondary">
+                Attempts: {document.attempt_number} of {document.max_attempts}
+              </Typography>
+            ) : null}
+            <Typography variant="caption" color="text.secondary">
+              Error:{" "}
+              {document.failure_code === "ocr_page_timeout" ||
+              document.failure_message?.toLowerCase().includes("timed out")
+                ? "OCR page timed out"
+                : (document.failure_message ?? document.user_status_message ?? "Visual OCR failed")}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Canonical document available: {document.canonical_view_available ? "Yes" : "No"}
+            </Typography>
+          </Stack>
         ) : null}
 
         {document.status === "native_trust_complete" ? (

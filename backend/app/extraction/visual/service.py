@@ -438,6 +438,9 @@ class VisualOcrService:
                             "type": "page.failed",
                             "page_number": n,
                             "reason_code": last_error.code.value,
+                            "failed_operation": last_error.operation or "paddle_text_detection",
+                            "attempt_number": max_attempts,
+                            "max_attempts": max_attempts,
                         }
                     )
 
