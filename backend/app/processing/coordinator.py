@@ -567,7 +567,12 @@ class ProcessingCoordinator:
                     ):
                         failing_operation = "visual_progress_creation"
                     logger.exception(
-                        "Visual OCR failed",
+                        "Visual OCR failed exception_type=%s safe_error_code=%s "
+                        "failing_component=%s failing_operation=%s",
+                        type(visual_exc).__name__,
+                        ErrorCode.OCR_RUNTIME_UNAVAILABLE.value,
+                        "ProcessingCoordinator",
+                        failing_operation,
                         extra={
                             "document_id": document.document_id,
                             "job_id": job.job_id,
@@ -840,6 +845,20 @@ class ProcessingCoordinator:
         pages_selected = page_count
         selection_started = False
         selection_completed = False
+
+        # Test-only inject: abort after native, before OCR request creation.
+        inject_failure = bool(
+            getattr(getattr(self._visual, "_settings", None), "ocr_inject_visual_failure", False)
+        )
+        if inject_failure:
+            raise VisualOcrError(
+                ErrorCode.OCR_RUNTIME_UNAVAILABLE,
+                "Injected visual failure for acceptance testing.",
+                operation="visual_request_creation",
+                failing_component="ProcessingCoordinator",
+                exception_type="InjectedVisualFailure",
+            )
+
         snapshot = ProgressSnapshot(
             overall_percent=float(max(document.progress_percent, int(OVERALL_NATIVE_POLICY_END))),
             major_phase=MajorPhase.VISUAL_OCR,
@@ -1285,7 +1304,12 @@ class ProcessingCoordinator:
             document.major_phase = "visual_ocr"
             document.major_phase_percent = 100.0
             logger.exception(
-                "Visual OCR failed",
+                "Visual OCR failed exception_type=%s safe_error_code=%s "
+                "failing_component=%s failing_operation=%s",
+                type(exc).__name__,
+                exc.code.value,
+                getattr(exc, "failing_component", None) or "VisualOcrService",
+                exc.operation or "paddle_ocr_pipeline",
                 extra={
                     "document_id": document.document_id,
                     "job_id": job.job_id,

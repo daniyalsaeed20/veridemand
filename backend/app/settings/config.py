@@ -173,6 +173,9 @@ class Settings(BaseSettings):
 
     # Phase 4 — printed OCR / visual processing.
     ocr_enabled: bool = True
+    # Acceptance / test only: fail visual after native, before OCR inference.
+    # Never enable in production.
+    ocr_inject_visual_failure: bool = False
     ocr_device: str = "cpu"
     ocr_engine: str = "paddle_static"
     ocr_detection_model_name: str = "PP-OCRv5_mobile_det"

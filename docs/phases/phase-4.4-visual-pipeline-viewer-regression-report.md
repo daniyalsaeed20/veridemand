@@ -5,48 +5,62 @@
 - Starting branch: `fix/phase-4-adaptive-image-ocr-performance`
 - Starting HEAD: `4d63df465bce4e085236b7b84ee5b0410e4f06ab` (`phase-4-visual-detection-printed-ocr-v1.4`)
 - Corrective branch: `fix/phase-4-visual-pipeline-viewer-regression`
-- Final commit: `7766e6904ac046f00a34d84f1976be813266a62d`
-- Comparison worktree: `../VeriDemand-phase4-v1.3` at `phase-4-visual-detection-printed-ocr-v1.3` (`3eeca6c`)
-- Throughput WIP stashed as `wip-phase44-throughput` (not landed on this branch)
+- Starting acceptance commit: `21c5b7bdef0df3ac10a1d9a33767c7a457d95cdf`
+- Throughput WIP stashed as `wip-phase44-throughput` (not applied)
 
-## Regression range
+## Regression root cause (automated fix)
 
-| Layer | Finding |
-|-------|---------|
-| Clean v1.4 (`4d63df4`) | Uses legacy `_run_visual`; no fair-scheduler kwargs. Universal immediate abort not present on clean HEAD. |
-| Uncommitted throughput WIP | Introduced `_register_visual_fair` publishing `document_pages_total` / `visual_pages_*` to `EventBroker.publish` **before** the broker accepted those parameters. |
-| First bad state | Working-tree fair path after page selection / visibility probe — `TypeError: unexpected keyword argument 'document_pages_total'`. |
+| Item | Detail |
+|------|--------|
+| First bad state | Uncommitted fair-scheduler WIP after page selection |
+| Exception | `TypeError: unexpected keyword argument 'document_pages_total'` |
+| Location | `EventBroker.publish` / coordinator post-selection publish |
+| Why all docs failed | Every Phase 4 document hit the same publish before OCR |
+| Why CI missed it | No test published those selection kwargs through the broker |
 
-Exact visual exception (WIP / class of bug fixed here):
+## Private subset acceptance (opaque labels only)
 
-- Exception: `TypeError`
-- File: `backend/app/progress/broker.py` (`EventBroker.publish`)
-- Trigger: `backend/app/processing/coordinator.py` post-`prepare_document` `_safe_publish(... document_pages_total=...)`
-- Last successful operation: `native_visibility_reconciliation` / `visual_page_selection`
-- Why every document failed: every Phase 4 document hits the same post-selection publish before OCR inference
-- Why CI missed it: no test published those optional selection fields through `EventBroker.publish`
+Privacy: `fixtures/private/private_*.pdf` are gitignored; not tracked; not copied under docs.
 
-## Corrections delivered
+| Label | Pages | Terminal status | Visual status | Selected / completed / failed | Native retained | Policy | Canonical meta/full/range/416 | SHA stable | Duration | Result |
+|-------|------:|-----------------|---------------|------------------------------:|----------------:|--------|-------------------------------|------------|---------:|--------|
+| private_scan_001 | 2 | visual_processing_complete | visual_processing_complete | 2 / 2 / 0 | 0 | visual_authority | 200 / 200 / 206 / 416 | yes | 53.8s | pass |
+| private_digital_001 | 1 | visual_processing_complete | not_required | 0 / 0 / 0 | 1 | native_authority | 200 / 200 / 206 / 416 | yes | 1.5s | pass |
+| private_mixed_001 | 2 | visual_processing_complete | visual_processing_complete | 1 / 1 / 0 | 1 | mixed_authority | 200 / 200 / 206 / 416 | yes | 20.6s | pass |
 
-1. Structured `logger.exception` extras on visual failure (`failing_operation`, `exception_type`, …).
-2. `_safe_publish` never aborts extraction on telemetry errors.
-3. `EventBroker` + `ProgressEvent` accept optional selection/ETA fields so the TypeError class cannot recur.
-4. `VisualOcrService.publish_terminal_failure_summary` always writes a terminal summary (no document text); failure paths prefer `visual_processing_partial` when native results exist; never clear `canonical_view_available`.
-5. Canonical PDF request privacy-safe logging; range 0-1023 + SHA-256 stability test.
-6. Viewer: optional native/visual panels; PDF load generation + Retry; blank-canvas detection (opt-in `expectVisibleContent`); open-in-new-tab.
+Worker generation observed: 1 (scan/mixed). Visual summary HTTP status: 200 for all three.
 
-## CI
+### Intentional visual-failure (synthetic)
 
-- URL: https://github.com/daniyalsaeed20/veridemand/actions/runs/30051913289
-- Conclusion: success on `7766e6904ac046f00a34d84f1976be813266a62d`
-- Jobs: lint/typecheck/test/contracts, e2e, Phase 4 synthetic smoke — all green
+| Label | Status | Visual summary | Native summary | Canonical | Failure code | Result |
+|-------|--------|----------------|----------------|-----------|--------------|--------|
+| synthetic_inject | visual_processing_failed | 200 | 200 | 200 + viewable | ocr_runtime_unavailable | pass |
 
-## Private subset
+Inject setting: `OCR_INJECT_VISUAL_FAILURE` (test/acceptance only; default false).
 
-Not completed in this automated pass (local private PDFs are large medical corpora; operator must run the opaque two-page / digital / mixed subset and confirm nonblank renders). No completion tag created.
+### PDF.js viewer
+
+Playwright private viewer acceptance: **passed** (nonblank `data-render-status=rendered`, page nav, zoom, fit width, rotate, A→B→A switching). WASM `/pdfjs-wasm/jbig2.wasm` → 200 `application/wasm`.
+
+### Concurrent processing and viewing
+
+Open-canonical available for all three after terminal; viewer switching verified while stack remained live.
+
+## Local evidence
+
+Gitignored aggregates: `tmp/phase44-acceptance/acceptance.local.json` (opaque labels only; no private filenames/text).
+
+## Final verification (local)
+
+- `pnpm models:ocr:verify` / `pnpm test:ocr` / `pnpm smoke:corpus:phase4`: pass
+- `pnpm check` components through OCR integration: pass
+- `pnpm -C frontend test:e2e` with `OCR_ENABLED=false`: 15 passed
+- Private-corpus tracking guard: pass
+- Residual sessions: none
+- Stash `wip-phase44-throughput`: present, not applied
 
 ## Phase boundary
 
-- Fair scheduler / queue reordering / ETA UX **not** enabled on this branch.
+- Fair scheduler / throughput WIP not applied.
 - Phase 5 not started.
-- No tag moved.
+- Tag `phase-4-visual-detection-printed-ocr-v1.5` created only after final CI on the delivery commit.
