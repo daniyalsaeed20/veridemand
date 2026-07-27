@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from PIL import Image
+
 from backend.app.contracts.geometry import Geometry, NormalisedBoundingBox, NormalisedPolygon
 from backend.app.contracts.native import (
     NativePageDecision,
@@ -20,7 +22,6 @@ from backend.app.contracts.routing import PageRoute
 from backend.app.extraction.routing.router import PageRouter
 from backend.app.extraction.routing.visual_agreement import sample_words_for_agreement
 from backend.app.settings.config import Settings
-from PIL import Image
 
 
 def _metrics(**overrides: object) -> NativePageMetrics:
