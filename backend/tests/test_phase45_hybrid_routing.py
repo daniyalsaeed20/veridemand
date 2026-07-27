@@ -328,6 +328,7 @@ def test_ocr_workers_allows_two() -> None:
 
 def test_primary_side_not_greater_than_fallback() -> None:
     import pytest
+    from pydantic import ValidationError
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         Settings(ocr_primary_limit_side_len=2000, ocr_fallback_limit_side_len=1600)
