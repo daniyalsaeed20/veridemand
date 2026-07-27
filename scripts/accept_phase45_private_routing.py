@@ -54,12 +54,19 @@ def _wait_terminal(client: httpx.Client, sid: str, doc_id: str, timeout: float) 
     last: dict[str, Any] = {}
     terminal_prefixes = ("visual_processing_",)
     terminal_exact = {"failed", "cancelled"}
+    seen_ok = False
+    missing_streak = 0
     while time.monotonic() - t0 < timeout:
         listed = client.get(f"/api/v1/sessions/{sid}")
         if listed.status_code == 404:
+            missing_streak += 1
+            if seen_ok and missing_streak >= 3:
+                return {"status": "failed", "failure_code": "session_lost"}
             time.sleep(2.0)
             continue
+        missing_streak = 0
         listed.raise_for_status()
+        seen_ok = True
         payload = listed.json()
         docs_list = payload.get("documents")
         if not isinstance(docs_list, list):

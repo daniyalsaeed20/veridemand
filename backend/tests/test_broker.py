@@ -143,4 +143,3 @@ async def test_publish_accepts_phase45_route_and_eta_fields() -> None:
     assert event.current_route == "full_visual_ocr"
     assert event.full_ocr_pages_remaining == 9
     assert event.estimate_status == "collecting_samples"
-
