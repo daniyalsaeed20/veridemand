@@ -19,6 +19,8 @@ import type {
 } from "../viewer/viewerApi";
 import { cancelDocument, removeDocument } from "./documentApi";
 import { applyMonotonicProgress, type ProgressFloor } from "./monotonicProgress";
+import { ProcessingDetailsCard } from "../progress/ProcessingDetailsCard";
+import { isProgressActive } from "../progress/deriveLiveProgress";
 
 const STATUS_LABEL: Record<DocumentStatus, string> = {
   uploaded: "Uploaded",
@@ -166,69 +168,36 @@ export function DocumentCard({
           />
         </Stack>
 
-        {document.status === "queued" ||
-        document.status === "canonicalising" ||
-        document.status === "inspecting_native" ||
-        document.status === "extracting_native" ||
-        document.status === "visual_pending" ||
-        document.status === "visual_processing" ? (
+        {isProgressActive(document.status) ? (
           <Box>
             <LinearProgress
               variant={document.progress_kind === "indeterminate" ? "indeterminate" : "determinate"}
               value={document.progress_percent}
               aria-label="Document processing progress"
             />
-            <Stack spacing={0.25} sx={{ mt: 0.75 }}>
+            <Box sx={{ mt: 0.75 }}>
+              <ProcessingDetailsCard snapshot={document} />
+            </Box>
+            {document.user_status_message ? (
               <Typography variant="caption" color="text.secondary">
-                Overall processing: {document.progress_percent.toFixed(1)}%
+                {document.user_status_message}
               </Typography>
-              {document.major_phase ? (
-                <Typography variant="caption" color="text.secondary">
-                  Current phase: {document.major_phase.replaceAll("_", " ")}
-                  {document.major_phase_percent != null
-                    ? ` — ${document.major_phase_percent.toFixed(1)}%`
-                    : ""}
-                </Typography>
-              ) : null}
-              {document.pages_total != null && document.pages_total > 0 ? (
-                <Typography variant="caption" color="text.secondary">
-                  Current page: {document.active_page_number ?? document.pages_completed ?? 0} of{" "}
-                  {document.pages_total}
-                  {document.page_percent != null ? ` — ${document.page_percent.toFixed(1)}%` : ""}
-                </Typography>
-              ) : null}
+            ) : null}
+            {document.attempt_number != null && document.max_attempts != null ? (
               <Typography variant="caption" color="text.secondary">
-                Current operation:{" "}
-                {(
-                  document.current_operation ??
-                  document.user_status_message ??
-                  "Processing"
-                ).replaceAll("_", " ")}
+                Worker attempt: {document.attempt_number} of {document.max_attempts}
+                {document.worker_generation != null
+                  ? ` · Generation ${document.worker_generation}`
+                  : ""}
               </Typography>
-              {document.elapsed_seconds != null ? (
-                <Typography variant="caption" color="text.secondary">
-                  Elapsed: {Math.round(document.elapsed_seconds)} seconds
-                  {document.deadline_remaining_seconds != null
-                    ? ` · Timeout remaining: ${Math.round(document.deadline_remaining_seconds)} seconds`
-                    : ""}
-                </Typography>
-              ) : null}
-              {document.attempt_number != null && document.max_attempts != null ? (
-                <Typography variant="caption" color="text.secondary">
-                  Worker attempt: {document.attempt_number} of {document.max_attempts}
-                  {document.worker_generation != null
-                    ? ` · Generation ${document.worker_generation}`
-                    : ""}
-                </Typography>
-              ) : null}
-              {document.progress_kind === "indeterminate" &&
-              document.elapsed_seconds != null &&
-              document.elapsed_seconds > 30 ? (
-                <Typography variant="caption" color="warning.main">
-                  OCR is taking longer than expected. The backend timeout remains active.
-                </Typography>
-              ) : null}
-            </Stack>
+            ) : null}
+            {document.progress_kind === "indeterminate" &&
+            document.document_elapsed_seconds != null &&
+            document.document_elapsed_seconds > 30 ? (
+              <Typography variant="caption" color="warning.main">
+                OCR is taking longer than expected. The backend timeout remains active.
+              </Typography>
+            ) : null}
           </Box>
         ) : null}
 

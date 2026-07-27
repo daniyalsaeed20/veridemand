@@ -15,6 +15,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { processDocuments } from "../session/sessionApi";
 import { sessionKeys } from "../session/sessionKeys";
 import type { SessionSnapshot } from "../viewer/viewerApi";
+import { QueueEstimate } from "../progress/QueueEstimate";
 import { DocumentCard } from "./DocumentCard";
 
 interface QueueDashboardProps {
@@ -43,6 +44,19 @@ export function QueueDashboard({
 
   const hasQueueable = (counts.uploaded ?? 0) > 0;
   const processingDisabled = disabled || processBlocked;
+  const activeCount =
+    (counts.canonicalising ?? 0) +
+    (counts.inspecting_native ?? 0) +
+    (counts.extracting_native ?? 0) +
+    (counts.visual_pending ?? 0) +
+    (counts.visual_processing ?? 0);
+  const completedCount =
+    (counts.visual_processing_complete ?? 0) +
+    (counts.visual_processing_partial ?? 0) +
+    (counts.ready_for_extraction ?? 0) +
+    (counts.native_trust_complete ?? 0);
+  const remainingCount = (counts.queued ?? 0) + (counts.uploaded ?? 0) + activeCount;
+  const fairSchedulingEnabled = documents.some((doc) => doc.fair_scheduling_enabled === true);
 
   return (
     <Card variant="outlined">
@@ -66,6 +80,14 @@ export function QueueDashboard({
               {processAll.isPending ? "Queuing..." : "Process all uploaded"}
             </Button>
           </Stack>
+
+          <QueueEstimate
+            activeCount={activeCount}
+            queuedCount={counts.queued ?? 0}
+            completedCount={completedCount}
+            remainingCount={remainingCount}
+            fairSchedulingEnabled={fairSchedulingEnabled}
+          />
 
           {processBlocked ? (
             <Alert severity="warning" role="status">

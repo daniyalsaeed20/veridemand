@@ -164,9 +164,9 @@ describe("DocumentCard", () => {
         })}
       />,
     );
-    expect(screen.getByText(/Overall processing:\s*48\.0%/)).toBeInTheDocument();
+    expect(screen.getByText(/Overall progress:\s*48\.0%/)).toBeInTheDocument();
     expect(screen.getByText(/Current phase:.*40\.0%/)).toBeInTheDocument();
-    expect(screen.getByText(/Current page:\s*2 of 2/)).toBeInTheDocument();
+    expect(screen.getByText(/Document page:\s*2 of 2/)).toBeInTheDocument();
     expect(screen.getByText(/Worker attempt:\s*2 of 2/)).toBeInTheDocument();
   });
 
