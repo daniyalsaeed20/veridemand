@@ -30,12 +30,12 @@ REQUIRED_LABELS = (
 )
 
 BANNED_TOKENS = (
-    "MEDICAL",
     "AMINI",
     "wellstar",
     "srmc",
     "MR 040926",
     "JACKMAN",
+    "MEDICAL RECORDS",
 )
 
 
