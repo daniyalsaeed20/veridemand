@@ -69,9 +69,7 @@ export function deriveLiveProgress(
   },
 ): LiveProgressView {
   const { receivedAtMonotonic, nowMonotonic, active } = options;
-  const deltaSec = active
-    ? Math.max(0, (nowMonotonic - receivedAtMonotonic) / 1000)
-    : 0;
+  const deltaSec = active ? Math.max(0, (nowMonotonic - receivedAtMonotonic) / 1000) : 0;
 
   const baseDoc = snapshot.document_elapsed_seconds ?? 0;
   const basePage = snapshot.page_elapsed_seconds ?? 0;

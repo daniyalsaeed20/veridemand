@@ -85,9 +85,7 @@ export function ProcessingDetailsCard({ snapshot }: ProcessingDetailsCardProps) 
         Pages completed: {snapshot.pages_completed ?? "—"} · Pages remaining:{" "}
         {snapshot.pages_remaining ?? "—"}
       </Typography>
-      {routeLabel ? (
-        <Typography variant="body2">Current route: {routeLabel}</Typography>
-      ) : null}
+      {routeLabel ? <Typography variant="body2">Current route: {routeLabel}</Typography> : null}
       {snapshot.current_operation ? (
         <Typography variant="body2">
           Current operation: {snapshot.current_operation.replaceAll("_", " ")}
@@ -105,9 +103,7 @@ export function ProcessingDetailsCard({ snapshot }: ProcessingDetailsCardProps) 
           Current throughput: {snapshot.pages_per_minute.toFixed(1)} OCR pages/minute
         </Typography>
       ) : null}
-      <Typography variant="body2">
-        Estimated document remaining: {live.eta.label}
-      </Typography>
+      <Typography variant="body2">Estimated document remaining: {live.eta.label}</Typography>
       {snapshot.estimate_confidence ? (
         <Typography variant="body2">
           Estimate confidence:{" "}

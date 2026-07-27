@@ -37,10 +37,7 @@ export function PageRouteBreakdown({ snapshot }: PageRouteBreakdownProps) {
           value={snapshot.embedded_ocr_pages_verified}
           label="Embedded OCR verified"
         />
-        <ValueOrSkeleton
-          value={snapshot.targeted_repair_pages_selected}
-          label="Targeted repairs"
-        />
+        <ValueOrSkeleton value={snapshot.targeted_repair_pages_selected} label="Targeted repairs" />
         <ValueOrSkeleton value={snapshot.full_ocr_pages_selected} label="Full OCR required" />
         <ValueOrSkeleton value={snapshot.full_ocr_pages_completed} label="Full OCR completed" />
         <ValueOrSkeleton value={snapshot.full_ocr_pages_remaining} label="Full OCR remaining" />

@@ -33,7 +33,11 @@ function coalesceTimeline(
     if (isHeartbeat && rows.length > 0) {
       // Coalesce heartbeats into the current active row.
       const last = rows[rows.length - 1];
-      rows[rows.length - 1] = { ...last, active: true, label: `${last.label.split(" — ")[0]}${elapsed}` };
+      rows[rows.length - 1] = {
+        ...last,
+        active: true,
+        label: `${last.label.split(" — ")[0]}${elapsed}`,
+      };
       continue;
     }
     rows.push({
@@ -48,10 +52,7 @@ function coalesceTimeline(
 
 export function ProcessingTimeline({ entries, stageTimeline }: ProcessingTimelineProps) {
   const [open, setOpen] = useState(false);
-  const rows = useMemo(
-    () => coalesceTimeline(stageTimeline, entries),
-    [stageTimeline, entries],
-  );
+  const rows = useMemo(() => coalesceTimeline(stageTimeline, entries), [stageTimeline, entries]);
 
   return (
     <div>
