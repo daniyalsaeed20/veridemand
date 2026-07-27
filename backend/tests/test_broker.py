@@ -137,7 +137,7 @@ async def test_publish_accepts_phase45_route_and_eta_fields() -> None:
         full_ocr_pages_remaining=9,
         average_full_ocr_page_seconds=25.0,
         fair_scheduling_enabled=False,
-        unknown_should_be_ignored="nope",  # type: ignore[call-arg]
+        unknown_should_be_ignored="nope",
     )
     assert event.progress_version == 3
     assert event.current_route == "full_visual_ocr"
