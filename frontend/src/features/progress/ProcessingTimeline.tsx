@@ -77,7 +77,9 @@ export function ProcessingTimeline({ entries, stageTimeline }: ProcessingTimelin
             <ListItem key={row.id} disableGutters sx={{ py: 0 }}>
               <ListItemText
                 primary={`${row.done ? "✓" : row.active ? "→" : "○"} ${row.label}`}
-                primaryTypographyProps={{ variant: "body2", color: "text.secondary" }}
+                slotProps={{
+                  primary: { variant: "body2", color: "text.secondary" },
+                }}
               />
             </ListItem>
           ))}
