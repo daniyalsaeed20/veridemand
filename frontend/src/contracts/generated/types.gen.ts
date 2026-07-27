@@ -286,7 +286,7 @@ export type DocumentListResponse = {
  *
  * Document-level source authority after escalation rules.
  */
-export type DocumentSourcePolicy = 'native_authority' | 'mixed_authority' | 'visual_authority' | 'image_authority';
+export type DocumentSourcePolicy = 'native_authority' | 'embedded_ocr_authority' | 'mixed_authority' | 'visual_authority' | 'image_authority';
 
 /**
  * DocumentStatus
@@ -384,6 +384,14 @@ export type DocumentSummary = {
      */
     attempt_number?: number | null;
     /**
+     * Average Full Ocr Page Seconds
+     */
+    average_full_ocr_page_seconds?: number | null;
+    /**
+     * Average Page Seconds
+     */
+    average_page_seconds?: number | null;
+    /**
      * Canonical Metadata Url
      *
      * Relative URL for canonical page metadata.
@@ -422,6 +430,10 @@ export type DocumentSummary = {
      */
     current_operation?: string | null;
     /**
+     * Current Route
+     */
+    current_route?: string | null;
+    /**
      * Deadline Remaining Seconds
      *
      * Seconds remaining before the active deadline.
@@ -446,15 +458,59 @@ export type DocumentSummary = {
      */
     document_id: string;
     /**
+     * Document Pages Total
+     */
+    document_pages_total?: number | null;
+    /**
      * Document-level source authority after native/visual stages.
      */
     document_source_policy?: DocumentSourcePolicy | null;
+    /**
+     * Document Started At
+     */
+    document_started_at?: string | null;
     /**
      * Elapsed Seconds
      *
      * Document-level elapsed seconds (alias of document_elapsed_seconds).
      */
     elapsed_seconds?: number | null;
+    /**
+     * Embedded Ocr Pages Verified
+     */
+    embedded_ocr_pages_verified?: number | null;
+    /**
+     * Estimate Confidence
+     */
+    estimate_confidence?: string | null;
+    /**
+     * Estimate Sample Count
+     */
+    estimate_sample_count?: number | null;
+    /**
+     * Estimate Status
+     */
+    estimate_status?: string | null;
+    /**
+     * Estimated Completion At
+     */
+    estimated_completion_at?: string | null;
+    /**
+     * Estimated Current Operation Seconds
+     */
+    estimated_current_operation_seconds?: number | null;
+    /**
+     * Estimated Current Page Seconds
+     */
+    estimated_current_page_seconds?: number | null;
+    /**
+     * Estimated Document Remaining Seconds
+     */
+    estimated_document_remaining_seconds?: number | null;
+    /**
+     * Estimated Queue Remaining Seconds
+     */
+    estimated_queue_remaining_seconds?: number | null;
     /**
      * Extension
      *
@@ -492,9 +548,25 @@ export type DocumentSummary = {
      */
     failure_stage?: string | null;
     /**
+     * Fair Scheduling Enabled
+     */
+    fair_scheduling_enabled?: boolean | null;
+    /**
      * Canonical internal format key.
      */
     format: DocumentFormat;
+    /**
+     * Full Ocr Pages Completed
+     */
+    full_ocr_pages_completed?: number | null;
+    /**
+     * Full Ocr Pages Remaining
+     */
+    full_ocr_pages_remaining?: number | null;
+    /**
+     * Full Ocr Pages Selected
+     */
+    full_ocr_pages_selected?: number | null;
     /**
      * Major Phase
      *
@@ -526,6 +598,10 @@ export type DocumentSummary = {
      */
     native_extraction_performed?: boolean;
     /**
+     * Native Pages Retained
+     */
+    native_pages_retained?: number | null;
+    /**
      * Native Result Available
      *
      * True when at least one accepted native page remains after escalation.
@@ -543,6 +619,10 @@ export type DocumentSummary = {
      * Monotonic elapsed seconds for the active operation.
      */
     operation_elapsed_seconds?: number | null;
+    /**
+     * Operation Started At
+     */
+    operation_started_at?: string | null;
     /**
      * Operation Status
      *
@@ -572,17 +652,37 @@ export type DocumentSummary = {
      */
     page_percent?: number | null;
     /**
+     * Page Started At
+     */
+    page_started_at?: string | null;
+    /**
      * Pages Completed
      *
      * Visual pages completed when processing.
      */
     pages_completed?: number | null;
     /**
+     * Pages Per Minute
+     */
+    pages_per_minute?: number | null;
+    /**
+     * Pages Remaining
+     */
+    pages_remaining?: number | null;
+    /**
      * Pages Total
      *
      * Visual pages selected for processing.
      */
     pages_total?: number | null;
+    /**
+     * Phase Elapsed Seconds
+     */
+    phase_elapsed_seconds?: number | null;
+    /**
+     * Phase Started At
+     */
+    phase_started_at?: string | null;
     /**
      * Progress Kind
      *
@@ -596,6 +696,10 @@ export type DocumentSummary = {
      */
     progress_percent: number;
     /**
+     * Progress Version
+     */
+    progress_version?: number | null;
+    /**
      * Queue Position
      *
      * Dynamic 1-based queue position while queued.
@@ -607,6 +711,10 @@ export type DocumentSummary = {
      * Always false until final extraction exists.
      */
     result_available?: boolean;
+    /**
+     * Server Timestamp
+     */
+    server_timestamp?: string | null;
     /**
      * Sha256
      *
@@ -631,6 +739,14 @@ export type DocumentSummary = {
      * Current document lifecycle status.
      */
     status: DocumentStatus;
+    /**
+     * Targeted Repair Pages Completed
+     */
+    targeted_repair_pages_completed?: number | null;
+    /**
+     * Targeted Repair Pages Selected
+     */
+    targeted_repair_pages_selected?: number | null;
     /**
      * User Status Message
      *
@@ -1660,7 +1776,7 @@ export type OcrRecognitionStatus = 'accepted' | 'low_confidence' | 'empty';
  *
  * Page text authority for Phase 4 OCR results.
  */
-export type OcrSourceMode = 'visual_authority';
+export type OcrSourceMode = 'visual_authority' | 'embedded_ocr_authority';
 
 /**
  * OverlayProofItem
@@ -1985,9 +2101,17 @@ export type ProcessResponse = {
  */
 export type ProgressEvent = {
     /**
+     * Active Document Position
+     */
+    active_document_position?: number | null;
+    /**
      * Attempt Number
      */
     attempt_number?: number | null;
+    /**
+     * Average Full Ocr Page Seconds
+     */
+    average_full_ocr_page_seconds?: number | null;
     /**
      * Average Page Seconds
      */
@@ -2010,6 +2134,24 @@ export type ProgressEvent = {
      * Canonicalisation method when relevant.
      */
     canonicalisation_method?: string | null;
+    /**
+     * Current Operation
+     *
+     * Alias of operation when set.
+     */
+    current_operation?: string | null;
+    /**
+     * Current Page
+     */
+    current_page?: number | null;
+    /**
+     * Current Page Total
+     */
+    current_page_total?: number | null;
+    /**
+     * Current Route
+     */
+    current_route?: string | null;
     /**
      * Deadline Remaining Seconds
      */
@@ -2035,6 +2177,10 @@ export type ProgressEvent = {
      */
     document_pages_total?: number | null;
     /**
+     * Document Started At
+     */
+    document_started_at?: string | null;
+    /**
      * Document status at the time of the event, if relevant.
      */
     document_status?: DocumentStatus | null;
@@ -2045,17 +2191,55 @@ export type ProgressEvent = {
      */
     elapsed_seconds?: number | null;
     /**
+     * Embedded Ocr Pages Verified
+     */
+    embedded_ocr_pages_verified?: number | null;
+    /**
      * Estimate Confidence
      */
     estimate_confidence?: string | null;
+    /**
+     * Estimate Sample Count
+     */
+    estimate_sample_count?: number | null;
+    /**
+     * Estimate Status
+     */
+    estimate_status?: string | null;
+    /**
+     * Estimated Completion At
+     *
+     * Alias of estimated_completion_time.
+     */
+    estimated_completion_at?: string | null;
     /**
      * Estimated Completion Time
      */
     estimated_completion_time?: string | null;
     /**
+     * Estimated Current Operation Seconds
+     */
+    estimated_current_operation_seconds?: number | null;
+    /**
+     * Estimated Current Page Seconds
+     */
+    estimated_current_page_seconds?: number | null;
+    /**
+     * Estimated Document Remaining Seconds
+     *
+     * Alias of estimated_document_seconds_remaining.
+     */
+    estimated_document_remaining_seconds?: number | null;
+    /**
      * Estimated Document Seconds Remaining
      */
     estimated_document_seconds_remaining?: number | null;
+    /**
+     * Estimated Queue Remaining Seconds
+     *
+     * Alias of estimated_queue_seconds_remaining.
+     */
+    estimated_queue_remaining_seconds?: number | null;
     /**
      * Estimated Queue Seconds Remaining
      */
@@ -2076,6 +2260,22 @@ export type ProgressEvent = {
      * Monotonic per-session sequence number.
      */
     event_sequence: number;
+    /**
+     * Fair Scheduling Enabled
+     */
+    fair_scheduling_enabled?: boolean | null;
+    /**
+     * Full Ocr Pages Completed
+     */
+    full_ocr_pages_completed?: number | null;
+    /**
+     * Full Ocr Pages Remaining
+     */
+    full_ocr_pages_remaining?: number | null;
+    /**
+     * Full Ocr Pages Selected
+     */
+    full_ocr_pages_selected?: number | null;
     /**
      * Job Id
      *
@@ -2129,6 +2329,10 @@ export type ProgressEvent = {
      */
     operation_elapsed_seconds?: number | null;
     /**
+     * Operation Started At
+     */
+    operation_started_at?: string | null;
+    /**
      * Operation Status
      *
      * Operation status.
@@ -2157,6 +2361,10 @@ export type ProgressEvent = {
      */
     page_percent?: number | null;
     /**
+     * Page Started At
+     */
+    page_started_at?: string | null;
+    /**
      * Pages Completed
      *
      * Reserved; unused in Phase 1.
@@ -2179,11 +2387,35 @@ export type ProgressEvent = {
      */
     percent?: number | null;
     /**
+     * Phase Elapsed Seconds
+     */
+    phase_elapsed_seconds?: number | null;
+    /**
+     * Phase Started At
+     */
+    phase_started_at?: string | null;
+    /**
      * Progress Kind
      *
      * determinate|indeterminate|heartbeat.
      */
     progress_kind?: string | null;
+    /**
+     * Progress Version
+     */
+    progress_version?: number | null;
+    /**
+     * Queue Documents Completed
+     */
+    queue_documents_completed?: number | null;
+    /**
+     * Queue Documents Remaining
+     */
+    queue_documents_remaining?: number | null;
+    /**
+     * Queue Documents Total
+     */
+    queue_documents_total?: number | null;
     /**
      * Queue Position
      *
@@ -2202,6 +2434,16 @@ export type ProgressEvent = {
      * Safe native reason codes when relevant.
      */
     reason_codes?: Array<string> | null;
+    /**
+     * Route
+     *
+     * Page route for route events.
+     */
+    route?: string | null;
+    /**
+     * Server Timestamp
+     */
+    server_timestamp?: string | null;
     /**
      * Session Id
      *
@@ -2226,6 +2468,14 @@ export type ProgressEvent = {
      * Alias of operation_elapsed_seconds.
      */
     stage_elapsed_seconds?: number | null;
+    /**
+     * Targeted Repair Pages Completed
+     */
+    targeted_repair_pages_completed?: number | null;
+    /**
+     * Targeted Repair Pages Selected
+     */
+    targeted_repair_pages_selected?: number | null;
     /**
      * Timestamp
      *
@@ -2266,7 +2516,7 @@ export type ProgressEvent = {
  * Extraction-stage types are reserved for later phases and are never emitted in
  * Phase 1.
  */
-export type ProgressEventType = 'session.created' | 'session.snapshot' | 'session.expiring' | 'session.deleted' | 'document.uploaded' | 'document.rejected' | 'document.queued' | 'document.started' | 'document.stage_changed' | 'document.canonicalisation_started' | 'document.canonicalisation_progress' | 'document.canonicalisation_completed' | 'document.canonicalisation_failed' | 'document.canonicalisation_cancelled' | 'document.canonical_ready' | 'document.ready_for_extraction' | 'document.native_inspection_started' | 'document.native_page_started' | 'document.native_page_accepted' | 'document.native_page_rejected' | 'document.native_page_absent' | 'document.native_page_error' | 'document.native_document_escalated' | 'document.native_extraction_completed' | 'document.native_extraction_failed' | 'document.visual_processing_started' | 'document.visual_pages_selected' | 'document.native_visibility_started' | 'document.native_visibility_supported' | 'document.native_visibility_rejected' | 'document.visual_page_started' | 'document.visual_page_rendered' | 'document.visual_page_ocr_started' | 'document.visual_page_ocr_completed' | 'document.visual_page_no_text' | 'document.visual_page_failed' | 'document.visual_grouping_completed' | 'document.visual_processing_completed' | 'document.visual_processing_partial' | 'document.visual_processing_failed' | 'document.removed' | 'document.warning' | 'document.failed' | 'document.cancelled' | 'job.queued' | 'job.started' | 'job.completed' | 'job.failed' | 'job.cancelled' | 'stream.resync_required' | 'heartbeat' | 'document.page_started' | 'document.page_completed' | 'document.completed';
+export type ProgressEventType = 'session.created' | 'session.snapshot' | 'session.expiring' | 'session.deleted' | 'document.uploaded' | 'document.rejected' | 'document.queued' | 'document.started' | 'document.stage_changed' | 'document.canonicalisation_started' | 'document.canonicalisation_progress' | 'document.canonicalisation_completed' | 'document.canonicalisation_failed' | 'document.canonicalisation_cancelled' | 'document.canonical_ready' | 'document.ready_for_extraction' | 'document.native_inspection_started' | 'document.native_page_started' | 'document.native_page_accepted' | 'document.native_page_rejected' | 'document.native_page_absent' | 'document.native_page_error' | 'document.native_document_escalated' | 'document.native_extraction_completed' | 'document.native_extraction_failed' | 'document.visual_processing_started' | 'document.visual_pages_selected' | 'document.native_visibility_started' | 'document.native_visibility_supported' | 'document.native_visibility_rejected' | 'document.visual_page_started' | 'document.visual_page_rendered' | 'document.visual_page_ocr_started' | 'document.visual_page_ocr_completed' | 'document.visual_page_no_text' | 'document.visual_page_failed' | 'document.visual_grouping_completed' | 'document.visual_processing_completed' | 'document.visual_processing_partial' | 'document.visual_processing_failed' | 'document.page_route_started' | 'document.page_route_completed' | 'document.embedded_ocr_visual_check_started' | 'document.embedded_ocr_visual_check_completed' | 'document.embedded_ocr_recognition_check_started' | 'document.embedded_ocr_recognition_check_completed' | 'document.embedded_ocr_verified' | 'document.embedded_ocr_targeted_repair_started' | 'document.embedded_ocr_targeted_repair_completed' | 'document.full_ocr_primary_started' | 'document.full_ocr_primary_completed' | 'document.full_ocr_fallback_started' | 'document.full_ocr_fallback_completed' | 'document.visual_no_text_completed' | 'document.removed' | 'document.warning' | 'document.failed' | 'document.cancelled' | 'job.queued' | 'job.started' | 'job.completed' | 'job.failed' | 'job.cancelled' | 'stream.resync_required' | 'heartbeat' | 'document.page_started' | 'document.page_completed' | 'document.completed';
 
 /**
  * ProvisionalOrderStatus
@@ -2578,9 +2828,9 @@ export type SessionStatus = 'created' | 'accepting_uploads' | 'queued' | 'proces
 /**
  * SourceMode
  *
- * Page-level source authority for Phase 3.
+ * Page-level source authority for Phase 3+.
  */
-export type SourceMode = 'native_authority' | 'visual_authority' | 'image_authority';
+export type SourceMode = 'native_authority' | 'embedded_ocr_authority' | 'visual_authority' | 'image_authority';
 
 /**
  * UploadBatchResponse
@@ -2637,16 +2887,16 @@ export type ValidationError = {
 /**
  * VisualAgreementStatus
  *
- * Visual agreement status across Phase 3 and Phase 4.
+ * Visual agreement status across Phase 3 and Phase 4.5.
  */
-export type VisualAgreementStatus = 'not_evaluated_phase_3' | 'evaluated_phase_4_visibility';
+export type VisualAgreementStatus = 'not_evaluated_phase_3' | 'evaluated_phase_4_visibility' | 'evaluated_phase_45_embedded_visual' | 'evaluated_phase_45_embedded_recognition' | 'evaluated_phase_45_targeted_repair';
 
 /**
  * VisualAgreementStatusPhase4
  *
- * Visual agreement status after Phase 4 visibility probing.
+ * Visual agreement status after Phase 4 / 4.5 probing.
  */
-export type VisualAgreementStatusPhase4 = 'not_evaluated_phase_3' | 'evaluated_phase_4_visibility';
+export type VisualAgreementStatusPhase4 = 'not_evaluated_phase_3' | 'evaluated_phase_4_visibility' | 'evaluated_phase_45_embedded_visual' | 'evaluated_phase_45_embedded_recognition' | 'evaluated_phase_45_targeted_repair';
 
 /**
  * VisualBlockType
@@ -2679,6 +2929,10 @@ export type VisualDocumentSummary = {
     document_id: string;
     document_source_policy?: DocumentSourcePolicy | null;
     /**
+     * Embedded Ocr Pages Verified
+     */
+    embedded_ocr_pages_verified?: number;
+    /**
      * Error Codes
      */
     error_codes?: Array<string>;
@@ -2686,6 +2940,10 @@ export type VisualDocumentSummary = {
      * Final Result Available
      */
     final_result_available?: boolean;
+    /**
+     * Full Ocr Pages
+     */
+    full_ocr_pages?: number;
     /**
      * Handwriting Assessment Pending
      */
@@ -2729,9 +2987,17 @@ export type VisualDocumentSummary = {
     pages_selected: number;
     progress: VisualProgress;
     /**
+     * Targeted Repair Pages
+     */
+    targeted_repair_pages?: number;
+    /**
      * User Status Message
      */
     user_status_message?: string | null;
+    /**
+     * Visual No Text Pages
+     */
+    visual_no_text_pages?: number;
     visual_processing_status: VisualProcessingStatus;
     /**
      * Visual Result Available
@@ -2864,6 +3130,12 @@ export type VisualPageResult = {
      */
     page_number: number;
     /**
+     * Page Route
+     *
+     * Phase 4.5 page route when hybrid routing is enabled.
+     */
+    page_route?: string | null;
+    /**
      * Peak Rss Mb
      */
     peak_rss_mb?: number | null;
@@ -2873,6 +3145,10 @@ export type VisualPageResult = {
     preprocess_duration_seconds?: number | null;
     preprocessing_variant?: PreprocessingVariant | null;
     reading_order?: VisualReadingOrder | null;
+    /**
+     * Recognition Agreement Score
+     */
+    recognition_agreement_score?: number | null;
     /**
      * Recognition Model Name
      */
@@ -2902,6 +3178,10 @@ export type VisualPageResult = {
      */
     requested_dpi?: number | null;
     /**
+     * Route Reason Codes
+     */
+    route_reason_codes?: Array<string>;
+    /**
      * Source Height Px
      */
     source_height_px?: number | null;
@@ -2911,6 +3191,10 @@ export type VisualPageResult = {
      */
     source_width_px?: number | null;
     status: VisualPageStatus;
+    /**
+     * Visual Agreement Score
+     */
+    visual_agreement_score?: number | null;
     /**
      * Visual Processing Attempted
      */
@@ -2938,7 +3222,7 @@ export type VisualPageResult = {
  *
  * Lifecycle of visual/OCR processing for one page.
  */
-export type VisualPageStatus = 'pending' | 'rendering' | 'detecting' | 'recognising' | 'grouping' | 'completed' | 'completed_no_text' | 'failed' | 'cancelled' | 'skipped_native_retained';
+export type VisualPageStatus = 'pending' | 'rendering' | 'detecting' | 'recognising' | 'grouping' | 'completed' | 'completed_no_text' | 'failed' | 'cancelled' | 'skipped_native_retained' | 'skipped_embedded_ocr_verified' | 'targeted_repair_completed';
 
 /**
  * VisualPageSummary

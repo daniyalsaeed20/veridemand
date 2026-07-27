@@ -117,6 +117,7 @@ export const zDocumentFormat = z.enum([
  */
 export const zDocumentSourcePolicy = z.enum([
     'native_authority',
+    'embedded_ocr_authority',
     'mixed_authority',
     'visual_authority',
     'image_authority'
@@ -476,7 +477,7 @@ export const zOcrRecognitionStatus = z.enum([
  *
  * Page text authority for Phase 4 OCR results.
  */
-export const zOcrSourceMode = z.enum(['visual_authority']);
+export const zOcrSourceMode = z.enum(['visual_authority', 'embedded_ocr_authority']);
 
 /**
  * OverlayProofItem
@@ -519,6 +520,8 @@ export const zDocumentSummary = z.object({
     active_job_id: z.string().regex(/^job_[0-9a-f]{32}$/).nullish(),
     active_page_number: z.int().gte(1).nullish(),
     attempt_number: z.int().gte(1).nullish(),
+    average_full_ocr_page_seconds: z.number().gte(0).nullish(),
+    average_page_seconds: z.number().gte(0).nullish(),
     canonical_metadata_url: z.string().nullish(),
     canonical_status: zCanonicalStatus.nullish(),
     canonical_view_available: z.boolean().optional().default(false),
@@ -526,42 +529,69 @@ export const zDocumentSummary = z.object({
     canonicalisation_method: zCanonicalisationMethod.nullish(),
     created_at: z.iso.datetime(),
     current_operation: z.string().nullish(),
+    current_route: z.string().nullish(),
     deadline_remaining_seconds: z.number().gte(0).nullish(),
     display_filename: z.string(),
     document_elapsed_seconds: z.number().gte(0).nullish(),
     document_id: z.string().regex(/^doc_[0-9a-f]{32}$/),
+    document_pages_total: z.int().gte(0).nullish(),
     document_source_policy: zDocumentSourcePolicy.nullish(),
+    document_started_at: z.iso.datetime().nullish(),
     elapsed_seconds: z.number().gte(0).nullish(),
+    embedded_ocr_pages_verified: z.int().gte(0).nullish(),
+    estimate_confidence: z.string().nullish(),
+    estimate_sample_count: z.int().gte(0).nullish(),
+    estimate_status: z.string().nullish(),
+    estimated_completion_at: z.iso.datetime().nullish(),
+    estimated_current_operation_seconds: z.number().gte(0).nullish(),
+    estimated_current_page_seconds: z.number().gte(0).nullish(),
+    estimated_document_remaining_seconds: z.number().gte(0).nullish(),
+    estimated_queue_remaining_seconds: z.number().gte(0).nullish(),
     extension: z.string(),
     extraction_performed: z.boolean().optional().default(false),
     failure_code: z.string().nullish(),
     failure_message: z.string().nullish(),
     failure_page_number: z.int().gte(1).nullish(),
     failure_stage: z.string().nullish(),
+    fair_scheduling_enabled: z.boolean().nullish(),
     format: zDocumentFormat,
+    full_ocr_pages_completed: z.int().gte(0).nullish(),
+    full_ocr_pages_remaining: z.int().gte(0).nullish(),
+    full_ocr_pages_selected: z.int().gte(0).nullish(),
     major_phase: z.string().nullish(),
     major_phase_percent: z.number().gte(0).lte(100).nullish(),
     max_attempts: z.int().gte(1).nullish(),
     media_type: z.string(),
     native_extraction_performed: z.boolean().optional().default(false),
+    native_pages_retained: z.int().gte(0).nullish(),
     native_result_available: z.boolean().optional().default(false),
     native_summary_url: z.string().nullish(),
     operation_elapsed_seconds: z.number().gte(0).nullish(),
+    operation_started_at: z.iso.datetime().nullish(),
     operation_status: z.string().nullish(),
     page_count: z.int().gte(0).nullish(),
     page_count_status: zPageCountStatus,
     page_elapsed_seconds: z.number().gte(0).nullish(),
     page_percent: z.number().gte(0).lte(100).nullish(),
+    page_started_at: z.iso.datetime().nullish(),
     pages_completed: z.int().gte(0).nullish(),
+    pages_per_minute: z.number().gte(0).nullish(),
+    pages_remaining: z.int().gte(0).nullish(),
     pages_total: z.int().gte(0).nullish(),
+    phase_elapsed_seconds: z.number().gte(0).nullish(),
+    phase_started_at: z.iso.datetime().nullish(),
     progress_kind: z.string().nullish(),
     progress_percent: z.int().gte(0).lte(65),
+    progress_version: z.int().gte(1).nullish(),
     queue_position: z.int().gte(1).nullish(),
     result_available: z.boolean().optional().default(false),
+    server_timestamp: z.iso.datetime().nullish(),
     sha256: z.string().length(64),
     size_bytes: z.int().gte(0),
     stage_timeline: z.array(z.record(z.string(), z.unknown())).nullish(),
     status: zDocumentStatus,
+    targeted_repair_pages_completed: z.int().gte(0).nullish(),
+    targeted_repair_pages_selected: z.int().gte(0).nullish(),
     user_status_message: z.string().nullish(),
     visual_processing_performed: z.boolean().optional().default(false),
     visual_processing_required: z.boolean().optional().default(false),
@@ -731,6 +761,20 @@ export const zProgressEventType = z.enum([
     'document.visual_processing_completed',
     'document.visual_processing_partial',
     'document.visual_processing_failed',
+    'document.page_route_started',
+    'document.page_route_completed',
+    'document.embedded_ocr_visual_check_started',
+    'document.embedded_ocr_visual_check_completed',
+    'document.embedded_ocr_recognition_check_started',
+    'document.embedded_ocr_recognition_check_completed',
+    'document.embedded_ocr_verified',
+    'document.embedded_ocr_targeted_repair_started',
+    'document.embedded_ocr_targeted_repair_completed',
+    'document.full_ocr_primary_started',
+    'document.full_ocr_primary_completed',
+    'document.full_ocr_fallback_started',
+    'document.full_ocr_fallback_completed',
+    'document.visual_no_text_completed',
     'document.removed',
     'document.warning',
     'document.failed',
@@ -753,25 +797,44 @@ export const zProgressEventType = z.enum([
  * A single, strictly-validated progress event.
  */
 export const zProgressEvent = z.object({
+    active_document_position: z.int().gte(1).nullish(),
     attempt_number: z.int().gte(1).nullish(),
+    average_full_ocr_page_seconds: z.number().gte(0).nullish(),
     average_page_seconds: z.number().gte(0).nullish(),
     canonical_page_count: z.int().gte(0).nullish(),
     canonical_status: z.string().nullish(),
     canonicalisation_method: z.string().nullish(),
+    current_operation: z.string().nullish(),
+    current_page: z.int().gte(1).nullish(),
+    current_page_total: z.int().gte(0).nullish(),
+    current_route: z.string().nullish(),
     deadline_remaining_seconds: z.number().gte(0).nullish(),
     decision: z.string().nullish(),
     document_elapsed_seconds: z.number().gte(0).nullish(),
     document_id: z.string().regex(/^doc_[0-9a-f]{32}$/).nullish(),
     document_pages_total: z.int().gte(0).nullish(),
+    document_started_at: z.iso.datetime().nullish(),
     document_status: zDocumentStatus.nullish(),
     elapsed_seconds: z.number().gte(0).nullish(),
+    embedded_ocr_pages_verified: z.int().gte(0).nullish(),
     estimate_confidence: z.string().nullish(),
+    estimate_sample_count: z.int().gte(0).nullish(),
+    estimate_status: z.string().nullish(),
+    estimated_completion_at: z.iso.datetime().nullish(),
     estimated_completion_time: z.iso.datetime().nullish(),
+    estimated_current_operation_seconds: z.number().gte(0).nullish(),
+    estimated_current_page_seconds: z.number().gte(0).nullish(),
+    estimated_document_remaining_seconds: z.number().gte(0).nullish(),
     estimated_document_seconds_remaining: z.number().gte(0).nullish(),
+    estimated_queue_remaining_seconds: z.number().gte(0).nullish(),
     estimated_queue_seconds_remaining: z.number().gte(0).nullish(),
     event: zProgressEventType,
     event_id: z.string().regex(/^evt_[0-9]{12}$/),
     event_sequence: z.int().gte(1),
+    fair_scheduling_enabled: z.boolean().nullish(),
+    full_ocr_pages_completed: z.int().gte(0).nullish(),
+    full_ocr_pages_remaining: z.int().gte(0).nullish(),
+    full_ocr_pages_selected: z.int().gte(0).nullish(),
     job_id: z.string().regex(/^job_[0-9a-f]{32}$/).nullish(),
     job_status: zJobStatus.nullish(),
     major_phase: z.string().nullish(),
@@ -782,23 +845,35 @@ export const zProgressEvent = z.object({
     native_trust_score: z.number().gte(0).lte(1).nullish(),
     operation: z.string().nullish(),
     operation_elapsed_seconds: z.number().gte(0).nullish(),
+    operation_started_at: z.iso.datetime().nullish(),
     operation_status: z.string().nullish(),
     overall_percent: z.number().gte(0).lte(65).nullish(),
     page_elapsed_seconds: z.number().gte(0).nullish(),
     page_number: z.int().gte(1).nullish(),
     page_percent: z.number().gte(0).lte(100).nullish(),
+    page_started_at: z.iso.datetime().nullish(),
     pages_completed: z.int().gte(0).nullish(),
     pages_per_minute: z.number().gte(0).nullish(),
     pages_total: z.int().gte(0).nullish(),
     percent: z.int().gte(0).lte(100).nullish(),
+    phase_elapsed_seconds: z.number().gte(0).nullish(),
+    phase_started_at: z.iso.datetime().nullish(),
     progress_kind: z.string().nullish(),
+    progress_version: z.int().gte(1).nullish(),
+    queue_documents_completed: z.int().gte(0).nullish(),
+    queue_documents_remaining: z.int().gte(0).nullish(),
+    queue_documents_total: z.int().gte(0).nullish(),
     queue_position: z.int().gte(1).nullish(),
     reason_code: z.string().nullish(),
     reason_codes: z.array(z.string()).nullish(),
+    route: z.string().nullish(),
+    server_timestamp: z.iso.datetime().nullish(),
     session_id: z.string().regex(/^ses_[0-9a-f]{32}$/),
     source_mode: z.string().nullish(),
     stage: z.string().nullish(),
     stage_elapsed_seconds: z.number().gte(0).nullish(),
+    targeted_repair_pages_completed: z.int().gte(0).nullish(),
+    targeted_repair_pages_selected: z.int().gte(0).nullish(),
     timestamp: z.iso.datetime(),
     visual_pages_completed: z.int().gte(0).nullish(),
     visual_pages_remaining: z.int().gte(0).nullish(),
@@ -961,10 +1036,11 @@ export const zProcessResponse = z.object({
 /**
  * SourceMode
  *
- * Page-level source authority for Phase 3.
+ * Page-level source authority for Phase 3+.
  */
 export const zSourceMode = z.enum([
     'native_authority',
+    'embedded_ocr_authority',
     'visual_authority',
     'image_authority'
 ]);
@@ -1023,9 +1099,15 @@ export const zHttpValidationError = z.object({
 /**
  * VisualAgreementStatus
  *
- * Visual agreement status across Phase 3 and Phase 4.
+ * Visual agreement status across Phase 3 and Phase 4.5.
  */
-export const zVisualAgreementStatus = z.enum(['not_evaluated_phase_3', 'evaluated_phase_4_visibility']);
+export const zVisualAgreementStatus = z.enum([
+    'not_evaluated_phase_3',
+    'evaluated_phase_4_visibility',
+    'evaluated_phase_45_embedded_visual',
+    'evaluated_phase_45_embedded_recognition',
+    'evaluated_phase_45_targeted_repair'
+]);
 
 /**
  * NativePageTrustResult
@@ -1096,9 +1178,15 @@ export const zNativePageResult = z.object({
 /**
  * VisualAgreementStatusPhase4
  *
- * Visual agreement status after Phase 4 visibility probing.
+ * Visual agreement status after Phase 4 / 4.5 probing.
  */
-export const zVisualAgreementStatusPhase4 = z.enum(['not_evaluated_phase_3', 'evaluated_phase_4_visibility']);
+export const zVisualAgreementStatusPhase4 = z.enum([
+    'not_evaluated_phase_3',
+    'evaluated_phase_4_visibility',
+    'evaluated_phase_45_embedded_visual',
+    'evaluated_phase_45_embedded_recognition',
+    'evaluated_phase_45_targeted_repair'
+]);
 
 /**
  * NativeVisibilityResult
@@ -1154,7 +1242,9 @@ export const zVisualPageStatus = z.enum([
     'completed_no_text',
     'failed',
     'cancelled',
-    'skipped_native_retained'
+    'skipped_native_retained',
+    'skipped_embedded_ocr_verified',
+    'targeted_repair_completed'
 ]);
 
 /**
@@ -1255,8 +1345,10 @@ export const zVisualDocumentSummary = z.object({
     created_at: z.iso.datetime(),
     document_id: z.string().regex(/^doc_[0-9a-f]{32}$/),
     document_source_policy: zDocumentSourcePolicy.nullish(),
+    embedded_ocr_pages_verified: z.int().gte(0).optional().default(0),
     error_codes: z.array(z.string()).optional(),
     final_result_available: z.boolean().optional().default(false),
+    full_ocr_pages: z.int().gte(0).optional().default(0),
     handwriting_assessment_pending: z.boolean().optional().default(true),
     model_info: zVisualModelInfo.nullish(),
     native_pages_downgraded: z.int().gte(0),
@@ -1269,7 +1361,9 @@ export const zVisualDocumentSummary = z.object({
     pages_no_text: z.int().gte(0),
     pages_selected: z.int().gte(0),
     progress: zVisualProgress,
+    targeted_repair_pages: z.int().gte(0).optional().default(0),
     user_status_message: z.string().nullish(),
+    visual_no_text_pages: z.int().gte(0).optional().default(0),
     visual_processing_status: zVisualProcessingStatus,
     visual_result_available: z.boolean().optional().default(false),
     warnings: z.array(zVisualWarning).optional()
@@ -1341,10 +1435,12 @@ export const zVisualPageResult = z.object({
     native_visibility_result: zNativeVisibilityResult.nullish(),
     paddle_pipeline_duration_seconds: z.number().gte(0).nullish(),
     page_number: z.int().gte(1),
+    page_route: z.string().nullish(),
     peak_rss_mb: z.number().gte(0).nullish(),
     preprocess_duration_seconds: z.number().gte(0).nullish(),
     preprocessing_variant: zPreprocessingVariant.nullish(),
     reading_order: zVisualReadingOrder.nullish(),
+    recognition_agreement_score: z.number().gte(0).lte(1).nullish(),
     recognition_model_name: z.string().nullish(),
     render_dpi: z.number().gt(0).nullish(),
     render_duration_seconds: z.number().gte(0).nullish(),
@@ -1352,10 +1448,12 @@ export const zVisualPageResult = z.object({
     render_source_policy: z.string().nullish(),
     render_width_pixels: z.int().gte(0).nullish(),
     requested_dpi: z.number().gt(0).nullish(),
+    route_reason_codes: z.array(z.string()).optional(),
     source_height_px: z.int().gte(0).nullish(),
     source_mode: zSourceMode,
     source_width_px: z.int().gte(0).nullish(),
     status: zVisualPageStatus,
+    visual_agreement_score: z.number().gte(0).lte(1).nullish(),
     visual_processing_attempted: z.boolean().optional().default(false),
     visual_result_available: z.boolean().optional().default(false),
     warnings: z.array(zVisualWarning).optional(),

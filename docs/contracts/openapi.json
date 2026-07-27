@@ -399,6 +399,7 @@
         "description": "Document-level source authority after escalation rules.",
         "enum": [
           "native_authority",
+          "embedded_ocr_authority",
           "mixed_authority",
           "visual_authority",
           "image_authority"
@@ -562,6 +563,30 @@
             "description": "Current page/document attempt number.",
             "title": "Attempt Number"
           },
+          "average_full_ocr_page_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Full Ocr Page Seconds"
+          },
+          "average_page_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Page Seconds"
+          },
           "canonical_metadata_url": {
             "anyOf": [
               {
@@ -632,6 +657,17 @@
             "description": "Stable operation identifier for the active stage.",
             "title": "Current Operation"
           },
+          "current_route": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Route"
+          },
           "deadline_remaining_seconds": {
             "anyOf": [
               {
@@ -669,6 +705,18 @@
             "title": "Document Id",
             "type": "string"
           },
+          "document_pages_total": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Pages Total"
+          },
           "document_source_policy": {
             "anyOf": [
               {
@@ -679,6 +727,18 @@
               }
             ],
             "description": "Document-level source authority after native/visual stages."
+          },
+          "document_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Started At"
           },
           "elapsed_seconds": {
             "anyOf": [
@@ -692,6 +752,112 @@
             ],
             "description": "Document-level elapsed seconds (alias of document_elapsed_seconds).",
             "title": "Elapsed Seconds"
+          },
+          "embedded_ocr_pages_verified": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Embedded Ocr Pages Verified"
+          },
+          "estimate_confidence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimate Confidence"
+          },
+          "estimate_sample_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimate Sample Count"
+          },
+          "estimate_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimate Status"
+          },
+          "estimated_completion_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Completion At"
+          },
+          "estimated_current_operation_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Current Operation Seconds"
+          },
+          "estimated_current_page_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Current Page Seconds"
+          },
+          "estimated_document_remaining_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Document Remaining Seconds"
+          },
+          "estimated_queue_remaining_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Queue Remaining Seconds"
           },
           "extension": {
             "description": "Lowercased, validated file extension without the dot.",
@@ -753,9 +919,56 @@
             "description": "Safe stage name when processing failed (e.g. extracting_native).",
             "title": "Failure Stage"
           },
+          "fair_scheduling_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fair Scheduling Enabled"
+          },
           "format": {
             "$ref": "#/components/schemas/DocumentFormat",
             "description": "Canonical internal format key."
+          },
+          "full_ocr_pages_completed": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Ocr Pages Completed"
+          },
+          "full_ocr_pages_remaining": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Ocr Pages Remaining"
+          },
+          "full_ocr_pages_selected": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Ocr Pages Selected"
           },
           "major_phase": {
             "anyOf": [
@@ -807,6 +1020,18 @@
             "title": "Native Extraction Performed",
             "type": "boolean"
           },
+          "native_pages_retained": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Native Pages Retained"
+          },
           "native_result_available": {
             "default": false,
             "description": "True when at least one accepted native page remains after escalation.",
@@ -837,6 +1062,18 @@
             ],
             "description": "Monotonic elapsed seconds for the active operation.",
             "title": "Operation Elapsed Seconds"
+          },
+          "operation_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operation Started At"
           },
           "operation_status": {
             "anyOf": [
@@ -894,6 +1131,18 @@
             "description": "Progress within the active visual page (0-100).",
             "title": "Page Percent"
           },
+          "page_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Started At"
+          },
           "pages_completed": {
             "anyOf": [
               {
@@ -907,6 +1156,30 @@
             "description": "Visual pages completed when processing.",
             "title": "Pages Completed"
           },
+          "pages_per_minute": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pages Per Minute"
+          },
+          "pages_remaining": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pages Remaining"
+          },
           "pages_total": {
             "anyOf": [
               {
@@ -919,6 +1192,30 @@
             ],
             "description": "Visual pages selected for processing.",
             "title": "Pages Total"
+          },
+          "phase_elapsed_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phase Elapsed Seconds"
+          },
+          "phase_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phase Started At"
           },
           "progress_kind": {
             "anyOf": [
@@ -939,6 +1236,18 @@
             "title": "Progress Percent",
             "type": "integer"
           },
+          "progress_version": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress Version"
+          },
           "queue_position": {
             "anyOf": [
               {
@@ -957,6 +1266,18 @@
             "description": "Always false until final extraction exists.",
             "title": "Result Available",
             "type": "boolean"
+          },
+          "server_timestamp": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Timestamp"
           },
           "sha256": {
             "description": "Lowercase hex SHA-256 digest.",
@@ -990,6 +1311,30 @@
           "status": {
             "$ref": "#/components/schemas/DocumentStatus",
             "description": "Current document lifecycle status."
+          },
+          "targeted_repair_pages_completed": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targeted Repair Pages Completed"
+          },
+          "targeted_repair_pages_selected": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targeted Repair Pages Selected"
           },
           "user_status_message": {
             "anyOf": [
@@ -2541,7 +2886,8 @@
       "OcrSourceMode": {
         "description": "Page text authority for Phase 4 OCR results.",
         "enum": [
-          "visual_authority"
+          "visual_authority",
+          "embedded_ocr_authority"
         ],
         "title": "OcrSourceMode",
         "type": "string"
@@ -3022,6 +3368,18 @@
         "additionalProperties": false,
         "description": "A single, strictly-validated progress event.",
         "properties": {
+          "active_document_position": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Document Position"
+          },
           "attempt_number": {
             "anyOf": [
               {
@@ -3033,6 +3391,18 @@
               }
             ],
             "title": "Attempt Number"
+          },
+          "average_full_ocr_page_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Full Ocr Page Seconds"
           },
           "average_page_seconds": {
             "anyOf": [
@@ -3082,6 +3452,53 @@
             ],
             "description": "Canonicalisation method when relevant.",
             "title": "Canonicalisation Method"
+          },
+          "current_operation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Alias of operation when set.",
+            "title": "Current Operation"
+          },
+          "current_page": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Page"
+          },
+          "current_page_total": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Page Total"
+          },
+          "current_route": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Route"
           },
           "deadline_remaining_seconds": {
             "anyOf": [
@@ -3144,6 +3561,18 @@
             ],
             "title": "Document Pages Total"
           },
+          "document_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Started At"
+          },
           "document_status": {
             "anyOf": [
               {
@@ -3168,6 +3597,18 @@
             "description": "Document-level elapsed (alias).",
             "title": "Elapsed Seconds"
           },
+          "embedded_ocr_pages_verified": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Embedded Ocr Pages Verified"
+          },
           "estimate_confidence": {
             "anyOf": [
               {
@@ -3178,6 +3619,42 @@
               }
             ],
             "title": "Estimate Confidence"
+          },
+          "estimate_sample_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimate Sample Count"
+          },
+          "estimate_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimate Status"
+          },
+          "estimated_completion_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Alias of estimated_completion_time.",
+            "title": "Estimated Completion At"
           },
           "estimated_completion_time": {
             "anyOf": [
@@ -3191,6 +3668,43 @@
             ],
             "title": "Estimated Completion Time"
           },
+          "estimated_current_operation_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Current Operation Seconds"
+          },
+          "estimated_current_page_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Current Page Seconds"
+          },
+          "estimated_document_remaining_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Alias of estimated_document_seconds_remaining.",
+            "title": "Estimated Document Remaining Seconds"
+          },
           "estimated_document_seconds_remaining": {
             "anyOf": [
               {
@@ -3202,6 +3716,19 @@
               }
             ],
             "title": "Estimated Document Seconds Remaining"
+          },
+          "estimated_queue_remaining_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Alias of estimated_queue_seconds_remaining.",
+            "title": "Estimated Queue Remaining Seconds"
           },
           "estimated_queue_seconds_remaining": {
             "anyOf": [
@@ -3230,6 +3757,53 @@
             "minimum": 1.0,
             "title": "Event Sequence",
             "type": "integer"
+          },
+          "fair_scheduling_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fair Scheduling Enabled"
+          },
+          "full_ocr_pages_completed": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Ocr Pages Completed"
+          },
+          "full_ocr_pages_remaining": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Ocr Pages Remaining"
+          },
+          "full_ocr_pages_selected": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Ocr Pages Selected"
           },
           "job_id": {
             "anyOf": [
@@ -3355,6 +3929,18 @@
             ],
             "title": "Operation Elapsed Seconds"
           },
+          "operation_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operation Started At"
+          },
           "operation_status": {
             "anyOf": [
               {
@@ -3420,6 +4006,18 @@
             "description": "Active page progress 0-100.",
             "title": "Page Percent"
           },
+          "page_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Started At"
+          },
           "pages_completed": {
             "anyOf": [
               {
@@ -3472,6 +4070,30 @@
             "description": "Optional progress percent.",
             "title": "Percent"
           },
+          "phase_elapsed_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phase Elapsed Seconds"
+          },
+          "phase_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phase Started At"
+          },
           "progress_kind": {
             "anyOf": [
               {
@@ -3483,6 +4105,54 @@
             ],
             "description": "determinate|indeterminate|heartbeat.",
             "title": "Progress Kind"
+          },
+          "progress_version": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress Version"
+          },
+          "queue_documents_completed": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queue Documents Completed"
+          },
+          "queue_documents_remaining": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queue Documents Remaining"
+          },
+          "queue_documents_total": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queue Documents Total"
           },
           "queue_position": {
             "anyOf": [
@@ -3523,6 +4193,30 @@
             ],
             "description": "Safe native reason codes when relevant.",
             "title": "Reason Codes"
+          },
+          "route": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Page route for route events.",
+            "title": "Route"
+          },
+          "server_timestamp": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Timestamp"
           },
           "session_id": {
             "description": "Owning session identifier.",
@@ -3566,6 +4260,30 @@
             ],
             "description": "Alias of operation_elapsed_seconds.",
             "title": "Stage Elapsed Seconds"
+          },
+          "targeted_repair_pages_completed": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targeted Repair Pages Completed"
+          },
+          "targeted_repair_pages_selected": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targeted Repair Pages Selected"
           },
           "timestamp": {
             "description": "Timezone-aware UTC time of the event.",
@@ -3699,6 +4417,20 @@
           "document.visual_processing_completed",
           "document.visual_processing_partial",
           "document.visual_processing_failed",
+          "document.page_route_started",
+          "document.page_route_completed",
+          "document.embedded_ocr_visual_check_started",
+          "document.embedded_ocr_visual_check_completed",
+          "document.embedded_ocr_recognition_check_started",
+          "document.embedded_ocr_recognition_check_completed",
+          "document.embedded_ocr_verified",
+          "document.embedded_ocr_targeted_repair_started",
+          "document.embedded_ocr_targeted_repair_completed",
+          "document.full_ocr_primary_started",
+          "document.full_ocr_primary_completed",
+          "document.full_ocr_fallback_started",
+          "document.full_ocr_fallback_completed",
+          "document.visual_no_text_completed",
           "document.removed",
           "document.warning",
           "document.failed",
@@ -4124,9 +4856,10 @@
         "type": "string"
       },
       "SourceMode": {
-        "description": "Page-level source authority for Phase 3.",
+        "description": "Page-level source authority for Phase 3+.",
         "enum": [
           "native_authority",
+          "embedded_ocr_authority",
           "visual_authority",
           "image_authority"
         ],
@@ -4207,19 +4940,25 @@
         "type": "object"
       },
       "VisualAgreementStatus": {
-        "description": "Visual agreement status across Phase 3 and Phase 4.",
+        "description": "Visual agreement status across Phase 3 and Phase 4.5.",
         "enum": [
           "not_evaluated_phase_3",
-          "evaluated_phase_4_visibility"
+          "evaluated_phase_4_visibility",
+          "evaluated_phase_45_embedded_visual",
+          "evaluated_phase_45_embedded_recognition",
+          "evaluated_phase_45_targeted_repair"
         ],
         "title": "VisualAgreementStatus",
         "type": "string"
       },
       "VisualAgreementStatusPhase4": {
-        "description": "Visual agreement status after Phase 4 visibility probing.",
+        "description": "Visual agreement status after Phase 4 / 4.5 probing.",
         "enum": [
           "not_evaluated_phase_3",
-          "evaluated_phase_4_visibility"
+          "evaluated_phase_4_visibility",
+          "evaluated_phase_45_embedded_visual",
+          "evaluated_phase_45_embedded_recognition",
+          "evaluated_phase_45_targeted_repair"
         ],
         "title": "VisualAgreementStatusPhase4",
         "type": "string"
@@ -4273,6 +5012,12 @@
               }
             ]
           },
+          "embedded_ocr_pages_verified": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Embedded Ocr Pages Verified",
+            "type": "integer"
+          },
           "error_codes": {
             "items": {
               "type": "string"
@@ -4284,6 +5029,12 @@
             "default": false,
             "title": "Final Result Available",
             "type": "boolean"
+          },
+          "full_ocr_pages": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Full Ocr Pages",
+            "type": "integer"
           },
           "handwriting_assessment_pending": {
             "default": true,
@@ -4350,6 +5101,12 @@
           "progress": {
             "$ref": "#/components/schemas/VisualProgress"
           },
+          "targeted_repair_pages": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Targeted Repair Pages",
+            "type": "integer"
+          },
           "user_status_message": {
             "anyOf": [
               {
@@ -4360,6 +5117,12 @@
               }
             ],
             "title": "User Status Message"
+          },
+          "visual_no_text_pages": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Visual No Text Pages",
+            "type": "integer"
           },
           "visual_processing_status": {
             "$ref": "#/components/schemas/VisualProcessingStatus"
@@ -4666,6 +5429,18 @@
             "title": "Page Number",
             "type": "integer"
           },
+          "page_route": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 4.5 page route when hybrid routing is enabled.",
+            "title": "Page Route"
+          },
           "peak_rss_mb": {
             "anyOf": [
               {
@@ -4709,6 +5484,19 @@
                 "type": "null"
               }
             ]
+          },
+          "recognition_agreement_score": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recognition Agreement Score"
           },
           "recognition_model_name": {
             "anyOf": [
@@ -4792,6 +5580,13 @@
             ],
             "title": "Requested Dpi"
           },
+          "route_reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Route Reason Codes",
+            "type": "array"
+          },
           "source_height_px": {
             "anyOf": [
               {
@@ -4821,6 +5616,19 @@
           },
           "status": {
             "$ref": "#/components/schemas/VisualPageStatus"
+          },
+          "visual_agreement_score": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visual Agreement Score"
           },
           "visual_processing_attempted": {
             "default": false,
@@ -4873,7 +5681,9 @@
           "completed_no_text",
           "failed",
           "cancelled",
-          "skipped_native_retained"
+          "skipped_native_retained",
+          "skipped_embedded_ocr_verified",
+          "targeted_repair_completed"
         ],
         "title": "VisualPageStatus",
         "type": "string"
