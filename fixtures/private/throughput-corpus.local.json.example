@@ -1,0 +1,12 @@
+{
+  "documents": [
+    {"label": "doc-A", "path": "REPLACE_WITH_LOCAL_2PAGE_SCAN.pdf"},
+    {"label": "doc-B", "path": "REPLACE_WITH_LOCAL_9PAGE_BILLING.pdf"},
+    {"label": "doc-C", "path": "REPLACE_WITH_LOCAL_104PAGE_SCAN.pdf"},
+    {"label": "doc-D", "path": "REPLACE_WITH_LOCAL_1PAGE_LETTER.pdf"},
+    {"label": "doc-E", "path": "REPLACE_WITH_LOCAL_3PAGE_PHOTO.pdf"},
+    {"label": "doc-F", "path": "REPLACE_WITH_LOCAL_2PAGE_LEDGER.pdf"},
+    {"label": "doc-G", "path": "REPLACE_WITH_LOCAL_97PAGE_DIGITAL.pdf"}
+  ],
+  "notes": "Copy to throughput-corpus.local.json and set absolute local paths. Never commit the local file."
+}

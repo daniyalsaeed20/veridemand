@@ -1,0 +1,8 @@
+{
+  "documents": {
+    "private_police_scan": "private_scan_001.pdf",
+    "private_billing_digital": "private_digital_001.pdf",
+    "private_medical_embedded_ocr": "REPLACE_WITH_LOCAL_104PAGE_PDF.pdf"
+  },
+  "notes": "Copy to phase45-routing.local.json. Use opaque relative filenames under fixtures/private/. Never commit the local file."
+}
