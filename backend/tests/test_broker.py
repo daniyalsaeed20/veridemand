@@ -115,3 +115,32 @@ async def test_stream_drains_buffered_events_after_close() -> None:
 
     events = [event async for event in broker.stream(connect.subscriber)]
     assert any(e.event is ProgressEventType.SESSION_DELETED for e in events)
+
+
+async def test_publish_accepts_phase45_route_and_eta_fields() -> None:
+    """Regression: Phase 4.5 kwargs must not TypeError on EventBroker.publish."""
+
+    broker = _broker()
+    event = await broker.publish(
+        ProgressEventType.DOCUMENT_PAGE_ROUTE_COMPLETED,
+        document_id="doc_0123456789abcdef0123456789abcdef",
+        page_number=1,
+        progress_version=3,
+        current_route="full_visual_ocr",
+        estimate_status="collecting_samples",
+        estimate_sample_count=2,
+        estimated_document_remaining_seconds=120.0,
+        estimated_document_seconds_remaining=120.0,
+        embedded_ocr_pages_verified=4,
+        full_ocr_pages_selected=10,
+        full_ocr_pages_completed=1,
+        full_ocr_pages_remaining=9,
+        average_full_ocr_page_seconds=25.0,
+        fair_scheduling_enabled=False,
+        unknown_should_be_ignored="nope",  # type: ignore[call-arg]
+    )
+    assert event.progress_version == 3
+    assert event.current_route == "full_visual_ocr"
+    assert event.full_ocr_pages_remaining == 9
+    assert event.estimate_status == "collecting_samples"
+

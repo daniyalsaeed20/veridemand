@@ -14,12 +14,25 @@ import contextlib
 from collections import deque
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
+from typing import Any
 
 from backend.app.contracts.documents import DocumentStatus
 from backend.app.contracts.identifiers import format_event_id
 from backend.app.contracts.jobs import JobStatus
 from backend.app.contracts.progress import ProgressEvent, ProgressEventType
 from backend.app.progress.models import BrokerClosedError, ConnectResult, Subscriber
+
+# Fields owned by the broker (not caller kwargs).
+_BROKER_OWNED_FIELDS = frozenset(
+    {
+        "event_id",
+        "event_sequence",
+        "event",
+        "session_id",
+        "timestamp",
+    }
+)
+_PROGRESS_FIELD_NAMES = frozenset(ProgressEvent.model_fields.keys()) - _BROKER_OWNED_FIELDS
 
 
 def _parse_event_sequence(last_event_id: str | None) -> int | None:
@@ -34,6 +47,12 @@ def _parse_event_sequence(last_event_id: str | None) -> int | None:
         return int(value)
     except ValueError:
         return None
+
+
+def _filter_progress_fields(**fields: Any) -> dict[str, Any]:
+    """Keep only keys that exist on ProgressEvent (ignore unknowns safely)."""
+
+    return {key: value for key, value in fields.items() if key in _PROGRESS_FIELD_NAMES}
 
 
 class EventBroker:
@@ -76,110 +95,16 @@ class EventBroker:
         self,
         sequence: int,
         event: ProgressEventType,
-        *,
-        document_id: str | None,
-        job_id: str | None,
-        stage: str | None,
-        percent: int | None,
-        message: str | None,
-        queue_position: int | None,
-        document_status: DocumentStatus | None,
-        job_status: JobStatus | None,
-        canonicalisation_method: str | None,
-        canonical_page_count: int | None,
-        canonical_status: str | None,
-        page_number: int | None = None,
-        pages_completed: int | None = None,
-        pages_total: int | None = None,
-        decision: str | None = None,
-        source_mode: str | None = None,
-        native_trust_score: float | None = None,
-        reason_codes: list[str] | None = None,
-        overall_percent: float | None = None,
-        major_phase: str | None = None,
-        major_phase_percent: float | None = None,
-        page_percent: float | None = None,
-        operation: str | None = None,
-        operation_status: str | None = None,
-        progress_kind: str | None = None,
-        elapsed_seconds: float | None = None,
-        document_elapsed_seconds: float | None = None,
-        page_elapsed_seconds: float | None = None,
-        operation_elapsed_seconds: float | None = None,
-        stage_elapsed_seconds: float | None = None,
-        deadline_remaining_seconds: float | None = None,
-        worker_pid: int | None = None,
-        worker_generation: int | None = None,
-        worker_restart_count: int | None = None,
-        attempt_number: int | None = None,
-        max_attempts: int | None = None,
-        reason_code: str | None = None,
-        document_pages_total: int | None = None,
-        native_pages_retained: int | None = None,
-        visual_pages_selected: int | None = None,
-        visual_pages_completed: int | None = None,
-        visual_pages_remaining: int | None = None,
-        pages_per_minute: float | None = None,
-        average_page_seconds: float | None = None,
-        estimated_document_seconds_remaining: float | None = None,
-        estimated_queue_seconds_remaining: float | None = None,
-        estimated_completion_time: datetime | None = None,
-        estimate_confidence: str | None = None,
+        **fields: Any,
     ) -> ProgressEvent:
+        payload = _filter_progress_fields(**fields)
         return ProgressEvent(
             event_id=format_event_id(sequence),
             event_sequence=sequence,
             event=event,
             session_id=self._session_id,
-            document_id=document_id,
-            job_id=job_id,
             timestamp=datetime.now(UTC),
-            stage=stage,
-            percent=percent,
-            page_number=page_number,
-            pages_completed=pages_completed,
-            pages_total=pages_total,
-            message=message,
-            queue_position=queue_position,
-            document_status=document_status,
-            job_status=job_status,
-            canonicalisation_method=canonicalisation_method,
-            canonical_page_count=canonical_page_count,
-            canonical_status=canonical_status,
-            decision=decision,
-            source_mode=source_mode,
-            native_trust_score=native_trust_score,
-            reason_codes=reason_codes,
-            overall_percent=overall_percent,
-            major_phase=major_phase,
-            major_phase_percent=major_phase_percent,
-            page_percent=page_percent,
-            operation=operation,
-            operation_status=operation_status,
-            progress_kind=progress_kind,
-            elapsed_seconds=elapsed_seconds,
-            document_elapsed_seconds=document_elapsed_seconds,
-            page_elapsed_seconds=page_elapsed_seconds,
-            operation_elapsed_seconds=operation_elapsed_seconds,
-            stage_elapsed_seconds=stage_elapsed_seconds,
-            deadline_remaining_seconds=deadline_remaining_seconds,
-            worker_pid=worker_pid,
-            worker_generation=worker_generation,
-            worker_restart_count=worker_restart_count,
-            attempt_number=attempt_number,
-            max_attempts=max_attempts,
-            reason_code=reason_code,
-            document_pages_total=document_pages_total,
-            native_pages_retained=native_pages_retained,
-            visual_pages_selected=visual_pages_selected,
-            visual_pages_completed=visual_pages_completed,
-            visual_pages_remaining=visual_pages_remaining,
-            pages_per_minute=pages_per_minute,
-            average_page_seconds=average_page_seconds,
-            estimated_document_seconds_remaining=estimated_document_seconds_remaining,
-            estimated_queue_seconds_remaining=estimated_queue_seconds_remaining,
-            estimated_completion_time=estimated_completion_time,
-            estimate_confidence=estimate_confidence,
+            **payload,
         )
 
     async def publish(
@@ -234,8 +159,15 @@ class EventBroker:
         estimated_queue_seconds_remaining: float | None = None,
         estimated_completion_time: datetime | None = None,
         estimate_confidence: str | None = None,
+        **extra: Any,
     ) -> ProgressEvent:
-        """Allocate a sequence, record, and deliver an event to subscribers."""
+        """Allocate a sequence, record, and deliver an event to subscribers.
+
+        Known Phase 1-4 fields are accepted explicitly. Additional optional
+        ``ProgressEvent`` fields (Phase 4.5 route/ETA/live-progress) may be
+        passed via ``extra`` and are filtered against the contract model so
+        unknown keys cannot crash publication.
+        """
 
         async with self._lock:
             if self._closed:
@@ -292,6 +224,7 @@ class EventBroker:
                 estimated_queue_seconds_remaining=estimated_queue_seconds_remaining,
                 estimated_completion_time=estimated_completion_time,
                 estimate_confidence=estimate_confidence,
+                **extra,
             )
             self._replay.append(progress)
             for subscriber in self._subscribers:
@@ -356,17 +289,7 @@ class EventBroker:
             return self._build_event(
                 self._sequence,
                 ProgressEventType.STREAM_RESYNC_REQUIRED,
-                document_id=None,
-                job_id=None,
-                stage=None,
-                percent=None,
                 message="The live stream fell behind; refetch the session snapshot.",
-                queue_position=None,
-                document_status=None,
-                job_status=None,
-                canonicalisation_method=None,
-                canonical_page_count=None,
-                canonical_status=None,
             )
 
     async def stream(self, subscriber: Subscriber) -> AsyncIterator[ProgressEvent]:
