@@ -25,6 +25,7 @@ class OcrSourceMode(StrEnum):
     """Page text authority for Phase 4 OCR results."""
 
     VISUAL_AUTHORITY = "visual_authority"
+    EMBEDDED_OCR_AUTHORITY = "embedded_ocr_authority"
 
 
 class HandwritingAssessment(StrEnum):

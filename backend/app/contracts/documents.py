@@ -223,6 +223,36 @@ class DocumentSummary(ApiModel):
         default=None,
         description="Bounded privacy-safe completed/active stage history for UI timelines.",
     )
+    # Phase 4.5 live progress / route breakdown (optional).
+    progress_version: int | None = Field(default=None, ge=1)
+    current_route: str | None = Field(default=None)
+    estimate_status: str | None = Field(default=None)
+    estimate_confidence: str | None = Field(default=None)
+    estimate_sample_count: int | None = Field(default=None, ge=0)
+    estimated_document_remaining_seconds: float | None = Field(default=None, ge=0.0)
+    estimated_queue_remaining_seconds: float | None = Field(default=None, ge=0.0)
+    estimated_completion_at: datetime | None = Field(default=None)
+    estimated_current_operation_seconds: float | None = Field(default=None, ge=0.0)
+    estimated_current_page_seconds: float | None = Field(default=None, ge=0.0)
+    average_page_seconds: float | None = Field(default=None, ge=0.0)
+    average_full_ocr_page_seconds: float | None = Field(default=None, ge=0.0)
+    pages_per_minute: float | None = Field(default=None, ge=0.0)
+    document_pages_total: int | None = Field(default=None, ge=0)
+    native_pages_retained: int | None = Field(default=None, ge=0)
+    embedded_ocr_pages_verified: int | None = Field(default=None, ge=0)
+    targeted_repair_pages_selected: int | None = Field(default=None, ge=0)
+    targeted_repair_pages_completed: int | None = Field(default=None, ge=0)
+    full_ocr_pages_selected: int | None = Field(default=None, ge=0)
+    full_ocr_pages_completed: int | None = Field(default=None, ge=0)
+    full_ocr_pages_remaining: int | None = Field(default=None, ge=0)
+    pages_remaining: int | None = Field(default=None, ge=0)
+    fair_scheduling_enabled: bool | None = Field(default=None)
+    document_started_at: datetime | None = Field(default=None)
+    phase_started_at: datetime | None = Field(default=None)
+    page_started_at: datetime | None = Field(default=None)
+    operation_started_at: datetime | None = Field(default=None)
+    phase_elapsed_seconds: float | None = Field(default=None, ge=0.0)
+    server_timestamp: datetime | None = Field(default=None)
 
 
 class DocumentStatusCounts(ApiModel):

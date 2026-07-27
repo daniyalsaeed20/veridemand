@@ -182,9 +182,9 @@ class Settings(BaseSettings):
     ocr_recognition_model_name: str = "PP-OCRv5_mobile_rec"
     model_root: Path = Path("./.models")
     ocr_model_root: Path = Path("./.models/paddleocr")
-    ocr_workers: int = Field(default=1, ge=1, le=1)
+    ocr_workers: int = Field(default=1, ge=1, le=2)
     ocr_cpu_threads: int = Field(default=4, ge=1, le=32)
-    ocr_recognition_batch_size: int = Field(default=1, ge=1, le=1)
+    ocr_recognition_batch_size: int = Field(default=1, ge=1, le=32)
     ocr_render_dpi: int = Field(default=200, gt=0)
     ocr_visibility_probe_dpi: int = Field(default=96, gt=0)
     ocr_min_effective_dpi: int = Field(default=120, gt=0)
@@ -217,6 +217,42 @@ class Settings(BaseSettings):
     ocr_layout_max_vertical_gap_ratio: float = Field(default=0.035, ge=0.0, le=1.0)
     ocr_layout_min_horizontal_overlap_ratio: float = Field(default=0.25, ge=0.0, le=1.0)
     ocr_column_gap_ratio: float = Field(default=0.08, ge=0.0, le=1.0)
+
+    # Phase 4.5 — hybrid page routing, throughput, live progress.
+    hybrid_page_routing_enabled: bool = True
+    embedded_ocr_visual_agreement_enabled: bool = True
+    embedded_ocr_recognition_check_enabled: bool = True
+    targeted_region_repair_enabled: bool = True
+    ocr_fast_pass_enabled: bool = True
+    ocr_primary_limit_side_len: int = Field(default=960, gt=0)
+    ocr_fallback_limit_side_len: int = Field(default=1600, gt=0)
+    fair_ocr_scheduling_enabled: bool = False
+    fair_ocr_page_chunk_size: int = Field(default=5, ge=1, le=32)
+    progress_live_clock_interval_ms: int = Field(default=1000, ge=250, le=5000)
+    eta_minimum_sample_count: int = Field(default=3, ge=1, le=50)
+    eta_stale_after_seconds: float = Field(default=120.0, gt=0)
+    page_routing_policy_version: str = Field(default="phase45-v1", min_length=1)
+    # Embedded OCR visual-agreement thresholds (centralised policy).
+    embedded_ocr_min_native_words: int = Field(default=12, ge=1)
+    embedded_ocr_min_native_characters: int = Field(default=40, ge=1)
+    embedded_ocr_visual_sample_size: int = Field(default=24, ge=4, le=64)
+    embedded_ocr_recognition_sample_size: int = Field(default=8, ge=2, le=32)
+    embedded_ocr_min_visible_box_ratio: float = Field(default=0.55, ge=0.0, le=1.0)
+    embedded_ocr_min_visual_agreement: float = Field(default=0.70, ge=0.0, le=1.0)
+    embedded_ocr_min_recognition_agreement: float = Field(default=0.72, ge=0.0, le=1.0)
+    embedded_ocr_targeted_repair_max_fail_ratio: float = Field(default=0.25, ge=0.0, le=1.0)
+    embedded_ocr_targeted_repair_max_regions: int = Field(default=6, ge=1, le=32)
+    embedded_ocr_targeted_repair_max_coverage: float = Field(default=0.35, ge=0.0, le=1.0)
+    embedded_ocr_repair_padding_ratio: float = Field(default=0.04, ge=0.0, le=0.25)
+    # Blank-page preflight (conservative — prefer false negatives over skipping content).
+    blank_page_preflight_enabled: bool = True
+    blank_page_max_ink_density: float = Field(default=0.004, ge=0.0, le=1.0)
+    blank_page_max_edge_density: float = Field(default=0.008, ge=0.0, le=1.0)
+    blank_page_max_variance: float = Field(default=12.0, ge=0.0)
+    # Fast-pass adequacy gates.
+    ocr_fast_pass_min_detections: int = Field(default=3, ge=0)
+    ocr_fast_pass_min_average_confidence: float = Field(default=0.55, ge=0.0, le=1.0)
+    ocr_fast_pass_min_coverage: float = Field(default=0.02, ge=0.0, le=1.0)
 
     # Handwriting classifier (Phase 5 — path reserved only).
     handwriting_classifier_path: Path = Path("./models/handwriting_classifier/model.onnx")
@@ -300,8 +336,8 @@ class Settings(BaseSettings):
             raise ValueError("VIEWER_MAX_SCALE must be greater than VIEWER_MIN_SCALE.")
         if self.canonical_file_cache_control.strip().lower() != "no-store":
             raise ValueError("CANONICAL_FILE_CACHE_CONTROL must be 'no-store'.")
-        if self.ocr_workers != 1:
-            raise ValueError("OCR_WORKERS must equal 1.")
+        if self.ocr_workers < 1 or self.ocr_workers > 2:
+            raise ValueError("OCR_WORKERS must be 1 or 2 for the Phase 4.5 target profile.")
         if self.ocr_device.strip().lower() != "cpu":
             raise ValueError("OCR_DEVICE must be 'cpu' for the reproducible Phase 4 baseline.")
         if self.ocr_engine.strip().lower() != "paddle_static":
@@ -314,6 +350,12 @@ class Settings(BaseSettings):
             )
         if self.ocr_text_det_limit_type.strip().lower() not in {"max", "min"}:
             raise ValueError("OCR_TEXT_DET_LIMIT_TYPE must be 'max' or 'min'.")
+        if self.ocr_primary_limit_side_len > self.ocr_fallback_limit_side_len:
+            raise ValueError(
+                "OCR_PRIMARY_LIMIT_SIDE_LEN must not exceed OCR_FALLBACK_LIMIT_SIDE_LEN."
+            )
+        if not self.page_routing_policy_version.strip():
+            raise ValueError("PAGE_ROUTING_POLICY_VERSION must be non-empty.")
         if (
             self.app_env.strip().lower() == "production"
             and self.ocr_save_rendered_pages

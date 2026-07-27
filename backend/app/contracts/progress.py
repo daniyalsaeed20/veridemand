@@ -67,6 +67,31 @@ class ProgressEventType(StrEnum):
     DOCUMENT_VISUAL_PROCESSING_COMPLETED = "document.visual_processing_completed"
     DOCUMENT_VISUAL_PROCESSING_PARTIAL = "document.visual_processing_partial"
     DOCUMENT_VISUAL_PROCESSING_FAILED = "document.visual_processing_failed"
+
+    # Phase 4.5 hybrid routing / throughput progress.
+    DOCUMENT_PAGE_ROUTE_STARTED = "document.page_route_started"
+    DOCUMENT_PAGE_ROUTE_COMPLETED = "document.page_route_completed"
+    DOCUMENT_EMBEDDED_OCR_VISUAL_CHECK_STARTED = "document.embedded_ocr_visual_check_started"
+    DOCUMENT_EMBEDDED_OCR_VISUAL_CHECK_COMPLETED = "document.embedded_ocr_visual_check_completed"
+    DOCUMENT_EMBEDDED_OCR_RECOGNITION_CHECK_STARTED = (
+        "document.embedded_ocr_recognition_check_started"
+    )
+    DOCUMENT_EMBEDDED_OCR_RECOGNITION_CHECK_COMPLETED = (
+        "document.embedded_ocr_recognition_check_completed"
+    )
+    DOCUMENT_EMBEDDED_OCR_VERIFIED = "document.embedded_ocr_verified"
+    DOCUMENT_EMBEDDED_OCR_TARGETED_REPAIR_STARTED = (
+        "document.embedded_ocr_targeted_repair_started"
+    )
+    DOCUMENT_EMBEDDED_OCR_TARGETED_REPAIR_COMPLETED = (
+        "document.embedded_ocr_targeted_repair_completed"
+    )
+    DOCUMENT_FULL_OCR_PRIMARY_STARTED = "document.full_ocr_primary_started"
+    DOCUMENT_FULL_OCR_PRIMARY_COMPLETED = "document.full_ocr_primary_completed"
+    DOCUMENT_FULL_OCR_FALLBACK_STARTED = "document.full_ocr_fallback_started"
+    DOCUMENT_FULL_OCR_FALLBACK_COMPLETED = "document.full_ocr_fallback_completed"
+    DOCUMENT_VISUAL_NO_TEXT_COMPLETED = "document.visual_no_text_completed"
+
     DOCUMENT_REMOVED = "document.removed"
     DOCUMENT_WARNING = "document.warning"
     DOCUMENT_FAILED = "document.failed"
@@ -176,3 +201,48 @@ class ProgressEvent(ApiModel):
     estimated_queue_seconds_remaining: float | None = Field(default=None, ge=0.0)
     estimated_completion_time: datetime | None = Field(default=None)
     estimate_confidence: str | None = Field(default=None)
+    # Phase 4.5 live progress / ETA extensions (all optional).
+    progress_version: int | None = Field(default=None, ge=1)
+    server_timestamp: datetime | None = Field(default=None)
+    document_started_at: datetime | None = Field(default=None)
+    phase_started_at: datetime | None = Field(default=None)
+    page_started_at: datetime | None = Field(default=None)
+    operation_started_at: datetime | None = Field(default=None)
+    phase_elapsed_seconds: float | None = Field(default=None, ge=0.0)
+    estimated_current_operation_seconds: float | None = Field(default=None, ge=0.0)
+    estimated_current_page_seconds: float | None = Field(default=None, ge=0.0)
+    estimated_document_remaining_seconds: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="Alias of estimated_document_seconds_remaining.",
+    )
+    estimated_queue_remaining_seconds: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="Alias of estimated_queue_seconds_remaining.",
+    )
+    estimated_completion_at: datetime | None = Field(
+        default=None,
+        description="Alias of estimated_completion_time.",
+    )
+    estimate_status: str | None = Field(default=None)
+    estimate_sample_count: int | None = Field(default=None, ge=0)
+    embedded_ocr_pages_verified: int | None = Field(default=None, ge=0)
+    targeted_repair_pages_selected: int | None = Field(default=None, ge=0)
+    targeted_repair_pages_completed: int | None = Field(default=None, ge=0)
+    full_ocr_pages_selected: int | None = Field(default=None, ge=0)
+    full_ocr_pages_completed: int | None = Field(default=None, ge=0)
+    full_ocr_pages_remaining: int | None = Field(default=None, ge=0)
+    queue_documents_total: int | None = Field(default=None, ge=0)
+    queue_documents_completed: int | None = Field(default=None, ge=0)
+    queue_documents_remaining: int | None = Field(default=None, ge=0)
+    active_document_position: int | None = Field(default=None, ge=1)
+    current_route: str | None = Field(default=None)
+    current_operation: str | None = Field(
+        default=None, description="Alias of operation when set."
+    )
+    current_page: int | None = Field(default=None, ge=1)
+    current_page_total: int | None = Field(default=None, ge=0)
+    route: str | None = Field(default=None, description="Page route for route events.")
+    average_full_ocr_page_seconds: float | None = Field(default=None, ge=0.0)
+    fair_scheduling_enabled: bool | None = Field(default=None)

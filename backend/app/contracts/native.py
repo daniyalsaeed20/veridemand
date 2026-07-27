@@ -29,9 +29,10 @@ class NativePageDecision(StrEnum):
 
 
 class SourceMode(StrEnum):
-    """Page-level source authority for Phase 3."""
+    """Page-level source authority for Phase 3+."""
 
     NATIVE_AUTHORITY = "native_authority"
+    EMBEDDED_OCR_AUTHORITY = "embedded_ocr_authority"
     VISUAL_AUTHORITY = "visual_authority"
     IMAGE_AUTHORITY = "image_authority"
 
@@ -40,6 +41,7 @@ class DocumentSourcePolicy(StrEnum):
     """Document-level source authority after escalation rules."""
 
     NATIVE_AUTHORITY = "native_authority"
+    EMBEDDED_OCR_AUTHORITY = "embedded_ocr_authority"
     MIXED_AUTHORITY = "mixed_authority"
     VISUAL_AUTHORITY = "visual_authority"
     IMAGE_AUTHORITY = "image_authority"
@@ -57,10 +59,13 @@ class NativeProcessingStatus(StrEnum):
 
 
 class VisualAgreementStatus(StrEnum):
-    """Visual agreement status across Phase 3 and Phase 4."""
+    """Visual agreement status across Phase 3 and Phase 4.5."""
 
     NOT_EVALUATED_PHASE_3 = "not_evaluated_phase_3"
     EVALUATED_PHASE_4_VISIBILITY = "evaluated_phase_4_visibility"
+    EVALUATED_PHASE_45_EMBEDDED_VISUAL = "evaluated_phase_45_embedded_visual"
+    EVALUATED_PHASE_45_EMBEDDED_RECOGNITION = "evaluated_phase_45_embedded_recognition"
+    EVALUATED_PHASE_45_TARGETED_REPAIR = "evaluated_phase_45_targeted_repair"
 
 
 class RecognitionMethod(StrEnum):

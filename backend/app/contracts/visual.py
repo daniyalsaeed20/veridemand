@@ -37,6 +37,8 @@ class VisualPageStatus(StrEnum):
     FAILED = "failed"
     CANCELLED = "cancelled"
     SKIPPED_NATIVE_RETAINED = "skipped_native_retained"
+    SKIPPED_EMBEDDED_OCR_VERIFIED = "skipped_embedded_ocr_verified"
+    TARGETED_REPAIR_COMPLETED = "targeted_repair_completed"
 
 
 class VisualProcessingStatus(StrEnum):
@@ -62,10 +64,13 @@ class NativeVisibilityDecision(StrEnum):
 
 
 class VisualAgreementStatusPhase4(StrEnum):
-    """Visual agreement status after Phase 4 visibility probing."""
+    """Visual agreement status after Phase 4 / 4.5 probing."""
 
     NOT_EVALUATED_PHASE_3 = "not_evaluated_phase_3"
     EVALUATED_PHASE_4_VISIBILITY = "evaluated_phase_4_visibility"
+    EVALUATED_PHASE_45_EMBEDDED_VISUAL = "evaluated_phase_45_embedded_visual"
+    EVALUATED_PHASE_45_EMBEDDED_RECOGNITION = "evaluated_phase_45_embedded_recognition"
+    EVALUATED_PHASE_45_TARGETED_REPAIR = "evaluated_phase_45_targeted_repair"
 
 
 class ReadingOrderStatus(StrEnum):
@@ -178,6 +183,12 @@ class VisualPageResult(ApiModel):
     blocks: list[VisualTextBlock] = Field(default_factory=list)
     reading_order: VisualReadingOrder | None = None
     native_visibility_result: NativeVisibilityResult | None = None
+    page_route: str | None = Field(
+        default=None, description="Phase 4.5 page route when hybrid routing is enabled."
+    )
+    route_reason_codes: list[str] = Field(default_factory=list)
+    visual_agreement_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    recognition_agreement_score: float | None = Field(default=None, ge=0.0, le=1.0)
     visual_result_available: bool = False
     visual_processing_attempted: bool = False
     handwriting_assessment: HandwritingAssessment = HandwritingAssessment.PENDING_PHASE_5
@@ -231,6 +242,10 @@ class VisualDocumentSummary(ApiModel):
     pages_cancelled: int = Field(ge=0)
     native_pages_retained: int = Field(ge=0)
     native_pages_downgraded: int = Field(ge=0)
+    embedded_ocr_pages_verified: int = Field(default=0, ge=0)
+    targeted_repair_pages: int = Field(default=0, ge=0)
+    full_ocr_pages: int = Field(default=0, ge=0)
+    visual_no_text_pages: int = Field(default=0, ge=0)
     visual_result_available: bool = False
     handwriting_assessment_pending: bool = True
     final_result_available: bool = False
