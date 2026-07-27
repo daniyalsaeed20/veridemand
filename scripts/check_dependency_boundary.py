@@ -26,6 +26,7 @@ FORBIDDEN_IMPORTS = (
 # Phase-4 OCR stack is allowed only in these path prefixes (posix-style).
 PHASE4_ALLOWED_PREFIXES = (
     "backend/app/extraction/visual/",
+    "backend/app/extraction/routing/",
     "backend/app/health/service.py",
     "scripts/bootstrap_ocr_models.py",
     "scripts/verify_ocr_runtime.py",
