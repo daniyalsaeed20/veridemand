@@ -69,7 +69,7 @@ def _metrics(**overrides: object) -> NativePageMetrics:
         ),
     )
     base.update(overrides)
-    return NativePageMetrics(**base)  # type: ignore[arg-type]
+    return NativePageMetrics(**base)
 
 
 def _word(page: int, index: int, text: str, x: float, y: float) -> NativeWord:

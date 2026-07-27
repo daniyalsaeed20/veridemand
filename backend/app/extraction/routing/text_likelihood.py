@@ -36,7 +36,10 @@ def evaluate_text_likelihood(
     w, h = rgb.size
     scale = min(1.0, max_side / float(max(w, h)))
     if scale < 1.0:
-        rgb = rgb.resize((max(1, int(w * scale)), max(1, int(h * scale))), Image.BILINEAR)
+        rgb = rgb.resize(
+            (max(1, int(w * scale)), max(1, int(h * scale))),
+            Image.Resampling.BILINEAR,
+        )
     gray = np.asarray(rgb.convert("L"), dtype=np.float32)
     variance = float(gray.var())
     # Ink: pixels darker than near-white background.

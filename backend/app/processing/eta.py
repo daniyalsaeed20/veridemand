@@ -96,9 +96,7 @@ class EtaEstimator:
     def record(self, route: EtaCostRoute | PageRoute | str, duration_seconds: float) -> None:
         if self._complete:
             return
-        cost = (
-            route if isinstance(route, EtaCostRoute) else page_route_to_cost_route(route)  # type: ignore[arg-type]
-        )
+        cost = route if isinstance(route, EtaCostRoute) else page_route_to_cost_route(route)
         self._by_route[cost].add(duration_seconds)
         self._last_update_monotonic = time.monotonic()
 

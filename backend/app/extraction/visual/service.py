@@ -36,6 +36,7 @@ from backend.app.contracts.visual import (
 from backend.app.extraction.routing.router import PageRouter
 from backend.app.extraction.visual.errors import VisualOcrError
 from backend.app.extraction.visual.models import (
+    RenderedPage,
     VisualPageRef,
     VisualWorkerRequest,
 )
@@ -55,6 +56,7 @@ from backend.app.extraction.visual.worker_manager import OcrWorkerManager
 from backend.app.processing.cancellation import CancellationToken, JobCancelledError
 from backend.app.settings.config import Settings
 from backend.app.storage import paths as storage_paths
+from PIL import Image
 
 logger = logging.getLogger("veridemand.visual.service")
 
@@ -284,7 +286,7 @@ class VisualOcrService:
                 if inspect.isawaitable(result):
                     await result
 
-        def _render_probe(page_number: int):
+        def _render_probe(page_number: int) -> RenderedPage:
             meta = page_by_number[page_number]
             limits = RenderLimits(
                 target_dpi=float(self._settings.ocr_visibility_probe_dpi),
@@ -307,7 +309,7 @@ class VisualOcrService:
                 cancel_token.raise_if_cancelled()
             probe_enabled = self._settings.native_visibility_probe_enabled
             vis: NativeVisibilityResult | None = None
-            probe_image = None
+            probe_image: Image.Image | None = None
             rendered = None
 
             needs_probe_image = (page_needs_visibility_probe(native_page) and probe_enabled) or (
@@ -324,6 +326,7 @@ class VisualOcrService:
                     and probe_image is not None
                 )
                 if needs_visibility:
+                    assert probe_image is not None
                     await _progress(
                         {
                             "type": "native_visibility_started",
