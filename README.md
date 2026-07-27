@@ -4,7 +4,9 @@ VeriDemand is a **document-extraction platform**. It extracts text and structure
 from documents using a deterministic pipeline (native text and OCR, with a
 vision LLM only for handwritten or uncertain regions). This repository is at the
 **Phase 4** stage: visual detection and printed OCR on top of Phase 3 native
-trust (progress capped at **65%**).
+trust (progress capped at **65%**). Phase 4.5 adds hybrid page routing (reuse
+trusted native / verified embedded OCR when safe), throughput calibrations, and
+a live client progress clock.
 
 > **Runtime-only product.** VeriDemand keeps uploaded files and results only for
 > the duration of a session. Refreshing, closing, or resetting the page may
@@ -23,9 +25,14 @@ Building on Phase 3, Phase 4 adds:
 - **Printed OCR** via local PaddleOCR (PP-OCRv6 medium, CPU) in a long-lived worker.
 - **Visual APIs** (`/visual/summary`, `/visual/pages/{n}`) and OCR overlays.
 - Progress capped at **65%**. Handwriting and final structure are **not** evaluated.
+- **Phase 4.5:** page-level hybrid routing, embedded OCR visual agreement,
+  targeted repair, fast-pass full OCR, route-aware ETA, and a shared live
+  progress clock. See
+  [`docs/architecture/phase-4.5-hybrid-routing.md`](docs/architecture/phase-4.5-hybrid-routing.md)
+  and ADRs [0025](docs/decisions/0025-page-level-hybrid-routing.md)–[0030](docs/decisions/0030-fair-document-scheduling.md).
 
 See [`docs/architecture/phase-4-visual-ocr.md`](docs/architecture/phase-4-visual-ocr.md)
-and ADRs [0017](docs/decisions/0017-pypdfium2-page-rendering.md)–[0021](docs/decisions/0021-provisional-visual-reading-order.md).
+and ADRs [0017](docs/decisions/0017-pypdfium2-page-rendering.md)–[0024](docs/decisions/0024-combined-paddle-ocr-pipeline-events.md).
 
 ### Phase 3 (complete)
 
