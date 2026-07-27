@@ -80,9 +80,7 @@ class ProgressEventType(StrEnum):
         "document.embedded_ocr_recognition_check_completed"
     )
     DOCUMENT_EMBEDDED_OCR_VERIFIED = "document.embedded_ocr_verified"
-    DOCUMENT_EMBEDDED_OCR_TARGETED_REPAIR_STARTED = (
-        "document.embedded_ocr_targeted_repair_started"
-    )
+    DOCUMENT_EMBEDDED_OCR_TARGETED_REPAIR_STARTED = "document.embedded_ocr_targeted_repair_started"
     DOCUMENT_EMBEDDED_OCR_TARGETED_REPAIR_COMPLETED = (
         "document.embedded_ocr_targeted_repair_completed"
     )
@@ -238,9 +236,7 @@ class ProgressEvent(ApiModel):
     queue_documents_remaining: int | None = Field(default=None, ge=0)
     active_document_position: int | None = Field(default=None, ge=1)
     current_route: str | None = Field(default=None)
-    current_operation: str | None = Field(
-        default=None, description="Alias of operation when set."
-    )
+    current_operation: str | None = Field(default=None, description="Alias of operation when set.")
     current_page: int | None = Field(default=None, ge=1)
     current_page_total: int | None = Field(default=None, ge=0)
     route: str | None = Field(default=None, description="Page route for route events.")

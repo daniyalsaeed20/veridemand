@@ -954,9 +954,7 @@ class ProcessingCoordinator:
             document.estimated_document_remaining_seconds = (
                 eta_snap.estimated_document_remaining_seconds
             )
-            document.estimated_queue_remaining_seconds = (
-                eta_snap.estimated_queue_remaining_seconds
-            )
+            document.estimated_queue_remaining_seconds = eta_snap.estimated_queue_remaining_seconds
             document.estimated_completion_at = eta_snap.estimated_completion_at
             document.estimated_current_operation_seconds = (
                 eta_snap.estimated_current_operation_seconds

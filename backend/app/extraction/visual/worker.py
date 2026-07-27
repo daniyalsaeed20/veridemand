@@ -393,9 +393,11 @@ def process_page(
         min_det = int(getattr(config, "ocr_fast_pass_min_detections", 3))
         min_conf = float(getattr(config, "ocr_fast_pass_min_average_confidence", 0.55))
         min_cov = float(getattr(config, "ocr_fast_pass_min_coverage", 0.02))
-        inadequate = len(raw_lines) < min_det or (
-            primary_conf is not None and primary_conf < min_conf
-        ) or coverage_ratio < min_cov
+        inadequate = (
+            len(raw_lines) < min_det
+            or (primary_conf is not None and primary_conf < min_conf)
+            or coverage_ratio < min_cov
+        )
         if inadequate:
             emit_message(
                 {

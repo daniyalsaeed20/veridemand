@@ -99,7 +99,8 @@ def reconcile_document_policy(
     if unique == {SourceMode.EMBEDDED_OCR_AUTHORITY}:
         return DocumentSourcePolicy.EMBEDDED_OCR_AUTHORITY
     if unique == {SourceMode.IMAGE_AUTHORITY} or (
-        image_origin_document and SourceMode.NATIVE_AUTHORITY not in unique
+        image_origin_document
+        and SourceMode.NATIVE_AUTHORITY not in unique
         and SourceMode.EMBEDDED_OCR_AUTHORITY not in unique
     ):
         return DocumentSourcePolicy.IMAGE_AUTHORITY
@@ -309,15 +310,8 @@ class VisualOcrService:
             probe_image = None
             rendered = None
 
-            needs_probe_image = (
-                (page_needs_visibility_probe(native_page) and probe_enabled)
-                or (
-                    hybrid
-                    and (
-                        page_requires_visual(native_page)
-                        or bool(native_page.words)
-                    )
-                )
+            needs_probe_image = (page_needs_visibility_probe(native_page) and probe_enabled) or (
+                hybrid and (page_requires_visual(native_page) or bool(native_page.words))
             )
             if needs_probe_image:
                 rendered = _render_probe(page_number)
@@ -474,9 +468,8 @@ class VisualOcrService:
                                 "page_number": page_number,
                             }
                         )
-                    elif (
-                        decision.route is PageRoute.FULL_VISUAL_OCR
-                        or page_requires_visual(native_page)
+                    elif decision.route is PageRoute.FULL_VISUAL_OCR or page_requires_visual(
+                        native_page
                     ):
                         selected.append(page_number)
                     elif native_page.decision is NativePageDecision.ACCEPTED and not vis:
