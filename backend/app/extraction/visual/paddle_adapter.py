@@ -219,7 +219,9 @@ class PaddleOcrAdapter:
             )
         return info
 
-    def recognise(self, image: Image.Image) -> list[RawOcrLine]:
+    def recognise(
+        self, image: Image.Image, *, limit_side_len: int | None = None
+    ) -> list[RawOcrLine]:
         """Run detect+recognise on an RGB PIL image; never log text."""
 
         if self._ocr is None:
@@ -230,8 +232,18 @@ class PaddleOcrAdapter:
                 failing_component="paddle_adapter",
             )
         array = np.asarray(image.convert("RGB"))
+        predict_kwargs: dict[str, Any] = {}
+        if limit_side_len is not None:
+            predict_kwargs["text_det_limit_side_len"] = int(limit_side_len)
         try:
-            raw = self._ocr.predict(array)
+            try:
+                if predict_kwargs:
+                    raw = self._ocr.predict(array, **predict_kwargs)
+                else:
+                    raw = self._ocr.predict(array)
+            except TypeError:
+                # Older builds reject per-call limit overrides.
+                raw = self._ocr.predict(array)
         except Exception as exc:
             raise VisualOcrError(
                 ErrorCode.OCR_DETECTION_FAILED,
@@ -255,6 +267,35 @@ class PaddleOcrAdapter:
                 failing_component="paddle_adapter",
                 exception_type=type(exc).__name__,
             ) from exc
+
+    def recognise_crop_text(self, image: Image.Image) -> tuple[str, float]:
+        """Recognition-oriented crop inference for spot checks.
+
+        Runs detect+recognise on a small crop (line/word). Never logs text.
+        Returns joined recognised text and mean confidence.
+        """
+
+        lines = self.recognise(image)
+        if not lines:
+            return "", 0.0
+        texts = [line.text for line in lines if line.text]
+        scores = [float(line.recognition_score or 0.0) for line in lines]
+        joined = " ".join(texts)
+        mean_score = sum(scores) / len(scores) if scores else 0.0
+        return joined, mean_score
+
+    def recognise_crops_batched(
+        self, images: list[Image.Image], *, batch_size: int | None = None
+    ) -> list[tuple[str, float]]:
+        """Run crop recognition in configurable batches (stability over max speed)."""
+
+        size = max(1, int(batch_size or self._config.ocr_recognition_batch_size or 1))
+        results: list[tuple[str, float]] = []
+        for start in range(0, len(images), size):
+            chunk = images[start : start + size]
+            for image in chunk:
+                results.append(self.recognise_crop_text(image))
+        return results
 
     def _adapt(self, raw: Any) -> list[RawOcrLine]:
         result = _first_result_dict(raw)

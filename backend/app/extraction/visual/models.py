@@ -42,6 +42,13 @@ class OcrRuntimeConfig:
     ocr_layout_min_horizontal_overlap_ratio: float = 0.25
     ocr_column_gap_ratio: float = 0.08
     canonical_page_dimension_tolerance_points: float = 0.5
+    # Phase 4.5 fast-pass.
+    ocr_fast_pass_enabled: bool = True
+    ocr_primary_limit_side_len: int = 960
+    ocr_fallback_limit_side_len: int = 1600
+    ocr_fast_pass_min_detections: int = 3
+    ocr_fast_pass_min_average_confidence: float = 0.55
+    ocr_fast_pass_min_coverage: float = 0.02
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

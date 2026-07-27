@@ -529,6 +529,12 @@ class OcrWorkerManager:
             ocr_layout_min_horizontal_overlap_ratio=s.ocr_layout_min_horizontal_overlap_ratio,
             ocr_column_gap_ratio=s.ocr_column_gap_ratio,
             canonical_page_dimension_tolerance_points=s.canonical_page_dimension_tolerance_points,
+            ocr_fast_pass_enabled=s.ocr_fast_pass_enabled,
+            ocr_primary_limit_side_len=s.ocr_primary_limit_side_len,
+            ocr_fallback_limit_side_len=s.ocr_fallback_limit_side_len,
+            ocr_fast_pass_min_detections=s.ocr_fast_pass_min_detections,
+            ocr_fast_pass_min_average_confidence=s.ocr_fast_pass_min_average_confidence,
+            ocr_fast_pass_min_coverage=s.ocr_fast_pass_min_coverage,
         )
 
     async def process_document(

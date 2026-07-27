@@ -101,6 +101,12 @@ def _config_from_env_settings() -> OcrRuntimeConfig:
         canonical_page_dimension_tolerance_points=(
             settings.canonical_page_dimension_tolerance_points
         ),
+        ocr_fast_pass_enabled=settings.ocr_fast_pass_enabled,
+        ocr_primary_limit_side_len=settings.ocr_primary_limit_side_len,
+        ocr_fallback_limit_side_len=settings.ocr_fallback_limit_side_len,
+        ocr_fast_pass_min_detections=settings.ocr_fast_pass_min_detections,
+        ocr_fast_pass_min_average_confidence=settings.ocr_fast_pass_min_average_confidence,
+        ocr_fast_pass_min_coverage=settings.ocr_fast_pass_min_coverage,
     )
 
 
@@ -323,7 +329,30 @@ def process_page(
         }
     )
     pipeline_started = time.perf_counter()
+    primary_limit = int(
+        getattr(config, "ocr_primary_limit_side_len", config.ocr_text_det_limit_side_len)
+    )
+    fallback_limit = int(
+        getattr(config, "ocr_fallback_limit_side_len", config.ocr_text_det_limit_side_len)
+    )
+    fast_pass = bool(getattr(config, "ocr_fast_pass_enabled", False))
+    active_limit = primary_limit if fast_pass else int(config.ocr_text_det_limit_side_len)
+    emit_message(
+        {
+            "type": "full_ocr_primary_started",
+            "request_id": request_id,
+            "page_number": page_ref.page_number,
+            "primary_limit_side": active_limit,
+            "operation": "full_ocr_primary",
+        }
+    )
     try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            raw_lines = pool.submit(
+                adapter.recognise, primary_image, limit_side_len=active_limit
+            ).result(timeout=page_timeout)
+    except TypeError:
+        # Adapter builds without limit_side_len kwarg.
         with ThreadPoolExecutor(max_workers=1) as pool:
             raw_lines = pool.submit(adapter.recognise, primary_image).result(timeout=page_timeout)
     except FuturesTimeout as exc:
@@ -334,6 +363,80 @@ def process_page(
             failing_component="visual.worker",
             exception_type=type(exc).__name__,
         ) from exc
+    primary_duration_ms = int((time.perf_counter() - pipeline_started) * 1000)
+    primary_conf = None
+    if raw_lines:
+        primary_conf = sum(line.recognition_score for line in raw_lines) / len(raw_lines)
+    emit_message(
+        {
+            "type": "full_ocr_primary_completed",
+            "request_id": request_id,
+            "page_number": page_ref.page_number,
+            "primary_limit_side": active_limit,
+            "primary_duration_ms": primary_duration_ms,
+            "primary_detection_count": len(raw_lines),
+            "primary_average_confidence": primary_conf,
+            "operation": "full_ocr_primary",
+        }
+    )
+    fallback_side_used = False
+    if fast_pass and active_limit < fallback_limit:
+        coverage = 0.0
+        # Rough coverage from polygon extents when available.
+        for line in raw_lines:
+            if line.polygon_px:
+                xs = [p[0] for p in line.polygon_px]
+                ys = [p[1] for p in line.polygon_px]
+                coverage += max(0.0, (max(xs) - min(xs)) * (max(ys) - min(ys)))
+        page_area = float(max(1, primary_image.size[0] * primary_image.size[1]))
+        coverage_ratio = min(1.0, coverage / page_area)
+        min_det = int(getattr(config, "ocr_fast_pass_min_detections", 3))
+        min_conf = float(getattr(config, "ocr_fast_pass_min_average_confidence", 0.55))
+        min_cov = float(getattr(config, "ocr_fast_pass_min_coverage", 0.02))
+        inadequate = len(raw_lines) < min_det or (
+            primary_conf is not None and primary_conf < min_conf
+        ) or coverage_ratio < min_cov
+        if inadequate:
+            emit_message(
+                {
+                    "type": "full_ocr_fallback_started",
+                    "request_id": request_id,
+                    "page_number": page_ref.page_number,
+                    "fallback_limit_side": fallback_limit,
+                    "fallback_reason": "primary_inadequate",
+                    "operation": "full_ocr_fallback",
+                }
+            )
+            fallback_started = time.perf_counter()
+            try:
+                with ThreadPoolExecutor(max_workers=1) as pool:
+                    raw_lines = pool.submit(
+                        adapter.recognise, primary_image, limit_side_len=fallback_limit
+                    ).result(timeout=page_timeout)
+            except TypeError:
+                with ThreadPoolExecutor(max_workers=1) as pool:
+                    raw_lines = pool.submit(adapter.recognise, primary_image).result(
+                        timeout=page_timeout
+                    )
+            except FuturesTimeout as exc:
+                raise VisualOcrError(
+                    ErrorCode.OCR_PAGE_TIMEOUT,
+                    "OCR fallback inference timed out.",
+                    operation="paddle_ocr_pipeline",
+                    failing_component="visual.worker",
+                    exception_type=type(exc).__name__,
+                ) from exc
+            fallback_side_used = True
+            emit_message(
+                {
+                    "type": "full_ocr_fallback_completed",
+                    "request_id": request_id,
+                    "page_number": page_ref.page_number,
+                    "fallback_limit_side": fallback_limit,
+                    "fallback_duration_ms": int((time.perf_counter() - fallback_started) * 1000),
+                    "operation": "full_ocr_fallback",
+                }
+            )
     paddle_pipeline_duration_s = time.perf_counter() - pipeline_started
     emit_message(
         {
@@ -343,6 +446,7 @@ def process_page(
             "operation": "paddle_ocr_pipeline",
             "paddle_pipeline_duration_seconds": round(paddle_pipeline_duration_s, 3),
             "detected_line_count": len(raw_lines),
+            "fast_pass_fallback_used": fallback_side_used,
             "peak_rss_mb": monitor.snapshot().rss_mb,
         }
     )
