@@ -23,6 +23,7 @@ from backend.app.contracts.jobs import JobStatus, JobSummary
 from backend.app.contracts.native import NativeDocumentSummary, NativePageDecision
 from backend.app.contracts.processing import IgnoredDocument
 from backend.app.contracts.progress import ProgressEventType
+from backend.app.contracts.routing import PageRoute
 from backend.app.extraction.native.errors import NativeExtractionError
 from backend.app.extraction.native.service import NativeExtractionService
 from backend.app.extraction.visual.errors import VisualOcrError
@@ -30,6 +31,7 @@ from backend.app.extraction.visual.service import VisualOcrService
 from backend.app.observability.errors import ApiException
 from backend.app.observability.stage_log import log_progress, log_stage
 from backend.app.processing.cancellation import JobCancelledError
+from backend.app.processing.eta import EtaCostRoute, EtaEstimator, page_route_to_cost_route
 from backend.app.processing.models import ProcessingJob
 from backend.app.processing.progress_model import (
     OVERALL_CAP,
@@ -845,6 +847,23 @@ class ProcessingCoordinator:
         pages_selected = page_count
         selection_started = False
         selection_completed = False
+        native_pages_retained = 0
+        embedded_ocr_pages_verified = 0
+        targeted_repair_pages_selected = 0
+        targeted_repair_pages_completed = 0
+        full_ocr_pages_selected = 0
+        full_ocr_pages_completed = 0
+        progress_version = 1
+        visual_settings = getattr(self._visual, "_settings", None)
+        eta = EtaEstimator(
+            minimum_sample_count=int(getattr(visual_settings, "eta_minimum_sample_count", 3)),
+            stale_after_seconds=float(getattr(visual_settings, "eta_stale_after_seconds", 120.0)),
+        )
+        fair_enabled = bool(getattr(visual_settings, "fair_ocr_scheduling_enabled", False))
+        document.fair_scheduling_enabled = fair_enabled
+        document.document_pages_total = page_count
+        document.document_started_at = document.document_started_at or datetime.now(UTC)
+        document.phase_started_at = datetime.now(UTC)
 
         # Test-only inject: abort after native, before OCR request creation.
         inject_failure = bool(
@@ -875,6 +894,26 @@ class ProcessingCoordinator:
         document.attempt_number = 1
 
         def _apply_snapshot() -> None:
+            nonlocal progress_version
+            progress_version += 1
+            remaining_by_route = {
+                EtaCostRoute.FULL_OCR_PRIMARY: max(
+                    0, full_ocr_pages_selected - full_ocr_pages_completed
+                ),
+            }
+            eta_snap = eta.estimate(
+                remaining_by_route=remaining_by_route,
+                current_operation_route=page_route_to_cost_route(
+                    document.current_route or PageRoute.FULL_VISUAL_OCR
+                )
+                if document.current_route
+                else EtaCostRoute.FULL_OCR_PRIMARY,
+                current_page_route=page_route_to_cost_route(
+                    document.current_route or PageRoute.FULL_VISUAL_OCR
+                )
+                if document.current_route
+                else None,
+            )
             document.progress_percent = int(min(OVERALL_CAP, snapshot.overall_percent))
             document.major_phase = snapshot.major_phase.value
             document.major_phase_percent = snapshot.major_phase_percent
@@ -895,6 +934,37 @@ class ProcessingCoordinator:
             document.attempt_number = snapshot.attempt_number
             document.max_attempts = snapshot.max_attempts
             document.stage_timeline = list(snapshot.history[-32:])
+            document.progress_version = progress_version
+            document.server_timestamp = datetime.now(UTC)
+            document.native_pages_retained = native_pages_retained
+            document.embedded_ocr_pages_verified = embedded_ocr_pages_verified
+            document.targeted_repair_pages_selected = targeted_repair_pages_selected
+            document.targeted_repair_pages_completed = targeted_repair_pages_completed
+            document.full_ocr_pages_selected = full_ocr_pages_selected
+            document.full_ocr_pages_completed = full_ocr_pages_completed
+            document.full_ocr_pages_remaining = max(
+                0, full_ocr_pages_selected - full_ocr_pages_completed
+            )
+            document.pages_remaining = max(
+                0, (document.pages_total or 0) - (document.pages_completed or 0)
+            )
+            document.estimate_status = eta_snap.estimate_status.value
+            document.estimate_confidence = eta_snap.estimate_confidence
+            document.estimate_sample_count = eta_snap.estimate_sample_count
+            document.estimated_document_remaining_seconds = (
+                eta_snap.estimated_document_remaining_seconds
+            )
+            document.estimated_queue_remaining_seconds = (
+                eta_snap.estimated_queue_remaining_seconds
+            )
+            document.estimated_completion_at = eta_snap.estimated_completion_at
+            document.estimated_current_operation_seconds = (
+                eta_snap.estimated_current_operation_seconds
+            )
+            document.estimated_current_page_seconds = eta_snap.estimated_current_page_seconds
+            document.average_page_seconds = eta_snap.average_page_seconds
+            document.average_full_ocr_page_seconds = eta_snap.average_full_ocr_page_seconds
+            document.pages_per_minute = eta_snap.pages_per_minute
             if snapshot.safe_message:
                 document.user_status_message = snapshot.safe_message
 
@@ -953,10 +1023,42 @@ class ProcessingCoordinator:
                 max_attempts=snapshot.max_attempts,
                 reason_codes=reasons,
                 message=document.user_status_message,
+                progress_version=document.progress_version,
+                server_timestamp=document.server_timestamp,
+                current_route=document.current_route,
+                estimate_status=document.estimate_status,
+                estimate_confidence=document.estimate_confidence,
+                estimate_sample_count=document.estimate_sample_count,
+                estimated_document_remaining_seconds=document.estimated_document_remaining_seconds,
+                estimated_document_seconds_remaining=document.estimated_document_remaining_seconds,
+                estimated_queue_remaining_seconds=document.estimated_queue_remaining_seconds,
+                estimated_queue_seconds_remaining=document.estimated_queue_remaining_seconds,
+                estimated_completion_at=document.estimated_completion_at,
+                estimated_completion_time=document.estimated_completion_at,
+                estimated_current_operation_seconds=document.estimated_current_operation_seconds,
+                estimated_current_page_seconds=document.estimated_current_page_seconds,
+                average_page_seconds=document.average_page_seconds,
+                average_full_ocr_page_seconds=document.average_full_ocr_page_seconds,
+                pages_per_minute=document.pages_per_minute,
+                document_pages_total=document.document_pages_total,
+                native_pages_retained=document.native_pages_retained,
+                embedded_ocr_pages_verified=document.embedded_ocr_pages_verified,
+                targeted_repair_pages_selected=document.targeted_repair_pages_selected,
+                targeted_repair_pages_completed=document.targeted_repair_pages_completed,
+                full_ocr_pages_selected=document.full_ocr_pages_selected,
+                full_ocr_pages_completed=document.full_ocr_pages_completed,
+                full_ocr_pages_remaining=document.full_ocr_pages_remaining,
+                fair_scheduling_enabled=document.fair_scheduling_enabled,
+                current_page=document.active_page_number,
+                current_page_total=document.pages_total,
+                current_operation=document.current_operation,
             )
 
         async def on_visual_progress(payload: dict[str, object]) -> None:
             nonlocal pages_completed, pages_selected, selection_started, selection_completed
+            nonlocal native_pages_retained, embedded_ocr_pages_verified
+            nonlocal targeted_repair_pages_selected, targeted_repair_pages_completed
+            nonlocal full_ocr_pages_selected, full_ocr_pages_completed
             event_type = str(payload.get("type", ""))
             raw_page = payload.get("page_number")
             page_number = int(raw_page) if isinstance(raw_page, (int, float, str)) else None
@@ -1032,7 +1134,78 @@ class ProcessingCoordinator:
                     snapshot.set_visual_selection_complete(pages_selected=pages_selected)
                     snapshot.terminal_operation(OperationStatus.COMPLETED)
                     document.user_status_message = "Visual pages selected"
+                for key in (
+                    "native_pages_retained",
+                    "embedded_ocr_pages_verified",
+                    "targeted_repair_pages_selected",
+                    "full_ocr_pages_selected",
+                ):
+                    raw = payload.get(key)
+                    if not isinstance(raw, (int, float)):
+                        continue
+                    value = int(raw)
+                    if key == "native_pages_retained":
+                        native_pages_retained = value
+                    elif key == "embedded_ocr_pages_verified":
+                        embedded_ocr_pages_verified = value
+                    elif key == "targeted_repair_pages_selected":
+                        targeted_repair_pages_selected = value
+                    elif key == "full_ocr_pages_selected":
+                        full_ocr_pages_selected = value
                 publish_event = ProgressEventType.DOCUMENT_VISUAL_PAGES_SELECTED
+
+            elif event_type == "page_route_started":
+                document.page_started_at = datetime.now(UTC)
+                publish_event = ProgressEventType.DOCUMENT_PAGE_ROUTE_STARTED
+
+            elif event_type == "page_route_completed":
+                route = payload.get("route")
+                if isinstance(route, str):
+                    document.current_route = route
+                    if route == PageRoute.DIGITAL_NATIVE.value:
+                        eta.record(EtaCostRoute.DIGITAL_NATIVE, 0.05)
+                    elif route == PageRoute.EMBEDDED_OCR_VERIFIED.value:
+                        eta.record(EtaCostRoute.EMBEDDED_OCR_VISUAL_CHECK, 0.4)
+                    elif route == PageRoute.FULL_VISUAL_OCR.value:
+                        pass
+                publish_event = ProgressEventType.DOCUMENT_PAGE_ROUTE_COMPLETED
+
+            elif event_type == "embedded_ocr_verified":
+                publish_event = ProgressEventType.DOCUMENT_EMBEDDED_OCR_VERIFIED
+
+            elif event_type == "embedded_ocr_targeted_repair_started":
+                publish_event = ProgressEventType.DOCUMENT_EMBEDDED_OCR_TARGETED_REPAIR_STARTED
+
+            elif event_type == "visual_no_text_completed":
+                pages_completed += 1
+                publish_event = ProgressEventType.DOCUMENT_VISUAL_NO_TEXT_COMPLETED
+
+            elif event_type == "full_ocr_primary_started":
+                _begin_op("full_ocr_primary", kind=ProgressKind.INDETERMINATE)
+                publish_event = ProgressEventType.DOCUMENT_FULL_OCR_PRIMARY_STARTED
+
+            elif event_type == "full_ocr_primary_completed":
+                duration_ms = payload.get("primary_duration_ms")
+                if isinstance(duration_ms, (int, float)):
+                    eta.record(EtaCostRoute.FULL_OCR_PRIMARY, float(duration_ms) / 1000.0)
+                snapshot.terminal_operation(OperationStatus.COMPLETED)
+                publish_event = ProgressEventType.DOCUMENT_FULL_OCR_PRIMARY_COMPLETED
+
+            elif event_type == "full_ocr_fallback_started":
+                _begin_op("full_ocr_fallback", kind=ProgressKind.INDETERMINATE)
+                publish_event = ProgressEventType.DOCUMENT_FULL_OCR_FALLBACK_STARTED
+
+            elif event_type == "full_ocr_fallback_completed":
+                duration_ms = payload.get("fallback_duration_ms")
+                if isinstance(duration_ms, (int, float)):
+                    eta.record(EtaCostRoute.FULL_OCR_FALLBACK, float(duration_ms) / 1000.0)
+                snapshot.terminal_operation(OperationStatus.COMPLETED)
+                publish_event = ProgressEventType.DOCUMENT_FULL_OCR_FALLBACK_COMPLETED
+
+            elif event_type == "operation_skipped":
+                document.user_status_message = "Skipped full visual OCR (trusted native text)"
+                _apply_snapshot()
+                return
 
             elif event_type == "worker.request":
                 # Do not re-start visual_page_selection; selection is owned by
@@ -1161,6 +1334,7 @@ class ProcessingCoordinator:
                 )
                 snapshot.terminal_operation(OperationStatus.COMPLETED)
                 pages_completed += 1
+                full_ocr_pages_completed += 1
                 # After publish: finished pages counted once; no double-count.
                 snapshot.set_visual_page_progress(
                     pages_completed=pages_completed,

@@ -146,6 +146,36 @@ class RuntimeDocument:
     attempt_number: int | None = None
     max_attempts: int | None = None
     stage_timeline: list[dict[str, object]] = field(default_factory=list)
+    # Phase 4.5 live progress / route breakdown.
+    progress_version: int | None = None
+    current_route: str | None = None
+    estimate_status: str | None = None
+    estimate_confidence: str | None = None
+    estimate_sample_count: int | None = None
+    estimated_document_remaining_seconds: float | None = None
+    estimated_queue_remaining_seconds: float | None = None
+    estimated_completion_at: datetime | None = None
+    estimated_current_operation_seconds: float | None = None
+    estimated_current_page_seconds: float | None = None
+    average_page_seconds: float | None = None
+    average_full_ocr_page_seconds: float | None = None
+    pages_per_minute: float | None = None
+    document_pages_total: int | None = None
+    native_pages_retained: int | None = None
+    embedded_ocr_pages_verified: int | None = None
+    targeted_repair_pages_selected: int | None = None
+    targeted_repair_pages_completed: int | None = None
+    full_ocr_pages_selected: int | None = None
+    full_ocr_pages_completed: int | None = None
+    full_ocr_pages_remaining: int | None = None
+    pages_remaining: int | None = None
+    fair_scheduling_enabled: bool | None = None
+    document_started_at: datetime | None = None
+    phase_started_at: datetime | None = None
+    page_started_at: datetime | None = None
+    operation_started_at: datetime | None = None
+    phase_elapsed_seconds: float | None = None
+    server_timestamp: datetime | None = None
 
     def to_summary(
         self,
@@ -222,6 +252,35 @@ class RuntimeDocument:
             attempt_number=self.attempt_number,
             max_attempts=self.max_attempts,
             stage_timeline=list(self.stage_timeline[-32:]) or None,
+            progress_version=self.progress_version,
+            current_route=self.current_route,
+            estimate_status=self.estimate_status,
+            estimate_confidence=self.estimate_confidence,
+            estimate_sample_count=self.estimate_sample_count,
+            estimated_document_remaining_seconds=self.estimated_document_remaining_seconds,
+            estimated_queue_remaining_seconds=self.estimated_queue_remaining_seconds,
+            estimated_completion_at=self.estimated_completion_at,
+            estimated_current_operation_seconds=self.estimated_current_operation_seconds,
+            estimated_current_page_seconds=self.estimated_current_page_seconds,
+            average_page_seconds=self.average_page_seconds,
+            average_full_ocr_page_seconds=self.average_full_ocr_page_seconds,
+            pages_per_minute=self.pages_per_minute,
+            document_pages_total=self.document_pages_total,
+            native_pages_retained=self.native_pages_retained,
+            embedded_ocr_pages_verified=self.embedded_ocr_pages_verified,
+            targeted_repair_pages_selected=self.targeted_repair_pages_selected,
+            targeted_repair_pages_completed=self.targeted_repair_pages_completed,
+            full_ocr_pages_selected=self.full_ocr_pages_selected,
+            full_ocr_pages_completed=self.full_ocr_pages_completed,
+            full_ocr_pages_remaining=self.full_ocr_pages_remaining,
+            pages_remaining=self.pages_remaining,
+            fair_scheduling_enabled=self.fair_scheduling_enabled,
+            document_started_at=self.document_started_at,
+            phase_started_at=self.phase_started_at,
+            page_started_at=self.page_started_at,
+            operation_started_at=self.operation_started_at,
+            phase_elapsed_seconds=self.phase_elapsed_seconds,
+            server_timestamp=self.server_timestamp,
         )
 
 
