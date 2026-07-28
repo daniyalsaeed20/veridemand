@@ -71,6 +71,7 @@ def test_good_native_accepted() -> None:
     assert result.words
     assert result.characters
     assert result.provisional_native_text
+    assert result.verification_words == []
 
 
 def test_replacement_layer_rejected() -> None:
@@ -81,6 +82,9 @@ def test_replacement_layer_rejected() -> None:
     assert result.words == []
     assert result.characters == []
     assert result.provisional_native_text is None
+    # Diagnostic boxes retained for Phase 4.5 when geometry existed.
+    assert result.verification_words
+    assert all(w.recognition_status.value == "rejected" for w in result.verification_words)
 
 
 def test_duplicate_layer_rejected() -> None:
@@ -365,6 +369,14 @@ def test_document_escalation_suppresses_text() -> None:
     )
 
     def make(page: int, decision: NativePageDecision) -> NativePageResult:
+        from backend.app.contracts.geometry import Geometry, NormalisedBoundingBox, NormalisedPolygon
+        from backend.app.contracts.native import (
+            NativeWord,
+            PdfPointBox,
+            RecognitionMethod,
+            RecognitionStatus,
+        )
+
         mode = (
             SourceMode.NATIVE_AUTHORITY
             if decision is NativePageDecision.ACCEPTED
@@ -386,12 +398,39 @@ def test_document_escalation_suppresses_text() -> None:
             native_result_available=decision is NativePageDecision.ACCEPTED,
             visual_processing_required=decision is not NativePageDecision.ACCEPTED,
         )
+        words: list[NativeWord] = []
+        if decision is NativePageDecision.ACCEPTED:
+            bbox = NormalisedBoundingBox(x=0.1, y=0.1, width=0.2, height=0.05)
+            polygon = NormalisedPolygon(
+                points=[
+                    {"x": 0.1, "y": 0.1},
+                    {"x": 0.3, "y": 0.1},
+                    {"x": 0.3, "y": 0.15},
+                    {"x": 0.1, "y": 0.15},
+                ]
+            )
+            words = [
+                NativeWord(
+                    id=f"word_p{page:04d}_000001",
+                    page_number=page,
+                    sequence_index=0,
+                    text="secret",
+                    normalised_text="secret",
+                    character_ids=[],
+                    geometry=Geometry(bbox=bbox, polygon=polygon),
+                    pdf_point_bbox=PdfPointBox(x=61.2, y=79.2, width=122.4, height=39.6),
+                    upright=True,
+                    recognition_method=RecognitionMethod.NATIVE_PDF,
+                    source_mode=SourceMode.NATIVE_AUTHORITY,
+                    recognition_status=RecognitionStatus.ACCEPTED,
+                )
+            ]
         return NativePageResult(
             page_number=page,
             decision=decision,
             source_mode=mode,
             trust=trust,
-            words=[],
+            words=words,
             characters=[],
             provisional_native_text="secret" if decision is NativePageDecision.ACCEPTED else None,
         )
@@ -408,4 +447,8 @@ def test_document_escalation_suppresses_text() -> None:
     assert doc_policy is DocumentSourcePolicy.VISUAL_AUTHORITY
     escalated = apply_document_escalation(pages, document_policy=doc_policy)
     assert all(p.provisional_native_text is None for p in escalated)
+    assert all(p.words == [] for p in escalated)
     assert escalated[0].decision is NativePageDecision.SUPPRESSED_BY_DOCUMENT_ESCALATION
+    assert escalated[0].verification_words
+    assert escalated[0].verification_words[0].text == "secret"
+    assert escalated[0].verification_words[0].recognition_status.value == "rejected"

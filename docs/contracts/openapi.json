@@ -2342,6 +2342,14 @@
           "trust": {
             "$ref": "#/components/schemas/NativePageTrustResult"
           },
+          "verification_words": {
+            "description": "Diagnostic word boxes retained for Phase 4.5 embedded-OCR verification when the page is not accepted. recognition_status must be rejected. Never accepted extraction output or LLM hints. Stripped from default API.",
+            "items": {
+              "$ref": "#/components/schemas/NativeWord"
+            },
+            "title": "Verification Words",
+            "type": "array"
+          },
           "warnings": {
             "items": {
               "$ref": "#/components/schemas/NativeWarning"
@@ -2685,10 +2693,10 @@
       },
       "NativeWord": {
         "additionalProperties": false,
-        "description": "One accepted native word with canonical geometry.",
+        "description": "One native word with canonical geometry.\n\nAccepted pages use ``recognition_status=accepted`` in ``words``.\nDiagnostic verification candidates use ``recognition_status=rejected`` in\n``verification_words`` only — never as accepted extraction output.",
         "properties": {
           "character_ids": {
-            "description": "Linked accepted character ids.",
+            "description": "Linked character ids when available.",
             "items": {
               "type": "string"
             },
@@ -2742,7 +2750,7 @@
           },
           "recognition_status": {
             "$ref": "#/components/schemas/RecognitionStatus",
-            "description": "Must be accepted."
+            "description": "accepted for public words; rejected for verification_words."
           },
           "sequence_index": {
             "description": "Provisional extraction sequence index.",
@@ -2752,7 +2760,7 @@
           },
           "source_mode": {
             "$ref": "#/components/schemas/SourceMode",
-            "description": "Must be native_authority when accepted."
+            "description": "native_authority for digital-native words; may remain native_authority on verification candidates pending Phase 4.5 checks."
           },
           "text": {
             "description": "Word text as extracted.",
@@ -4593,9 +4601,10 @@
         "type": "string"
       },
       "RecognitionStatus": {
-        "description": "Public recognition status for accepted native words.",
+        "description": "Recognition status for native words (accepted output vs verification-only).",
         "enum": [
-          "accepted"
+          "accepted",
+          "rejected"
         ],
         "title": "RecognitionStatus",
         "type": "string"
@@ -6636,6 +6645,16 @@
             "schema": {
               "default": false,
               "title": "Include Characters",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_verification_candidates",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Verification Candidates",
               "type": "boolean"
             }
           }

@@ -136,6 +136,8 @@ async def test_bad_native_api_flow(client: AsyncClient) -> None:
     assert body["words"] == []
     assert body["characters"] == []
     assert body.get("provisional_native_text") in (None, "")
+    # Default API must not expose verification candidates as accepted output.
+    assert body.get("verification_words", []) == []
 
 
 async def test_image_only_api_flow(client: AsyncClient) -> None:

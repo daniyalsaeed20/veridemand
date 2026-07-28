@@ -132,8 +132,10 @@ async def test_corrupt_single_page_api_visual_authority(
     }, doc
     assert doc["document_source_policy"] == "visual_authority"
     page = await client.get(f"/api/v1/sessions/{session_id}/documents/{document_id}/native/pages/1")
-    assert page.json()["words"] == []
-    assert page.json().get("provisional_native_text") in (None, "")
+    body = page.json()
+    assert body["words"] == []
+    assert body.get("provisional_native_text") in (None, "")
+    assert body.get("verification_words", []) == []
 
 
 async def test_mixed_document_reaches_visual_complete(

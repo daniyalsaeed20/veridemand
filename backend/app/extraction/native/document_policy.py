@@ -11,6 +11,7 @@ from backend.app.contracts.native import (
 )
 from backend.app.contracts.warnings import NativeReasonCode
 from backend.app.extraction.native.models import NativeTrustPolicyConfig
+from backend.app.extraction.native.serializer import as_verification_words
 
 
 def _is_failed(trust: NativePageTrustResult) -> bool:
@@ -82,6 +83,10 @@ def apply_document_escalation(
                     "visual_processing_required": True,
                 }
             )
+            # Move accepted words into verification_words for Phase 4.5.
+            retained = as_verification_words(list(page.words or []))
+            if not retained and page.verification_words:
+                retained = list(page.verification_words)
             updated.append(
                 page.model_copy(
                     update={
@@ -91,6 +96,7 @@ def apply_document_escalation(
                         "words": [],
                         "characters": [],
                         "provisional_native_text": None,
+                        "verification_words": retained,
                     }
                 )
             )
@@ -108,6 +114,7 @@ def apply_document_escalation(
                     "visual_processing_required": True,
                 }
             )
+            # Keep existing verification candidates; clear accepted fields only.
             updated.append(
                 page.model_copy(
                     update={

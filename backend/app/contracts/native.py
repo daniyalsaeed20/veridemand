@@ -1,8 +1,10 @@
 """Native PDF extraction and trust-gate contracts (Phase 3).
 
 Accepted pages may expose words and characters. Rejected, absent, errored, or
-document-escalation-suppressed pages never include candidate text. Visual
-agreement is not evaluated in Phase 3.
+document-escalation-suppressed pages never include accepted candidate text in
+``words`` / ``characters`` / ``provisional_native_text``. They may retain
+``verification_words`` (diagnostic / Phase 4.5 only; recognition_status=rejected).
+Visual agreement is not evaluated in Phase 3.
 """
 
 from __future__ import annotations
@@ -76,9 +78,10 @@ class RecognitionMethod(StrEnum):
 
 
 class RecognitionStatus(StrEnum):
-    """Public recognition status for accepted native words."""
+    """Recognition status for native words (accepted output vs verification-only)."""
 
     ACCEPTED = "accepted"
+    REJECTED = "rejected"
 
 
 class ProvisionalOrderStatus(StrEnum):
@@ -126,22 +129,32 @@ class NativeCharacter(ApiModel):
 
 
 class NativeWord(ApiModel):
-    """One accepted native word with canonical geometry."""
+    """One native word with canonical geometry.
+
+    Accepted pages use ``recognition_status=accepted`` in ``words``.
+    Diagnostic verification candidates use ``recognition_status=rejected`` in
+    ``verification_words`` only — never as accepted extraction output.
+    """
 
     id: str = Field(description="Deterministic word id, e.g. word_p0001_000001.")
     page_number: int = Field(ge=1, description="1-based page number.")
     sequence_index: int = Field(ge=0, description="Provisional extraction sequence index.")
     text: str = Field(min_length=1, description="Word text as extracted.")
     normalised_text: str = Field(min_length=1, description="NFC-normalised word text.")
-    character_ids: list[str] = Field(description="Linked accepted character ids.")
+    character_ids: list[str] = Field(description="Linked character ids when available.")
     geometry: Geometry = Field(description="Canonical normalised geometry.")
     pdf_point_bbox: PdfPointBox = Field(description="Top-left PDF-point box.")
     font_names: list[str] = Field(default_factory=list, description="Distinct font names.")
     font_sizes: list[float] = Field(default_factory=list, description="Distinct font sizes.")
     upright: bool = Field(description="Whether linked characters are upright.")
     recognition_method: RecognitionMethod = Field(description="Native recognition method.")
-    source_mode: SourceMode = Field(description="Must be native_authority when accepted.")
-    recognition_status: RecognitionStatus = Field(description="Must be accepted.")
+    source_mode: SourceMode = Field(
+        description="native_authority for digital-native words; may remain "
+        "native_authority on verification candidates pending Phase 4.5 checks."
+    )
+    recognition_status: RecognitionStatus = Field(
+        description="accepted for public words; rejected for verification_words."
+    )
 
 
 class NativeTrustComponents(ApiModel):
@@ -335,6 +348,14 @@ class NativePageResult(ApiModel):
     provisional_native_text: str | None = Field(
         default=None,
         description="Derived only from accepted words; null when not accepted.",
+    )
+    verification_words: list[NativeWord] = Field(
+        default_factory=list,
+        description=(
+            "Diagnostic word boxes retained for Phase 4.5 embedded-OCR verification "
+            "when the page is not accepted. recognition_status must be rejected. "
+            "Never accepted extraction output or LLM hints. Stripped from default API."
+        ),
     )
     warnings: list[NativeWarning] = Field(default_factory=list)
 

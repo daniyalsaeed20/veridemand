@@ -182,7 +182,7 @@ class NativeExtractionService:
 
         for page in outcome.pages:
             name = f"page-{page.page_number:04d}.json"
-            # Never write text for non-accepted pages.
+            # Never write accepted text for non-accepted pages; keep verification_words.
             payload = page.model_dump(mode="json")
             if page.decision.value != "accepted":
                 payload["words"] = []
@@ -244,6 +244,7 @@ class NativeExtractionService:
             payload["words"] = []
             payload["characters"] = []
             payload["provisional_native_text"] = None
+            # Retain verification_words for Phase 4.5 embedded OCR.
         part_path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
         os.replace(part_path, final_path)
 

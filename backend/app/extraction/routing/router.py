@@ -29,6 +29,7 @@ from backend.app.extraction.routing.full_ocr import (
 )
 from backend.app.extraction.routing.metrics import log_page_route_decision
 from backend.app.extraction.routing.models import RouteExecutionPlan, RoutingPolicy
+from backend.app.extraction.routing.native_words import native_words_for_routing
 from backend.app.extraction.routing.recognition_check import evaluate_recognition_agreement
 from backend.app.extraction.routing.targeted_repair import repair_regions
 from backend.app.extraction.routing.text_likelihood import evaluate_text_likelihood
@@ -118,8 +119,8 @@ class PageRouter:
                 started=started,
             )
 
-        # Blank preflight before full OCR when no native text.
-        words = page.words or []
+        # Blank preflight before full OCR when no native/verification text.
+        words = native_words_for_routing(page)
         if (
             not words
             and page_image is not None
@@ -162,7 +163,7 @@ class PageRouter:
             min_region_variance=self._settings.native_visibility_min_region_variance,
             min_edge_density=self._settings.native_visibility_min_edge_density,
         )
-        words = list(page.words or [])
+        words = native_words_for_routing(page)
 
         if visual.visual_agreement_score < self._policy.min_visual_agreement:
             # Widespread visual disagreement → full OCR.
@@ -284,7 +285,7 @@ class PageRouter:
         reasons: list[str],
         failed_count: int,
     ) -> PageRouteDecision:
-        words = page.words or []
+        words = native_words_for_routing(page)
         return PageRouteDecision(
             page_number=page.page_number,
             route=PageRoute.EMBEDDED_OCR_TARGETED_REPAIR,
@@ -319,7 +320,7 @@ class PageRouter:
     ) -> tuple[list[Any], bool]:
         return repair_regions(
             page_image,
-            list(page.words or []),
+            native_words_for_routing(page),
             failed_indices,
             self._policy,
             page_number=page.page_number,

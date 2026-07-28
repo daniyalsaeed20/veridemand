@@ -945,9 +945,9 @@ export const zRecognitionMethod = z.enum(['native_pdf', 'canonical_pdf_native'])
 /**
  * RecognitionStatus
  *
- * Public recognition status for accepted native words.
+ * Recognition status for native words (accepted output vs verification-only).
  */
-export const zRecognitionStatus = z.enum(['accepted']);
+export const zRecognitionStatus = z.enum(['accepted', 'rejected']);
 
 /**
  * RejectedDocument
@@ -1048,7 +1048,11 @@ export const zSourceMode = z.enum([
 /**
  * NativeWord
  *
- * One accepted native word with canonical geometry.
+ * One native word with canonical geometry.
+ *
+ * Accepted pages use ``recognition_status=accepted`` in ``words``.
+ * Diagnostic verification candidates use ``recognition_status=rejected`` in
+ * ``verification_words`` only — never as accepted extraction output.
  */
 export const zNativeWord = z.object({
     character_ids: z.array(z.string()),
@@ -1171,6 +1175,7 @@ export const zNativePageResult = z.object({
     provisional_order_status: zProvisionalOrderStatus.optional().default('unverified'),
     source_mode: zSourceMode,
     trust: zNativePageTrustResult,
+    verification_words: z.array(zNativeWord).optional(),
     warnings: z.array(zNativeWarning).optional(),
     words: z.array(zNativeWord).optional()
 });
@@ -1566,7 +1571,8 @@ export const zGetNativePageApiV1SessionsSessionIdDocumentsDocumentIdNativePagesP
 });
 
 export const zGetNativePageApiV1SessionsSessionIdDocumentsDocumentIdNativePagesPageNumberGetQuery = z.object({
-    include_characters: z.boolean().optional().default(false)
+    include_characters: z.boolean().optional().default(false),
+    include_verification_candidates: z.boolean().optional().default(false)
 });
 
 /**

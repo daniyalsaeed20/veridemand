@@ -44,6 +44,9 @@ Notes:
 - Image dominance alone no longer forces OCR in code, but this medical PDF
   produced zero pages with a retained native/embedded layer after Phase 3 trust;
   measured route is therefore full visual OCR on every page.
+- **ADR 0031 (post-baseline):** Phase 3 now retains ``verification_words`` on
+  rejected/suppressed pages so Phase 4.5 can attempt embedded OCR verification.
+  Re-measure medical routing after that change; do not invent new percentages here.
 - Billing digital retained native authority (full OCR skipped).
 - Police scan remained full visual OCR on both pages.
 - Handwriting remains `pending_phase_5`.

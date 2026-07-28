@@ -137,7 +137,9 @@ def evaluate_visual_agreement(
 ) -> VisualAgreementMetrics:
     """Compare native word boxes against a low-resolution page render."""
 
-    words = list(page.words or [])
+    from backend.app.extraction.routing.native_words import native_words_for_routing
+
+    words = native_words_for_routing(page)
     sampled = sample_words_for_agreement(
         words, sample_size=policy.visual_sample_size, page_number=page.page_number
     )

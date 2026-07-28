@@ -38,7 +38,8 @@ route/ETA fields publish without aborting processing.
 
 Medical document: no pages retained native/embedded after trust; full OCR on all
 104 pages at ~22.7 s/page average (worker=1, fast-pass primary 960). Evidence in
-`tmp/phase45-acceptance/acceptance.local.json` (gitignored).
+`tmp/phase45-acceptance/acceptance.local.json` (gitignored). ADR 0031 later retains
+``verification_words`` for Phase 4.5; re-measure medical routing after that change.
 
 ## Privacy
 

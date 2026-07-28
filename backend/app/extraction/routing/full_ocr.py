@@ -11,6 +11,7 @@ from backend.app.contracts.routing import (
     PageRouteDecisionStatus,
 )
 from backend.app.extraction.routing.models import RoutingPolicy
+from backend.app.extraction.routing.native_words import native_words_for_routing
 from backend.app.extraction.routing.text_likelihood import TextLikelihoodResult
 
 
@@ -22,11 +23,11 @@ def needs_full_visual_ocr(page: NativePageResult) -> bool:
         NativePageDecision.ERROR,
     }:
         return True
+    words = native_words_for_routing(page)
     if page.source_mode in {SourceMode.VISUAL_AUTHORITY, SourceMode.IMAGE_AUTHORITY}:
-        words = page.words or []
         if not words:
             return True
-    return bool(page.trust.visual_processing_required and not (page.words or []))
+    return bool(page.trust.visual_processing_required and not words)
 
 
 def build_full_ocr_decision(
@@ -41,7 +42,7 @@ def build_full_ocr_decision(
     sampled_box_count: int = 0,
     recognition_sample_count: int = 0,
 ) -> PageRouteDecision:
-    words = page.words or []
+    words = native_words_for_routing(page)
     chars = page.characters or []
     return PageRouteDecision(
         page_number=page.page_number,

@@ -10,6 +10,7 @@ from backend.app.api.v1.dependencies import RegistryDep, SettingsDep
 from backend.app.contracts.documents import DocumentStatus
 from backend.app.contracts.errors import ErrorCode
 from backend.app.contracts.native import NativeDocumentSummary, NativePageResult
+from backend.app.extraction.native.serializer import page_result_for_public_api
 from backend.app.extraction.native.service import NativeExtractionService
 from backend.app.observability.errors import ApiException
 from backend.app.sessions.models import RuntimeDocument, RuntimeSession
@@ -86,6 +87,7 @@ async def get_native_page(
     registry: RegistryDep,
     native: NativeServiceDep,
     include_characters: Annotated[bool, Query()] = False,
+    include_verification_candidates: Annotated[bool, Query()] = False,
 ) -> NativePageResult:
     if page_number < 1:
         raise ApiException(
@@ -127,10 +129,8 @@ async def get_native_page(
             document_id=document_id,
             details={"page_number": page_number},
         )
-    if not include_characters:
-        return page.model_copy(update={"characters": []})
-    if page.decision.value != "accepted":
-        return page.model_copy(
-            update={"characters": [], "words": [], "provisional_native_text": None}
-        )
-    return page
+    return page_result_for_public_api(
+        page,
+        include_characters=include_characters,
+        include_verification_candidates=include_verification_candidates,
+    )

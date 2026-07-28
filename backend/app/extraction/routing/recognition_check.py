@@ -114,7 +114,9 @@ def evaluate_recognition_agreement(
     ``recognise_crop`` must return (recognised_text, confidence) and must not log text.
     """
 
-    words = list(page.words or [])
+    from backend.app.extraction.routing.native_words import native_words_for_routing
+
+    words = native_words_for_routing(page)
     if prefer_indices:
         candidates = [words[i] for i in prefer_indices if 0 <= i < len(words)]
     else:

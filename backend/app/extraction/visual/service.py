@@ -212,7 +212,14 @@ class VisualOcrService:
         return summary
 
     def suppress_native_page_text(self, page: NativePageResult) -> NativePageResult:
-        """Remove public native words/chars after visibility downgrade."""
+        """Clear accepted native fields after visibility downgrade.
+
+        Moves former accepted words into ``verification_words`` (rejected status)
+        so Phase 4.5 can still attempt embedded verification; invisible ink will
+        fail visual agreement and escalate to full OCR.
+        """
+
+        from backend.app.extraction.native.serializer import as_verification_words
 
         trust = page.trust.model_copy(
             update={
@@ -234,6 +241,9 @@ class VisualOcrService:
                 ),
             }
         )
+        retained = as_verification_words(list(page.words or []))
+        if not retained and page.verification_words:
+            retained = list(page.verification_words)
         return page.model_copy(
             update={
                 "decision": NativePageDecision.REJECTED,
@@ -242,6 +252,7 @@ class VisualOcrService:
                 "words": [],
                 "characters": [],
                 "provisional_native_text": None,
+                "verification_words": retained,
             }
         )
 

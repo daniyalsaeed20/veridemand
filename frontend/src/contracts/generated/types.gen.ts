@@ -1434,6 +1434,12 @@ export type NativePageResult = {
     source_mode: SourceMode;
     trust: NativePageTrustResult;
     /**
+     * Verification Words
+     *
+     * Diagnostic word boxes retained for Phase 4.5 embedded-OCR verification when the page is not accepted. recognition_status must be rejected. Never accepted extraction output or LLM hints. Stripped from default API.
+     */
+    verification_words?: Array<NativeWord>;
+    /**
      * Warnings
      */
     warnings?: Array<NativeWarning>;
@@ -1626,13 +1632,17 @@ export type NativeWarning = {
 /**
  * NativeWord
  *
- * One accepted native word with canonical geometry.
+ * One native word with canonical geometry.
+ *
+ * Accepted pages use ``recognition_status=accepted`` in ``words``.
+ * Diagnostic verification candidates use ``recognition_status=rejected`` in
+ * ``verification_words`` only — never as accepted extraction output.
  */
 export type NativeWord = {
     /**
      * Character Ids
      *
-     * Linked accepted character ids.
+     * Linked character ids when available.
      */
     character_ids: Array<string>;
     /**
@@ -1678,7 +1688,7 @@ export type NativeWord = {
      */
     recognition_method: RecognitionMethod;
     /**
-     * Must be accepted.
+     * accepted for public words; rejected for verification_words.
      */
     recognition_status: RecognitionStatus;
     /**
@@ -1688,7 +1698,7 @@ export type NativeWord = {
      */
     sequence_index: number;
     /**
-     * Must be native_authority when accepted.
+     * native_authority for digital-native words; may remain native_authority on verification candidates pending Phase 4.5 checks.
      */
     source_mode: SourceMode;
     /**
@@ -2631,9 +2641,9 @@ export type RecognitionMethod = 'native_pdf' | 'canonical_pdf_native';
 /**
  * RecognitionStatus
  *
- * Public recognition status for accepted native words.
+ * Recognition status for native words (accepted output vs verification-only).
  */
-export type RecognitionStatus = 'accepted';
+export type RecognitionStatus = 'accepted' | 'rejected';
 
 /**
  * RejectedDocument
@@ -3804,6 +3814,10 @@ export type GetNativePageApiV1SessionsSessionIdDocumentsDocumentIdNativePagesPag
          * Include Characters
          */
         include_characters?: boolean;
+        /**
+         * Include Verification Candidates
+         */
+        include_verification_candidates?: boolean;
     };
     url: '/api/v1/sessions/{session_id}/documents/{document_id}/native/pages/{page_number}';
 };

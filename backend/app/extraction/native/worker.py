@@ -293,6 +293,7 @@ def run_worker(request_path: Path, output_path: Path) -> int:
                 page["words"] = []
                 page["characters"] = []
                 page["provisional_native_text"] = None
+                # Keep verification_words for Phase 4.5 embedded OCR.
 
         payload: dict[str, object] = {
             "summary": summary.model_dump(mode="json"),

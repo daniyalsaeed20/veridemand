@@ -1,4 +1,4 @@
-"""Serialise accepted native pages; strip text from rejected pages."""
+"""Serialise native pages; retain verification boxes for non-accepted pages."""
 
 from __future__ import annotations
 
@@ -25,31 +25,21 @@ def _recognition_method(method: str) -> RecognitionMethod:
     return RecognitionMethod.CANONICAL_PDF_NATIVE
 
 
-def build_page_result(
+def as_verification_words(words: list[NativeWord]) -> list[NativeWord]:
+    """Copy words with recognition_status=rejected for diagnostic retention."""
+
+    return [
+        w.model_copy(update={"recognition_status": RecognitionStatus.REJECTED}) for w in words
+    ]
+
+
+def _build_words_and_characters(
     bundle: PageTrustDecisionBundle,
     *,
     canonicalisation_method: str,
-) -> NativePageResult:
-    trust = bundle.trust
-    warnings = [
-        NativeWarning(code=code, message=reason_message(code), page_number=trust.page_number)
-        for code in [*trust.reason_codes, *trust.warning_codes]
-    ]
-
-    if not bundle.accept_text:
-        return NativePageResult(
-            page_number=trust.page_number,
-            decision=trust.decision,
-            source_mode=trust.source_mode,
-            trust=trust,
-            provisional_order_status=ProvisionalOrderStatus.UNVERIFIED,
-            words=[],
-            characters=[],
-            provisional_native_text=None,
-            warnings=warnings,
-        )
-
-    page_no = trust.page_number
+    recognition_status: RecognitionStatus,
+) -> tuple[list[NativeWord], list[NativeCharacter]]:
+    page_no = bundle.trust.page_number
     characters: list[NativeCharacter] = []
     for geom_result in bundle.geometry.char_results:
         if geom_result.mapped.invalid or geom_result.mapped.out_of_bounds:
@@ -76,16 +66,7 @@ def build_page_result(
             )
         )
 
-    # Map original candidate index → published character id.
-    published_by_index: dict[int, str] = {}
     published_set = {c.id for c in characters}
-    for geom_result in bundle.geometry.char_results:
-        cand = geom_result.candidate
-        char_id = f"char_p{page_no:04d}_{cand.sequence_index + 1:06d}"
-        if char_id in published_set:
-            published_by_index[cand.sequence_index] = char_id
-
-    # Rebuild index map from char_indices (which point into page.characters list).
     index_to_id: dict[int, str] = {}
     for i, geom_result in enumerate(bundle.geometry.char_results):
         cand = geom_result.candidate
@@ -116,13 +97,50 @@ def build_page_result(
                 upright=word.upright,
                 recognition_method=method,
                 source_mode=SourceMode.NATIVE_AUTHORITY,
-                recognition_status=RecognitionStatus.ACCEPTED,
+                recognition_status=recognition_status,
             )
         )
+    return words, characters
 
+
+def build_page_result(
+    bundle: PageTrustDecisionBundle,
+    *,
+    canonicalisation_method: str,
+) -> NativePageResult:
+    trust = bundle.trust
+    warnings = [
+        NativeWarning(code=code, message=reason_message(code), page_number=trust.page_number)
+        for code in [*trust.reason_codes, *trust.warning_codes]
+    ]
+
+    if not bundle.accept_text:
+        verification_words, _chars = _build_words_and_characters(
+            bundle,
+            canonicalisation_method=canonicalisation_method,
+            recognition_status=RecognitionStatus.REJECTED,
+        )
+        return NativePageResult(
+            page_number=trust.page_number,
+            decision=trust.decision,
+            source_mode=trust.source_mode,
+            trust=trust,
+            provisional_order_status=ProvisionalOrderStatus.UNVERIFIED,
+            words=[],
+            characters=[],
+            provisional_native_text=None,
+            verification_words=verification_words,
+            warnings=warnings,
+        )
+
+    words, characters = _build_words_and_characters(
+        bundle,
+        canonicalisation_method=canonicalisation_method,
+        recognition_status=RecognitionStatus.ACCEPTED,
+    )
     provisional = " ".join(w.text for w in words) if words else None
     return NativePageResult(
-        page_number=page_no,
+        page_number=trust.page_number,
         decision=NativePageDecision.ACCEPTED,
         source_mode=SourceMode.NATIVE_AUTHORITY,
         trust=trust,
@@ -130,6 +148,7 @@ def build_page_result(
         words=words,
         characters=characters,
         provisional_native_text=provisional,
+        verification_words=[],
         warnings=warnings,
     )
 
@@ -137,14 +156,40 @@ def build_page_result(
 def page_result_for_storage(
     page: NativePageResult, *, include_characters: bool
 ) -> dict[str, object]:
-    """Dump a page result; optionally omit characters for the default API."""
+    """Dump a page result; optionally omit characters for the default API.
+
+    Non-accepted pages keep ``verification_words`` for Phase 4.5; accepted
+    fields (``words`` / ``characters`` / ``provisional_native_text``) stay empty.
+    """
 
     data = page.model_dump(mode="json")
     if not include_characters:
         data["characters"] = []
-    # Rejected/suppressed pages must never carry text fields.
     if page.decision is not NativePageDecision.ACCEPTED:
         data["words"] = []
         data["characters"] = []
         data["provisional_native_text"] = None
+        # Retain verification_words (diagnostic / Phase 4.5).
     return data
+
+
+def page_result_for_public_api(
+    page: NativePageResult,
+    *,
+    include_characters: bool = False,
+    include_verification_candidates: bool = False,
+) -> NativePageResult:
+    """Public API view: never expose verification candidates unless explicitly requested."""
+
+    updates: dict[str, object] = {}
+    if not include_characters:
+        updates["characters"] = []
+    if page.decision is not NativePageDecision.ACCEPTED:
+        updates["words"] = []
+        updates["characters"] = []
+        updates["provisional_native_text"] = None
+    if not include_verification_candidates:
+        updates["verification_words"] = []
+    if not updates:
+        return page
+    return page.model_copy(update=updates)
