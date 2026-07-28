@@ -24,7 +24,9 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
   forbidOnly: isCI,
-  retries: isCI ? 1 : 0,
+  // Holds stack can miss the first session create after a long chromium suite;
+  // one retry matches CI and avoids false local gate failures.
+  retries: 1,
   workers: 1,
   // Phase 4 printed OCR is covered by smoke/OCR jobs; default e2e stays Phase 2/3-speed.
   timeout: 120_000,

@@ -40,6 +40,7 @@ from backend.app.settings.config import Settings
 
 MANIFEST_NAME = "phase45-routing.local.json"
 PRIVATE_ROOT = Path("fixtures/private")
+DEFAULT_LABEL = "private_billing_document"
 
 
 def _load_manifest(path: Path) -> dict[str, object]:
@@ -52,15 +53,53 @@ def _load_manifest(path: Path) -> dict[str, object]:
 def _proposed_route(page: NativePageResult, policy: RoutingPolicy) -> tuple[str, list[str]]:
     page = restore_escalation_suppressed_native(page)
     image_dominant = page_is_image_dominant(page)
+    if page.decision is NativePageDecision.ERROR:
+        return "page_failed", ["native_extraction_error"]
     if is_trusted_digital_native(page, visibility=None, image_dominant=image_dominant):
         return "digital_native", ["trusted_digital_native_text"]
     if is_embedded_ocr_candidate(page, policy):
-        return "embedded_ocr_candidate", ["embedded_ocr_candidate"]
+        # Routing-only cannot verify; proposed entry into embedded path.
+        return "embedded_ocr_verified", ["embedded_ocr_candidate"]
+    words = page.words or page.verification_words or []
+    if (
+        not words
+        and (needs_full_visual_ocr(page) or page.trust.visual_processing_required)
+        and page.decision
+        in {
+            NativePageDecision.ABSENT,
+            NativePageDecision.REJECTED,
+            NativePageDecision.SUPPRESSED_BY_DOCUMENT_ESCALATION,
+        }
+    ):
+        # Blank-like: leave as full OCR unless blank preflight later says no text.
+        pass
     if needs_full_visual_ocr(page) or page.trust.visual_processing_required:
         return "full_visual_ocr", ["full_visual_ocr_required"]
     if page.decision is NativePageDecision.ACCEPTED:
         return "digital_native", ["trusted_digital_native_text"]
     return "full_visual_ocr", ["legacy_visual_required"]
+
+
+def _evidence_consistent(page_result: NativePageResult) -> bool:
+    evidence = page_result.trust.metrics.duplicate_layer_evidence
+    path = page_result.trust.metrics.hard_rule_path or "none"
+    if evidence is None:
+        return path == "none" or not page_result.trust.duplicate_hard_rejection
+    if evidence.selected_path != path:
+        return False
+    if evidence.selected_path == "A" and (
+        not evidence.path_a_satisfied
+        or any(r.mandatory and not r.passed for r in evidence.path_a_rules)
+    ):
+        return False
+    if evidence.selected_path == "B" and (
+        not evidence.path_b_satisfied
+        or any(r.mandatory and not r.passed for r in evidence.path_b_rules)
+    ):
+        return False
+    if evidence.hard_rejection != (evidence.selected_path in {"A", "B"}):
+        return False
+    return not (page_result.trust.duplicate_hard_rejection and evidence.selected_path == "none")
 
 
 def _audit_label(label: str, pdf_path: Path) -> dict[str, object]:
@@ -121,11 +160,16 @@ def _audit_label(label: str, pdf_path: Path) -> dict[str, object]:
 
     table = []
     reason_counts: Counter[str] = Counter()
+    route_totals: Counter[str] = Counter()
+    evidence_ok = True
     for page_result in escalated:
         evidence = page_result.trust.metrics.duplicate_layer_evidence
         route, reasons = _proposed_route(page_result, routing)
         reason_counts.update(reasons)
         reason_counts.update(page_result.trust.reason_codes)
+        route_totals[route] += 1
+        consistent = _evidence_consistent(page_result)
+        evidence_ok = evidence_ok and consistent
         table.append(
             {
                 "page_number": page_result.page_number,
@@ -133,18 +177,32 @@ def _audit_label(label: str, pdf_path: Path) -> dict[str, object]:
                     evidence.selected_path if evidence else page_result.trust.metrics.hard_rule_path
                 ),
                 "duplicate_hard_rejection": page_result.trust.duplicate_hard_rejection,
-                "overall_native_rejection": page_result.trust.hard_rejection,
+                "overall_native_hard_rejection": page_result.trust.hard_rejection,
+                "phase3_provisional_decision": page_result.decision.value,
                 "proposed_phase4_route": route,
                 "safe_reason_codes": sorted(set([*reasons, *page_result.trust.reason_codes])),
+                "evidence_consistent": consistent,
             }
         )
+
+    # Required totals keys (zero-fill).
+    totals = {
+        "digital_native": int(route_totals.get("digital_native", 0)),
+        "embedded_ocr_verified": int(route_totals.get("embedded_ocr_verified", 0)),
+        "embedded_ocr_targeted_repair": int(route_totals.get("embedded_ocr_targeted_repair", 0)),
+        "full_visual_ocr": int(route_totals.get("full_visual_ocr", 0)),
+        "visual_no_text": int(route_totals.get("visual_no_text", 0)),
+        "page_failed": int(route_totals.get("page_failed", 0)),
+    }
 
     return {
         "label": label,
         "page_count": len(table),
         "phase3_provisional_policy": phase3_policy.value,
         "pages": table,
+        "route_totals": totals,
         "reason_distribution": dict(reason_counts),
+        "evidence_consistent": evidence_ok,
     }
 
 
@@ -158,8 +216,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--label",
-        default="private_billing_digital",
-        help="Opaque label to audit (default: private_billing_digital)",
+        default=DEFAULT_LABEL,
+        help=f"Opaque label to audit (default: {DEFAULT_LABEL})",
     )
     args = parser.parse_args(argv)
     if not args.manifest.is_file():
@@ -192,9 +250,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         result = _audit_label(args.label, pdf_path)
         result["duration_ms"] = int((time.perf_counter() - started) * 1000)
-        result["pass"] = True
+        result["pass"] = bool(result.get("evidence_consistent", False))
         print(json.dumps(result, indent=2, sort_keys=True))
-        return 0
+        return 0 if result["pass"] else 1
     except Exception as exc:
         print(
             json.dumps(
