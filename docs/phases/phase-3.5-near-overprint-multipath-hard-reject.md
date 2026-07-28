@@ -62,19 +62,42 @@ single-offset support and a diluted global near-ratio.
 - Structured hard-rule explanation for DEV inspection.
 - Weighted trust score cannot override a fired hard path.
 
+## PATH B (tightened — phase3-v1.6 / Correction 2)
+
+PATH B detects a **coherent partial duplicate layer** with structural evidence.
+Sparse near-overprint character matches alone are not enough.
+
+Mandatory Path B conditions (all must pass):
+
+1. Coverage gate: `duplicate_layer_coverage_ratio >= 0.90` **or**
+   (`coverage > 0.70` **and** `duplicate_region_count >= 1`).
+2. Match count: `matched_near_duplicate_count >= path_b_min_matches` (default 48).
+   Adaptive lowering is allowed **only when** duplicate lines/regions already
+   satisfy the structure rule below.
+3. Structure: `duplicate_line_count >= 2` **or** `duplicate_region_count >= 1`.
+4. Geometric overlap: at least one near-overprint pair.
+
+Informational only: dominant / top-K offset support. These never decide Path B alone.
+
+A page with ~22 matched characters and zero duplicate lines/regions **must not**
+satisfy Path B. There is **no** silent short-page Path B exception; Path A retains
+its short-page match-floor reduction for widespread short pages.
+
+Decision and UI explanation consume one canonical `DuplicateLayerEvidence` object
+(`policy_version=phase3-v1.6`). Selected path cannot disagree with mandatory rule rows.
+
 ## Evidence
 
 - Unit tests: PATH A with low dominant support; PATH B with diluted near-ratio;
   multi-cluster offsets; geometric interleave vs legitimate repeats; sparse
-  bold/shadow non-reject.
+  bold/shadow non-reject; Correction 2 Path B structure / sparse-match rejection.
 - Synthetic worker regressions: `multi-displacement-clusters`,
-  `diluted-coverage-duplicate-region` (clean or `visual_authority`, never
-  interleaved doubles).
+  `diluted-coverage-duplicate-region`, `billing-duplicate-routing-cases`.
 - Private worker regression for pages 3/5: configure
   `near_overprint_multi_cluster` in the gitignored local manifest (skip if
   absent). Assertions never print private text.
 - Opaque private evaluate script pass.
-- Contracts regenerated (`phase3-v1.5` policy version).
+- Contracts regenerated (`phase3-v1.6` policy version).
 
 ## Out of scope
 

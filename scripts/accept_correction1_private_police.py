@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -118,13 +117,13 @@ def main() -> int:
             and visual_status != "not_required"
             and page_count >= 2
             and all(
-                str(p.get("page_result_state") or p.get("status"))
-                not in {"pending", ""}
+                str(p.get("page_result_state") or p.get("status")) not in {"pending", ""}
                 for p in pages
                 if isinstance(p, dict)
             )
             and (
-                int(summary.get("full_ocr_pages_selected") or summary.get("full_ocr_pages") or 0) > 0
+                int(summary.get("full_ocr_pages_selected") or summary.get("full_ocr_pages") or 0)
+                > 0
                 or int(summary.get("embedded_pages_verified") or 0) > 0
             )
         )
@@ -155,9 +154,7 @@ def main() -> int:
             "safe_reason_code_counts": reason_counts,
             "visual_processing_status": visual_status,
             "document_source_policy": policy,
-            "phase3_provisional_document_policy": summary.get(
-                "phase3_provisional_document_policy"
-            ),
+            "phase3_provisional_document_policy": summary.get("phase3_provisional_document_policy"),
             "document_status": status,
             "duration_seconds": round(time.perf_counter() - started, 3),
             "pass": passed,
