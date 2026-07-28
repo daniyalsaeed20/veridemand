@@ -369,7 +369,11 @@ def test_document_escalation_suppresses_text() -> None:
     )
 
     def make(page: int, decision: NativePageDecision) -> NativePageResult:
-        from backend.app.contracts.geometry import Geometry, NormalisedBoundingBox, NormalisedPolygon
+        from backend.app.contracts.geometry import (
+            Geometry,
+            NormalisedBoundingBox,
+            NormalisedPolygon,
+        )
         from backend.app.contracts.native import (
             NativeWord,
             PdfPointBox,

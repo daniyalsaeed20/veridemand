@@ -19,7 +19,10 @@ from backend.app.contracts.native import (
     VisualAgreementStatus,
 )
 from backend.app.contracts.routing import PageRoute
-from backend.app.extraction.native.serializer import page_result_for_public_api, page_result_for_storage
+from backend.app.extraction.native.serializer import (
+    page_result_for_public_api,
+    page_result_for_storage,
+)
 from backend.app.extraction.routing.embedded_ocr import is_embedded_ocr_candidate
 from backend.app.extraction.routing.models import RoutingPolicy
 from backend.app.extraction.routing.native_words import native_words_for_routing
@@ -75,7 +78,9 @@ def _metrics(**overrides: object) -> NativePageMetrics:
     return NativePageMetrics(**base)
 
 
-def _word(page: int, index: int, text: str, x: float, y: float, *, rejected: bool = False) -> NativeWord:
+def _word(
+    page: int, index: int, text: str, x: float, y: float, *, rejected: bool = False
+) -> NativeWord:
     w, h = 0.1, 0.02
     bbox = NormalisedBoundingBox(x=x, y=y, width=w, height=h)
     polygon = NormalisedPolygon(
@@ -98,9 +103,7 @@ def _word(page: int, index: int, text: str, x: float, y: float, *, rejected: boo
         upright=True,
         recognition_method=RecognitionMethod.NATIVE_PDF,
         source_mode=SourceMode.NATIVE_AUTHORITY,
-        recognition_status=(
-            RecognitionStatus.REJECTED if rejected else RecognitionStatus.ACCEPTED
-        ),
+        recognition_status=(RecognitionStatus.REJECTED if rejected else RecognitionStatus.ACCEPTED),
     )
 
 
@@ -206,6 +209,10 @@ def test_storage_dump_retains_verification_words() -> None:
     data = page_result_for_storage(page, include_characters=False)
     assert data["words"] == []
     assert data["provisional_native_text"] is None
-    assert data["verification_words"]
-    assert data["verification_words"][0]["text"] == "keep"
-    assert data["verification_words"][0]["recognition_status"] == "rejected"
+    stored_candidates = data["verification_words"]
+    assert isinstance(stored_candidates, list)
+    assert stored_candidates
+    first = stored_candidates[0]
+    assert isinstance(first, dict)
+    assert first["text"] == "keep"
+    assert first["recognition_status"] == "rejected"

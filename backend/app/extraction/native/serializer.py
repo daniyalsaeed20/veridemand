@@ -28,9 +28,7 @@ def _recognition_method(method: str) -> RecognitionMethod:
 def as_verification_words(words: list[NativeWord]) -> list[NativeWord]:
     """Copy words with recognition_status=rejected for diagnostic retention."""
 
-    return [
-        w.model_copy(update={"recognition_status": RecognitionStatus.REJECTED}) for w in words
-    ]
+    return [w.model_copy(update={"recognition_status": RecognitionStatus.REJECTED}) for w in words]
 
 
 def _build_words_and_characters(

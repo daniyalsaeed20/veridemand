@@ -39,8 +39,10 @@ describe("NativeInspectionPanel", () => {
       />,
     );
 
-    expect(screen.getByText(/Document source policy: mixed_authority/)).toBeInTheDocument();
-    expect(screen.getByText("Visual agreement not yet evaluated.")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Phase 3 provisional document source policy: mixed_authority/),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Phase 3 visual agreement: not evaluated")).toBeInTheDocument();
     expect(screen.getByText("Extraction order is provisional.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("switch", { name: "Show native word boxes" }));
     expect(onToggleNativeOverlay).toHaveBeenCalledOnce();
