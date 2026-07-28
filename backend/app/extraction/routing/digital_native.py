@@ -105,7 +105,7 @@ def build_digital_native_decision(
 ) -> PageRouteDecision:
     words = page.words or []
     chars = page.characters or []
-    reasons = reason_codes or ["trusted_digital_native_text"]
+    reasons = list(reason_codes or ["trusted_digital_native_text"])
     if (
         any(
             str(c) == NativeReasonCode.DOCUMENT_VISUAL_AUTHORITY_ESCALATION.value
@@ -114,6 +114,12 @@ def build_digital_native_decision(
         and "recovered_after_document_escalation" not in reasons
     ):
         reasons = [*reasons, "recovered_after_document_escalation"]
+    warning_codes = {str(c) for c in (page.trust.warning_codes or [])}
+    if (
+        page.quarantined_glyph_count > 0
+        or NativeReasonCode.ISOLATED_GLYPHS_QUARANTINED.value in warning_codes
+    ) and NativeReasonCode.ISOLATED_GLYPHS_QUARANTINED.value not in reasons:
+        reasons = [*reasons, NativeReasonCode.ISOLATED_GLYPHS_QUARANTINED.value]
     return PageRouteDecision(
         page_number=page.page_number,
         route=PageRoute.DIGITAL_NATIVE,

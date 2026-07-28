@@ -424,6 +424,17 @@ class VisualOcrService:
 
                     if decision.route is PageRoute.DIGITAL_NATIVE:
                         retained_native.add(page_number)
+                        glyph_warnings = [
+                            w
+                            for w in (native_page.warnings or [])
+                            if w.code
+                            in {
+                                "isolated_glyphs_quarantined",
+                                "unsupported_checkbox_glyph",
+                                "isolated_private_use_glyph",
+                                "symbol_font_mapping_missing",
+                            }
+                        ]
                         published[page_number] = VisualPageResult(
                             page_number=page_number,
                             status=VisualPageStatus.SKIPPED_NATIVE_RETAINED,
@@ -440,6 +451,18 @@ class VisualOcrService:
                             visual_result_available=False,
                             visual_processing_attempted=False,
                             handwriting_assessment=HandwritingAssessment.PENDING_PHASE_5,
+                            quarantined_glyph_count=native_page.quarantined_glyph_count,
+                            quarantined_region_count=native_page.quarantined_region_count,
+                            glyph_materiality=native_page.glyph_materiality,
+                            phase3_page_decision=native_page.decision.value,
+                            document_escalation_applied="document_visual_authority_escalation"
+                            in (native_page.trust.reason_codes or []),
+                            page_restored_after_escalation="recovered_after_document_escalation"
+                            in decision.reason_codes,
+                            warnings=[
+                                VisualWarning(code=w.code, message=w.message)
+                                for w in glyph_warnings
+                            ],
                         )
                         publish_page_atomic(published[page_number], results)
                         await _progress(

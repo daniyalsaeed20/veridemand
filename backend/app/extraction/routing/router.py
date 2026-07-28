@@ -103,14 +103,14 @@ class PageRouter:
                     reason_codes=["legacy_visual_required"],
                     image_dominant=image_dominant,
                 )
-            return self._finish(document_id, decision, started)
+            return self._finish(document_id, decision, started, page=page)
 
         page = restore_escalation_suppressed_native(page)
         image_dominant = page_is_image_dominant(page)
 
         if is_trusted_digital_native(page, visibility=visibility, image_dominant=image_dominant):
             decision = build_digital_native_decision(page, self._policy)
-            return self._finish(document_id, decision, started)
+            return self._finish(document_id, decision, started, page=page)
 
         if (
             is_embedded_ocr_candidate(page, self._policy)
@@ -136,7 +136,7 @@ class PageRouter:
             likelihood = evaluate_text_likelihood(page_image, self._policy)
             if likelihood.appears_blank:
                 decision = build_visual_no_text_decision(page, self._policy, likelihood)
-                return self._finish(document_id, decision, started)
+                return self._finish(document_id, decision, started, page=page)
 
         reasons = ["full_visual_ocr_required"]
         if image_dominant and not words:
@@ -149,7 +149,7 @@ class PageRouter:
             reason_codes=reasons,
             image_dominant=image_dominant,
         )
-        return self._finish(document_id, decision, started)
+        return self._finish(document_id, decision, started, page=page)
 
     def _decide_embedded(
         self,
@@ -172,7 +172,7 @@ class PageRouter:
                 image_dominant=image_dominant,
                 embedded_candidate=True,
             )
-            return self._finish(document_id, decision, started)
+            return self._finish(document_id, decision, started, page=page)
 
         visual = evaluate_visual_agreement(
             page_image,
@@ -203,7 +203,7 @@ class PageRouter:
                     reasons=["limited_visual_disagreement", *visual.reason_codes],
                     failed_count=len(visual.failed_box_indices),
                 )
-                return self._finish(document_id, decision, started)
+                return self._finish(document_id, decision, started, page=page)
             decision = build_full_ocr_decision(
                 page,
                 self._policy,
@@ -213,7 +213,7 @@ class PageRouter:
                 visual_score=visual.visual_agreement_score,
                 sampled_box_count=visual.sampled_box_count,
             )
-            return self._finish(document_id, decision, started)
+            return self._finish(document_id, decision, started, page=page)
 
         recognition_score = None
         recognition_count = 0
@@ -248,7 +248,7 @@ class PageRouter:
                         reasons=["limited_recognition_disagreement", *recognition.reason_codes],
                         failed_count=len(recognition_failed),
                     )
-                    return self._finish(document_id, decision, started)
+                    return self._finish(document_id, decision, started, page=page)
                 decision = build_full_ocr_decision(
                     page,
                     self._policy,
@@ -263,7 +263,7 @@ class PageRouter:
                     sampled_box_count=visual.sampled_box_count,
                     recognition_sample_count=recognition_count,
                 )
-                return self._finish(document_id, decision, started)
+                return self._finish(document_id, decision, started, page=page)
             recognition_reasons = list(recognition.reason_codes)
         elif self._policy.embedded_recognition_enabled:
             recognition_reasons = ["recognition_check_engine_unavailable"]
@@ -300,7 +300,7 @@ class PageRouter:
                 sampled_box_count=visual.sampled_box_count,
                 recognition_sample_count=recognition_count,
             )
-            return self._finish(document_id, decision, started)
+            return self._finish(document_id, decision, started, page=page)
 
         decision = PageRouteDecision(
             page_number=page.page_number,
@@ -324,7 +324,7 @@ class PageRouter:
             full_ocr_required=False,
             estimated_cost_class=EstimatedCostClass.LOW,
         )
-        return self._finish(document_id, decision, started)
+        return self._finish(document_id, decision, started, page=page)
 
     def _targeted_decision(
         self,
@@ -382,10 +382,34 @@ class PageRouter:
         )
 
     def _finish(
-        self, document_id: str, decision: PageRouteDecision, started: float
+        self,
+        document_id: str,
+        decision: PageRouteDecision,
+        started: float,
+        *,
+        page: NativePageResult | None = None,
     ) -> RouteExecutionPlan:
         duration_ms = int((time.perf_counter() - started) * 1000)
         decision = decision.model_copy(update={"actual_duration_ms": duration_ms})
+        metrics = page.trust.metrics if page is not None else None
+        restored = False
+        escalation = False
+        if page is not None:
+            codes = {str(c) for c in (page.trust.reason_codes or [])}
+            escalation = "document_visual_authority_escalation" in codes
+            restored = "recovered_after_document_escalation" in set(decision.reason_codes)
+        failed_rule = None
+        for code in decision.reason_codes:
+            if code.startswith("high_") or code in {
+                "full_visual_ocr_required",
+                "material_glyph_corruption",
+                "widespread_unicode_corruption",
+                "replacement_character_corruption",
+                "embedded_coverage_insufficient",
+                "image_dominant_without_text_layer",
+            }:
+                failed_rule = code
+                break
         log_page_route_decision(
             document_id=document_id,
             page_number=decision.page_number,
@@ -397,6 +421,38 @@ class PageRouter:
             recognition_agreement_score=decision.recognition_agreement_score,
             full_ocr_required=decision.full_ocr_required,
             route_duration_ms=duration_ms,
+            policy_version=decision.decision_version,
+            proposed_route=decision.route.value,
+            final_route=decision.route.value,
+            native_candidate_available=bool(
+                decision.native_word_count
+                or (page is not None and (page.verification_words or page.words))
+            ),
+            native_trust_score=decision.native_trust_score,
+            replacement_character_ratio=(
+                metrics.replacement_character_ratio if metrics is not None else None
+            ),
+            control_character_ratio=(
+                metrics.control_character_ratio if metrics is not None else None
+            ),
+            private_use_character_ratio=(
+                metrics.private_use_character_ratio if metrics is not None else None
+            ),
+            unassigned_character_ratio=(
+                metrics.unassigned_character_ratio if metrics is not None else None
+            ),
+            symbol_character_ratio=None,
+            quarantined_glyph_count=(page.quarantined_glyph_count if page is not None else None),
+            quarantined_region_count=(page.quarantined_region_count if page is not None else None),
+            glyph_materiality=page.glyph_materiality if page is not None else None,
+            document_escalation_applied=escalation,
+            page_restored_after_escalation=restored,
+            visual_agreement_evaluated=decision.visual_agreement_evaluated,
+            recognition_check_evaluated=decision.recognition_sample_count > 0
+            or decision.recognition_agreement_score is not None,
+            targeted_repair_eligible=decision.route.value == "embedded_ocr_targeted_repair",
+            failed_rule=failed_rule,
+            decision_duration_ms=duration_ms,
         )
         return self._plan_for(decision)
 

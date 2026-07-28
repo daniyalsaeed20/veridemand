@@ -268,6 +268,12 @@ class VisualPageResult(ApiModel):
     no_text_reason_code: str | None = None
     handwriting_assessment: HandwritingAssessment = HandwritingAssessment.PENDING_PHASE_5
     warnings: list[VisualWarning] = Field(default_factory=list)
+    quarantined_glyph_count: int = Field(default=0, ge=0)
+    quarantined_region_count: int = Field(default=0, ge=0)
+    glyph_materiality: str | None = None
+    phase3_page_decision: str | None = None
+    document_escalation_applied: bool = False
+    page_restored_after_escalation: bool = False
     duration_ms: int | None = Field(default=None, ge=0)
     peak_rss_mb: float | None = Field(default=None, ge=0.0)
     # Privacy-safe performance observability (no OCR text).
