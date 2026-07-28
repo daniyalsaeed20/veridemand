@@ -11,4 +11,9 @@ ticker (`liveProgressClockStore`).
 - Hidden tabs pause the display ticker only; SSE stays open  
 - Timer ticks must not remount the PDF.js viewer
 
+Correction 4 extends this with explicit document vs selected-page indices,
+separated clocks/deadlines, operation-attempt lifecycle, and a progress event
+reducer. See `phase-4-progress-events.md`, `phase-4-live-time-and-eta.md`, and
+ADRs 0029–0033.
+
 See ADR 0027 and ADR 0028.
