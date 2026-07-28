@@ -49,9 +49,7 @@ def _load_manifest(path: Path) -> dict[str, object]:
     return data
 
 
-def _proposed_route(
-    page: NativePageResult, policy: RoutingPolicy
-) -> tuple[str, list[str]]:
+def _proposed_route(page: NativePageResult, policy: RoutingPolicy) -> tuple[str, list[str]]:
     page = restore_escalation_suppressed_native(page)
     image_dominant = page_is_image_dominant(page)
     if is_trusted_digital_native(page, visibility=None, image_dominant=image_dominant):
@@ -132,16 +130,12 @@ def _audit_label(label: str, pdf_path: Path) -> dict[str, object]:
             {
                 "page_number": page_result.page_number,
                 "duplicate_path": (
-                    evidence.selected_path
-                    if evidence
-                    else page_result.trust.metrics.hard_rule_path
+                    evidence.selected_path if evidence else page_result.trust.metrics.hard_rule_path
                 ),
                 "duplicate_hard_rejection": page_result.trust.duplicate_hard_rejection,
                 "overall_native_rejection": page_result.trust.hard_rejection,
                 "proposed_phase4_route": route,
-                "safe_reason_codes": sorted(
-                    set([*reasons, *page_result.trust.reason_codes])
-                ),
+                "safe_reason_codes": sorted(set([*reasons, *page_result.trust.reason_codes])),
             }
         )
 

@@ -213,12 +213,9 @@ def decide_page_trust(
         if isinstance(geometry_m.duplicate_layer_evidence, DuplicateLayerEvidence)
         else build_duplicate_layer_evidence(composite_metrics, thr)
     )
-    if (
-        not page.near_overprint_cleaned
-        and (
-            page.near_overprint_composite_evidence
-            or composite_duplicate_layer_evidence(composite_metrics, thr)
-        )
+    if not page.near_overprint_cleaned and (
+        page.near_overprint_composite_evidence
+        or composite_duplicate_layer_evidence(composite_metrics, thr)
     ):
         hard = True
         duplicate_hard = True
