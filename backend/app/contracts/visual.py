@@ -10,7 +10,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Annotated
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from backend.app.contracts.base import ApiModel
 from backend.app.contracts.geometry import NormalisedBoundingBox, NormalisedPolygon
@@ -71,6 +71,65 @@ class VisualAgreementStatusPhase4(StrEnum):
     EVALUATED_PHASE_45_EMBEDDED_VISUAL = "evaluated_phase_45_embedded_visual"
     EVALUATED_PHASE_45_EMBEDDED_RECOGNITION = "evaluated_phase_45_embedded_recognition"
     EVALUATED_PHASE_45_TARGETED_REPAIR = "evaluated_phase_45_targeted_repair"
+
+
+class PageResultState(StrEnum):
+    """Canonical terminal page-result state (Phase 4 reconciled authority)."""
+
+    DIGITAL_NATIVE = "digital_native"
+    EMBEDDED_OCR_VERIFIED = "embedded_ocr_verified"
+    EMBEDDED_OCR_TARGETED_REPAIR = "embedded_ocr_targeted_repair"
+    FULL_VISUAL_OCR = "full_visual_ocr"
+    VISUAL_NO_TEXT = "visual_no_text"
+    PAGE_FAILED = "page_failed"
+    PENDING = "pending"
+    CANCELLED = "cancelled"
+
+
+class AgreementEvaluationStatus(StrEnum):
+    """Simplified agreement outcome for Phase 4 embedded verification UI."""
+
+    NOT_EVALUATED = "not_evaluated"
+    PASSED = "passed"
+    FAILED = "failed"
+    INSUFFICIENT_EVIDENCE = "insufficient_evidence"
+    NOT_REQUIRED = "not_required"
+
+
+class OverlaySourceKind(StrEnum):
+    """Provenance tag for overlay boxes in the canonical viewer."""
+
+    NATIVE_PDF_WORD = "native_pdf_word"
+    VERIFIED_EMBEDDED_OCR_WORD = "verified_embedded_ocr_word"
+    VERIFIED_EMBEDDED_OCR_LINE = "verified_embedded_ocr_line"
+    TARGETED_REPAIR_WORD = "targeted_repair_word"
+    PRINTED_VISUAL_OCR_WORD = "printed_visual_ocr_word"
+    PRINTED_VISUAL_OCR_LINE = "printed_visual_ocr_line"
+
+
+# Exact user-facing source labels keyed by PageResultState.
+PAGE_RESULT_SOURCE_LABELS: dict[PageResultState, str] = {
+    PageResultState.DIGITAL_NATIVE: "Native PDF text",
+    PageResultState.EMBEDDED_OCR_VERIFIED: "Verified embedded OCR",
+    PageResultState.EMBEDDED_OCR_TARGETED_REPAIR: "Verified embedded OCR with visual repair",
+    PageResultState.FULL_VISUAL_OCR: "Printed visual OCR",
+    PageResultState.VISUAL_NO_TEXT: "No meaningful text detected",
+    PageResultState.PAGE_FAILED: "Page processing failed",
+    PageResultState.PENDING: "Processing",
+    PageResultState.CANCELLED: "Cancelled",
+}
+
+
+def source_label_for_page_result_state(state: PageResultState | str | None) -> str:
+    """Return the canonical source label for a page-result state."""
+
+    if state is None:
+        return "Processing"
+    try:
+        key = state if isinstance(state, PageResultState) else PageResultState(str(state))
+    except ValueError:
+        return "Processing"
+    return PAGE_RESULT_SOURCE_LABELS[key]
 
 
 class ReadingOrderStatus(StrEnum):
@@ -168,6 +227,14 @@ class VisualPageResult(ApiModel):
     page_number: int = Field(ge=1)
     status: VisualPageStatus
     source_mode: SourceMode
+    page_result_state: PageResultState | None = Field(
+        default=None,
+        description="Canonical terminal page-result state after Phase 4 reconciliation.",
+    )
+    source_label: str | None = Field(
+        default=None,
+        description="Exact user-facing source label for this page result.",
+    )
     render_dpi: float | None = Field(default=None, gt=0)
     render_width_pixels: int | None = Field(default=None, ge=0)
     render_height_pixels: int | None = Field(default=None, ge=0)
@@ -187,10 +254,18 @@ class VisualPageResult(ApiModel):
         default=None, description="Phase 4.5 page route when hybrid routing is enabled."
     )
     route_reason_codes: list[str] = Field(default_factory=list)
+    visual_agreement_status: AgreementEvaluationStatus = AgreementEvaluationStatus.NOT_EVALUATED
     visual_agreement_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    visual_agreement_policy_version: str | None = None
+    recognition_agreement_status: AgreementEvaluationStatus = (
+        AgreementEvaluationStatus.NOT_EVALUATED
+    )
     recognition_agreement_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    recognition_sample_count: int = Field(default=0, ge=0)
+    overlay_source: OverlaySourceKind | None = None
     visual_result_available: bool = False
     visual_processing_attempted: bool = False
+    no_text_reason_code: str | None = None
     handwriting_assessment: HandwritingAssessment = HandwritingAssessment.PENDING_PHASE_5
     warnings: list[VisualWarning] = Field(default_factory=list)
     duration_ms: int | None = Field(default=None, ge=0)
@@ -213,6 +288,94 @@ class VisualPageResult(ApiModel):
     cpu_threads: int | None = Field(default=None, ge=0)
     error_code: str | None = None
 
+    @model_validator(mode="after")
+    def _enforce_page_result_invariants(self) -> VisualPageResult:
+        state = self.page_result_state
+        if state is None and self.page_route:
+            try:
+                state = PageResultState(self.page_route)
+            except ValueError:
+                state = None
+
+        if self.source_label is None and state is not None:
+            object.__setattr__(self, "source_label", source_label_for_page_result_state(state))
+
+        if state is PageResultState.EMBEDDED_OCR_VERIFIED:
+            if self.source_mode is not SourceMode.EMBEDDED_OCR_AUTHORITY:
+                raise ValueError(
+                    "embedded_ocr_verified requires source_mode=embedded_ocr_authority."
+                )
+            if self.visual_agreement_status is AgreementEvaluationStatus.NOT_EVALUATED:
+                raise ValueError(
+                    "embedded_ocr_authority requires completed visual agreement evaluation."
+                )
+            if self.visual_agreement_status is not AgreementEvaluationStatus.PASSED:
+                raise ValueError("embedded_ocr_authority requires visual_agreement_status=passed.")
+            if not self.visual_result_available:
+                raise ValueError(
+                    "embedded_ocr_verified requires visual_result_available=true with "
+                    "materialised verified output."
+                )
+            if self.word_count < 1 and self.line_count < 1:
+                raise ValueError(
+                    "embedded_ocr_verified requires at least one verified public word or line."
+                )
+            if len(self.words) < 1 and len(self.lines) < 1:
+                raise ValueError(
+                    "embedded_ocr_verified requires materialised words or lines in the result."
+                )
+            expected = source_label_for_page_result_state(PageResultState.EMBEDDED_OCR_VERIFIED)
+            if self.source_label != expected:
+                raise ValueError(
+                    f"embedded_ocr_verified source_label must be {expected!r}, "
+                    f"got {self.source_label!r}."
+                )
+
+        if state is PageResultState.EMBEDDED_OCR_TARGETED_REPAIR:
+            if self.source_mode is not SourceMode.EMBEDDED_OCR_AUTHORITY:
+                raise ValueError(
+                    "embedded_ocr_targeted_repair requires source_mode=embedded_ocr_authority."
+                )
+            if not self.visual_result_available or (self.word_count < 1 and self.line_count < 1):
+                raise ValueError(
+                    "embedded_ocr_targeted_repair requires materialised verified/repaired output."
+                )
+
+        if state is PageResultState.VISUAL_NO_TEXT:
+            if self.no_text_reason_code is None:
+                raise ValueError("visual_no_text requires a no_text_reason_code.")
+            if self.word_count > 0 or self.line_count > 0:
+                raise ValueError("visual_no_text must not publish words or lines.")
+
+        if state is PageResultState.PAGE_FAILED:
+            if not self.error_code:
+                raise ValueError("page_failed requires a typed error_code.")
+            if self.source_mode is SourceMode.EMBEDDED_OCR_AUTHORITY:
+                raise ValueError("page_failed must not claim embedded_ocr_authority.")
+
+        if (
+            self.source_mode is SourceMode.EMBEDDED_OCR_AUTHORITY
+            and self.visual_agreement_status is AgreementEvaluationStatus.NOT_EVALUATED
+        ):
+            raise ValueError(
+                "embedded_ocr_authority + visual agreement not evaluated is forbidden."
+            )
+
+        if (
+            self.source_mode is SourceMode.EMBEDDED_OCR_AUTHORITY
+            and self.word_count == 0
+            and self.line_count == 0
+            and state
+            not in {
+                PageResultState.PENDING,
+                PageResultState.CANCELLED,
+                PageResultState.PAGE_FAILED,
+            }
+        ):
+            raise ValueError("embedded_ocr_authority with zero verified words/lines is forbidden.")
+
+        return self
+
 
 class VisualPageSummary(ApiModel):
     """Compact per-page row for document visual summaries."""
@@ -220,6 +383,8 @@ class VisualPageSummary(ApiModel):
     page_number: int = Field(ge=1)
     status: VisualPageStatus
     source_mode: SourceMode
+    page_result_state: PageResultState | None = None
+    source_label: str | None = None
     line_count: int = Field(default=0, ge=0)
     word_count: int = Field(default=0, ge=0)
     visual_result_available: bool = False
@@ -235,6 +400,7 @@ class VisualDocumentSummary(ApiModel):
     document_id: DocumentId
     visual_processing_status: VisualProcessingStatus
     page_count: int = Field(ge=0)
+    document_pages_total: int = Field(default=0, ge=0)
     pages_selected: int = Field(ge=0)
     pages_completed: int = Field(ge=0)
     pages_no_text: int = Field(ge=0)
@@ -242,15 +408,25 @@ class VisualDocumentSummary(ApiModel):
     pages_cancelled: int = Field(ge=0)
     native_pages_retained: int = Field(ge=0)
     native_pages_downgraded: int = Field(ge=0)
+    pages_not_requiring_full_ocr: int = Field(default=0, ge=0)
     embedded_ocr_pages_verified: int = Field(default=0, ge=0)
+    embedded_pages_verified: int = Field(default=0, ge=0)
     targeted_repair_pages: int = Field(default=0, ge=0)
     full_ocr_pages: int = Field(default=0, ge=0)
+    full_ocr_pages_selected: int = Field(default=0, ge=0)
+    full_ocr_pages_completed: int = Field(default=0, ge=0)
+    no_text_pages: int = Field(default=0, ge=0)
+    failed_pages: int = Field(default=0, ge=0)
     visual_no_text_pages: int = Field(default=0, ge=0)
     visual_result_available: bool = False
     handwriting_assessment_pending: bool = True
     final_result_available: bool = False
     canonical_document_available: bool = False
     document_source_policy: DocumentSourcePolicy | None = None
+    phase3_provisional_document_policy: DocumentSourcePolicy | None = Field(
+        default=None,
+        description="Phase 3 provisional document policy retained for diagnostics.",
+    )
     progress: VisualProgress
     model_info: VisualModelInfo | None = None
     page_summaries: list[VisualPageSummary] = Field(default_factory=list)

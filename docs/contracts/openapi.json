@@ -1,6 +1,18 @@
 {
   "components": {
     "schemas": {
+      "AgreementEvaluationStatus": {
+        "description": "Simplified agreement outcome for Phase 4 embedded verification UI.",
+        "enum": [
+          "not_evaluated",
+          "passed",
+          "failed",
+          "insufficient_evidence",
+          "not_required"
+        ],
+        "title": "AgreementEvaluationStatus",
+        "type": "string"
+      },
       "ApiErrorDetail": {
         "additionalProperties": false,
         "description": "Structured, non-sensitive description of a single API error.",
@@ -2876,7 +2888,8 @@
       "OcrRecognitionMethod": {
         "description": "How printed OCR text was obtained.",
         "enum": [
-          "paddleocr_printed"
+          "paddleocr_printed",
+          "embedded_ocr_verified"
         ],
         "title": "OcrRecognitionMethod",
         "type": "string"
@@ -2895,7 +2908,8 @@
         "description": "Page text authority for Phase 4 OCR results.",
         "enum": [
           "visual_authority",
-          "embedded_ocr_authority"
+          "embedded_ocr_authority",
+          "native_authority"
         ],
         "title": "OcrSourceMode",
         "type": "string"
@@ -2978,6 +2992,19 @@
         "title": "OverlayProofResponse",
         "type": "object"
       },
+      "OverlaySourceKind": {
+        "description": "Provenance tag for overlay boxes in the canonical viewer.",
+        "enum": [
+          "native_pdf_word",
+          "verified_embedded_ocr_word",
+          "verified_embedded_ocr_line",
+          "targeted_repair_word",
+          "printed_visual_ocr_word",
+          "printed_visual_ocr_line"
+        ],
+        "title": "OverlaySourceKind",
+        "type": "string"
+      },
       "PageCountStatus": {
         "description": "Whether a document's page count is known in Phase 1.",
         "enum": [
@@ -2985,6 +3012,21 @@
           "pending_canonicalisation"
         ],
         "title": "PageCountStatus",
+        "type": "string"
+      },
+      "PageResultState": {
+        "description": "Canonical terminal page-result state (Phase 4 reconciled authority).",
+        "enum": [
+          "digital_native",
+          "embedded_ocr_verified",
+          "embedded_ocr_targeted_repair",
+          "full_visual_ocr",
+          "visual_no_text",
+          "page_failed",
+          "pending",
+          "cancelled"
+        ],
+        "title": "PageResultState",
         "type": "string"
       },
       "PdfPointBox": {
@@ -3186,6 +3228,14 @@
             "$ref": "#/components/schemas/OcrSourceMode",
             "default": "visual_authority"
           },
+          "source_native_word_ids": {
+            "description": "Native/verification candidate word ids that produced this line.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Source Native Word Ids",
+            "type": "array"
+          },
           "text": {
             "description": "Exact OCR string (NFC applied separately).",
             "minLength": 1,
@@ -3289,6 +3339,22 @@
             "minimum": 0.0,
             "title": "Sequence Index",
             "type": "integer"
+          },
+          "source_mode": {
+            "$ref": "#/components/schemas/OcrSourceMode",
+            "default": "visual_authority"
+          },
+          "source_native_word_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Native/verification candidate word id this public word was materialised from.",
+            "title": "Source Native Word Id"
           },
           "text": {
             "minLength": 1,
@@ -5011,6 +5077,12 @@
             "title": "Document Id",
             "type": "string"
           },
+          "document_pages_total": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Document Pages Total",
+            "type": "integer"
+          },
           "document_source_policy": {
             "anyOf": [
               {
@@ -5027,12 +5099,24 @@
             "title": "Embedded Ocr Pages Verified",
             "type": "integer"
           },
+          "embedded_pages_verified": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Embedded Pages Verified",
+            "type": "integer"
+          },
           "error_codes": {
             "items": {
               "type": "string"
             },
             "title": "Error Codes",
             "type": "array"
+          },
+          "failed_pages": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Failed Pages",
+            "type": "integer"
           },
           "final_result_available": {
             "default": false,
@@ -5043,6 +5127,18 @@
             "default": 0,
             "minimum": 0.0,
             "title": "Full Ocr Pages",
+            "type": "integer"
+          },
+          "full_ocr_pages_completed": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Full Ocr Pages Completed",
+            "type": "integer"
+          },
+          "full_ocr_pages_selected": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Full Ocr Pages Selected",
             "type": "integer"
           },
           "handwriting_assessment_pending": {
@@ -5068,6 +5164,12 @@
           "native_pages_retained": {
             "minimum": 0.0,
             "title": "Native Pages Retained",
+            "type": "integer"
+          },
+          "no_text_pages": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "No Text Pages",
             "type": "integer"
           },
           "page_count": {
@@ -5102,10 +5204,27 @@
             "title": "Pages No Text",
             "type": "integer"
           },
+          "pages_not_requiring_full_ocr": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Pages Not Requiring Full Ocr",
+            "type": "integer"
+          },
           "pages_selected": {
             "minimum": 0.0,
             "title": "Pages Selected",
             "type": "integer"
+          },
+          "phase3_provisional_document_policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DocumentSourcePolicy"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 3 provisional document policy retained for diagnostics."
           },
           "progress": {
             "$ref": "#/components/schemas/VisualProgress"
@@ -5421,6 +5540,27 @@
               }
             ]
           },
+          "no_text_reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "No Text Reason Code"
+          },
+          "overlay_source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverlaySourceKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "paddle_pipeline_duration_seconds": {
             "anyOf": [
               {
@@ -5437,6 +5577,17 @@
             "minimum": 1.0,
             "title": "Page Number",
             "type": "integer"
+          },
+          "page_result_state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageResultState"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Canonical terminal page-result state after Phase 4 reconciliation."
           },
           "page_route": {
             "anyOf": [
@@ -5507,6 +5658,10 @@
             ],
             "title": "Recognition Agreement Score"
           },
+          "recognition_agreement_status": {
+            "$ref": "#/components/schemas/AgreementEvaluationStatus",
+            "default": "not_evaluated"
+          },
           "recognition_model_name": {
             "anyOf": [
               {
@@ -5517,6 +5672,12 @@
               }
             ],
             "title": "Recognition Model Name"
+          },
+          "recognition_sample_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Recognition Sample Count",
+            "type": "integer"
           },
           "render_dpi": {
             "anyOf": [
@@ -5608,6 +5769,18 @@
             ],
             "title": "Source Height Px"
           },
+          "source_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exact user-facing source label for this page result.",
+            "title": "Source Label"
+          },
           "source_mode": {
             "$ref": "#/components/schemas/SourceMode"
           },
@@ -5626,6 +5799,17 @@
           "status": {
             "$ref": "#/components/schemas/VisualPageStatus"
           },
+          "visual_agreement_policy_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visual Agreement Policy Version"
+          },
           "visual_agreement_score": {
             "anyOf": [
               {
@@ -5638,6 +5822,10 @@
               }
             ],
             "title": "Visual Agreement Score"
+          },
+          "visual_agreement_status": {
+            "$ref": "#/components/schemas/AgreementEvaluationStatus",
+            "default": "not_evaluated"
           },
           "visual_processing_attempted": {
             "default": false,
@@ -5745,6 +5933,27 @@
             "minimum": 1.0,
             "title": "Page Number",
             "type": "integer"
+          },
+          "page_result_state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageResultState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Label"
           },
           "source_mode": {
             "$ref": "#/components/schemas/SourceMode"
@@ -5971,7 +6180,8 @@
         "description": "Whether word boxes came from Paddle or were derived.",
         "enum": [
           "paddle_word_box",
-          "derived_from_line_polygon"
+          "derived_from_line_polygon",
+          "embedded_native_box"
         ],
         "title": "WordGeometrySource",
         "type": "string"
@@ -5980,7 +6190,8 @@
         "description": "Origin of the word recognition score.",
         "enum": [
           "paddle_recognition",
-          "inherited_from_line"
+          "inherited_from_line",
+          "embedded_verification"
         ],
         "title": "WordScoreSource",
         "type": "string"

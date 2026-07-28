@@ -5,6 +5,13 @@ export type ClientOptions = {
 };
 
 /**
+ * AgreementEvaluationStatus
+ *
+ * Simplified agreement outcome for Phase 4 embedded verification UI.
+ */
+export type AgreementEvaluationStatus = 'not_evaluated' | 'passed' | 'failed' | 'insufficient_evidence' | 'not_required';
+
+/**
  * ApiErrorDetail
  *
  * Structured, non-sensitive description of a single API error.
@@ -1772,7 +1779,7 @@ export type NormalisedPolygon = {
  *
  * How printed OCR text was obtained.
  */
-export type OcrRecognitionMethod = 'paddleocr_printed';
+export type OcrRecognitionMethod = 'paddleocr_printed' | 'embedded_ocr_verified';
 
 /**
  * OcrRecognitionStatus
@@ -1786,7 +1793,7 @@ export type OcrRecognitionStatus = 'accepted' | 'low_confidence' | 'empty';
  *
  * Page text authority for Phase 4 OCR results.
  */
-export type OcrSourceMode = 'visual_authority' | 'embedded_ocr_authority';
+export type OcrSourceMode = 'visual_authority' | 'embedded_ocr_authority' | 'native_authority';
 
 /**
  * OverlayProofItem
@@ -1857,11 +1864,25 @@ export type OverlayProofResponse = {
 };
 
 /**
+ * OverlaySourceKind
+ *
+ * Provenance tag for overlay boxes in the canonical viewer.
+ */
+export type OverlaySourceKind = 'native_pdf_word' | 'verified_embedded_ocr_word' | 'verified_embedded_ocr_line' | 'targeted_repair_word' | 'printed_visual_ocr_word' | 'printed_visual_ocr_line';
+
+/**
  * PageCountStatus
  *
  * Whether a document's page count is known in Phase 1.
  */
 export type PageCountStatus = 'known' | 'pending_canonicalisation';
+
+/**
+ * PageResultState
+ *
+ * Canonical terminal page-result state (Phase 4 reconciled authority).
+ */
+export type PageResultState = 'digital_native' | 'embedded_ocr_verified' | 'embedded_ocr_targeted_repair' | 'full_visual_ocr' | 'visual_no_text' | 'page_failed' | 'pending' | 'cancelled';
 
 /**
  * PdfPointBox
@@ -2001,6 +2022,12 @@ export type PrintedOcrLine = {
     sequence_index: number;
     source_mode?: OcrSourceMode;
     /**
+     * Source Native Word Ids
+     *
+     * Native/verification candidate word ids that produced this line.
+     */
+    source_native_word_ids?: Array<string>;
+    /**
      * Text
      *
      * Exact OCR string (NFC applied separately).
@@ -2056,6 +2083,13 @@ export type PrintedOcrWord = {
      * Sequence Index
      */
     sequence_index: number;
+    source_mode?: OcrSourceMode;
+    /**
+     * Source Native Word Id
+     *
+     * Native/verification candidate word id this public word was materialised from.
+     */
+    source_native_word_id?: string | null;
     /**
      * Text
      */
@@ -2937,15 +2971,27 @@ export type VisualDocumentSummary = {
      * Document Id
      */
     document_id: string;
+    /**
+     * Document Pages Total
+     */
+    document_pages_total?: number;
     document_source_policy?: DocumentSourcePolicy | null;
     /**
      * Embedded Ocr Pages Verified
      */
     embedded_ocr_pages_verified?: number;
     /**
+     * Embedded Pages Verified
+     */
+    embedded_pages_verified?: number;
+    /**
      * Error Codes
      */
     error_codes?: Array<string>;
+    /**
+     * Failed Pages
+     */
+    failed_pages?: number;
     /**
      * Final Result Available
      */
@@ -2954,6 +3000,14 @@ export type VisualDocumentSummary = {
      * Full Ocr Pages
      */
     full_ocr_pages?: number;
+    /**
+     * Full Ocr Pages Completed
+     */
+    full_ocr_pages_completed?: number;
+    /**
+     * Full Ocr Pages Selected
+     */
+    full_ocr_pages_selected?: number;
     /**
      * Handwriting Assessment Pending
      */
@@ -2967,6 +3021,10 @@ export type VisualDocumentSummary = {
      * Native Pages Retained
      */
     native_pages_retained: number;
+    /**
+     * No Text Pages
+     */
+    no_text_pages?: number;
     /**
      * Page Count
      */
@@ -2992,9 +3050,17 @@ export type VisualDocumentSummary = {
      */
     pages_no_text: number;
     /**
+     * Pages Not Requiring Full Ocr
+     */
+    pages_not_requiring_full_ocr?: number;
+    /**
      * Pages Selected
      */
     pages_selected: number;
+    /**
+     * Phase 3 provisional document policy retained for diagnostics.
+     */
+    phase3_provisional_document_policy?: DocumentSourcePolicy | null;
     progress: VisualProgress;
     /**
      * Targeted Repair Pages
@@ -3132,6 +3198,11 @@ export type VisualPageResult = {
     mapping_duration_seconds?: number | null;
     native_visibility_result?: NativeVisibilityResult | null;
     /**
+     * No Text Reason Code
+     */
+    no_text_reason_code?: string | null;
+    overlay_source?: OverlaySourceKind | null;
+    /**
      * Paddle Pipeline Duration Seconds
      */
     paddle_pipeline_duration_seconds?: number | null;
@@ -3139,6 +3210,10 @@ export type VisualPageResult = {
      * Page Number
      */
     page_number: number;
+    /**
+     * Canonical terminal page-result state after Phase 4 reconciliation.
+     */
+    page_result_state?: PageResultState | null;
     /**
      * Page Route
      *
@@ -3159,10 +3234,15 @@ export type VisualPageResult = {
      * Recognition Agreement Score
      */
     recognition_agreement_score?: number | null;
+    recognition_agreement_status?: AgreementEvaluationStatus;
     /**
      * Recognition Model Name
      */
     recognition_model_name?: string | null;
+    /**
+     * Recognition Sample Count
+     */
+    recognition_sample_count?: number;
     /**
      * Render Dpi
      */
@@ -3195,6 +3275,12 @@ export type VisualPageResult = {
      * Source Height Px
      */
     source_height_px?: number | null;
+    /**
+     * Source Label
+     *
+     * Exact user-facing source label for this page result.
+     */
+    source_label?: string | null;
     source_mode: SourceMode;
     /**
      * Source Width Px
@@ -3202,9 +3288,14 @@ export type VisualPageResult = {
     source_width_px?: number | null;
     status: VisualPageStatus;
     /**
+     * Visual Agreement Policy Version
+     */
+    visual_agreement_policy_version?: string | null;
+    /**
      * Visual Agreement Score
      */
     visual_agreement_score?: number | null;
+    visual_agreement_status?: AgreementEvaluationStatus;
     /**
      * Visual Processing Attempted
      */
@@ -3264,6 +3355,11 @@ export type VisualPageSummary = {
      * Page Number
      */
     page_number: number;
+    page_result_state?: PageResultState | null;
+    /**
+     * Source Label
+     */
+    source_label?: string | null;
     source_mode: SourceMode;
     status: VisualPageStatus;
     /**
@@ -3394,14 +3490,14 @@ export type VisualWarning = {
  *
  * Whether word boxes came from Paddle or were derived.
  */
-export type WordGeometrySource = 'paddle_word_box' | 'derived_from_line_polygon';
+export type WordGeometrySource = 'paddle_word_box' | 'derived_from_line_polygon' | 'embedded_native_box';
 
 /**
  * WordScoreSource
  *
  * Origin of the word recognition score.
  */
-export type WordScoreSource = 'paddle_recognition' | 'inherited_from_line';
+export type WordScoreSource = 'paddle_recognition' | 'inherited_from_line' | 'embedded_verification';
 
 export type CreateSessionApiV1SessionsPostData = {
     body?: never;

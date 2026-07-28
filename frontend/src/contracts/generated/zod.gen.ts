@@ -3,6 +3,19 @@
 import * as z from 'zod';
 
 /**
+ * AgreementEvaluationStatus
+ *
+ * Simplified agreement outcome for Phase 4 embedded verification UI.
+ */
+export const zAgreementEvaluationStatus = z.enum([
+    'not_evaluated',
+    'passed',
+    'failed',
+    'insufficient_evidence',
+    'not_required'
+]);
+
+/**
  * ApiErrorDetail
  *
  * Structured, non-sensitive description of a single API error.
@@ -459,7 +472,7 @@ export const zGeometry = z.object({
  *
  * How printed OCR text was obtained.
  */
-export const zOcrRecognitionMethod = z.enum(['paddleocr_printed']);
+export const zOcrRecognitionMethod = z.enum(['paddleocr_printed', 'embedded_ocr_verified']);
 
 /**
  * OcrRecognitionStatus
@@ -477,7 +490,11 @@ export const zOcrRecognitionStatus = z.enum([
  *
  * Page text authority for Phase 4 OCR results.
  */
-export const zOcrSourceMode = z.enum(['visual_authority', 'embedded_ocr_authority']);
+export const zOcrSourceMode = z.enum([
+    'visual_authority',
+    'embedded_ocr_authority',
+    'native_authority'
+]);
 
 /**
  * OverlayProofItem
@@ -503,6 +520,20 @@ export const zOverlayProofResponse = z.object({
     overlays: z.array(zOverlayProofItem),
     synthetic: z.boolean().optional().default(true)
 });
+
+/**
+ * OverlaySourceKind
+ *
+ * Provenance tag for overlay boxes in the canonical viewer.
+ */
+export const zOverlaySourceKind = z.enum([
+    'native_pdf_word',
+    'verified_embedded_ocr_word',
+    'verified_embedded_ocr_line',
+    'targeted_repair_word',
+    'printed_visual_ocr_word',
+    'printed_visual_ocr_line'
+]);
 
 /**
  * PageCountStatus
@@ -612,6 +643,22 @@ export const zDocumentListResponse = z.object({
 });
 
 /**
+ * PageResultState
+ *
+ * Canonical terminal page-result state (Phase 4 reconciled authority).
+ */
+export const zPageResultState = z.enum([
+    'digital_native',
+    'embedded_ocr_verified',
+    'embedded_ocr_targeted_repair',
+    'full_visual_ocr',
+    'visual_no_text',
+    'page_failed',
+    'pending',
+    'cancelled'
+]);
+
+/**
  * PdfPointBox
  *
  * Top-left PDF-point bounding box preserved alongside normalised geometry.
@@ -696,6 +743,7 @@ export const zPrintedOcrLine = z.object({
     recognition_status: zOcrRecognitionStatus,
     sequence_index: z.int().gte(0),
     source_mode: zOcrSourceMode.optional().default('visual_authority'),
+    source_native_word_ids: z.array(z.string()).optional(),
     text: z.string().min(1)
 });
 
@@ -1264,6 +1312,8 @@ export const zVisualPageSummary = z.object({
     native_downgraded: z.boolean().optional().default(false),
     native_retained: z.boolean().optional().default(false),
     page_number: z.int().gte(1),
+    page_result_state: zPageResultState.nullish(),
+    source_label: z.string().nullish(),
     source_mode: zSourceMode,
     status: zVisualPageStatus,
     visual_result_available: z.boolean().optional().default(false),
@@ -1349,22 +1399,30 @@ export const zVisualDocumentSummary = z.object({
     completed_at: z.iso.datetime().nullish(),
     created_at: z.iso.datetime(),
     document_id: z.string().regex(/^doc_[0-9a-f]{32}$/),
+    document_pages_total: z.int().gte(0).optional().default(0),
     document_source_policy: zDocumentSourcePolicy.nullish(),
     embedded_ocr_pages_verified: z.int().gte(0).optional().default(0),
+    embedded_pages_verified: z.int().gte(0).optional().default(0),
     error_codes: z.array(z.string()).optional(),
+    failed_pages: z.int().gte(0).optional().default(0),
     final_result_available: z.boolean().optional().default(false),
     full_ocr_pages: z.int().gte(0).optional().default(0),
+    full_ocr_pages_completed: z.int().gte(0).optional().default(0),
+    full_ocr_pages_selected: z.int().gte(0).optional().default(0),
     handwriting_assessment_pending: z.boolean().optional().default(true),
     model_info: zVisualModelInfo.nullish(),
     native_pages_downgraded: z.int().gte(0),
     native_pages_retained: z.int().gte(0),
+    no_text_pages: z.int().gte(0).optional().default(0),
     page_count: z.int().gte(0),
     page_summaries: z.array(zVisualPageSummary).optional(),
     pages_cancelled: z.int().gte(0),
     pages_completed: z.int().gte(0),
     pages_failed: z.int().gte(0),
     pages_no_text: z.int().gte(0),
+    pages_not_requiring_full_ocr: z.int().gte(0).optional().default(0),
     pages_selected: z.int().gte(0),
+    phase3_provisional_document_policy: zDocumentSourcePolicy.nullish(),
     progress: zVisualProgress,
     targeted_repair_pages: z.int().gte(0).optional().default(0),
     user_status_message: z.string().nullish(),
@@ -1379,14 +1437,22 @@ export const zVisualDocumentSummary = z.object({
  *
  * Whether word boxes came from Paddle or were derived.
  */
-export const zWordGeometrySource = z.enum(['paddle_word_box', 'derived_from_line_polygon']);
+export const zWordGeometrySource = z.enum([
+    'paddle_word_box',
+    'derived_from_line_polygon',
+    'embedded_native_box'
+]);
 
 /**
  * WordScoreSource
  *
  * Origin of the word recognition score.
  */
-export const zWordScoreSource = z.enum(['paddle_recognition', 'inherited_from_line']);
+export const zWordScoreSource = z.enum([
+    'paddle_recognition',
+    'inherited_from_line',
+    'embedded_verification'
+]);
 
 /**
  * PrintedOcrWord
@@ -1411,6 +1477,8 @@ export const zPrintedOcrWord = z.object({
     recognition_status: zOcrRecognitionStatus,
     score_source: zWordScoreSource,
     sequence_index: z.int().gte(0),
+    source_mode: zOcrSourceMode.optional().default('visual_authority'),
+    source_native_word_id: z.string().nullish(),
     text: z.string().min(1)
 });
 
@@ -1438,15 +1506,20 @@ export const zVisualPageResult = z.object({
     low_confidence_line_count: z.int().gte(0).optional().default(0),
     mapping_duration_seconds: z.number().gte(0).nullish(),
     native_visibility_result: zNativeVisibilityResult.nullish(),
+    no_text_reason_code: z.string().nullish(),
+    overlay_source: zOverlaySourceKind.nullish(),
     paddle_pipeline_duration_seconds: z.number().gte(0).nullish(),
     page_number: z.int().gte(1),
+    page_result_state: zPageResultState.nullish(),
     page_route: z.string().nullish(),
     peak_rss_mb: z.number().gte(0).nullish(),
     preprocess_duration_seconds: z.number().gte(0).nullish(),
     preprocessing_variant: zPreprocessingVariant.nullish(),
     reading_order: zVisualReadingOrder.nullish(),
     recognition_agreement_score: z.number().gte(0).lte(1).nullish(),
+    recognition_agreement_status: zAgreementEvaluationStatus.optional().default('not_evaluated'),
     recognition_model_name: z.string().nullish(),
+    recognition_sample_count: z.int().gte(0).optional().default(0),
     render_dpi: z.number().gt(0).nullish(),
     render_duration_seconds: z.number().gte(0).nullish(),
     render_height_pixels: z.int().gte(0).nullish(),
@@ -1455,10 +1528,13 @@ export const zVisualPageResult = z.object({
     requested_dpi: z.number().gt(0).nullish(),
     route_reason_codes: z.array(z.string()).optional(),
     source_height_px: z.int().gte(0).nullish(),
+    source_label: z.string().nullish(),
     source_mode: zSourceMode,
     source_width_px: z.int().gte(0).nullish(),
     status: zVisualPageStatus,
+    visual_agreement_policy_version: z.string().nullish(),
     visual_agreement_score: z.number().gte(0).lte(1).nullish(),
+    visual_agreement_status: zAgreementEvaluationStatus.optional().default('not_evaluated'),
     visual_processing_attempted: z.boolean().optional().default(false),
     visual_result_available: z.boolean().optional().default(false),
     warnings: z.array(zVisualWarning).optional(),

@@ -18,6 +18,7 @@ from backend.app.extraction.routing.digital_native import (
     build_digital_native_decision,
     is_trusted_digital_native,
 )
+from backend.app.extraction.routing.embedded_coverage import evaluate_embedded_coverage
 from backend.app.extraction.routing.embedded_ocr import (
     is_embedded_ocr_candidate,
     page_is_image_dominant,
@@ -27,13 +28,20 @@ from backend.app.extraction.routing.full_ocr import (
     build_visual_no_text_decision,
     needs_full_visual_ocr,
 )
+from backend.app.extraction.routing.materialise_embedded import (
+    materialise_verified_embedded_words,
+    nonblank_requires_usable_embedded_output,
+)
 from backend.app.extraction.routing.metrics import log_page_route_decision
 from backend.app.extraction.routing.models import RouteExecutionPlan, RoutingPolicy
 from backend.app.extraction.routing.native_words import native_words_for_routing
 from backend.app.extraction.routing.recognition_check import evaluate_recognition_agreement
 from backend.app.extraction.routing.targeted_repair import repair_regions
 from backend.app.extraction.routing.text_likelihood import evaluate_text_likelihood
-from backend.app.extraction.routing.visual_agreement import evaluate_visual_agreement
+from backend.app.extraction.routing.visual_agreement import (
+    evaluate_visual_agreement,
+    sample_words_for_agreement,
+)
 from backend.app.settings.config import Settings
 from PIL import Image
 
@@ -72,8 +80,6 @@ class PageRouter:
             return self._plan_for(decision)
 
         if not self._policy.hybrid_enabled:
-            # Legacy Phase 4 behaviour: digital native when accepted+visible,
-            # otherwise full OCR when visual required.
             image_dominant = page_is_image_dominant(page)
             if is_trusted_digital_native(
                 page, visibility=visibility, image_dominant=image_dominant
@@ -99,12 +105,10 @@ class PageRouter:
 
         image_dominant = page_is_image_dominant(page)
 
-        # Route A — trusted digital native.
         if is_trusted_digital_native(page, visibility=visibility, image_dominant=image_dominant):
             decision = build_digital_native_decision(page, self._policy)
             return self._finish(document_id, decision, started)
 
-        # Route B — embedded OCR candidate.
         if (
             is_embedded_ocr_candidate(page, self._policy)
             and page_image is not None
@@ -119,7 +123,6 @@ class PageRouter:
                 started=started,
             )
 
-        # Blank preflight before full OCR when no native/verification text.
         words = native_words_for_routing(page)
         if (
             not words
@@ -132,7 +135,6 @@ class PageRouter:
                 decision = build_visual_no_text_decision(page, self._policy, likelihood)
                 return self._finish(document_id, decision, started)
 
-        # Route C — full visual OCR.
         reasons = ["full_visual_ocr_required"]
         if image_dominant and not words:
             reasons.append("image_dominant_without_text_layer")
@@ -156,6 +158,19 @@ class PageRouter:
         image_dominant: bool,
         started: float,
     ) -> RouteExecutionPlan:
+        words = native_words_for_routing(page)
+
+        coverage = evaluate_embedded_coverage(page_image, words, self._policy)
+        if not coverage.adequate:
+            decision = build_full_ocr_decision(
+                page,
+                self._policy,
+                reason_codes=["embedded_coverage_insufficient", *coverage.reason_codes],
+                image_dominant=image_dominant,
+                embedded_candidate=True,
+            )
+            return self._finish(document_id, decision, started)
+
         visual = evaluate_visual_agreement(
             page_image,
             page,
@@ -163,10 +178,13 @@ class PageRouter:
             min_region_variance=self._settings.native_visibility_min_region_variance,
             min_edge_density=self._settings.native_visibility_min_edge_density,
         )
-        words = native_words_for_routing(page)
+        sampled = sample_words_for_agreement(
+            words,
+            sample_size=self._policy.visual_sample_size,
+            page_number=page.page_number,
+        )
 
         if visual.visual_agreement_score < self._policy.min_visual_agreement:
-            # Widespread visual disagreement → full OCR.
             fail_ratio = len(visual.failed_box_indices) / max(1, visual.sampled_box_count)
             if (
                 self._policy.targeted_repair_enabled
@@ -247,13 +265,46 @@ class PageRouter:
         elif self._policy.embedded_recognition_enabled:
             recognition_reasons = ["recognition_check_engine_unavailable"]
 
-        # High visual agreement — reuse embedded OCR layer.
+        failed_indices = list(visual.failed_box_indices) + list(recognition_failed)
+        materialised = materialise_verified_embedded_words(
+            words,
+            page_number=page.page_number,
+            passed_word_ids=None,
+            failed_sample_indices=failed_indices,
+            sampled_words=sampled,
+            agreement_score=visual.visual_agreement_score,
+            width_px=page_image.width,
+            height_px=page_image.height,
+        )
+        likelihood = evaluate_text_likelihood(page_image, self._policy)
+        if nonblank_requires_usable_embedded_output(
+            page_appears_blank=likelihood.appears_blank,
+            verified_word_count=materialised.stats.verified_words,
+            verified_line_count=materialised.stats.verified_lines,
+        ):
+            decision = build_full_ocr_decision(
+                page,
+                self._policy,
+                reason_codes=[
+                    "embedded_verified_output_empty",
+                    "nonblank_requires_usable_embedded_output",
+                    *coverage.reason_codes,
+                ],
+                image_dominant=image_dominant,
+                embedded_candidate=True,
+                visual_score=visual.visual_agreement_score,
+                recognition_score=recognition_score,
+                sampled_box_count=visual.sampled_box_count,
+                recognition_sample_count=recognition_count,
+            )
+            return self._finish(document_id, decision, started)
+
         decision = PageRouteDecision(
             page_number=page.page_number,
             route=PageRoute.EMBEDDED_OCR_VERIFIED,
             decision_status=PageRouteDecisionStatus.DECIDED,
             decision_version=self._policy.version,
-            reason_codes=["embedded_ocr_verified", *recognition_reasons],
+            reason_codes=["embedded_ocr_verified", *recognition_reasons, *coverage.reason_codes],
             native_text_present=True,
             native_text_accepted=page.decision is NativePageDecision.ACCEPTED,
             native_word_count=len(words),
@@ -377,15 +428,15 @@ class PageRouter:
 
 def route_page(
     page: NativePageResult,
-    settings: Settings,
     *,
     document_id: str,
+    settings: Settings,
     visibility: NativeVisibilityResult | None = None,
     page_image: Image.Image | None = None,
     recognise_crop: Callable[[Image.Image], tuple[str, float]] | None = None,
     cancelled: bool = False,
 ) -> RouteExecutionPlan:
-    """Convenience wrapper around ``PageRouter.decide``."""
+    """Convenience wrapper for one-shot routing."""
 
     return PageRouter(settings).decide(
         page,

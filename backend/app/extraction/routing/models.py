@@ -37,6 +37,11 @@ class RoutingPolicy:
     primary_limit_side: int
     fallback_limit_side: int
     recognition_batch_size: int
+    min_candidate_box_coverage: float
+    max_ink_outside_candidates_ratio: float
+    max_uncovered_textlike_ratio: float
+    min_form_line_density_for_coverage_gate: float
+    min_checkbox_density_for_coverage_gate: float
 
     @classmethod
     def from_settings(cls, settings: Settings) -> RoutingPolicy:
@@ -66,6 +71,15 @@ class RoutingPolicy:
             primary_limit_side=settings.ocr_primary_limit_side_len,
             fallback_limit_side=settings.ocr_fallback_limit_side_len,
             recognition_batch_size=settings.ocr_recognition_batch_size,
+            min_candidate_box_coverage=settings.embedded_ocr_min_candidate_box_coverage,
+            max_ink_outside_candidates_ratio=settings.embedded_ocr_max_ink_outside_candidates_ratio,
+            max_uncovered_textlike_ratio=settings.embedded_ocr_max_uncovered_textlike_ratio,
+            min_form_line_density_for_coverage_gate=(
+                settings.embedded_ocr_min_form_line_density_for_coverage_gate
+            ),
+            min_checkbox_density_for_coverage_gate=(
+                settings.embedded_ocr_min_checkbox_density_for_coverage_gate
+            ),
         )
 
 

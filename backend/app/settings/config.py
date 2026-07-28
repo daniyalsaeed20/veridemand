@@ -244,6 +244,14 @@ class Settings(BaseSettings):
     embedded_ocr_targeted_repair_max_regions: int = Field(default=6, ge=1, le=32)
     embedded_ocr_targeted_repair_max_coverage: float = Field(default=0.35, ge=0.0, le=1.0)
     embedded_ocr_repair_padding_ratio: float = Field(default=0.04, ge=0.0, le=0.25)
+    # Embedded coverage gate (form/grid pages with sparse OCR layers).
+    embedded_ocr_min_candidate_box_coverage: float = Field(default=0.12, ge=0.0, le=1.0)
+    embedded_ocr_max_ink_outside_candidates_ratio: float = Field(default=0.45, ge=0.0, le=1.0)
+    embedded_ocr_max_uncovered_textlike_ratio: float = Field(default=0.40, ge=0.0, le=1.0)
+    embedded_ocr_min_form_line_density_for_coverage_gate: float = Field(
+        default=0.15, ge=0.0, le=1.0
+    )
+    embedded_ocr_min_checkbox_density_for_coverage_gate: float = Field(default=0.08, ge=0.0, le=1.0)
     # Blank-page preflight (conservative — prefer false negatives over skipping content).
     blank_page_preflight_enabled: bool = True
     blank_page_max_ink_density: float = Field(default=0.004, ge=0.0, le=1.0)

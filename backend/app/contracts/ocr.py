@@ -19,6 +19,7 @@ class OcrRecognitionMethod(StrEnum):
     """How printed OCR text was obtained."""
 
     PADDLEOCR_PRINTED = "paddleocr_printed"
+    EMBEDDED_OCR_VERIFIED = "embedded_ocr_verified"
 
 
 class OcrSourceMode(StrEnum):
@@ -26,6 +27,7 @@ class OcrSourceMode(StrEnum):
 
     VISUAL_AUTHORITY = "visual_authority"
     EMBEDDED_OCR_AUTHORITY = "embedded_ocr_authority"
+    NATIVE_AUTHORITY = "native_authority"
 
 
 class HandwritingAssessment(StrEnum):
@@ -47,6 +49,7 @@ class WordGeometrySource(StrEnum):
 
     PADDLE_WORD_BOX = "paddle_word_box"
     DERIVED_FROM_LINE_POLYGON = "derived_from_line_polygon"
+    EMBEDDED_NATIVE_BOX = "embedded_native_box"
 
 
 class WordScoreSource(StrEnum):
@@ -54,6 +57,7 @@ class WordScoreSource(StrEnum):
 
     PADDLE_RECOGNITION = "paddle_recognition"
     INHERITED_FROM_LINE = "inherited_from_line"
+    EMBEDDED_VERIFICATION = "embedded_verification"
 
 
 class PreprocessingVariant(StrEnum):
@@ -117,6 +121,10 @@ class PrintedOcrLine(ApiModel):
     recognition_method: OcrRecognitionMethod = OcrRecognitionMethod.PADDLEOCR_PRINTED
     source_mode: OcrSourceMode = OcrSourceMode.VISUAL_AUTHORITY
     handwriting_assessment: HandwritingAssessment = HandwritingAssessment.PENDING_PHASE_5
+    source_native_word_ids: list[str] = Field(
+        default_factory=list,
+        description="Native/verification candidate word ids that produced this line.",
+    )
 
 
 class PrintedOcrWord(ApiModel):
@@ -143,3 +151,8 @@ class PrintedOcrWord(ApiModel):
     recognition_method: OcrRecognitionMethod = OcrRecognitionMethod.PADDLEOCR_PRINTED
     recognition_status: OcrRecognitionStatus
     handwriting_assessment: HandwritingAssessment = HandwritingAssessment.PENDING_PHASE_5
+    source_mode: OcrSourceMode = OcrSourceMode.VISUAL_AUTHORITY
+    source_native_word_id: str | None = Field(
+        default=None,
+        description="Native/verification candidate word id this public word was materialised from.",
+    )

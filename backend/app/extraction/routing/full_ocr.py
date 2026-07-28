@@ -24,9 +24,8 @@ def needs_full_visual_ocr(page: NativePageResult) -> bool:
     }:
         return True
     words = native_words_for_routing(page)
-    if page.source_mode in {SourceMode.VISUAL_AUTHORITY, SourceMode.IMAGE_AUTHORITY}:
-        if not words:
-            return True
+    if page.source_mode in {SourceMode.VISUAL_AUTHORITY, SourceMode.IMAGE_AUTHORITY} and not words:
+        return True
     return bool(page.trust.visual_processing_required and not words)
 
 

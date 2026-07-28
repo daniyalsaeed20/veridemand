@@ -23,7 +23,10 @@ from backend.app.contracts.native import (
 from backend.app.contracts.ocr import HandwritingAssessment
 from backend.app.contracts.routing import PageRoute
 from backend.app.contracts.visual import (
+    AgreementEvaluationStatus,
     NativeVisibilityResult,
+    OverlaySourceKind,
+    PageResultState,
     VisualDocumentSummary,
     VisualModelInfo,
     VisualPageResult,
@@ -32,8 +35,14 @@ from backend.app.contracts.visual import (
     VisualProcessingStatus,
     VisualProgress,
     VisualWarning,
+    source_label_for_page_result_state,
 )
+from backend.app.extraction.routing.materialise_embedded import (
+    materialise_verified_embedded_words,
+)
+from backend.app.extraction.routing.native_words import native_words_for_routing
 from backend.app.extraction.routing.router import PageRouter
+from backend.app.extraction.routing.visual_agreement import sample_words_for_agreement
 from backend.app.extraction.visual.errors import VisualOcrError
 from backend.app.extraction.visual.models import (
     RenderedPage,
@@ -62,8 +71,19 @@ logger = logging.getLogger("veridemand.visual.service")
 
 ProgressCallback = Callable[[dict[str, Any]], Awaitable[None] | None]
 
-_PHASE4_USER_MESSAGE = (
+_PHASE4_FULL_OCR_MESSAGE = (
     "Printed visual OCR complete. Handwriting and final document structure have not been evaluated."
+)
+_PHASE4_EMBEDDED_MESSAGE = (
+    "Verified embedded OCR complete. Handwriting and final document "
+    "structure have not been evaluated."
+)
+_PHASE4_NATIVE_MESSAGE = (
+    "Native PDF text retained. Handwriting and final document structure have not been evaluated."
+)
+_PHASE4_MIXED_MESSAGE = (
+    "Page-level source reconciliation complete. Handwriting and final document structure "
+    "have not been evaluated."
 )
 
 
@@ -324,7 +344,10 @@ class VisualOcrService:
             rendered = None
 
             needs_probe_image = (page_needs_visibility_probe(native_page) and probe_enabled) or (
-                hybrid and (page_requires_visual(native_page) or bool(native_page.words))
+                hybrid
+                and (
+                    page_requires_visual(native_page) or bool(native_words_for_routing(native_page))
+                )
             )
             if needs_probe_image:
                 rendered = _render_probe(page_number)
@@ -404,9 +427,15 @@ class VisualOcrService:
                             page_number=page_number,
                             status=VisualPageStatus.SKIPPED_NATIVE_RETAINED,
                             source_mode=SourceMode.NATIVE_AUTHORITY,
+                            page_result_state=PageResultState.DIGITAL_NATIVE,
+                            source_label=source_label_for_page_result_state(
+                                PageResultState.DIGITAL_NATIVE
+                            ),
                             native_visibility_result=vis,
                             page_route=decision.route.value,
                             route_reason_codes=list(decision.reason_codes),
+                            visual_agreement_status=AgreementEvaluationStatus.NOT_REQUIRED,
+                            recognition_agreement_status=AgreementEvaluationStatus.NOT_REQUIRED,
                             visual_result_available=False,
                             visual_processing_attempted=False,
                             handwriting_assessment=HandwritingAssessment.PENDING_PHASE_5,
@@ -422,31 +451,100 @@ class VisualOcrService:
                             }
                         )
                     elif decision.route is PageRoute.EMBEDDED_OCR_VERIFIED:
-                        # Without recognition spot-check worker, require visual agreement
-                        # only; re-check with recognition when OCR is enabled below.
-                        embedded_verified.add(page_number)
-                        retained_native.add(page_number)
-                        published[page_number] = VisualPageResult(
+                        candidates = native_words_for_routing(native_page)
+                        sampled = sample_words_for_agreement(
+                            candidates,
+                            sample_size=router.policy.visual_sample_size,
                             page_number=page_number,
-                            status=VisualPageStatus.SKIPPED_EMBEDDED_OCR_VERIFIED,
-                            source_mode=SourceMode.EMBEDDED_OCR_AUTHORITY,
-                            native_visibility_result=vis,
-                            page_route=decision.route.value,
-                            route_reason_codes=list(decision.reason_codes),
-                            visual_agreement_score=decision.visual_agreement_score,
-                            recognition_agreement_score=decision.recognition_agreement_score,
-                            visual_result_available=False,
-                            visual_processing_attempted=False,
-                            handwriting_assessment=HandwritingAssessment.PENDING_PHASE_5,
                         )
-                        publish_page_atomic(published[page_number], results)
-                        await _progress(
-                            {
-                                "type": "embedded_ocr_verified",
-                                "page_number": page_number,
-                                "route": decision.route.value,
-                            }
+                        width_px = (
+                            probe_image.width
+                            if probe_image is not None
+                            else int(rendered.width_pixels)
+                            if rendered is not None
+                            else 1
                         )
+                        height_px = (
+                            probe_image.height
+                            if probe_image is not None
+                            else int(rendered.height_pixels)
+                            if rendered is not None
+                            else 1
+                        )
+                        materialised = materialise_verified_embedded_words(
+                            candidates,
+                            page_number=page_number,
+                            passed_word_ids=None,
+                            failed_sample_indices=[],
+                            sampled_words=sampled,
+                            agreement_score=float(decision.visual_agreement_score or 0.85),
+                            width_px=width_px,
+                            height_px=height_px,
+                        )
+                        if materialised.stats.verified_words < 1:
+                            # Safety: never publish empty embedded authority.
+                            selected.append(page_number)
+                            await _progress(
+                                {
+                                    "type": "embedded_ocr_fallback_full_ocr",
+                                    "page_number": page_number,
+                                    "reason_code": "embedded_verified_output_empty",
+                                }
+                            )
+                        else:
+                            recognition_status = (
+                                AgreementEvaluationStatus.PASSED
+                                if decision.recognition_agreement_score is not None
+                                and decision.recognition_agreement_score
+                                >= router.policy.min_recognition_agreement
+                                else (
+                                    AgreementEvaluationStatus.NOT_REQUIRED
+                                    if decision.recognition_agreement_score is None
+                                    else AgreementEvaluationStatus.FAILED
+                                )
+                            )
+                            if "recognition_check_engine_unavailable" in decision.reason_codes:
+                                recognition_status = AgreementEvaluationStatus.INSUFFICIENT_EVIDENCE
+                            embedded_verified.add(page_number)
+                            retained_native.add(page_number)
+                            published[page_number] = VisualPageResult(
+                                page_number=page_number,
+                                status=VisualPageStatus.SKIPPED_EMBEDDED_OCR_VERIFIED,
+                                source_mode=SourceMode.EMBEDDED_OCR_AUTHORITY,
+                                page_result_state=PageResultState.EMBEDDED_OCR_VERIFIED,
+                                source_label=source_label_for_page_result_state(
+                                    PageResultState.EMBEDDED_OCR_VERIFIED
+                                ),
+                                native_visibility_result=vis,
+                                page_route=decision.route.value,
+                                route_reason_codes=list(decision.reason_codes),
+                                visual_agreement_status=AgreementEvaluationStatus.PASSED,
+                                visual_agreement_score=decision.visual_agreement_score,
+                                visual_agreement_policy_version=decision.decision_version,
+                                recognition_agreement_status=recognition_status,
+                                recognition_agreement_score=decision.recognition_agreement_score,
+                                recognition_sample_count=decision.recognition_sample_count or 0,
+                                lines=materialised.lines,
+                                words=materialised.words,
+                                line_count=len(materialised.lines),
+                                word_count=len(materialised.words),
+                                overlay_source=OverlaySourceKind.VERIFIED_EMBEDDED_OCR_WORD,
+                                visual_result_available=True,
+                                visual_processing_attempted=True,
+                                render_width_pixels=width_px,
+                                render_height_pixels=height_px,
+                                handwriting_assessment=HandwritingAssessment.PENDING_PHASE_5,
+                            )
+                            publish_page_atomic(published[page_number], results)
+                            await _progress(
+                                {
+                                    "type": "embedded_ocr_verified",
+                                    "page_number": page_number,
+                                    "route": decision.route.value,
+                                    "verified_words": materialised.stats.verified_words,
+                                    "verified_lines": materialised.stats.verified_lines,
+                                }
+                            )
                     elif decision.route is PageRoute.EMBEDDED_OCR_TARGETED_REPAIR:
                         # Escalate to full OCR when recognition-only repair worker
                         # is unavailable in this process; mark for selection.
@@ -465,14 +563,29 @@ class VisualOcrService:
                         )
                     elif decision.route is PageRoute.VISUAL_NO_TEXT:
                         visual_no_text_pages.add(page_number)
+                        no_text_reason = next(
+                            (
+                                code
+                                for code in decision.reason_codes
+                                if code.startswith("blank") or "no_text" in code or "blank" in code
+                            ),
+                            decision.reason_codes[0] if decision.reason_codes else "blank_page",
+                        )
                         published[page_number] = VisualPageResult(
                             page_number=page_number,
                             status=VisualPageStatus.COMPLETED_NO_TEXT,
                             source_mode=SourceMode.VISUAL_AUTHORITY,
+                            page_result_state=PageResultState.VISUAL_NO_TEXT,
+                            source_label=source_label_for_page_result_state(
+                                PageResultState.VISUAL_NO_TEXT
+                            ),
                             page_route=decision.route.value,
                             route_reason_codes=list(decision.reason_codes),
+                            visual_agreement_status=AgreementEvaluationStatus.NOT_REQUIRED,
+                            recognition_agreement_status=AgreementEvaluationStatus.NOT_REQUIRED,
                             visual_result_available=True,
                             visual_processing_attempted=True,
+                            no_text_reason_code=no_text_reason,
                             handwriting_assessment=HandwritingAssessment.PENDING_PHASE_5,
                         )
                         publish_page_atomic(published[page_number], results)
@@ -492,7 +605,13 @@ class VisualOcrService:
                             page_number=page_number,
                             status=VisualPageStatus.SKIPPED_NATIVE_RETAINED,
                             source_mode=SourceMode.NATIVE_AUTHORITY,
+                            page_result_state=PageResultState.DIGITAL_NATIVE,
+                            source_label=source_label_for_page_result_state(
+                                PageResultState.DIGITAL_NATIVE
+                            ),
                             page_route=PageRoute.DIGITAL_NATIVE.value,
+                            visual_agreement_status=AgreementEvaluationStatus.NOT_REQUIRED,
+                            recognition_agreement_status=AgreementEvaluationStatus.NOT_REQUIRED,
                             visual_result_available=False,
                             visual_processing_attempted=False,
                             handwriting_assessment=HandwritingAssessment.PENDING_PHASE_5,
@@ -544,16 +663,12 @@ class VisualOcrService:
 
         if selected and not self._settings.ocr_enabled:
             for n in selected:
-                selected_native = native_pages.get(n)
-                source_mode = (
-                    selected_native.source_mode
-                    if selected_native is not None
-                    else SourceMode.VISUAL_AUTHORITY
-                )
                 page = VisualPageResult(
                     page_number=n,
                     status=VisualPageStatus.FAILED,
-                    source_mode=source_mode,
+                    source_mode=SourceMode.VISUAL_AUTHORITY,
+                    page_result_state=PageResultState.PAGE_FAILED,
+                    source_label=source_label_for_page_result_state(PageResultState.PAGE_FAILED),
                     native_visibility_result=visibility_by_page.get(n),
                     visual_result_available=False,
                     visual_processing_attempted=False,
@@ -650,23 +765,48 @@ class VisualOcrService:
             for n in selected:
                 page_result = load_page(results, n)
                 if page_result is not None:
+                    updates: dict[str, Any] = {}
                     if n in visibility_by_page and page_result.native_visibility_result is None:
-                        page_result = page_result.model_copy(
-                            update={"native_visibility_result": visibility_by_page[n]}
+                        updates["native_visibility_result"] = visibility_by_page[n]
+                    if page_result.status is VisualPageStatus.COMPLETED:
+                        updates["page_result_state"] = PageResultState.FULL_VISUAL_OCR
+                        updates["source_label"] = source_label_for_page_result_state(
+                            PageResultState.FULL_VISUAL_OCR
                         )
+                        updates["page_route"] = (
+                            page_result.page_route or PageRoute.FULL_VISUAL_OCR.value
+                        )
+                        updates["overlay_source"] = OverlaySourceKind.PRINTED_VISUAL_OCR_WORD
+                        updates["visual_agreement_status"] = (
+                            page_result.visual_agreement_status
+                            if page_result.visual_agreement_status
+                            is not AgreementEvaluationStatus.NOT_EVALUATED
+                            else AgreementEvaluationStatus.NOT_REQUIRED
+                        )
+                    elif page_result.status is VisualPageStatus.COMPLETED_NO_TEXT:
+                        updates["page_result_state"] = PageResultState.VISUAL_NO_TEXT
+                        updates["source_label"] = source_label_for_page_result_state(
+                            PageResultState.VISUAL_NO_TEXT
+                        )
+                        updates["no_text_reason_code"] = (
+                            page_result.no_text_reason_code or "completed_no_text"
+                        )
+                        updates["page_route"] = (
+                            page_result.page_route or PageRoute.VISUAL_NO_TEXT.value
+                        )
+                    if updates:
+                        page_result = page_result.model_copy(update=updates)
                         publish_page_atomic(page_result, results)
                     published[n] = page_result
                 elif last_error is not None:
-                    selected_native = native_pages.get(n)
-                    source_mode = (
-                        selected_native.source_mode
-                        if selected_native is not None
-                        else SourceMode.VISUAL_AUTHORITY
-                    )
                     failed_page = VisualPageResult(
                         page_number=n,
                         status=VisualPageStatus.FAILED,
-                        source_mode=source_mode,
+                        source_mode=SourceMode.VISUAL_AUTHORITY,
+                        page_result_state=PageResultState.PAGE_FAILED,
+                        source_label=source_label_for_page_result_state(
+                            PageResultState.PAGE_FAILED
+                        ),
                         native_visibility_result=visibility_by_page.get(n),
                         visual_result_available=False,
                         visual_processing_attempted=True,
@@ -709,20 +849,32 @@ class VisualOcrService:
                 failed += 1
             elif page.status is VisualPageStatus.CANCELLED:
                 cancelled += 1
-            elif page.status is VisualPageStatus.SKIPPED_NATIVE_RETAINED:
-                completed += 0  # retained native — not OCR completed
-            elif page.status is VisualPageStatus.SKIPPED_EMBEDDED_OCR_VERIFIED:
+            elif page.status in {
+                VisualPageStatus.SKIPPED_NATIVE_RETAINED,
+                VisualPageStatus.SKIPPED_EMBEDDED_OCR_VERIFIED,
+            }:
                 completed += 0
             elif page.status is VisualPageStatus.TARGETED_REPAIR_COMPLETED:
                 completed += 1
 
-        if not selected and not visual_no_text_pages:
+        only_native_retained = (
+            not selected
+            and not visual_no_text_pages
+            and not embedded_verified
+            and not targeted_repair_pages
+            and all(
+                p.status is VisualPageStatus.SKIPPED_NATIVE_RETAINED
+                or p.status is VisualPageStatus.PENDING
+                for p in published.values()
+            )
+        )
+        if only_native_retained:
             status = VisualProcessingStatus.NOT_REQUIRED
-        elif not selected and visual_no_text_pages:
+        elif not selected and (visual_no_text_pages or embedded_verified):
             status = VisualProcessingStatus.VISUAL_PROCESSING_COMPLETE
-        elif failed and (completed + no_text) > 0:
+        elif failed and (completed + no_text + len(embedded_verified)) > 0:
             status = VisualProcessingStatus.VISUAL_PROCESSING_PARTIAL
-        elif failed and (completed + no_text) == 0:
+        elif failed and (completed + no_text + len(embedded_verified)) == 0:
             status = VisualProcessingStatus.VISUAL_PROCESSING_FAILED
         elif cancelled:
             status = VisualProcessingStatus.CANCELLED
@@ -730,6 +882,7 @@ class VisualOcrService:
             status = VisualProcessingStatus.VISUAL_PROCESSING_COMPLETE
 
         policy = reconcile_document_policy(page_modes)
+        phase3_policy = native_summary.document_source_policy
         model_info = VisualModelInfo(
             detection_model_name=self._settings.ocr_detection_model_name,
             recognition_model_name=self._settings.ocr_recognition_model_name,
@@ -741,6 +894,8 @@ class VisualOcrService:
                 page_number=p.page_number,
                 status=p.status,
                 source_mode=p.source_mode,
+                page_result_state=p.page_result_state,
+                source_label=p.source_label,
                 line_count=p.line_count,
                 word_count=p.word_count,
                 visual_result_available=p.visual_result_available,
@@ -759,43 +914,64 @@ class VisualOcrService:
             in {
                 VisualPageStatus.COMPLETED,
                 VisualPageStatus.COMPLETED_NO_TEXT,
-                VisualPageStatus.FAILED,
             }
             and p.page_number in selected
         )
+        pages_not_requiring_full = (
+            len(retained_native - set(selected))
+            + len(embedded_verified)
+            + len(visual_no_text_pages)
+        )
+        if policy is DocumentSourcePolicy.NATIVE_AUTHORITY:
+            user_message = _PHASE4_NATIVE_MESSAGE
+        elif policy is DocumentSourcePolicy.EMBEDDED_OCR_AUTHORITY:
+            user_message = _PHASE4_EMBEDDED_MESSAGE
+        elif policy is DocumentSourcePolicy.MIXED_AUTHORITY:
+            user_message = _PHASE4_MIXED_MESSAGE
+        else:
+            user_message = _PHASE4_FULL_OCR_MESSAGE
+
+        page_total = len(canonical_pages)
         summary = VisualDocumentSummary(
             document_id=document_id,
             visual_processing_status=status,
-            page_count=len(canonical_pages),
+            page_count=page_total,
+            document_pages_total=page_total,
             pages_selected=len(selected),
-            pages_completed=completed + no_text,
+            pages_completed=completed + no_text + len(embedded_verified),
             pages_no_text=no_text + len(visual_no_text_pages),
             pages_failed=failed,
             pages_cancelled=cancelled,
             native_pages_retained=len(retained_native),
             native_pages_downgraded=len(downgraded),
+            pages_not_requiring_full_ocr=pages_not_requiring_full,
             embedded_ocr_pages_verified=len(embedded_verified),
+            embedded_pages_verified=len(embedded_verified),
             targeted_repair_pages=len(targeted_repair_pages),
             full_ocr_pages=len(selected),
+            full_ocr_pages_selected=len(selected),
+            full_ocr_pages_completed=full_ocr_done,
+            no_text_pages=no_text + len(visual_no_text_pages),
+            failed_pages=failed,
             visual_no_text_pages=len(visual_no_text_pages),
             visual_result_available=visual_available,
             handwriting_assessment_pending=True,
             final_result_available=False,
             canonical_document_available=True,
             document_source_policy=policy,
+            phase3_provisional_document_policy=phase3_policy,
             progress=VisualProgress(
                 percent=65,
                 pages_completed=completed + no_text + len(retained_native) + len(embedded_verified),
-                pages_total=len(canonical_pages),
+                pages_total=page_total,
             ),
             model_info=model_info,
             page_summaries=summaries,
             warnings=[],
             created_at=created_at,
             completed_at=datetime.now(UTC),
-            user_status_message=_PHASE4_USER_MESSAGE,
+            user_status_message=user_message,
         )
-        _ = full_ocr_done
         await _progress({"type": "visual_summary_publication.started"})
         publish_summary_atomic(summary, results)
         await _progress({"type": "visual_summary_publication.completed"})
