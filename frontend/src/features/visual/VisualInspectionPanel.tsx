@@ -123,10 +123,44 @@ export function VisualInspectionPanel({
           <Typography variant="body2" data-testid="final-source-label">
             Final source label: {sourceLabelForPage(page)}
           </Typography>
+          {page.phase3_page_decision ? (
+            <Typography variant="body2" data-testid="phase3-page-decision">
+              Phase 3 provisional decision: {page.phase3_page_decision}
+            </Typography>
+          ) : null}
           <Typography variant="body2">
             Reason codes:{" "}
             {page.route_reason_codes?.length ? page.route_reason_codes.join(", ") : "—"}
           </Typography>
+          {import.meta.env.DEV ? (
+            <Stack spacing={0.5} data-testid="dev-routing-diagnostics">
+              <Typography variant="body2">
+                Unicode / glyph materiality: {page.glyph_materiality ?? "—"}
+              </Typography>
+              <Typography variant="body2">
+                Quarantined glyphs: {page.quarantined_glyph_count ?? 0} · regions:{" "}
+                {page.quarantined_region_count ?? 0}
+              </Typography>
+              <Typography variant="body2">
+                Document escalation applied: {page.document_escalation_applied ? "yes" : "no"}
+                {page.page_restored_after_escalation ? " · restored after escalation" : ""}
+              </Typography>
+              <Typography variant="body2">
+                Targeted repair status:{" "}
+                {page.page_route === "embedded_ocr_targeted_repair"
+                  ? "selected"
+                  : page.page_route === "full_visual_ocr"
+                    ? "not used (full OCR)"
+                    : "not required"}
+              </Typography>
+              {page.page_route === "full_visual_ocr" ? (
+                <Typography variant="body2" data-testid="full-ocr-reason">
+                  Full-OCR reason:{" "}
+                  {page.route_reason_codes?.length ? page.route_reason_codes.join(", ") : "—"}
+                </Typography>
+              ) : null}
+            </Stack>
+          ) : null}
           <Typography variant="body2">
             Phase 4 embedded-text verification: {page.visual_agreement_status ?? "not_evaluated"}
             {page.visual_agreement_score != null

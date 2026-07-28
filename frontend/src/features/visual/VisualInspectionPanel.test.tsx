@@ -146,4 +146,50 @@ describe("VisualInspectionPanel", () => {
     expect(screen.getByTestId("embedded-result-invalid")).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Show word boxes" })).toBeDisabled();
   });
+
+  it("shows concise isolated-glyph warning without quarantined strings", () => {
+    const glyphPage = {
+      ...page,
+      source_mode: "native_authority",
+      page_result_state: "digital_native",
+      source_label: "Trusted digital text",
+      page_route: "digital_native",
+      route_reason_codes: ["trusted_digital_native_text", "isolated_glyphs_quarantined"],
+      quarantined_glyph_count: 3,
+      quarantined_region_count: 3,
+      glyph_materiality: "non_material",
+      phase3_page_decision: "accepted",
+      visual_result_available: false,
+      word_count: 0,
+      line_count: 0,
+      lines: [],
+      words: [],
+      warnings: [
+        {
+          code: "isolated_glyphs_quarantined",
+          message: "Some unsupported symbols were excluded pending visual verification.",
+        },
+      ],
+    } as unknown as VisualPageResult;
+    render(
+      <VisualInspectionPanel
+        summary={{
+          ...summary,
+          document_source_policy: "native_authority",
+          native_pages_retained: 1,
+        }}
+        page={glyphPage}
+        ocrLineOverlayEnabled={false}
+        ocrWordOverlayEnabled={false}
+        onToggleOcrLineOverlay={vi.fn()}
+        onToggleOcrWordOverlay={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("final-page-route")).toHaveTextContent("digital_native");
+    expect(screen.getByTestId("visual-warnings")).toHaveTextContent(
+      /unsupported symbols were excluded/i,
+    );
+    expect(screen.queryByText(/\ue001/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/private-use/i)).not.toBeInTheDocument();
+  });
 });
