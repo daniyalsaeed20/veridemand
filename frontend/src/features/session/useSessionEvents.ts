@@ -2,14 +2,15 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { environment } from "../../api/environment";
+import { progressEventStore } from "../progress/progressEventStore";
 import { zProgressEvent, zProgressEventType } from "../viewer/viewerApi";
 import { sessionKeys } from "./sessionKeys";
 
 const PROGRESS_EVENT_TYPES = zProgressEventType.options;
 
 // Debounce window for coalescing bursts of progress events into a single
-// snapshot refetch. TanStack Query owns the authoritative server state; SSE only
-// signals that a refetch is warranted.
+// snapshot refetch. TanStack Query owns the authoritative server state; SSE
+// also feeds the progress reducer for live lifecycle gating.
 const INVALIDATE_DEBOUNCE_MS = 120;
 
 export interface SessionEventsState {
@@ -35,6 +36,7 @@ export function useSessionEvents(
       return;
     }
 
+    progressEventStore.reset();
     const url = `${environment.apiBaseUrl}/api/v1/sessions/${sessionId}/events`;
     const source = new EventSource(url);
     let invalidateTimer: number | undefined;
@@ -65,7 +67,14 @@ export function useSessionEvents(
         return;
       }
       const kind = parsed.data.event;
+      // Heartbeats update elapsed clocks via snapshot invalidate only when useful;
+      // reducer still records sequence without advancing progress_version.
       if (kind === "heartbeat") {
+        progressEventStore.applyEvent(parsed.data);
+        return;
+      }
+      const accepted = progressEventStore.applyEvent(parsed.data);
+      if (!accepted) {
         return;
       }
       if (kind === "session.deleted") {
@@ -88,6 +97,7 @@ export function useSessionEvents(
     source.onopen = () => {
       setConnected(true);
       setEverConnected(true);
+      invalidateNow();
     };
     source.onerror = () => {
       setConnected(false);
