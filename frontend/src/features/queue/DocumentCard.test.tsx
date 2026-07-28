@@ -195,6 +195,26 @@ describe("DocumentCard", () => {
     expect(screen.getByText(/Canonical document available:\s*Yes/)).toBeInTheDocument();
   });
 
+  it("shows route breakdown counts after visual processing completes", () => {
+    renderWithClient(
+      <DocumentCard
+        sessionId={SESSION_ID}
+        document={makeDocument({
+          document_id: DOC_ID,
+          status: "visual_processing_complete",
+          canonical_view_available: true,
+          native_pages_retained: 97,
+          full_ocr_pages_selected: 0,
+          full_ocr_pages_completed: 0,
+          embedded_ocr_pages_verified: 0,
+        })}
+      />,
+    );
+    expect(screen.getByLabelText("Page route breakdown")).toBeInTheDocument();
+    expect(screen.getByText(/Native pages retained:\s*97/)).toBeInTheDocument();
+    expect(screen.getByText(/Full OCR required:\s*0/)).toBeInTheDocument();
+  });
+
   it("disables Process when processBlocked is set", () => {
     renderWithClient(
       <DocumentCard

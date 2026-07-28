@@ -20,6 +20,7 @@ import type {
 import { cancelDocument, removeDocument } from "./documentApi";
 import { applyMonotonicProgress, type ProgressFloor } from "./monotonicProgress";
 import { ProcessingDetailsCard } from "../progress/ProcessingDetailsCard";
+import { PageRouteBreakdown } from "../progress/PageRouteBreakdown";
 import { isProgressActive } from "../progress/deriveLiveProgress";
 
 const STATUS_LABEL: Record<DocumentStatus, string> = {
@@ -211,10 +212,13 @@ export function DocumentCard({
 
         {document.status === "visual_processing_complete" ||
         document.status === "visual_processing_partial" ? (
-          <Typography variant="caption" color="text.secondary">
-            Printed visual OCR complete. Handwriting and final document structure have not been
-            evaluated.
-          </Typography>
+          <Stack spacing={0.5}>
+            <Typography variant="caption" color="text.secondary">
+              Printed visual OCR complete. Handwriting and final document structure have not been
+              evaluated.
+            </Typography>
+            <PageRouteBreakdown snapshot={document} />
+          </Stack>
         ) : null}
 
         {document.status === "visual_processing_failed" ? (

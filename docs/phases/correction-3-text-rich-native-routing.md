@@ -62,6 +62,38 @@ After Correction 3:
 
 Billing wrapper remains `scripts/audit_billing_routing_only.py`.
 
+## Full HTTP runtime acceptance (sanitised)
+
+Opaque label: `private_text_rich_097` · 97 pages
+
+Script: `scripts/accept_correction3_private_text_rich.py` against `pnpm dev`
+(`/health/ready`, `/api/v1`, upload field `files`).
+
+| Metric | Routing-only | Full HTTP |
+|---|---|---|
+| digital_native | 97 | 97 |
+| full_visual_ocr | 0 | 0 |
+| embedded / repair / failed / no_text | 0 | 0 |
+| Duration | ~74 s | ~132 s (incl. upload + publish) |
+| Final document policy | — | `native_authority` |
+| Native pages retained | — | 97 |
+| Full OCR selected / completed | — | 0 / 0 |
+| Public words (aggregate) | — | 26473 |
+| Empty digital_native pages | — | 0 |
+| Quarantined glyphs (aggregate) | — | 733 |
+| Quarantined regions | — | 733 |
+| Pages with glyph warnings | — | 56 (all `non_material`) |
+| Material glyph pages | — | 0 |
+| Privacy findings (public JSON) | — | 0 |
+| `verification_words` leaks | — | 0 |
+
+Viewer (same live session): sampled pages 1, 2, 10, 11, 18, 25, 49, 50, 75, 96, 97 —
+nonblank render, `digital_native` / Native PDF text labels, native word overlays,
+zoom/fit/rotate, no Printed visual OCR label, no private-use sentinels in DOM,
+document card `Native pages retained: 97` / `Full OCR required: 0`.
+
+Billing non-regression (routing-only): `digital_native ×7` / `full_visual_ocr ×2`.
+
 ## Privacy
 
 Private PDF stays under gitignored `fixtures/private/`. Committed docs and

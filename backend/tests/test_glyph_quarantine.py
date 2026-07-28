@@ -240,6 +240,40 @@ def test_non_material_glyph_warning_retains_native_route() -> None:
     assert NativeReasonCode.ISOLATED_GLYPHS_QUARANTINED.value in decision.reason_codes
 
 
+def test_public_native_page_strips_verification_and_quarantine_strings() -> None:
+    from backend.app.extraction.native.serializer import page_result_for_public_api
+
+    ordinary = ["Heading", "body", "text", "stays", "readable", "0123"] * 8
+    page = _page_from_text_tokens([*ordinary, "\ue001", *ordinary])
+    bundle = _decide(page)
+    result = build_page_result(
+        bundle, canonicalisation_method=CanonicalisationMethod.ORIGINAL_PDF.value
+    )
+    assert result.decision is NativePageDecision.ACCEPTED
+    assert len(result.words) > 0
+    public = page_result_for_public_api(result)
+    assert public.verification_words == []
+    assert not any("\ue000" <= ch <= "\uf8ff" for w in public.words for ch in (w.text or ""))
+    assert not any("\ue001" in (w.text or "") for w in public.words)
+    assert public.quarantined_glyph_count >= 1
+
+
+def test_digital_native_plan_skips_full_ocr_job() -> None:
+    from backend.app.extraction.routing.router import PageRouter
+
+    ordinary = ["Trusted", "digital", "native", "words", "0123456789"] * 10
+    page = _page_from_text_tokens([*ordinary, "\ue001"])
+    bundle = _decide(page)
+    result = build_page_result(
+        bundle, canonicalisation_method=CanonicalisationMethod.ORIGINAL_PDF.value
+    )
+    router = PageRouter(Settings(hybrid_page_routing_enabled=True))
+    plan = router.decide(result, document_id="doc_c3_native")
+    assert plan.decision.route.value == "digital_native"
+    assert plan.skip_full_ocr is True
+    assert plan.use_embedded_authority is False
+
+
 def test_document_escalation_does_not_force_clean_siblings() -> None:
     policy = NativeTrustPolicyConfig()
     clean = _page_from_text_tokens(

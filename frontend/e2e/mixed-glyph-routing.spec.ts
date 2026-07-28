@@ -21,7 +21,7 @@ test.describe("Correction 3 mixed-glyph native routing", () => {
     }
     const sourceLabel = page.getByTestId("visual-source-label");
     if ((await sourceLabel.count()) > 0) {
-      await expect(sourceLabel.first()).toContainText(/Trusted digital text/i);
+      await expect(sourceLabel.first()).toContainText(/Native PDF text|Trusted digital text/i);
     }
     // Quarantined private-use codepoints must never appear in the UI.
     await expect(page.getByText(/\uE001/)).toHaveCount(0);

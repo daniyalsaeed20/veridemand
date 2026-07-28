@@ -370,6 +370,7 @@ def test_final_document_policy_from_page_modes() -> None:
         ).value
         == "mixed_authority"
     )
+    assert reconcile_document_policy([SourceMode.NATIVE_AUTHORITY] * 3).value == "native_authority"
 
 
 def test_visual_no_text_requires_reason() -> None:
