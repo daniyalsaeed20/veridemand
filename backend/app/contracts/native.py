@@ -404,6 +404,12 @@ class NativePageTrustResult(ApiModel):
     visual_agreement_score: float | None = Field(default=None)
     native_result_available: bool
     visual_processing_required: bool
+    quarantined_glyph_count: int = Field(default=0, ge=0)
+    quarantined_region_count: int = Field(default=0, ge=0)
+    glyph_materiality: str | None = Field(
+        default=None,
+        description="none | non_material | material | widespread",
+    )
 
 
 class NativeWarning(ApiModel):
@@ -437,6 +443,9 @@ class NativePageResult(ApiModel):
         ),
     )
     warnings: list[NativeWarning] = Field(default_factory=list)
+    quarantined_glyph_count: int = Field(default=0, ge=0)
+    quarantined_region_count: int = Field(default=0, ge=0)
+    glyph_materiality: str | None = None
 
 
 class NativeProgress(ApiModel):

@@ -16,6 +16,10 @@ from backend.app.contracts.native import (
 )
 from backend.app.contracts.warnings import NativeReasonCode
 from backend.app.extraction.native.geometry_quality import GeometryMetrics
+from backend.app.extraction.native.glyph_quarantine import (
+    GlyphMateriality,
+    apply_glyph_quarantine,
+)
 from backend.app.extraction.native.image_dominance import ImageDominanceMetrics
 from backend.app.extraction.native.models import NativeTrustPolicyConfig, PageExtractionCandidate
 from backend.app.extraction.native.near_overprint import (
@@ -48,6 +52,11 @@ class PageTrustDecisionBundle:
     trust: NativePageTrustResult
     geometry: GeometryMetrics
     accept_text: bool
+    quarantined_glyph_count: int = 0
+    quarantined_region_count: int = 0
+    glyph_materiality: str | None = None
+    glyph_repair_eligible: bool = False
+    page_after_salvage: PageExtractionCandidate | None = None
 
 
 def _clamp01(value: float) -> float:
@@ -130,10 +139,34 @@ def decide_page_trust(
     policy: NativeTrustPolicyConfig,
     source_type: str,
 ) -> PageTrustDecisionBundle:
+    from backend.app.extraction.native.metrics import build_page_metrics
+
     reasons: list[str] = []
     warnings: list[str] = [NativeReasonCode.VISUAL_AGREEMENT_NOT_EVALUATED_PHASE_3.value]
     hard = False
     duplicate_hard = False
+
+    quarantine = apply_glyph_quarantine(page, policy)
+    quarantined_glyph_count = quarantine.quarantined_glyph_count
+    quarantined_region_count = quarantine.quarantined_region_count
+    glyph_materiality = quarantine.materiality.value
+    glyph_repair_eligible = quarantine.repair_eligible
+    page_after_salvage: PageExtractionCandidate | None = None
+
+    if quarantine.salvage_applied:
+        page = quarantine.page
+        page_after_salvage = page
+        metrics, geometry_m, unicode_m, text_m, image_m = build_page_metrics(page, policy)
+        for code in quarantine.warning_codes:
+            if code not in warnings:
+                warnings.append(code)
+    elif (
+        quarantine.materiality is GlyphMateriality.WIDESPREAD
+        or quarantine.materiality is GlyphMateriality.MATERIAL
+    ):
+        for code in quarantine.reason_codes:
+            if code not in reasons:
+                reasons.append(code)
 
     is_image_source = source_type == CanonicalPageSourceType.IMAGE.value
 
@@ -416,5 +449,17 @@ def decide_page_trust(
         visual_agreement_score=None,
         native_result_available=accept,
         visual_processing_required=not accept,
+        quarantined_glyph_count=quarantined_glyph_count,
+        quarantined_region_count=quarantined_region_count,
+        glyph_materiality=glyph_materiality,
     )
-    return PageTrustDecisionBundle(trust=trust, geometry=geometry_m, accept_text=accept)
+    return PageTrustDecisionBundle(
+        trust=trust,
+        geometry=geometry_m,
+        accept_text=accept,
+        quarantined_glyph_count=quarantined_glyph_count,
+        quarantined_region_count=quarantined_region_count,
+        glyph_materiality=glyph_materiality,
+        glyph_repair_eligible=glyph_repair_eligible,
+        page_after_salvage=page_after_salvage,
+    )

@@ -48,6 +48,15 @@ class NativeReasonCode(StrEnum):
     OCR_LOW_CONFIDENCE = "ocr_low_confidence"
     VISUAL_PAGE_RESOURCE_LIMIT = "visual_page_resource_limit"
 
+    # Correction 3 — isolated glyph quarantine vs widespread corruption.
+    ISOLATED_PRIVATE_USE_GLYPH = "isolated_private_use_glyph"
+    UNSUPPORTED_CHECKBOX_GLYPH = "unsupported_checkbox_glyph"
+    SYMBOL_FONT_MAPPING_MISSING = "symbol_font_mapping_missing"
+    WIDESPREAD_UNICODE_CORRUPTION = "widespread_unicode_corruption"
+    REPLACEMENT_CHARACTER_CORRUPTION = "replacement_character_corruption"
+    ISOLATED_GLYPHS_QUARANTINED = "isolated_glyphs_quarantined"
+    MATERIAL_GLYPH_CORRUPTION = "material_glyph_corruption"
+
 
 REASON_MESSAGES: dict[NativeReasonCode, str] = {
     NativeReasonCode.NATIVE_TEXT_ABSENT: "No usable native text layer was found on this page.",
@@ -119,6 +128,26 @@ REASON_MESSAGES: dict[NativeReasonCode, str] = {
     NativeReasonCode.OCR_LOW_CONFIDENCE: "Printed OCR confidence was low for this page.",
     NativeReasonCode.VISUAL_PAGE_RESOURCE_LIMIT: (
         "The page exceeded visual rendering resource limits."
+    ),
+    NativeReasonCode.ISOLATED_PRIVATE_USE_GLYPH: ("An isolated private-use glyph was quarantined."),
+    NativeReasonCode.UNSUPPORTED_CHECKBOX_GLYPH: (
+        "An unsupported checkbox or form-mark glyph was quarantined."
+    ),
+    NativeReasonCode.SYMBOL_FONT_MAPPING_MISSING: (
+        "A symbol-font glyph could not be mapped and was quarantined."
+    ),
+    NativeReasonCode.WIDESPREAD_UNICODE_CORRUPTION: (
+        "This page required full visual OCR because the PDF text encoding was widely corrupt."
+    ),
+    NativeReasonCode.REPLACEMENT_CHARACTER_CORRUPTION: (
+        "This page required full visual OCR because replacement-character "
+        "corruption was widespread."
+    ),
+    NativeReasonCode.ISOLATED_GLYPHS_QUARANTINED: (
+        "Some unsupported symbols were excluded pending visual verification."
+    ),
+    NativeReasonCode.MATERIAL_GLYPH_CORRUPTION: (
+        "Corrupt glyphs affected material tokens and require visual verification."
     ),
 }
 

@@ -129,6 +129,9 @@ def build_page_result(
             provisional_native_text=None,
             verification_words=verification_words,
             warnings=warnings,
+            quarantined_glyph_count=bundle.quarantined_glyph_count,
+            quarantined_region_count=bundle.quarantined_region_count,
+            glyph_materiality=bundle.glyph_materiality,
         )
 
     words, characters = _build_words_and_characters(
@@ -148,6 +151,9 @@ def build_page_result(
         provisional_native_text=provisional,
         verification_words=[],
         warnings=warnings,
+        quarantined_glyph_count=bundle.quarantined_glyph_count,
+        quarantined_region_count=bundle.quarantined_region_count,
+        glyph_materiality=bundle.glyph_materiality,
     )
 
 

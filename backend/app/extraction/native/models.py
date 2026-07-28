@@ -47,7 +47,8 @@ class NativeTrustPolicyConfig:
     native_max_single_character_word_ratio: float = 0.75
     native_image_dominant_area_ratio: float = 0.80
     native_document_min_failed_pages: int = 2
-    native_trust_policy_version: str = "phase3-v1.6"
+    native_trust_policy_version: str = "phase3-v1.7"
+    glyph_quarantine_policy_version: str = "phase4-c3-v1"
     canonical_page_dimension_tolerance_points: float = 0.5
     native_extraction_test_delay_seconds: float = 0.0
 
