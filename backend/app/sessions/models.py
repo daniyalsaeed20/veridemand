@@ -161,13 +161,28 @@ class RuntimeDocument:
     average_full_ocr_page_seconds: float | None = None
     pages_per_minute: float | None = None
     document_pages_total: int | None = None
+    document_page_number: int | None = None
+    selected_page_index: int | None = None
+    selected_pages_total: int | None = None
+    visual_page_index: int | None = None
+    visual_pages_total: int | None = None
+    route_page_index: int | None = None
+    route_pages_total: int | None = None
+    operation_id: str | None = None
     native_pages_retained: int | None = None
+    native_pages_selected: int | None = None
+    native_pages_completed: int | None = None
+    embedded_verification_pages_selected: int | None = None
+    embedded_verification_pages_completed: int | None = None
     embedded_ocr_pages_verified: int | None = None
     targeted_repair_pages_selected: int | None = None
     targeted_repair_pages_completed: int | None = None
     full_ocr_pages_selected: int | None = None
     full_ocr_pages_completed: int | None = None
     full_ocr_pages_remaining: int | None = None
+    visual_no_text_pages: int | None = None
+    failed_pages: int | None = None
+    pages_terminal_total: int | None = None
     pages_remaining: int | None = None
     fair_scheduling_enabled: bool | None = None
     document_started_at: datetime | None = None
@@ -176,6 +191,22 @@ class RuntimeDocument:
     operation_started_at: datetime | None = None
     phase_elapsed_seconds: float | None = None
     server_timestamp: datetime | None = None
+    batch_elapsed_seconds: float | None = None
+    attempt_elapsed_seconds: float | None = None
+    batch_started_at_timestamp: datetime | None = None
+    document_started_at_timestamp: datetime | None = None
+    document_deadline_remaining_seconds: float | None = None
+    page_deadline_remaining_seconds: float | None = None
+    operation_deadline_remaining_seconds: float | None = None
+    attempt_deadline_remaining_seconds: float | None = None
+    slow_warning_status: str | None = None
+    slow_warning_operation_id: str | None = None
+    slow_warning_started_at: datetime | None = None
+    slow_warning_threshold_seconds: float | None = None
+    slow_warning_reason: str | None = None
+    estimated_batch_remaining_seconds: float | None = None
+    estimated_batch_completion_at: datetime | None = None
+    estimated_document_completion_at: datetime | None = None
 
     def to_summary(
         self,
@@ -266,13 +297,28 @@ class RuntimeDocument:
             average_full_ocr_page_seconds=self.average_full_ocr_page_seconds,
             pages_per_minute=self.pages_per_minute,
             document_pages_total=self.document_pages_total,
+            document_page_number=self.document_page_number,
+            selected_page_index=self.selected_page_index,
+            selected_pages_total=self.selected_pages_total,
+            visual_page_index=self.visual_page_index,
+            visual_pages_total=self.visual_pages_total,
+            route_page_index=self.route_page_index,
+            route_pages_total=self.route_pages_total,
+            operation_id=self.operation_id,
             native_pages_retained=self.native_pages_retained,
+            native_pages_selected=self.native_pages_selected,
+            native_pages_completed=self.native_pages_completed,
+            embedded_verification_pages_selected=self.embedded_verification_pages_selected,
+            embedded_verification_pages_completed=self.embedded_verification_pages_completed,
             embedded_ocr_pages_verified=self.embedded_ocr_pages_verified,
             targeted_repair_pages_selected=self.targeted_repair_pages_selected,
             targeted_repair_pages_completed=self.targeted_repair_pages_completed,
             full_ocr_pages_selected=self.full_ocr_pages_selected,
             full_ocr_pages_completed=self.full_ocr_pages_completed,
             full_ocr_pages_remaining=self.full_ocr_pages_remaining,
+            visual_no_text_pages=self.visual_no_text_pages,
+            failed_pages=self.failed_pages,
+            pages_terminal_total=self.pages_terminal_total,
             pages_remaining=self.pages_remaining,
             fair_scheduling_enabled=self.fair_scheduling_enabled,
             document_started_at=self.document_started_at,
@@ -281,6 +327,22 @@ class RuntimeDocument:
             operation_started_at=self.operation_started_at,
             phase_elapsed_seconds=self.phase_elapsed_seconds,
             server_timestamp=self.server_timestamp,
+            batch_elapsed_seconds=self.batch_elapsed_seconds,
+            attempt_elapsed_seconds=self.attempt_elapsed_seconds,
+            batch_started_at_timestamp=self.batch_started_at_timestamp,
+            document_started_at_timestamp=self.document_started_at_timestamp,
+            document_deadline_remaining_seconds=self.document_deadline_remaining_seconds,
+            page_deadline_remaining_seconds=self.page_deadline_remaining_seconds,
+            operation_deadline_remaining_seconds=self.operation_deadline_remaining_seconds,
+            attempt_deadline_remaining_seconds=self.attempt_deadline_remaining_seconds,
+            slow_warning_status=self.slow_warning_status,
+            slow_warning_operation_id=self.slow_warning_operation_id,
+            slow_warning_started_at=self.slow_warning_started_at,
+            slow_warning_threshold_seconds=self.slow_warning_threshold_seconds,
+            slow_warning_reason=self.slow_warning_reason,
+            estimated_batch_remaining_seconds=self.estimated_batch_remaining_seconds,
+            estimated_batch_completion_at=self.estimated_batch_completion_at,
+            estimated_document_completion_at=self.estimated_document_completion_at,
         )
 
 

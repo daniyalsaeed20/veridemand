@@ -205,7 +205,12 @@ class DocumentSummary(ApiModel):
         default=None, ge=0.0, description="Monotonic elapsed seconds for the active operation."
     )
     deadline_remaining_seconds: float | None = Field(
-        default=None, ge=0.0, description="Seconds remaining before the active deadline."
+        default=None,
+        ge=0.0,
+        description=(
+            "Deprecated ambiguous deadline; prefer document_/page_/operation_/"
+            "attempt_deadline_remaining_seconds."
+        ),
     )
     worker_generation: int | None = Field(
         default=None, ge=0, description="OCR worker generation owning the active request."
@@ -238,13 +243,28 @@ class DocumentSummary(ApiModel):
     average_full_ocr_page_seconds: float | None = Field(default=None, ge=0.0)
     pages_per_minute: float | None = Field(default=None, ge=0.0)
     document_pages_total: int | None = Field(default=None, ge=0)
+    document_page_number: int | None = Field(default=None, ge=1)
+    selected_page_index: int | None = Field(default=None, ge=1)
+    selected_pages_total: int | None = Field(default=None, ge=0)
+    visual_page_index: int | None = Field(default=None, ge=1)
+    visual_pages_total: int | None = Field(default=None, ge=0)
+    route_page_index: int | None = Field(default=None, ge=1)
+    route_pages_total: int | None = Field(default=None, ge=0)
+    operation_id: str | None = Field(default=None)
     native_pages_retained: int | None = Field(default=None, ge=0)
+    native_pages_selected: int | None = Field(default=None, ge=0)
+    native_pages_completed: int | None = Field(default=None, ge=0)
+    embedded_verification_pages_selected: int | None = Field(default=None, ge=0)
+    embedded_verification_pages_completed: int | None = Field(default=None, ge=0)
     embedded_ocr_pages_verified: int | None = Field(default=None, ge=0)
     targeted_repair_pages_selected: int | None = Field(default=None, ge=0)
     targeted_repair_pages_completed: int | None = Field(default=None, ge=0)
     full_ocr_pages_selected: int | None = Field(default=None, ge=0)
     full_ocr_pages_completed: int | None = Field(default=None, ge=0)
     full_ocr_pages_remaining: int | None = Field(default=None, ge=0)
+    visual_no_text_pages: int | None = Field(default=None, ge=0)
+    failed_pages: int | None = Field(default=None, ge=0)
+    pages_terminal_total: int | None = Field(default=None, ge=0)
     pages_remaining: int | None = Field(default=None, ge=0)
     fair_scheduling_enabled: bool | None = Field(default=None)
     document_started_at: datetime | None = Field(default=None)
@@ -253,6 +273,22 @@ class DocumentSummary(ApiModel):
     operation_started_at: datetime | None = Field(default=None)
     phase_elapsed_seconds: float | None = Field(default=None, ge=0.0)
     server_timestamp: datetime | None = Field(default=None)
+    batch_elapsed_seconds: float | None = Field(default=None, ge=0.0)
+    attempt_elapsed_seconds: float | None = Field(default=None, ge=0.0)
+    batch_started_at_timestamp: datetime | None = Field(default=None)
+    document_started_at_timestamp: datetime | None = Field(default=None)
+    document_deadline_remaining_seconds: float | None = Field(default=None, ge=0.0)
+    page_deadline_remaining_seconds: float | None = Field(default=None, ge=0.0)
+    operation_deadline_remaining_seconds: float | None = Field(default=None, ge=0.0)
+    attempt_deadline_remaining_seconds: float | None = Field(default=None, ge=0.0)
+    slow_warning_status: str | None = Field(default=None)
+    slow_warning_operation_id: str | None = Field(default=None)
+    slow_warning_started_at: datetime | None = Field(default=None)
+    slow_warning_threshold_seconds: float | None = Field(default=None, ge=0.0)
+    slow_warning_reason: str | None = Field(default=None)
+    estimated_batch_remaining_seconds: float | None = Field(default=None, ge=0.0)
+    estimated_batch_completion_at: datetime | None = Field(default=None)
+    estimated_document_completion_at: datetime | None = Field(default=None)
 
 
 class DocumentStatusCounts(ApiModel):

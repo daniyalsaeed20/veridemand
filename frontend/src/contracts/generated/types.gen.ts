@@ -385,6 +385,14 @@ export type DocumentSummary = {
      */
     active_page_number?: number | null;
     /**
+     * Attempt Deadline Remaining Seconds
+     */
+    attempt_deadline_remaining_seconds?: number | null;
+    /**
+     * Attempt Elapsed Seconds
+     */
+    attempt_elapsed_seconds?: number | null;
+    /**
      * Attempt Number
      *
      * Current page/document attempt number.
@@ -398,6 +406,14 @@ export type DocumentSummary = {
      * Average Page Seconds
      */
     average_page_seconds?: number | null;
+    /**
+     * Batch Elapsed Seconds
+     */
+    batch_elapsed_seconds?: number | null;
+    /**
+     * Batch Started At Timestamp
+     */
+    batch_started_at_timestamp?: string | null;
     /**
      * Canonical Metadata Url
      *
@@ -443,7 +459,7 @@ export type DocumentSummary = {
     /**
      * Deadline Remaining Seconds
      *
-     * Seconds remaining before the active deadline.
+     * Deprecated ambiguous deadline; prefer document_/page_/operation_/attempt_deadline_remaining_seconds.
      */
     deadline_remaining_seconds?: number | null;
     /**
@@ -452,6 +468,10 @@ export type DocumentSummary = {
      * Sanitised display filename (never a storage path).
      */
     display_filename: string;
+    /**
+     * Document Deadline Remaining Seconds
+     */
+    document_deadline_remaining_seconds?: number | null;
     /**
      * Document Elapsed Seconds
      *
@@ -465,6 +485,10 @@ export type DocumentSummary = {
      */
     document_id: string;
     /**
+     * Document Page Number
+     */
+    document_page_number?: number | null;
+    /**
      * Document Pages Total
      */
     document_pages_total?: number | null;
@@ -477,6 +501,10 @@ export type DocumentSummary = {
      */
     document_started_at?: string | null;
     /**
+     * Document Started At Timestamp
+     */
+    document_started_at_timestamp?: string | null;
+    /**
      * Elapsed Seconds
      *
      * Document-level elapsed seconds (alias of document_elapsed_seconds).
@@ -486,6 +514,14 @@ export type DocumentSummary = {
      * Embedded Ocr Pages Verified
      */
     embedded_ocr_pages_verified?: number | null;
+    /**
+     * Embedded Verification Pages Completed
+     */
+    embedded_verification_pages_completed?: number | null;
+    /**
+     * Embedded Verification Pages Selected
+     */
+    embedded_verification_pages_selected?: number | null;
     /**
      * Estimate Confidence
      */
@@ -499,6 +535,14 @@ export type DocumentSummary = {
      */
     estimate_status?: string | null;
     /**
+     * Estimated Batch Completion At
+     */
+    estimated_batch_completion_at?: string | null;
+    /**
+     * Estimated Batch Remaining Seconds
+     */
+    estimated_batch_remaining_seconds?: number | null;
+    /**
      * Estimated Completion At
      */
     estimated_completion_at?: string | null;
@@ -510,6 +554,10 @@ export type DocumentSummary = {
      * Estimated Current Page Seconds
      */
     estimated_current_page_seconds?: number | null;
+    /**
+     * Estimated Document Completion At
+     */
+    estimated_document_completion_at?: string | null;
     /**
      * Estimated Document Remaining Seconds
      */
@@ -530,6 +578,10 @@ export type DocumentSummary = {
      * Always false until final extraction exists.
      */
     extraction_performed?: boolean;
+    /**
+     * Failed Pages
+     */
+    failed_pages?: number | null;
     /**
      * Failure Code
      *
@@ -605,9 +657,17 @@ export type DocumentSummary = {
      */
     native_extraction_performed?: boolean;
     /**
+     * Native Pages Completed
+     */
+    native_pages_completed?: number | null;
+    /**
      * Native Pages Retained
      */
     native_pages_retained?: number | null;
+    /**
+     * Native Pages Selected
+     */
+    native_pages_selected?: number | null;
     /**
      * Native Result Available
      *
@@ -621,11 +681,19 @@ export type DocumentSummary = {
      */
     native_summary_url?: string | null;
     /**
+     * Operation Deadline Remaining Seconds
+     */
+    operation_deadline_remaining_seconds?: number | null;
+    /**
      * Operation Elapsed Seconds
      *
      * Monotonic elapsed seconds for the active operation.
      */
     operation_elapsed_seconds?: number | null;
+    /**
+     * Operation Id
+     */
+    operation_id?: string | null;
     /**
      * Operation Started At
      */
@@ -646,6 +714,10 @@ export type DocumentSummary = {
      * Whether the page count is known.
      */
     page_count_status: PageCountStatus;
+    /**
+     * Page Deadline Remaining Seconds
+     */
+    page_deadline_remaining_seconds?: number | null;
     /**
      * Page Elapsed Seconds
      *
@@ -676,6 +748,10 @@ export type DocumentSummary = {
      * Pages Remaining
      */
     pages_remaining?: number | null;
+    /**
+     * Pages Terminal Total
+     */
+    pages_terminal_total?: number | null;
     /**
      * Pages Total
      *
@@ -719,6 +795,22 @@ export type DocumentSummary = {
      */
     result_available?: boolean;
     /**
+     * Route Page Index
+     */
+    route_page_index?: number | null;
+    /**
+     * Route Pages Total
+     */
+    route_pages_total?: number | null;
+    /**
+     * Selected Page Index
+     */
+    selected_page_index?: number | null;
+    /**
+     * Selected Pages Total
+     */
+    selected_pages_total?: number | null;
+    /**
      * Server Timestamp
      */
     server_timestamp?: string | null;
@@ -734,6 +826,26 @@ export type DocumentSummary = {
      * Accepted file size in bytes.
      */
     size_bytes: number;
+    /**
+     * Slow Warning Operation Id
+     */
+    slow_warning_operation_id?: string | null;
+    /**
+     * Slow Warning Reason
+     */
+    slow_warning_reason?: string | null;
+    /**
+     * Slow Warning Started At
+     */
+    slow_warning_started_at?: string | null;
+    /**
+     * Slow Warning Status
+     */
+    slow_warning_status?: string | null;
+    /**
+     * Slow Warning Threshold Seconds
+     */
+    slow_warning_threshold_seconds?: number | null;
     /**
      * Stage Timeline
      *
@@ -760,6 +872,18 @@ export type DocumentSummary = {
      * Safe user-facing status for the current processing stage.
      */
     user_status_message?: string | null;
+    /**
+     * Visual No Text Pages
+     */
+    visual_no_text_pages?: number | null;
+    /**
+     * Visual Page Index
+     */
+    visual_page_index?: number | null;
+    /**
+     * Visual Pages Total
+     */
+    visual_pages_total?: number | null;
     /**
      * Visual Processing Performed
      *
@@ -2317,6 +2441,14 @@ export type ProgressEvent = {
      */
     active_document_position?: number | null;
     /**
+     * Attempt Deadline Remaining Seconds
+     */
+    attempt_deadline_remaining_seconds?: number | null;
+    /**
+     * Attempt Elapsed Seconds
+     */
+    attempt_elapsed_seconds?: number | null;
+    /**
      * Attempt Number
      */
     attempt_number?: number | null;
@@ -2328,6 +2460,14 @@ export type ProgressEvent = {
      * Average Page Seconds
      */
     average_page_seconds?: number | null;
+    /**
+     * Batch Elapsed Seconds
+     */
+    batch_elapsed_seconds?: number | null;
+    /**
+     * Batch Started At Timestamp
+     */
+    batch_started_at_timestamp?: string | null;
     /**
      * Canonical Page Count
      *
@@ -2366,6 +2506,8 @@ export type ProgressEvent = {
     current_route?: string | null;
     /**
      * Deadline Remaining Seconds
+     *
+     * Deprecated: ambiguous single deadline. Prefer document_/page_/operation_/attempt_deadline_remaining_seconds.
      */
     deadline_remaining_seconds?: number | null;
     /**
@@ -2374,6 +2516,10 @@ export type ProgressEvent = {
      * Native page decision when relevant.
      */
     decision?: string | null;
+    /**
+     * Document Deadline Remaining Seconds
+     */
+    document_deadline_remaining_seconds?: number | null;
     /**
      * Document Elapsed Seconds
      */
@@ -2385,6 +2531,12 @@ export type ProgressEvent = {
      */
     document_id?: string | null;
     /**
+     * Document Page Number
+     *
+     * Absolute 1-based page in the canonical document.
+     */
+    document_page_number?: number | null;
+    /**
      * Document Pages Total
      */
     document_pages_total?: number | null;
@@ -2392,6 +2544,10 @@ export type ProgressEvent = {
      * Document Started At
      */
     document_started_at?: string | null;
+    /**
+     * Document Started At Timestamp
+     */
+    document_started_at_timestamp?: string | null;
     /**
      * Document status at the time of the event, if relevant.
      */
@@ -2407,6 +2563,14 @@ export type ProgressEvent = {
      */
     embedded_ocr_pages_verified?: number | null;
     /**
+     * Embedded Verification Pages Completed
+     */
+    embedded_verification_pages_completed?: number | null;
+    /**
+     * Embedded Verification Pages Selected
+     */
+    embedded_verification_pages_selected?: number | null;
+    /**
      * Estimate Confidence
      */
     estimate_confidence?: string | null;
@@ -2418,6 +2582,14 @@ export type ProgressEvent = {
      * Estimate Status
      */
     estimate_status?: string | null;
+    /**
+     * Estimated Batch Completion At
+     */
+    estimated_batch_completion_at?: string | null;
+    /**
+     * Estimated Batch Remaining Seconds
+     */
+    estimated_batch_remaining_seconds?: number | null;
     /**
      * Estimated Completion At
      *
@@ -2436,6 +2608,12 @@ export type ProgressEvent = {
      * Estimated Current Page Seconds
      */
     estimated_current_page_seconds?: number | null;
+    /**
+     * Estimated Document Completion At
+     *
+     * Alias of estimated_completion_at for document scope.
+     */
+    estimated_document_completion_at?: string | null;
     /**
      * Estimated Document Remaining Seconds
      *
@@ -2472,6 +2650,10 @@ export type ProgressEvent = {
      * Monotonic per-session sequence number.
      */
     event_sequence: number;
+    /**
+     * Failed Pages
+     */
+    failed_pages?: number | null;
     /**
      * Fair Scheduling Enabled
      */
@@ -2521,9 +2703,17 @@ export type ProgressEvent = {
      */
     message?: string | null;
     /**
+     * Native Pages Completed
+     */
+    native_pages_completed?: number | null;
+    /**
      * Native Pages Retained
      */
     native_pages_retained?: number | null;
+    /**
+     * Native Pages Selected
+     */
+    native_pages_selected?: number | null;
     /**
      * Native Trust Score
      *
@@ -2537,9 +2727,19 @@ export type ProgressEvent = {
      */
     operation?: string | null;
     /**
+     * Operation Deadline Remaining Seconds
+     */
+    operation_deadline_remaining_seconds?: number | null;
+    /**
      * Operation Elapsed Seconds
      */
     operation_elapsed_seconds?: number | null;
+    /**
+     * Operation Id
+     *
+     * Stable operation-attempt identity for lifecycle events.
+     */
+    operation_id?: string | null;
     /**
      * Operation Started At
      */
@@ -2557,13 +2757,17 @@ export type ProgressEvent = {
      */
     overall_percent?: number | null;
     /**
+     * Page Deadline Remaining Seconds
+     */
+    page_deadline_remaining_seconds?: number | null;
+    /**
      * Page Elapsed Seconds
      */
     page_elapsed_seconds?: number | null;
     /**
      * Page Number
      *
-     * Reserved; unused in Phase 1.
+     * Deprecated: absolute document page when set. Prefer document_page_number. Must not be paired with a selected-work pages_total denominator.
      */
     page_number?: number | null;
     /**
@@ -2579,7 +2783,7 @@ export type ProgressEvent = {
     /**
      * Pages Completed
      *
-     * Reserved; unused in Phase 1.
+     * Deprecated: prefer route-specific *_pages_completed counters.
      */
     pages_completed?: number | null;
     /**
@@ -2587,9 +2791,13 @@ export type ProgressEvent = {
      */
     pages_per_minute?: number | null;
     /**
+     * Pages Terminal Total
+     */
+    pages_terminal_total?: number | null;
+    /**
      * Pages Total
      *
-     * Reserved; unused in Phase 1.
+     * Deprecated: ambiguous denominator. Prefer document_pages_total or selected_pages_total / visual_pages_total.
      */
     pages_total?: number | null;
     /**
@@ -2653,6 +2861,30 @@ export type ProgressEvent = {
      */
     route?: string | null;
     /**
+     * Route Page Index
+     *
+     * 1-based index within the active route category.
+     */
+    route_page_index?: number | null;
+    /**
+     * Route Pages Total
+     *
+     * Page count for the active route category.
+     */
+    route_pages_total?: number | null;
+    /**
+     * Selected Page Index
+     *
+     * 1-based position within pages selected for the current work category.
+     */
+    selected_page_index?: number | null;
+    /**
+     * Selected Pages Total
+     *
+     * Count of pages selected for the current work category.
+     */
+    selected_pages_total?: number | null;
+    /**
      * Server Timestamp
      */
     server_timestamp?: string | null;
@@ -2662,6 +2894,28 @@ export type ProgressEvent = {
      * Owning session identifier.
      */
     session_id: string;
+    /**
+     * Slow Warning Operation Id
+     */
+    slow_warning_operation_id?: string | null;
+    /**
+     * Slow Warning Reason
+     */
+    slow_warning_reason?: string | null;
+    /**
+     * Slow Warning Started At
+     */
+    slow_warning_started_at?: string | null;
+    /**
+     * Slow Warning Status
+     *
+     * inactive|approaching_threshold|active|resolved
+     */
+    slow_warning_status?: string | null;
+    /**
+     * Slow Warning Threshold Seconds
+     */
+    slow_warning_threshold_seconds?: number | null;
     /**
      * Source Mode
      *
@@ -2695,6 +2949,16 @@ export type ProgressEvent = {
      */
     timestamp: string;
     /**
+     * Visual No Text Pages
+     */
+    visual_no_text_pages?: number | null;
+    /**
+     * Visual Page Index
+     *
+     * 1-based index within selected visual OCR pages.
+     */
+    visual_page_index?: number | null;
+    /**
      * Visual Pages Completed
      */
     visual_pages_completed?: number | null;
@@ -2706,6 +2970,12 @@ export type ProgressEvent = {
      * Visual Pages Selected
      */
     visual_pages_selected?: number | null;
+    /**
+     * Visual Pages Total
+     *
+     * Selected visual OCR page count.
+     */
+    visual_pages_total?: number | null;
     /**
      * Worker Generation
      */

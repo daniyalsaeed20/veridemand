@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import StrEnum
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from backend.app.contracts.base import ApiModel
 from backend.app.contracts.documents import DocumentStatus
@@ -124,11 +124,27 @@ class ProgressEvent(ApiModel):
     percent: int | None = Field(
         default=None, ge=0, le=100, description="Optional progress percent."
     )
-    page_number: int | None = Field(default=None, ge=1, description="Reserved; unused in Phase 1.")
-    pages_completed: int | None = Field(
-        default=None, ge=0, description="Reserved; unused in Phase 1."
+    page_number: int | None = Field(
+        default=None,
+        ge=1,
+        description=(
+            "Deprecated: absolute document page when set. Prefer document_page_number. "
+            "Must not be paired with a selected-work pages_total denominator."
+        ),
     )
-    pages_total: int | None = Field(default=None, ge=0, description="Reserved; unused in Phase 1.")
+    pages_completed: int | None = Field(
+        default=None,
+        ge=0,
+        description="Deprecated: prefer route-specific *_pages_completed counters.",
+    )
+    pages_total: int | None = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Deprecated: ambiguous denominator. Prefer document_pages_total or "
+            "selected_pages_total / visual_pages_total."
+        ),
+    )
     message: str | None = Field(default=None, description="Optional safe, non-sensitive message.")
     queue_position: int | None = Field(
         default=None, ge=1, description="Queue position, if relevant."
@@ -180,19 +196,60 @@ class ProgressEvent(ApiModel):
     stage_elapsed_seconds: float | None = Field(
         default=None, ge=0.0, description="Alias of operation_elapsed_seconds."
     )
-    deadline_remaining_seconds: float | None = Field(default=None, ge=0.0)
+    deadline_remaining_seconds: float | None = Field(
+        default=None,
+        ge=0.0,
+        description=(
+            "Deprecated: ambiguous single deadline. Prefer document_/page_/operation_/"
+            "attempt_deadline_remaining_seconds."
+        ),
+    )
     worker_pid: int | None = Field(default=None, ge=0)
     worker_generation: int | None = Field(default=None, ge=0)
     worker_restart_count: int | None = Field(default=None, ge=0)
     attempt_number: int | None = Field(default=None, ge=1)
     max_attempts: int | None = Field(default=None, ge=1)
     reason_code: str | None = Field(default=None, description="Safe reason/error code.")
+    operation_id: str | None = Field(
+        default=None, description="Stable operation-attempt identity for lifecycle events."
+    )
+    # Canonical page / selected-work indices (Correction 4).
+    document_page_number: int | None = Field(
+        default=None, ge=1, description="Absolute 1-based page in the canonical document."
+    )
+    selected_page_index: int | None = Field(
+        default=None,
+        ge=1,
+        description="1-based position within pages selected for the current work category.",
+    )
+    selected_pages_total: int | None = Field(
+        default=None, ge=0, description="Count of pages selected for the current work category."
+    )
+    visual_page_index: int | None = Field(
+        default=None, ge=1, description="1-based index within selected visual OCR pages."
+    )
+    visual_pages_total: int | None = Field(
+        default=None, ge=0, description="Selected visual OCR page count."
+    )
+    route_page_index: int | None = Field(
+        default=None, ge=1, description="1-based index within the active route category."
+    )
+    route_pages_total: int | None = Field(
+        default=None, ge=0, description="Page count for the active route category."
+    )
     # Optional document-level visual selection / ETA fields (absent until known).
     document_pages_total: int | None = Field(default=None, ge=0)
     native_pages_retained: int | None = Field(default=None, ge=0)
+    native_pages_selected: int | None = Field(default=None, ge=0)
+    native_pages_completed: int | None = Field(default=None, ge=0)
+    embedded_verification_pages_selected: int | None = Field(default=None, ge=0)
+    embedded_verification_pages_completed: int | None = Field(default=None, ge=0)
     visual_pages_selected: int | None = Field(default=None, ge=0)
     visual_pages_completed: int | None = Field(default=None, ge=0)
     visual_pages_remaining: int | None = Field(default=None, ge=0)
+    visual_no_text_pages: int | None = Field(default=None, ge=0)
+    failed_pages: int | None = Field(default=None, ge=0)
+    pages_terminal_total: int | None = Field(default=None, ge=0)
     pages_per_minute: float | None = Field(default=None, ge=0.0)
     average_page_seconds: float | None = Field(default=None, ge=0.0)
     estimated_document_seconds_remaining: float | None = Field(default=None, ge=0.0)
@@ -242,3 +299,91 @@ class ProgressEvent(ApiModel):
     route: str | None = Field(default=None, description="Page route for route events.")
     average_full_ocr_page_seconds: float | None = Field(default=None, ge=0.0)
     fair_scheduling_enabled: bool | None = Field(default=None)
+    # Correction 4 clocks, deadlines, slow warning, batch ETA.
+    batch_elapsed_seconds: float | None = Field(default=None, ge=0.0)
+    attempt_elapsed_seconds: float | None = Field(default=None, ge=0.0)
+    batch_started_at_timestamp: datetime | None = Field(default=None)
+    document_started_at_timestamp: datetime | None = Field(default=None)
+    document_deadline_remaining_seconds: float | None = Field(default=None, ge=0.0)
+    page_deadline_remaining_seconds: float | None = Field(default=None, ge=0.0)
+    operation_deadline_remaining_seconds: float | None = Field(default=None, ge=0.0)
+    attempt_deadline_remaining_seconds: float | None = Field(default=None, ge=0.0)
+    slow_warning_status: str | None = Field(
+        default=None,
+        description="inactive|approaching_threshold|active|resolved",
+    )
+    slow_warning_operation_id: str | None = Field(default=None)
+    slow_warning_started_at: datetime | None = Field(default=None)
+    slow_warning_threshold_seconds: float | None = Field(default=None, ge=0.0)
+    slow_warning_reason: str | None = Field(default=None)
+    estimated_batch_remaining_seconds: float | None = Field(default=None, ge=0.0)
+    estimated_batch_completion_at: datetime | None = Field(default=None)
+    estimated_document_completion_at: datetime | None = Field(
+        default=None,
+        description="Alias of estimated_completion_at for document scope.",
+    )
+
+    @model_validator(mode="after")
+    def _validate_progress_consistency(self) -> ProgressEvent:
+        def _index_total(index: int | None, total: int | None, label: str) -> None:
+            if index is None:
+                return
+            if total is None or total <= 0:
+                raise ValueError(f"{label}_total must be positive when {label} index is set")
+            if index > total:
+                raise ValueError(f"{label} index cannot exceed total")
+
+        _index_total(self.document_page_number, self.document_pages_total, "document_page")
+        _index_total(self.selected_page_index, self.selected_pages_total, "selected_page")
+        _index_total(self.visual_page_index, self.visual_pages_total, "visual_page")
+        _index_total(self.route_page_index, self.route_pages_total, "route_page")
+
+        if (
+            self.full_ocr_pages_completed is not None
+            and self.full_ocr_pages_selected is not None
+            and self.full_ocr_pages_completed > self.full_ocr_pages_selected
+        ):
+            raise ValueError("full_ocr_pages_completed cannot exceed full_ocr_pages_selected")
+        if (
+            self.targeted_repair_pages_completed is not None
+            and self.targeted_repair_pages_selected is not None
+            and self.targeted_repair_pages_completed > self.targeted_repair_pages_selected
+        ):
+            raise ValueError(
+                "targeted_repair_pages_completed cannot exceed targeted_repair_pages_selected"
+            )
+        if (
+            self.native_pages_completed is not None
+            and self.native_pages_selected is not None
+            and self.native_pages_completed > self.native_pages_selected
+        ):
+            raise ValueError("native_pages_completed cannot exceed native_pages_selected")
+        if (
+            self.embedded_verification_pages_completed is not None
+            and self.embedded_verification_pages_selected is not None
+            and self.embedded_verification_pages_completed
+            > self.embedded_verification_pages_selected
+        ):
+            raise ValueError(
+                "embedded_verification_pages_completed cannot exceed "
+                "embedded_verification_pages_selected"
+            )
+
+        for name in (
+            "batch_elapsed_seconds",
+            "document_elapsed_seconds",
+            "phase_elapsed_seconds",
+            "page_elapsed_seconds",
+            "operation_elapsed_seconds",
+            "attempt_elapsed_seconds",
+            "document_deadline_remaining_seconds",
+            "page_deadline_remaining_seconds",
+            "operation_deadline_remaining_seconds",
+            "attempt_deadline_remaining_seconds",
+            "deadline_remaining_seconds",
+        ):
+            value = getattr(self, name)
+            if value is not None and not (value == value):  # NaN check
+                raise ValueError(f"{name} must be finite")
+
+        return self

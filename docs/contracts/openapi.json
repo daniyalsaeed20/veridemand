@@ -562,6 +562,30 @@
             "description": "Active visual page number when processing.",
             "title": "Active Page Number"
           },
+          "attempt_deadline_remaining_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempt Deadline Remaining Seconds"
+          },
+          "attempt_elapsed_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempt Elapsed Seconds"
+          },
           "attempt_number": {
             "anyOf": [
               {
@@ -598,6 +622,30 @@
               }
             ],
             "title": "Average Page Seconds"
+          },
+          "batch_elapsed_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch Elapsed Seconds"
+          },
+          "batch_started_at_timestamp": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch Started At Timestamp"
           },
           "canonical_metadata_url": {
             "anyOf": [
@@ -690,13 +738,25 @@
                 "type": "null"
               }
             ],
-            "description": "Seconds remaining before the active deadline.",
+            "description": "Deprecated ambiguous deadline; prefer document_/page_/operation_/attempt_deadline_remaining_seconds.",
             "title": "Deadline Remaining Seconds"
           },
           "display_filename": {
             "description": "Sanitised display filename (never a storage path).",
             "title": "Display Filename",
             "type": "string"
+          },
+          "document_deadline_remaining_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Deadline Remaining Seconds"
           },
           "document_elapsed_seconds": {
             "anyOf": [
@@ -716,6 +776,18 @@
             "pattern": "^doc_[0-9a-f]{32}$",
             "title": "Document Id",
             "type": "string"
+          },
+          "document_page_number": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Page Number"
           },
           "document_pages_total": {
             "anyOf": [
@@ -752,6 +824,18 @@
             ],
             "title": "Document Started At"
           },
+          "document_started_at_timestamp": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Started At Timestamp"
+          },
           "elapsed_seconds": {
             "anyOf": [
               {
@@ -776,6 +860,30 @@
               }
             ],
             "title": "Embedded Ocr Pages Verified"
+          },
+          "embedded_verification_pages_completed": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Embedded Verification Pages Completed"
+          },
+          "embedded_verification_pages_selected": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Embedded Verification Pages Selected"
           },
           "estimate_confidence": {
             "anyOf": [
@@ -810,6 +918,30 @@
               }
             ],
             "title": "Estimate Status"
+          },
+          "estimated_batch_completion_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Batch Completion At"
+          },
+          "estimated_batch_remaining_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Batch Remaining Seconds"
           },
           "estimated_completion_at": {
             "anyOf": [
@@ -847,6 +979,18 @@
             ],
             "title": "Estimated Current Page Seconds"
           },
+          "estimated_document_completion_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Document Completion At"
+          },
           "estimated_document_remaining_seconds": {
             "anyOf": [
               {
@@ -881,6 +1025,18 @@
             "description": "Always false until final extraction exists.",
             "title": "Extraction Performed",
             "type": "boolean"
+          },
+          "failed_pages": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failed Pages"
           },
           "failure_code": {
             "anyOf": [
@@ -1032,6 +1188,18 @@
             "title": "Native Extraction Performed",
             "type": "boolean"
           },
+          "native_pages_completed": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Native Pages Completed"
+          },
           "native_pages_retained": {
             "anyOf": [
               {
@@ -1043,6 +1211,18 @@
               }
             ],
             "title": "Native Pages Retained"
+          },
+          "native_pages_selected": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Native Pages Selected"
           },
           "native_result_available": {
             "default": false,
@@ -1062,6 +1242,18 @@
             "description": "Relative URL for the native extraction summary.",
             "title": "Native Summary Url"
           },
+          "operation_deadline_remaining_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operation Deadline Remaining Seconds"
+          },
           "operation_elapsed_seconds": {
             "anyOf": [
               {
@@ -1074,6 +1266,17 @@
             ],
             "description": "Monotonic elapsed seconds for the active operation.",
             "title": "Operation Elapsed Seconds"
+          },
+          "operation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operation Id"
           },
           "operation_started_at": {
             "anyOf": [
@@ -1115,6 +1318,18 @@
           "page_count_status": {
             "$ref": "#/components/schemas/PageCountStatus",
             "description": "Whether the page count is known."
+          },
+          "page_deadline_remaining_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Deadline Remaining Seconds"
           },
           "page_elapsed_seconds": {
             "anyOf": [
@@ -1191,6 +1406,18 @@
               }
             ],
             "title": "Pages Remaining"
+          },
+          "pages_terminal_total": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pages Terminal Total"
           },
           "pages_total": {
             "anyOf": [
@@ -1279,6 +1506,54 @@
             "title": "Result Available",
             "type": "boolean"
           },
+          "route_page_index": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route Page Index"
+          },
+          "route_pages_total": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route Pages Total"
+          },
+          "selected_page_index": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected Page Index"
+          },
+          "selected_pages_total": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected Pages Total"
+          },
           "server_timestamp": {
             "anyOf": [
               {
@@ -1303,6 +1578,63 @@
             "minimum": 0.0,
             "title": "Size Bytes",
             "type": "integer"
+          },
+          "slow_warning_operation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slow Warning Operation Id"
+          },
+          "slow_warning_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slow Warning Reason"
+          },
+          "slow_warning_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slow Warning Started At"
+          },
+          "slow_warning_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slow Warning Status"
+          },
+          "slow_warning_threshold_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slow Warning Threshold Seconds"
           },
           "stage_timeline": {
             "anyOf": [
@@ -1359,6 +1691,42 @@
             ],
             "description": "Safe user-facing status for the current processing stage.",
             "title": "User Status Message"
+          },
+          "visual_no_text_pages": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visual No Text Pages"
+          },
+          "visual_page_index": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visual Page Index"
+          },
+          "visual_pages_total": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visual Pages Total"
           },
           "visual_processing_performed": {
             "default": false,
@@ -3735,6 +4103,30 @@
             ],
             "title": "Active Document Position"
           },
+          "attempt_deadline_remaining_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempt Deadline Remaining Seconds"
+          },
+          "attempt_elapsed_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempt Elapsed Seconds"
+          },
           "attempt_number": {
             "anyOf": [
               {
@@ -3770,6 +4162,30 @@
               }
             ],
             "title": "Average Page Seconds"
+          },
+          "batch_elapsed_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch Elapsed Seconds"
+          },
+          "batch_started_at_timestamp": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch Started At Timestamp"
           },
           "canonical_page_count": {
             "anyOf": [
@@ -3865,6 +4281,7 @@
                 "type": "null"
               }
             ],
+            "description": "Deprecated: ambiguous single deadline. Prefer document_/page_/operation_/attempt_deadline_remaining_seconds.",
             "title": "Deadline Remaining Seconds"
           },
           "decision": {
@@ -3878,6 +4295,18 @@
             ],
             "description": "Native page decision when relevant.",
             "title": "Decision"
+          },
+          "document_deadline_remaining_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Deadline Remaining Seconds"
           },
           "document_elapsed_seconds": {
             "anyOf": [
@@ -3904,6 +4333,19 @@
             "description": "Related document, if any.",
             "title": "Document Id"
           },
+          "document_page_number": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Absolute 1-based page in the canonical document.",
+            "title": "Document Page Number"
+          },
           "document_pages_total": {
             "anyOf": [
               {
@@ -3927,6 +4369,18 @@
               }
             ],
             "title": "Document Started At"
+          },
+          "document_started_at_timestamp": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Started At Timestamp"
           },
           "document_status": {
             "anyOf": [
@@ -3964,6 +4418,30 @@
             ],
             "title": "Embedded Ocr Pages Verified"
           },
+          "embedded_verification_pages_completed": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Embedded Verification Pages Completed"
+          },
+          "embedded_verification_pages_selected": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Embedded Verification Pages Selected"
+          },
           "estimate_confidence": {
             "anyOf": [
               {
@@ -3997,6 +4475,30 @@
               }
             ],
             "title": "Estimate Status"
+          },
+          "estimated_batch_completion_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Batch Completion At"
+          },
+          "estimated_batch_remaining_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Batch Remaining Seconds"
           },
           "estimated_completion_at": {
             "anyOf": [
@@ -4046,6 +4548,19 @@
               }
             ],
             "title": "Estimated Current Page Seconds"
+          },
+          "estimated_document_completion_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Alias of estimated_completion_at for document scope.",
+            "title": "Estimated Document Completion At"
           },
           "estimated_document_remaining_seconds": {
             "anyOf": [
@@ -4112,6 +4627,18 @@
             "minimum": 1.0,
             "title": "Event Sequence",
             "type": "integer"
+          },
+          "failed_pages": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failed Pages"
           },
           "fair_scheduling_enabled": {
             "anyOf": [
@@ -4234,6 +4761,18 @@
             "description": "Optional safe, non-sensitive message.",
             "title": "Message"
           },
+          "native_pages_completed": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Native Pages Completed"
+          },
           "native_pages_retained": {
             "anyOf": [
               {
@@ -4245,6 +4784,18 @@
               }
             ],
             "title": "Native Pages Retained"
+          },
+          "native_pages_selected": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Native Pages Selected"
           },
           "native_trust_score": {
             "anyOf": [
@@ -4272,6 +4823,18 @@
             "description": "Stable operation identifier.",
             "title": "Operation"
           },
+          "operation_deadline_remaining_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operation Deadline Remaining Seconds"
+          },
           "operation_elapsed_seconds": {
             "anyOf": [
               {
@@ -4283,6 +4846,18 @@
               }
             ],
             "title": "Operation Elapsed Seconds"
+          },
+          "operation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Stable operation-attempt identity for lifecycle events.",
+            "title": "Operation Id"
           },
           "operation_started_at": {
             "anyOf": [
@@ -4322,6 +4897,18 @@
             "description": "Document overall progress (Phase 4 cap 65).",
             "title": "Overall Percent"
           },
+          "page_deadline_remaining_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Deadline Remaining Seconds"
+          },
           "page_elapsed_seconds": {
             "anyOf": [
               {
@@ -4344,7 +4931,7 @@
                 "type": "null"
               }
             ],
-            "description": "Reserved; unused in Phase 1.",
+            "description": "Deprecated: absolute document page when set. Prefer document_page_number. Must not be paired with a selected-work pages_total denominator.",
             "title": "Page Number"
           },
           "page_percent": {
@@ -4383,7 +4970,7 @@
                 "type": "null"
               }
             ],
-            "description": "Reserved; unused in Phase 1.",
+            "description": "Deprecated: prefer route-specific *_pages_completed counters.",
             "title": "Pages Completed"
           },
           "pages_per_minute": {
@@ -4398,6 +4985,18 @@
             ],
             "title": "Pages Per Minute"
           },
+          "pages_terminal_total": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pages Terminal Total"
+          },
           "pages_total": {
             "anyOf": [
               {
@@ -4408,7 +5007,7 @@
                 "type": "null"
               }
             ],
-            "description": "Reserved; unused in Phase 1.",
+            "description": "Deprecated: ambiguous denominator. Prefer document_pages_total or selected_pages_total / visual_pages_total.",
             "title": "Pages Total"
           },
           "percent": {
@@ -4561,6 +5160,58 @@
             "description": "Page route for route events.",
             "title": "Route"
           },
+          "route_page_index": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "1-based index within the active route category.",
+            "title": "Route Page Index"
+          },
+          "route_pages_total": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Page count for the active route category.",
+            "title": "Route Pages Total"
+          },
+          "selected_page_index": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "1-based position within pages selected for the current work category.",
+            "title": "Selected Page Index"
+          },
+          "selected_pages_total": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Count of pages selected for the current work category.",
+            "title": "Selected Pages Total"
+          },
           "server_timestamp": {
             "anyOf": [
               {
@@ -4578,6 +5229,64 @@
             "pattern": "^ses_[0-9a-f]{32}$",
             "title": "Session Id",
             "type": "string"
+          },
+          "slow_warning_operation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slow Warning Operation Id"
+          },
+          "slow_warning_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slow Warning Reason"
+          },
+          "slow_warning_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slow Warning Started At"
+          },
+          "slow_warning_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "inactive|approaching_threshold|active|resolved",
+            "title": "Slow Warning Status"
+          },
+          "slow_warning_threshold_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slow Warning Threshold Seconds"
           },
           "source_mode": {
             "anyOf": [
@@ -4646,6 +5355,31 @@
             "title": "Timestamp",
             "type": "string"
           },
+          "visual_no_text_pages": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visual No Text Pages"
+          },
+          "visual_page_index": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "1-based index within selected visual OCR pages.",
+            "title": "Visual Page Index"
+          },
           "visual_pages_completed": {
             "anyOf": [
               {
@@ -4681,6 +5415,19 @@
               }
             ],
             "title": "Visual Pages Selected"
+          },
+          "visual_pages_total": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Selected visual OCR page count.",
+            "title": "Visual Pages Total"
           },
           "worker_generation": {
             "anyOf": [
