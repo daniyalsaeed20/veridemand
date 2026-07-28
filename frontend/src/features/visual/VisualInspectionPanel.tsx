@@ -117,6 +117,16 @@ export function VisualInspectionPanel({
           <Typography variant="body2" data-testid="visual-source-label">
             Source: {sourceLabelForPage(page)}
           </Typography>
+          <Typography variant="body2" data-testid="final-page-route">
+            Final route: {page.page_route ?? page.page_result_state ?? "—"}
+          </Typography>
+          <Typography variant="body2" data-testid="final-source-label">
+            Final source label: {sourceLabelForPage(page)}
+          </Typography>
+          <Typography variant="body2">
+            Reason codes:{" "}
+            {page.route_reason_codes?.length ? page.route_reason_codes.join(", ") : "—"}
+          </Typography>
           <Typography variant="body2">
             Phase 4 embedded-text verification: {page.visual_agreement_status ?? "not_evaluated"}
             {page.visual_agreement_score != null

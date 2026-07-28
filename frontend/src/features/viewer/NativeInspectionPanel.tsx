@@ -1,6 +1,10 @@
 import { Alert, Divider, FormControlLabel, Stack, Switch, Typography } from "@mui/material";
 
-import type { NativeDocumentSummary, NativePageResult } from "../../contracts";
+import type {
+  DuplicateLayerEvidence,
+  NativeDocumentSummary,
+  NativePageResult,
+} from "../../contracts";
 
 export interface NativeInspectionPanelProps {
   readonly summary: NativeDocumentSummary;
@@ -10,8 +14,35 @@ export interface NativeInspectionPanelProps {
   readonly overlaysDisabled?: boolean;
 }
 
-function displayValue(value: string | number | null | undefined): string {
+function displayValue(value: string | number | boolean | null | undefined): string {
   return value == null ? "—" : String(value);
+}
+
+function DuplicateEvidencePanel({ evidence }: { evidence: DuplicateLayerEvidence }) {
+  const rules = [...(evidence.path_a_rules ?? []), ...(evidence.path_b_rules ?? [])];
+  return (
+    <Stack spacing={0.75} data-testid="duplicate-layer-evidence">
+      <Typography variant="body2">Duplicate-layer decision</Typography>
+      <Typography variant="body2">Policy version: {evidence.policy_version}</Typography>
+      <Typography variant="body2">Selected path: {evidence.selected_path}</Typography>
+      <Typography variant="body2">
+        Hard rejection caused by duplicate layer: {evidence.hard_rejection ? "Yes" : "No"}
+      </Typography>
+      {rules.map((rule) => (
+        <Typography
+          key={rule.rule_id}
+          variant="caption"
+          component="div"
+          data-testid={`dup-rule-${rule.rule_id}`}
+          sx={{ fontFamily: "monospace", whiteSpace: "pre-wrap" }}
+        >
+          {rule.metric_name}: {displayValue(rule.actual_value)} {rule.operator}{" "}
+          {displayValue(rule.threshold)} · {rule.mandatory ? "mandatory" : "informational"} ·{" "}
+          {rule.passed ? "pass" : "fail"} · path={rule.applies_to_path}
+        </Typography>
+      ))}
+    </Stack>
+  );
 }
 
 export function NativeInspectionPanel({
@@ -22,6 +53,13 @@ export function NativeInspectionPanel({
   overlaysDisabled = false,
 }: NativeInspectionPanelProps) {
   const accepted = page?.decision === "accepted";
+  const evidence = page?.trust.metrics.duplicate_layer_evidence;
+  const overallHard = page?.trust.hard_rejection ?? false;
+  const duplicateHard = page?.trust.duplicate_hard_rejection ?? false;
+  const overallCause =
+    page?.trust.reason_codes?.filter((c) => c !== "excessive_near_overprint_duplicates")?.[0] ??
+    page?.trust.reason_codes?.[0] ??
+    "—";
 
   return (
     <Stack spacing={1.25} aria-label="Native inspection">
@@ -55,9 +93,17 @@ export function NativeInspectionPanel({
             native_result_available: {String(page.trust.native_result_available)} ·
             visual_processing_required: {String(page.trust.visual_processing_required)}
           </Typography>
+          <Typography variant="body2" data-testid="overall-native-hard-rejection">
+            Overall native hard rejection: {String(overallHard)}
+            {overallHard ? ` · Cause: ${overallCause}` : ""}
+          </Typography>
+          <Typography variant="body2" data-testid="duplicate-layer-hard-rejection">
+            Duplicate-layer hard rejection: {String(duplicateHard)} · Selected duplicate path:{" "}
+            {displayValue(page.trust.metrics.hard_rule_path)}
+          </Typography>
           <Typography variant="body2">
-            hard_rejection: {String(page.trust.hard_rejection)} · duplication_score:{" "}
-            {displayValue(page.trust.metrics.components?.duplication_score)}
+            Duplication quality score:{" "}
+            {displayValue(page.trust.metrics.components?.duplication_quality_score)}
           </Typography>
           <Typography variant="body2">
             strict_duplicate_ratio: {displayValue(page.trust.metrics.strict_duplicate_ratio)} ·
@@ -82,9 +128,7 @@ export function NativeInspectionPanel({
             {displayValue(page.trust.metrics.duplicate_line_count)} · dup_regions:{" "}
             {displayValue(page.trust.metrics.duplicate_region_count)}
           </Typography>
-          <Typography variant="body2">
-            hard_rule_path: {displayValue(page.trust.metrics.hard_rule_path)}
-          </Typography>
+          {evidence ? <DuplicateEvidencePanel evidence={evidence} /> : null}
           {import.meta.env.DEV && page.trust.metrics.hard_rule_explanation?.length ? (
             <Alert severity="info" sx={{ whiteSpace: "pre-wrap", fontFamily: "monospace" }}>
               {page.trust.metrics.hard_rule_explanation.join("\n")}
