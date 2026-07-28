@@ -103,6 +103,7 @@ def build_recoverable_page_error(
         native_trust_score=None,
         trust_policy_version=trust_policy_version,
         hard_rejection=True,
+        duplicate_hard_rejection=False,
         reason_codes=codes,
         warning_codes=[NativeReasonCode.VISUAL_AGREEMENT_NOT_EVALUATED_PHASE_3.value],
         metrics=empty_page_metrics(page_dimension_match=page_dimension_match),

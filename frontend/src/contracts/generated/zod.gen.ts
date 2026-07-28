@@ -181,6 +181,69 @@ export const zDocumentStatusCounts = z.object({
 });
 
 /**
+ * DuplicateRuleRecord
+ *
+ * One evaluated duplicate-layer rule with visible threshold evidence.
+ */
+export const zDuplicateRuleRecord = z.object({
+    actual_value: z.union([
+        z.number(),
+        z.int(),
+        z.boolean(),
+        z.string()
+    ]),
+    applies_to_path: z.enum([
+        'A',
+        'B',
+        'both',
+        'info'
+    ]),
+    explanation: z.string().optional().default(''),
+    mandatory: z.boolean(),
+    metric_name: z.string(),
+    operator: z.string(),
+    passed: z.boolean(),
+    rule_id: z.string(),
+    threshold: z.union([
+        z.number(),
+        z.int(),
+        z.boolean(),
+        z.string()
+    ])
+});
+
+/**
+ * DuplicateLayerEvidence
+ *
+ * Canonical duplicate-layer decision evidence (single source of truth).
+ */
+export const zDuplicateLayerEvidence = z.object({
+    dominant_offset_support_ratio: z.number().gte(0).lte(1).optional().default(0),
+    dominant_offset_x: z.number().optional().default(0),
+    dominant_offset_y: z.number().optional().default(0),
+    duplicate_layer_coverage_ratio: z.number().gte(0).lte(1),
+    duplicate_line_count: z.int().gte(0),
+    duplicate_region_count: z.int().gte(0),
+    geometric_overlap_present: z.boolean().optional().default(false),
+    hard_rejection: z.boolean().optional().default(false),
+    matched_near_duplicate_count: z.int().gte(0),
+    near_overprint_duplicate_ratio: z.number().gte(0).lte(1),
+    offset_cluster_count: z.int().gte(0).optional().default(0),
+    path_a_rules: z.array(zDuplicateRuleRecord).optional(),
+    path_a_satisfied: z.boolean().optional().default(false),
+    path_b_rules: z.array(zDuplicateRuleRecord).optional(),
+    path_b_satisfied: z.boolean().optional().default(false),
+    policy_version: z.string().optional().default('phase3-v1.6'),
+    selected_path: z.enum([
+        'A',
+        'B',
+        'none'
+    ]).optional().default('none'),
+    strict_duplicate_ratio: z.number().gte(0).lte(1),
+    top_k_offset_cluster_support_ratio: z.number().gte(0).lte(1).optional().default(0)
+});
+
+/**
  * HandwritingAssessment
  *
  * Handwriting is not assessed until Phase 5.
@@ -298,7 +361,7 @@ export const zNativeProgress = z.object({
  */
 export const zNativeTrustComponents = z.object({
     character_validity_score: z.number().gte(0).lte(1),
-    duplication_score: z.number().gte(0).lte(1),
+    duplication_quality_score: z.number().gte(0).lte(1),
     geometry_validity_score: z.number().gte(0).lte(1),
     image_compatibility_score: z.number().gte(0).lte(1),
     order_plausibility_score: z.number().gte(0).lte(1),
@@ -325,6 +388,7 @@ export const zNativePageMetrics = z.object({
     duplicate_character_ratio: z.number().gte(0).lte(1),
     duplicate_layer_count: z.int().gte(1).optional().default(1),
     duplicate_layer_coverage_ratio: z.number().gte(0).lte(1).optional().default(0),
+    duplicate_layer_evidence: zDuplicateLayerEvidence.nullish(),
     duplicate_line_count: z.int().gte(0).optional().default(0),
     duplicate_region_count: z.int().gte(0).optional().default(0),
     extraction_order_backtrack_ratio: z.number().gte(0).lte(1),
@@ -1168,6 +1232,7 @@ export const zVisualAgreementStatus = z.enum([
  */
 export const zNativePageTrustResult = z.object({
     decision: zNativePageDecision,
+    duplicate_hard_rejection: z.boolean().optional().default(false),
     hard_rejection: z.boolean(),
     metrics: zNativePageMetrics,
     native_result_available: z.boolean(),

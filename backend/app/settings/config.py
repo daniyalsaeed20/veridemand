@@ -166,7 +166,7 @@ class Settings(BaseSettings):
     native_max_single_character_word_ratio: float = Field(default=0.75, ge=0.0, le=1.0)
     native_image_dominant_area_ratio: float = Field(default=0.80, ge=0.0, le=1.0)
     native_document_min_failed_pages: int = Field(default=2, gt=0)
-    native_trust_policy_version: str = Field(default="phase3-v1.5", min_length=1)
+    native_trust_policy_version: str = Field(default="phase3-v1.6", min_length=1)
 
     # Test-only hold during native extraction for cancellation E2E.
     native_extraction_test_delay_seconds: float = Field(default=0.0, ge=0.0, le=60.0)

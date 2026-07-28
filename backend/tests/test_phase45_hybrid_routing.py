@@ -61,7 +61,7 @@ def _metrics(**overrides: object) -> NativePageMetrics:
         components=NativeTrustComponents(
             character_validity_score=1.0,
             geometry_validity_score=1.0,
-            duplication_score=1.0,
+            duplication_quality_score=1.0,
             token_structure_score=1.0,
             text_density_score=1.0,
             order_plausibility_score=1.0,

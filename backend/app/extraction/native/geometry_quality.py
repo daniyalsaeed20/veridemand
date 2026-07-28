@@ -54,6 +54,7 @@ class GeometryMetrics:
     page_horizontal_span_ratio: float
     hard_rule_path: str
     hard_rule_explanation: tuple[str, ...]
+    duplicate_layer_evidence: object | None
     zero_area_character_ratio: float
     invalid_geometry_ratio: float
     out_of_bounds_character_ratio: float
@@ -157,6 +158,7 @@ def analyse_geometry(
         page_horizontal_span_ratio=max(0.0, min(1.0, page.page_horizontal_span_ratio)),
         hard_rule_path=page.hard_rule_path or "none",
         hard_rule_explanation=tuple(page.hard_rule_explanation or ()),
+        duplicate_layer_evidence=page.duplicate_layer_evidence,
         zero_area_character_ratio=zero_area / denom,
         invalid_geometry_ratio=invalid / denom,
         out_of_bounds_character_ratio=oob / denom,

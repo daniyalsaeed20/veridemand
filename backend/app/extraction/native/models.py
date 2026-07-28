@@ -47,7 +47,7 @@ class NativeTrustPolicyConfig:
     native_max_single_character_word_ratio: float = 0.75
     native_image_dominant_area_ratio: float = 0.80
     native_document_min_failed_pages: int = 2
-    native_trust_policy_version: str = "phase3-v1.5"
+    native_trust_policy_version: str = "phase3-v1.6"
     canonical_page_dimension_tolerance_points: float = 0.5
     native_extraction_test_delay_seconds: float = 0.0
 
@@ -188,6 +188,7 @@ class PageExtractionCandidate:
     page_horizontal_span_ratio: float = 0.0
     hard_rule_path: str = "none"
     hard_rule_explanation: tuple[str, ...] = ()
+    duplicate_layer_evidence: object | None = None
     near_overprint_composite_evidence: bool = False
     near_overprint_cleaned: bool = False
     near_overprint_ambiguous: bool = False

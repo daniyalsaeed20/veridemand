@@ -11,13 +11,15 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Annotated
+from typing import Annotated, Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 
 from backend.app.contracts.base import ApiModel
 from backend.app.contracts.geometry import Geometry
 from backend.app.contracts.identifiers import DocumentId
+
+DUPLICATE_LAYER_POLICY_VERSION = "phase3-v1.6"
 
 
 class NativePageDecision(StrEnum):
@@ -162,11 +164,78 @@ class NativeTrustComponents(ApiModel):
 
     character_validity_score: float = Field(ge=0.0, le=1.0)
     geometry_validity_score: float = Field(ge=0.0, le=1.0)
-    duplication_score: float = Field(ge=0.0, le=1.0)
+    duplication_quality_score: float = Field(
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Quality after duplicate penalties (1.0 = no duplication pressure). "
+            "Formerly named duplication_score; higher means less duplication."
+        ),
+    )
     token_structure_score: float = Field(ge=0.0, le=1.0)
     text_density_score: float = Field(ge=0.0, le=1.0)
     order_plausibility_score: float = Field(ge=0.0, le=1.0)
     image_compatibility_score: float = Field(ge=0.0, le=1.0)
+
+
+class DuplicateRuleRecord(ApiModel):
+    """One evaluated duplicate-layer rule with visible threshold evidence."""
+
+    rule_id: str
+    metric_name: str
+    actual_value: float | int | bool | str
+    operator: str
+    threshold: float | int | bool | str
+    mandatory: bool
+    passed: bool
+    applies_to_path: Literal["A", "B", "both", "info"]
+    explanation: str = ""
+
+
+class DuplicateLayerEvidence(ApiModel):
+    """Canonical duplicate-layer decision evidence (single source of truth)."""
+
+    policy_version: str = Field(default=DUPLICATE_LAYER_POLICY_VERSION)
+    strict_duplicate_ratio: float = Field(ge=0.0, le=1.0)
+    near_overprint_duplicate_ratio: float = Field(ge=0.0, le=1.0)
+    duplicate_layer_coverage_ratio: float = Field(ge=0.0, le=1.0)
+    matched_near_duplicate_count: int = Field(ge=0)
+    duplicate_line_count: int = Field(ge=0)
+    duplicate_region_count: int = Field(ge=0)
+    dominant_offset_x: float = 0.0
+    dominant_offset_y: float = 0.0
+    dominant_offset_support_ratio: float = Field(ge=0.0, le=1.0, default=0.0)
+    top_k_offset_cluster_support_ratio: float = Field(ge=0.0, le=1.0, default=0.0)
+    offset_cluster_count: int = Field(ge=0, default=0)
+    geometric_overlap_present: bool = False
+    path_a_rules: list[DuplicateRuleRecord] = Field(default_factory=list)
+    path_b_rules: list[DuplicateRuleRecord] = Field(default_factory=list)
+    path_a_satisfied: bool = False
+    path_b_satisfied: bool = False
+    selected_path: Literal["A", "B", "none"] = "none"
+    hard_rejection: bool = False
+
+    @model_validator(mode="after")
+    def _enforce_path_invariants(self) -> DuplicateLayerEvidence:
+        if self.selected_path == "A" and not self.path_a_satisfied:
+            raise ValueError("selected_path=A requires path_a_satisfied")
+        if self.selected_path == "B" and not self.path_b_satisfied:
+            raise ValueError("selected_path=B requires path_b_satisfied")
+        if self.path_a_satisfied:
+            for rule in self.path_a_rules:
+                if rule.mandatory and not rule.passed:
+                    raise ValueError(f"path_a_satisfied with failed mandatory rule {rule.rule_id}")
+        if self.path_b_satisfied:
+            for rule in self.path_b_rules:
+                if rule.mandatory and not rule.passed:
+                    raise ValueError(f"path_b_satisfied with failed mandatory rule {rule.rule_id}")
+        if self.hard_rejection and self.selected_path == "none":
+            raise ValueError("duplicate hard_rejection requires selected_path A or B")
+        if self.selected_path == "none" and self.hard_rejection:
+            raise ValueError("selected_path=none forbids duplicate hard_rejection")
+        if self.hard_rejection != (self.selected_path in {"A", "B"}):
+            raise ValueError("hard_rejection must match selected_path A/B")
+        return self
 
 
 class NativePageMetrics(ApiModel):
@@ -274,7 +343,11 @@ class NativePageMetrics(ApiModel):
     )
     hard_rule_explanation: list[str] = Field(
         default_factory=list,
-        description="Dev-oriented hard-rule condition lines (no private text).",
+        description="Dev-oriented hard-rule condition lines derived from DuplicateLayerEvidence.",
+    )
+    duplicate_layer_evidence: DuplicateLayerEvidence | None = Field(
+        default=None,
+        description="Canonical duplicate-layer decision evidence (single source of truth).",
     )
     replacement_character_ratio: float = Field(ge=0.0, le=1.0)
     control_character_ratio: float = Field(ge=0.0, le=1.0)
@@ -317,7 +390,13 @@ class NativePageTrustResult(ApiModel):
     native_text_present: bool
     native_trust_score: float | None = Field(default=None, ge=0.0, le=1.0)
     trust_policy_version: str
-    hard_rejection: bool
+    hard_rejection: bool = Field(
+        description="Overall native hard rejection (any hard rule, including non-duplicate)."
+    )
+    duplicate_hard_rejection: bool = Field(
+        default=False,
+        description="True only when a duplicate-layer path (A or B) caused hard rejection.",
+    )
     reason_codes: list[str] = Field(default_factory=list)
     warning_codes: list[str] = Field(default_factory=list)
     metrics: NativePageMetrics

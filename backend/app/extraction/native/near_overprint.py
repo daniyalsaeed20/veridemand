@@ -13,6 +13,11 @@ from collections.abc import Callable, Hashable, Sequence
 from dataclasses import dataclass, field
 from typing import Literal
 
+from backend.app.contracts.native import (
+    DUPLICATE_LAYER_POLICY_VERSION,
+    DuplicateLayerEvidence,
+    DuplicateRuleRecord,
+)
 from backend.app.extraction.native.models import RawCharCandidate, RawWordCandidate
 
 DEFAULT_IOU_THRESHOLD = 0.35
@@ -61,6 +66,7 @@ class NearOverprintMetrics:
     page_horizontal_span_ratio: float = 0.0
     hard_rule_path: str = "none"
     hard_rule_explanation: tuple[str, ...] = ()
+    duplicate_layer_evidence: object | None = None  # DuplicateLayerEvidence when built
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +101,8 @@ class CompositeThresholds:
 
 @dataclass(frozen=True, slots=True)
 class HardRuleCondition:
+    """Legacy condition row; prefer DuplicateRuleRecord on DuplicateLayerEvidence."""
+
     metric: str
     value: str
     threshold: str
@@ -116,6 +124,361 @@ class HardRuleExplanation:
             lines.append(f"- {c.metric}: {c.value} {c.threshold}: {status} ({kind})")
         lines.append(f"- final hard rejection: {str(self.final_hard_rejection).upper()}")
         return tuple(lines)
+
+
+def _path_a_match_floor(metrics: NearOverprintMetrics, thr: CompositeThresholds) -> int:
+    min_matches = thr.min_near_duplicate_match_count
+    if metrics.duplicate_layer_coverage_ratio >= 0.90 and metrics.duplicate_layer_count >= 2:
+        min_matches = min(min_matches, 8)
+    return min_matches
+
+
+def _path_b_match_floor(metrics: NearOverprintMetrics, thr: CompositeThresholds) -> int:
+    """Path B match floor. Adaptive only when structural line/region evidence exists."""
+
+    structure_ok = (
+        metrics.duplicate_line_count >= thr.path_b_min_duplicate_lines
+        or metrics.duplicate_region_count >= thr.path_b_min_duplicate_regions
+    )
+    match_floor = thr.path_b_min_matches
+    if not structure_ok:
+        return match_floor
+    regional_match_floor = max(12, thr.region_min_matched * 2)
+    if metrics.duplicate_layer_coverage_ratio >= 0.95:
+        match_floor = min(match_floor, thr.min_near_duplicate_match_count)
+    if metrics.duplicate_layer_coverage_ratio >= thr.path_b_min_coverage:
+        match_floor = min(match_floor, regional_match_floor)
+    return match_floor
+
+
+def _span_ok(metrics: NearOverprintMetrics, thr: CompositeThresholds) -> bool:
+    return (
+        metrics.matched_word_span >= thr.min_word_span
+        or metrics.matched_line_span >= thr.min_line_span
+        or metrics.duplicate_line_count >= thr.path_b_min_duplicate_lines
+        or (
+            metrics.duplicate_layer_coverage_ratio >= 0.90
+            and metrics.matched_near_duplicate_count >= 8
+        )
+    )
+
+
+def _rule(
+    *,
+    rule_id: str,
+    metric_name: str,
+    actual_value: float | int | bool | str,
+    operator: str,
+    threshold: float | int | bool | str,
+    passed: bool,
+    mandatory: bool,
+    applies_to_path: Literal["A", "B", "both", "info"],
+    explanation: str,
+) -> DuplicateRuleRecord:
+    return DuplicateRuleRecord(
+        rule_id=rule_id,
+        metric_name=metric_name,
+        actual_value=actual_value,
+        operator=operator,
+        threshold=threshold,
+        mandatory=mandatory,
+        passed=passed,
+        applies_to_path=applies_to_path,
+        explanation=explanation,
+    )
+
+
+def build_duplicate_layer_evidence(
+    metrics: NearOverprintMetrics,
+    thr: CompositeThresholds,
+    *,
+    policy_version: str = DUPLICATE_LAYER_POLICY_VERSION,
+) -> DuplicateLayerEvidence:
+    """Build the single canonical evidence object; decision equals displayed rules."""
+
+    path_a_match_floor = _path_a_match_floor(metrics, thr)
+    path_a_rules = [
+        _rule(
+            rule_id="path_a_matches",
+            metric_name="matched_near_duplicate_count",
+            actual_value=metrics.matched_near_duplicate_count,
+            operator=">=",
+            threshold=path_a_match_floor,
+            passed=metrics.matched_near_duplicate_count >= path_a_match_floor,
+            mandatory=True,
+            applies_to_path="A",
+            explanation="Minimum near-overprint match count for Path A.",
+        ),
+        _rule(
+            rule_id="path_a_near_ratio",
+            metric_name="near_overprint_duplicate_ratio",
+            actual_value=round(metrics.near_overprint_duplicate_ratio, 6),
+            operator=">",
+            threshold=thr.max_near_overprint_ratio,
+            passed=metrics.near_overprint_duplicate_ratio > thr.max_near_overprint_ratio,
+            mandatory=True,
+            applies_to_path="A",
+            explanation="Global near-overprint ratio must exceed Path A cap.",
+        ),
+        _rule(
+            rule_id="path_a_coverage",
+            metric_name="duplicate_layer_coverage_ratio",
+            actual_value=round(metrics.duplicate_layer_coverage_ratio, 6),
+            operator=">",
+            threshold=thr.max_duplicate_layer_coverage_ratio,
+            passed=metrics.duplicate_layer_coverage_ratio > thr.max_duplicate_layer_coverage_ratio,
+            mandatory=True,
+            applies_to_path="A",
+            explanation="Layer coverage must exceed Path A coverage floor.",
+        ),
+        _rule(
+            rule_id="path_a_span",
+            metric_name="structure_span",
+            actual_value=(
+                f"word_span={metrics.matched_word_span};"
+                f"line_span={metrics.matched_line_span};"
+                f"dup_lines={metrics.duplicate_line_count}"
+            ),
+            operator="satisfies",
+            threshold=(
+                f"word>={thr.min_word_span}|line>={thr.min_line_span}|"
+                f"dup_lines>={thr.path_b_min_duplicate_lines}|coverage>=0.9&matches>=8"
+            ),
+            passed=_span_ok(metrics, thr),
+            mandatory=True,
+            applies_to_path="A",
+            explanation="Path A requires multi-token or multi-line structure.",
+        ),
+    ]
+    path_a_satisfied = all(r.passed for r in path_a_rules if r.mandatory)
+
+    coverage_ok = metrics.duplicate_layer_coverage_ratio >= thr.path_b_min_coverage or (
+        metrics.duplicate_layer_coverage_ratio > thr.max_duplicate_layer_coverage_ratio
+        and metrics.duplicate_region_count >= thr.path_b_min_duplicate_regions
+    )
+    structure_ok = (
+        metrics.duplicate_line_count >= thr.path_b_min_duplicate_lines
+        or metrics.duplicate_region_count >= thr.path_b_min_duplicate_regions
+    )
+    path_b_match_floor = _path_b_match_floor(metrics, thr)
+    matches_ok = metrics.matched_near_duplicate_count >= path_b_match_floor
+    geometry_ok = metrics.matched_near_duplicate_count > 0
+
+    path_b_rules = [
+        _rule(
+            rule_id="path_b_coverage",
+            metric_name="duplicate_layer_coverage_ratio",
+            actual_value=round(metrics.duplicate_layer_coverage_ratio, 6),
+            operator="satisfies",
+            threshold=(
+                f">={thr.path_b_min_coverage} OR "
+                f"(>{thr.max_duplicate_layer_coverage_ratio} AND regions>="
+                f"{thr.path_b_min_duplicate_regions})"
+            ),
+            passed=coverage_ok,
+            mandatory=True,
+            applies_to_path="B",
+            explanation="Path B requires high layer coverage or coverage with regions.",
+        ),
+        _rule(
+            rule_id="path_b_matches",
+            metric_name="matched_near_duplicate_count",
+            actual_value=metrics.matched_near_duplicate_count,
+            operator=">=",
+            threshold=path_b_match_floor,
+            passed=matches_ok,
+            mandatory=True,
+            applies_to_path="B",
+            explanation=("Path B match floor (adaptive only when duplicate lines/regions exist)."),
+        ),
+        _rule(
+            rule_id="path_b_structure",
+            metric_name="duplicate_line_or_region_count",
+            actual_value=(
+                f"dup_lines={metrics.duplicate_line_count};"
+                f"dup_regions={metrics.duplicate_region_count}"
+            ),
+            operator="satisfies",
+            threshold=(
+                f"dup_lines>={thr.path_b_min_duplicate_lines} OR "
+                f"dup_regions>={thr.path_b_min_duplicate_regions}"
+            ),
+            passed=structure_ok,
+            mandatory=True,
+            applies_to_path="B",
+            explanation=(
+                "Path B requires coherent line/region structure; sparse character "
+                "matches alone are insufficient."
+            ),
+        ),
+        _rule(
+            rule_id="path_b_geometry",
+            metric_name="geometric_overlap_present",
+            actual_value=geometry_ok,
+            operator="==",
+            threshold=True,
+            passed=geometry_ok,
+            mandatory=True,
+            applies_to_path="B",
+            explanation="At least one near-overprint pair must be present.",
+        ),
+        _rule(
+            rule_id="path_b_info_lines",
+            metric_name="duplicate_line_count",
+            actual_value=metrics.duplicate_line_count,
+            operator=">=",
+            threshold=thr.path_b_min_duplicate_lines,
+            passed=metrics.duplicate_line_count >= thr.path_b_min_duplicate_lines,
+            mandatory=False,
+            applies_to_path="info",
+            explanation="Informational line count (structure rule is authoritative).",
+        ),
+        _rule(
+            rule_id="path_b_info_regions",
+            metric_name="duplicate_region_count",
+            actual_value=metrics.duplicate_region_count,
+            operator=">=",
+            threshold=thr.path_b_min_duplicate_regions,
+            passed=metrics.duplicate_region_count >= thr.path_b_min_duplicate_regions,
+            mandatory=False,
+            applies_to_path="info",
+            explanation="Informational region count (structure rule is authoritative).",
+        ),
+    ]
+    # Informational offset support (never decides path alone).
+    info_rules = [
+        _rule(
+            rule_id="info_dominant_offset_support",
+            metric_name="dominant_offset_support_ratio",
+            actual_value=round(metrics.dominant_offset_support_ratio, 6),
+            operator="informational",
+            threshold=thr.min_dominant_offset_support_ratio,
+            passed=True,
+            mandatory=False,
+            applies_to_path="info",
+            explanation="Informational only; not a Path A/B mandatory gate.",
+        ),
+        _rule(
+            rule_id="info_top_k_offset_support",
+            metric_name="top_k_offset_cluster_support_ratio",
+            actual_value=round(metrics.top_k_offset_cluster_support_ratio, 6),
+            operator="informational",
+            threshold="collapse aid",
+            passed=True,
+            mandatory=False,
+            applies_to_path="info",
+            explanation="Informational / Path C collapse aid.",
+        ),
+    ]
+    path_b_rules.extend(info_rules)
+    path_b_satisfied = all(r.passed for r in path_b_rules if r.mandatory)
+
+    selected: Literal["A", "B", "none"]
+    if path_a_satisfied:
+        selected = "A"
+    elif path_b_satisfied:
+        selected = "B"
+    else:
+        selected = "none"
+
+    return DuplicateLayerEvidence(
+        policy_version=policy_version,
+        strict_duplicate_ratio=metrics.strict_duplicate_ratio,
+        near_overprint_duplicate_ratio=metrics.near_overprint_duplicate_ratio,
+        duplicate_layer_coverage_ratio=metrics.duplicate_layer_coverage_ratio,
+        matched_near_duplicate_count=metrics.matched_near_duplicate_count,
+        duplicate_line_count=metrics.duplicate_line_count,
+        duplicate_region_count=metrics.duplicate_region_count,
+        dominant_offset_x=metrics.dominant_duplicate_offset_x,
+        dominant_offset_y=metrics.dominant_duplicate_offset_y,
+        dominant_offset_support_ratio=metrics.dominant_offset_support_ratio,
+        top_k_offset_cluster_support_ratio=metrics.top_k_offset_cluster_support_ratio,
+        offset_cluster_count=metrics.offset_cluster_count,
+        geometric_overlap_present=geometry_ok,
+        path_a_rules=path_a_rules,
+        path_b_rules=path_b_rules,
+        path_a_satisfied=path_a_satisfied,
+        path_b_satisfied=path_b_satisfied,
+        selected_path=selected,
+        hard_rejection=selected in {"A", "B"},
+    )
+
+
+def evidence_to_explanation(evidence: DuplicateLayerEvidence) -> HardRuleExplanation:
+    """Derive legacy explanation lines from canonical evidence (no re-decision)."""
+
+    conditions: list[HardRuleCondition] = []
+    for rule in [*evidence.path_a_rules, *evidence.path_b_rules]:
+        conditions.append(
+            HardRuleCondition(
+                metric=rule.metric_name,
+                value=str(rule.actual_value),
+                threshold=f"{rule.operator} {rule.threshold}",
+                passed=rule.passed,
+                mandatory=rule.mandatory,
+            )
+        )
+    conditions.append(
+        HardRuleCondition(
+            metric="path_a_widespread",
+            value=str(evidence.path_a_satisfied),
+            threshold="PATH A",
+            passed=evidence.path_a_satisfied,
+            mandatory=True,
+        )
+    )
+    conditions.append(
+        HardRuleCondition(
+            metric="path_b_coherent_partial",
+            value=str(evidence.path_b_satisfied),
+            threshold="PATH B",
+            passed=evidence.path_b_satisfied,
+            mandatory=True,
+        )
+    )
+    return HardRuleExplanation(
+        path=evidence.selected_path,
+        final_hard_rejection=evidence.hard_rejection,
+        conditions=tuple(conditions),
+    )
+
+
+def path_a_widespread_duplication(metrics: NearOverprintMetrics, thr: CompositeThresholds) -> bool:
+    """PATH A: substantial page-level near-overprint duplication."""
+
+    return build_duplicate_layer_evidence(metrics, thr).path_a_satisfied
+
+
+def path_b_coherent_partial_layer(metrics: NearOverprintMetrics, thr: CompositeThresholds) -> bool:
+    """PATH B: coherent partial duplicate layer with line/region structure."""
+
+    return build_duplicate_layer_evidence(metrics, thr).path_b_satisfied
+
+
+def composite_duplicate_layer_evidence(
+    metrics: NearOverprintMetrics,
+    thresholds: CompositeThresholds,
+) -> bool:
+    """True when PATH A or PATH B fires. Dominant-offset support is not required."""
+
+    evidence = build_duplicate_layer_evidence(metrics, thresholds)
+    return evidence.hard_rejection
+
+
+def explain_duplicate_layer_hard_rejection(
+    metrics: NearOverprintMetrics,
+    thresholds: CompositeThresholds,
+    *,
+    path: str | None = None,
+) -> HardRuleExplanation:
+    """Structured hard-rule explanation derived from canonical evidence."""
+
+    evidence = build_duplicate_layer_evidence(metrics, thresholds)
+    explanation = evidence_to_explanation(evidence)
+    if path is not None and path != explanation.path:
+        # Path label must match decision; ignore stale callers.
+        _ = path
+    return explanation
 
 
 class _UnionFind:
@@ -571,173 +934,6 @@ def _line_region_stats(
     )
 
 
-def _span_ok(metrics: NearOverprintMetrics, thr: CompositeThresholds) -> bool:
-    return (
-        metrics.matched_word_span >= thr.min_word_span
-        or metrics.matched_line_span >= thr.min_line_span
-        or metrics.duplicate_line_count >= thr.min_line_span
-        or (
-            metrics.duplicate_layer_coverage_ratio >= 0.90
-            and metrics.matched_near_duplicate_count >= 8
-        )
-    )
-
-
-def path_a_widespread_duplication(metrics: NearOverprintMetrics, thr: CompositeThresholds) -> bool:
-    """PATH A: substantial page-level near-overprint duplication."""
-
-    min_matches = thr.min_near_duplicate_match_count
-    # Complete near-full layer duplicates may sit on short pages/lines.
-    if metrics.duplicate_layer_coverage_ratio >= 0.90 and metrics.duplicate_layer_count >= 2:
-        min_matches = min(min_matches, 8)
-    return (
-        metrics.matched_near_duplicate_count >= min_matches
-        and metrics.near_overprint_duplicate_ratio > thr.max_near_overprint_ratio
-        and metrics.duplicate_layer_coverage_ratio > thr.max_duplicate_layer_coverage_ratio
-        and _span_ok(metrics, thr)
-    )
-
-
-def path_b_coherent_partial_layer(metrics: NearOverprintMetrics, thr: CompositeThresholds) -> bool:
-    """PATH B: high layer/region coverage even when global near-ratio is diluted."""
-
-    coverage_ok = metrics.duplicate_layer_coverage_ratio >= thr.path_b_min_coverage or (
-        metrics.duplicate_layer_coverage_ratio > thr.max_duplicate_layer_coverage_ratio
-        and metrics.duplicate_region_count >= thr.path_b_min_duplicate_regions
-    )
-    # Regional / vertically separated bands: high coverage of the smaller
-    # participating layer with modest match counts (header+footer style).
-    regional_match_floor = max(12, thr.region_min_matched * 2)
-    match_floor = thr.path_b_min_matches
-    if metrics.duplicate_layer_coverage_ratio >= 0.95:
-        match_floor = min(match_floor, thr.min_near_duplicate_match_count)
-    if metrics.duplicate_layer_coverage_ratio >= thr.path_b_min_coverage and (
-        metrics.duplicate_region_count >= thr.path_b_min_duplicate_regions
-        or metrics.page_vertical_span_ratio >= 0.15
-    ):
-        match_floor = min(match_floor, regional_match_floor)
-    matches_ok = metrics.matched_near_duplicate_count >= match_floor
-    multi_ok = (
-        metrics.matched_word_span >= thr.min_word_span
-        or metrics.matched_line_span >= thr.min_line_span
-        or metrics.duplicate_line_count >= thr.path_b_min_duplicate_lines
-        or metrics.duplicate_region_count >= thr.path_b_min_duplicate_regions
-        or (
-            metrics.page_vertical_span_ratio >= 0.15
-            and metrics.matched_near_duplicate_count >= thr.min_near_duplicate_match_count
-        )
-        or (
-            metrics.page_vertical_span_ratio >= 0.15
-            and metrics.duplicate_layer_coverage_ratio >= thr.path_b_min_coverage
-            and metrics.matched_near_duplicate_count >= regional_match_floor
-        )
-    )
-    geometry_ok = metrics.matched_near_duplicate_count > 0
-    return bool(coverage_ok and matches_ok and multi_ok and geometry_ok)
-
-
-def composite_duplicate_layer_evidence(
-    metrics: NearOverprintMetrics,
-    thresholds: CompositeThresholds,
-) -> bool:
-    """True when PATH A or PATH B fires. Dominant-offset support is not required."""
-
-    return path_a_widespread_duplication(metrics, thresholds) or path_b_coherent_partial_layer(
-        metrics, thresholds
-    )
-
-
-def explain_duplicate_layer_hard_rejection(
-    metrics: NearOverprintMetrics,
-    thresholds: CompositeThresholds,
-    *,
-    path: str | None = None,
-) -> HardRuleExplanation:
-    """Structured hard-rule explanation (no private text)."""
-
-    thr = thresholds
-    path_a = path_a_widespread_duplication(metrics, thr)
-    path_b = path_b_coherent_partial_layer(metrics, thr)
-    resolved = path or ("A" if path_a else "B" if path_b else "none")
-    final = path_a or path_b or metrics.composite_duplicate_layer_evidence
-    conditions = (
-        HardRuleCondition(
-            metric="matched_near_duplicate_count",
-            value=str(metrics.matched_near_duplicate_count),
-            threshold=f">= {thr.min_near_duplicate_match_count} (A) / {thr.path_b_min_matches} (B)",
-            passed=metrics.matched_near_duplicate_count >= thr.min_near_duplicate_match_count,
-            mandatory=True,
-        ),
-        HardRuleCondition(
-            metric="near_overprint_duplicate_ratio",
-            value=f"{metrics.near_overprint_duplicate_ratio:.4f}",
-            threshold=f"> {thr.max_near_overprint_ratio} (PATH A only)",
-            passed=metrics.near_overprint_duplicate_ratio > thr.max_near_overprint_ratio,
-            mandatory=True,
-        ),
-        HardRuleCondition(
-            metric="duplicate_layer_coverage_ratio",
-            value=f"{metrics.duplicate_layer_coverage_ratio:.4f}",
-            threshold=f"> {thr.max_duplicate_layer_coverage_ratio} / >= {thr.path_b_min_coverage}",
-            passed=(
-                metrics.duplicate_layer_coverage_ratio > thr.max_duplicate_layer_coverage_ratio
-                or metrics.duplicate_layer_coverage_ratio >= thr.path_b_min_coverage
-            ),
-            mandatory=True,
-        ),
-        HardRuleCondition(
-            metric="duplicate_line_count",
-            value=str(metrics.duplicate_line_count),
-            threshold=f">= {thr.path_b_min_duplicate_lines}",
-            passed=metrics.duplicate_line_count >= thr.path_b_min_duplicate_lines,
-            mandatory=True,
-        ),
-        HardRuleCondition(
-            metric="duplicate_region_count",
-            value=str(metrics.duplicate_region_count),
-            threshold=f">= {thr.path_b_min_duplicate_regions}",
-            passed=metrics.duplicate_region_count >= thr.path_b_min_duplicate_regions,
-            mandatory=True,
-        ),
-        HardRuleCondition(
-            metric="geometric_overlap",
-            value="present" if metrics.matched_near_duplicate_count > 0 else "absent",
-            threshold="matched pairs > 0",
-            passed=metrics.matched_near_duplicate_count > 0,
-            mandatory=True,
-        ),
-        HardRuleCondition(
-            metric="dominant_offset_support_ratio",
-            value=f"{metrics.dominant_offset_support_ratio:.4f}",
-            threshold="informational only",
-            passed=True,
-            mandatory=False,
-        ),
-        HardRuleCondition(
-            metric="top_k_offset_cluster_support_ratio",
-            value=f"{metrics.top_k_offset_cluster_support_ratio:.4f}",
-            threshold="informational / collapse aid",
-            passed=True,
-            mandatory=False,
-        ),
-        HardRuleCondition(
-            metric="path_a_widespread",
-            value=str(path_a),
-            threshold="PATH A",
-            passed=path_a,
-            mandatory=True,
-        ),
-        HardRuleCondition(
-            metric="path_b_coherent_partial",
-            value=str(path_b),
-            threshold="PATH B",
-            passed=path_b,
-            mandatory=True,
-        ),
-    )
-    return HardRuleExplanation(path=resolved, final_hard_rejection=final, conditions=conditions)
-
-
 def _reading_order_indices(characters: list[RawCharCandidate], indices: list[int]) -> list[int]:
     return sorted(indices, key=lambda i: (characters[i].top, characters[i].x0, i))
 
@@ -898,6 +1094,7 @@ def _replace_metrics(
     composite: bool | None = None,
     hard_rule_path: str | None = None,
     hard_rule_explanation: tuple[str, ...] | None = None,
+    duplicate_layer_evidence: object | None = None,
 ) -> NearOverprintMetrics:
     return NearOverprintMetrics(
         strict_duplicate_ratio=base.strict_duplicate_ratio,
@@ -923,6 +1120,11 @@ def _replace_metrics(
         hard_rule_path=base.hard_rule_path if hard_rule_path is None else hard_rule_path,
         hard_rule_explanation=(
             base.hard_rule_explanation if hard_rule_explanation is None else hard_rule_explanation
+        ),
+        duplicate_layer_evidence=(
+            base.duplicate_layer_evidence
+            if duplicate_layer_evidence is None
+            else duplicate_layer_evidence
         ),
     )
 
@@ -1091,16 +1293,16 @@ def analyse_and_clean_near_overprint(
         page_vertical_span_ratio=v_span,
         page_horizontal_span_ratio=h_span,
     )
-    path_a = path_a_widespread_duplication(metrics, thr)
-    path_b = path_b_coherent_partial_layer(metrics, thr)
-    composite = path_a or path_b
-    hard_path = "A" if path_a else "B" if path_b else "none"
-    explanation = explain_duplicate_layer_hard_rejection(metrics, thr, path=hard_path)
+    evidence = build_duplicate_layer_evidence(metrics, thr)
+    composite = evidence.hard_rejection
+    hard_path = evidence.selected_path
+    explanation = evidence_to_explanation(evidence)
     metrics = _replace_metrics(
         metrics,
         composite=composite,
         hard_rule_path=hard_path,
         hard_rule_explanation=explanation.format_lines(),
+        duplicate_layer_evidence=evidence,
     )
 
     if not composite:

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from backend.app.contracts.canonical import CanonicalPageSourceType
 from backend.app.contracts.native import (
+    DuplicateLayerEvidence,
     NativePageDecision,
     NativePageMetrics,
     NativePageTrustResult,
@@ -21,6 +22,7 @@ from backend.app.extraction.native.near_overprint import (
     DEFAULT_GEOMETRIC_INTERLEAVE_RATIO,
     CompositeThresholds,
     NearOverprintMetrics,
+    build_duplicate_layer_evidence,
     composite_duplicate_layer_evidence,
     geometric_interleave_ratio,
     max_consecutive_double_pair_run,
@@ -32,7 +34,7 @@ from backend.app.extraction.native.unicode_quality import UnicodeMetrics
 _WEIGHTS = {
     "character_validity_score": 0.25,
     "geometry_validity_score": 0.25,
-    "duplication_score": 0.15,
+    "duplication_quality_score": 0.15,
     "token_structure_score": 0.10,
     "text_density_score": 0.10,
     "order_plausibility_score": 0.05,
@@ -101,7 +103,7 @@ def compute_components(
     return NativeTrustComponents(
         character_validity_score=_clamp01(char_validity),
         geometry_validity_score=_clamp01(geometry_validity),
-        duplication_score=_clamp01(duplication),
+        duplication_quality_score=_clamp01(duplication),
         token_structure_score=_clamp01(token),
         text_density_score=_clamp01(density),
         order_plausibility_score=_clamp01(order),
@@ -131,6 +133,7 @@ def decide_page_trust(
     reasons: list[str] = []
     warnings: list[str] = [NativeReasonCode.VISUAL_AGREEMENT_NOT_EVALUATED_PHASE_3.value]
     hard = False
+    duplicate_hard = False
 
     is_image_source = source_type == CanonicalPageSourceType.IMAGE.value
 
@@ -161,54 +164,65 @@ def decide_page_trust(
 
     if page.near_overprint_ambiguous:
         hard = True
+        duplicate_hard = True
         reasons.append(NativeReasonCode.EXCESSIVE_NEAR_OVERPRINT_DUPLICATES.value)
 
     # Composite duplicate-layer hard rule — independent of weighted trust score.
     # Cleaned pages keep pre-clean diagnostics for UI but must not hard-reject.
-    if not page.near_overprint_cleaned:
-        composite_metrics = NearOverprintMetrics(
-            strict_duplicate_ratio=geometry_m.strict_duplicate_ratio,
-            near_overprint_duplicate_ratio=geometry_m.near_overprint_duplicate_ratio,
-            duplicate_layer_count=geometry_m.duplicate_layer_count,
-            dominant_duplicate_offset_x=geometry_m.dominant_duplicate_offset_x,
-            dominant_duplicate_offset_y=geometry_m.dominant_duplicate_offset_y,
-            duplicate_layer_coverage_ratio=geometry_m.duplicate_layer_coverage_ratio,
-            matched_near_duplicate_count=geometry_m.matched_near_duplicate_count,
-            dominant_offset_support_ratio=geometry_m.dominant_offset_support_ratio,
-            matched_word_span=page.matched_word_span,
-            matched_line_span=page.matched_line_span,
-            composite_duplicate_layer_evidence=page.near_overprint_composite_evidence,
-            top_offset_cluster_support_ratio=geometry_m.top_offset_cluster_support_ratio,
-            top_k_offset_cluster_support_ratio=geometry_m.top_k_offset_cluster_support_ratio,
-            offset_cluster_count=geometry_m.offset_cluster_count,
-            duplicate_line_count=geometry_m.duplicate_line_count,
-            duplicate_region_count=geometry_m.duplicate_region_count,
-            page_vertical_span_ratio=geometry_m.page_vertical_span_ratio,
-            page_horizontal_span_ratio=geometry_m.page_horizontal_span_ratio,
-            hard_rule_path=geometry_m.hard_rule_path,
-            hard_rule_explanation=geometry_m.hard_rule_explanation,
+    thr = CompositeThresholds(
+        max_near_overprint_ratio=policy.native_max_near_overprint_ratio,
+        max_duplicate_layer_coverage_ratio=policy.native_max_duplicate_layer_coverage_ratio,
+        min_near_duplicate_match_count=policy.native_min_near_duplicate_match_count,
+        min_dominant_offset_support_ratio=policy.native_min_dominant_offset_support_ratio,
+        offset_cluster_abs_tol=policy.native_offset_cluster_abs_tol,
+        offset_cluster_size_factor=policy.native_offset_cluster_size_factor,
+        offset_cluster_top_k=policy.native_offset_cluster_top_k,
+        path_b_min_coverage=policy.native_path_b_min_coverage,
+        path_b_min_matches=policy.native_path_b_min_matches,
+        path_b_min_duplicate_lines=policy.native_path_b_min_duplicate_lines,
+        path_b_min_duplicate_regions=policy.native_path_b_min_duplicate_regions,
+        region_min_chars=policy.native_region_min_chars,
+        region_severe_ratio=policy.native_region_severe_ratio,
+        region_min_matched=policy.native_region_min_matched,
+    )
+    composite_metrics = NearOverprintMetrics(
+        strict_duplicate_ratio=geometry_m.strict_duplicate_ratio,
+        near_overprint_duplicate_ratio=geometry_m.near_overprint_duplicate_ratio,
+        duplicate_layer_count=geometry_m.duplicate_layer_count,
+        dominant_duplicate_offset_x=geometry_m.dominant_duplicate_offset_x,
+        dominant_duplicate_offset_y=geometry_m.dominant_duplicate_offset_y,
+        duplicate_layer_coverage_ratio=geometry_m.duplicate_layer_coverage_ratio,
+        matched_near_duplicate_count=geometry_m.matched_near_duplicate_count,
+        dominant_offset_support_ratio=geometry_m.dominant_offset_support_ratio,
+        matched_word_span=page.matched_word_span,
+        matched_line_span=page.matched_line_span,
+        composite_duplicate_layer_evidence=page.near_overprint_composite_evidence,
+        top_offset_cluster_support_ratio=geometry_m.top_offset_cluster_support_ratio,
+        top_k_offset_cluster_support_ratio=geometry_m.top_k_offset_cluster_support_ratio,
+        offset_cluster_count=geometry_m.offset_cluster_count,
+        duplicate_line_count=geometry_m.duplicate_line_count,
+        duplicate_region_count=geometry_m.duplicate_region_count,
+        page_vertical_span_ratio=geometry_m.page_vertical_span_ratio,
+        page_horizontal_span_ratio=geometry_m.page_horizontal_span_ratio,
+        hard_rule_path=geometry_m.hard_rule_path,
+        hard_rule_explanation=geometry_m.hard_rule_explanation,
+        duplicate_layer_evidence=geometry_m.duplicate_layer_evidence,
+    )
+    dup_evidence = (
+        geometry_m.duplicate_layer_evidence
+        if isinstance(geometry_m.duplicate_layer_evidence, DuplicateLayerEvidence)
+        else build_duplicate_layer_evidence(composite_metrics, thr)
+    )
+    if (
+        not page.near_overprint_cleaned
+        and (
+            page.near_overprint_composite_evidence
+            or composite_duplicate_layer_evidence(composite_metrics, thr)
         )
-        thr = CompositeThresholds(
-            max_near_overprint_ratio=policy.native_max_near_overprint_ratio,
-            max_duplicate_layer_coverage_ratio=policy.native_max_duplicate_layer_coverage_ratio,
-            min_near_duplicate_match_count=policy.native_min_near_duplicate_match_count,
-            min_dominant_offset_support_ratio=policy.native_min_dominant_offset_support_ratio,
-            offset_cluster_abs_tol=policy.native_offset_cluster_abs_tol,
-            offset_cluster_size_factor=policy.native_offset_cluster_size_factor,
-            offset_cluster_top_k=policy.native_offset_cluster_top_k,
-            path_b_min_coverage=policy.native_path_b_min_coverage,
-            path_b_min_matches=policy.native_path_b_min_matches,
-            path_b_min_duplicate_lines=policy.native_path_b_min_duplicate_lines,
-            path_b_min_duplicate_regions=policy.native_path_b_min_duplicate_regions,
-            region_min_chars=policy.native_region_min_chars,
-            region_severe_ratio=policy.native_region_severe_ratio,
-            region_min_matched=policy.native_region_min_matched,
-        )
-        if page.near_overprint_composite_evidence or composite_duplicate_layer_evidence(
-            composite_metrics, thr
-        ):
-            hard = True
-            reasons.append(NativeReasonCode.EXCESSIVE_NEAR_OVERPRINT_DUPLICATES.value)
+    ):
+        hard = True
+        duplicate_hard = True
+        reasons.append(NativeReasonCode.EXCESSIVE_NEAR_OVERPRINT_DUPLICATES.value)
 
     # Output-level geometric interleave invariant (before accept).
     # Sparse bold/shadow / short header overprints must not force reject alone.
@@ -327,7 +341,20 @@ def decide_page_trust(
         near_overprint_ratio_for_score=near_for_score,
     )
     score = weighted_trust_score(components)
-    metrics_with = metrics.model_copy(update={"components": components})
+    evidence_for_metrics = (
+        dup_evidence if isinstance(dup_evidence, DuplicateLayerEvidence) else None
+    )
+    metrics_with = metrics.model_copy(
+        update={
+            "components": components,
+            "duplicate_layer_evidence": evidence_for_metrics or metrics.duplicate_layer_evidence,
+            "hard_rule_path": (
+                evidence_for_metrics.selected_path
+                if evidence_for_metrics is not None
+                else metrics.hard_rule_path
+            ),
+        }
+    )
 
     if score < policy.native_trust_threshold:
         hard = True
@@ -384,6 +411,7 @@ def decide_page_trust(
         native_trust_score=round(score, 6),
         trust_policy_version=policy.native_trust_policy_version,
         hard_rejection=hard and decision is not NativePageDecision.ACCEPTED,
+        duplicate_hard_rejection=duplicate_hard and decision is not NativePageDecision.ACCEPTED,
         reason_codes=ordered_reasons,
         warning_codes=warnings,
         metrics=metrics_with,

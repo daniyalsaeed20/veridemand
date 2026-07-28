@@ -805,6 +805,134 @@ export type DocumentSummary = {
 };
 
 /**
+ * DuplicateLayerEvidence
+ *
+ * Canonical duplicate-layer decision evidence (single source of truth).
+ */
+export type DuplicateLayerEvidence = {
+    /**
+     * Dominant Offset Support Ratio
+     */
+    dominant_offset_support_ratio?: number;
+    /**
+     * Dominant Offset X
+     */
+    dominant_offset_x?: number;
+    /**
+     * Dominant Offset Y
+     */
+    dominant_offset_y?: number;
+    /**
+     * Duplicate Layer Coverage Ratio
+     */
+    duplicate_layer_coverage_ratio: number;
+    /**
+     * Duplicate Line Count
+     */
+    duplicate_line_count: number;
+    /**
+     * Duplicate Region Count
+     */
+    duplicate_region_count: number;
+    /**
+     * Geometric Overlap Present
+     */
+    geometric_overlap_present?: boolean;
+    /**
+     * Hard Rejection
+     */
+    hard_rejection?: boolean;
+    /**
+     * Matched Near Duplicate Count
+     */
+    matched_near_duplicate_count: number;
+    /**
+     * Near Overprint Duplicate Ratio
+     */
+    near_overprint_duplicate_ratio: number;
+    /**
+     * Offset Cluster Count
+     */
+    offset_cluster_count?: number;
+    /**
+     * Path A Rules
+     */
+    path_a_rules?: Array<DuplicateRuleRecord>;
+    /**
+     * Path A Satisfied
+     */
+    path_a_satisfied?: boolean;
+    /**
+     * Path B Rules
+     */
+    path_b_rules?: Array<DuplicateRuleRecord>;
+    /**
+     * Path B Satisfied
+     */
+    path_b_satisfied?: boolean;
+    /**
+     * Policy Version
+     */
+    policy_version?: string;
+    /**
+     * Selected Path
+     */
+    selected_path?: 'A' | 'B' | 'none';
+    /**
+     * Strict Duplicate Ratio
+     */
+    strict_duplicate_ratio: number;
+    /**
+     * Top K Offset Cluster Support Ratio
+     */
+    top_k_offset_cluster_support_ratio?: number;
+};
+
+/**
+ * DuplicateRuleRecord
+ *
+ * One evaluated duplicate-layer rule with visible threshold evidence.
+ */
+export type DuplicateRuleRecord = {
+    /**
+     * Actual Value
+     */
+    actual_value: number | number | boolean | string;
+    /**
+     * Applies To Path
+     */
+    applies_to_path: 'A' | 'B' | 'both' | 'info';
+    /**
+     * Explanation
+     */
+    explanation?: string;
+    /**
+     * Mandatory
+     */
+    mandatory: boolean;
+    /**
+     * Metric Name
+     */
+    metric_name: string;
+    /**
+     * Operator
+     */
+    operator: string;
+    /**
+     * Passed
+     */
+    passed: boolean;
+    /**
+     * Rule Id
+     */
+    rule_id: string;
+    /**
+     * Threshold
+     */
+    threshold: number | number | boolean | string;
+};
+
+/**
  * Geometry
  *
  * Polygon plus containing bounding box.
@@ -1229,6 +1357,10 @@ export type NativePageMetrics = {
      */
     duplicate_layer_coverage_ratio?: number;
     /**
+     * Canonical duplicate-layer decision evidence (single source of truth).
+     */
+    duplicate_layer_evidence?: DuplicateLayerEvidence | null;
+    /**
      * Duplicate Line Count
      *
      * Lines with severe near-overprint duplication.
@@ -1251,7 +1383,7 @@ export type NativePageMetrics = {
     /**
      * Hard Rule Explanation
      *
-     * Dev-oriented hard-rule condition lines (no private text).
+     * Dev-oriented hard-rule condition lines derived from DuplicateLayerEvidence.
      */
     hard_rule_explanation?: Array<string>;
     /**
@@ -1464,7 +1596,15 @@ export type NativePageResult = {
 export type NativePageTrustResult = {
     decision: NativePageDecision;
     /**
+     * Duplicate Hard Rejection
+     *
+     * True only when a duplicate-layer path (A or B) caused hard rejection.
+     */
+    duplicate_hard_rejection?: boolean;
+    /**
      * Hard Rejection
+     *
+     * Overall native hard rejection (any hard rule, including non-duplicate).
      */
     hard_rejection: boolean;
     metrics: NativePageMetrics;
@@ -1546,9 +1686,11 @@ export type NativeTrustComponents = {
      */
     character_validity_score: number;
     /**
-     * Duplication Score
+     * Duplication Quality Score
+     *
+     * Quality after duplicate penalties (1.0 = no duplication pressure). Formerly named duplication_score; higher means less duplication.
      */
-    duplication_score: number;
+    duplication_quality_score: number;
     /**
      * Geometry Validity Score
      */

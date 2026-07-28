@@ -1440,6 +1440,221 @@
         "title": "DocumentSummary",
         "type": "object"
       },
+      "DuplicateLayerEvidence": {
+        "additionalProperties": false,
+        "description": "Canonical duplicate-layer decision evidence (single source of truth).",
+        "properties": {
+          "dominant_offset_support_ratio": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Dominant Offset Support Ratio",
+            "type": "number"
+          },
+          "dominant_offset_x": {
+            "default": 0.0,
+            "title": "Dominant Offset X",
+            "type": "number"
+          },
+          "dominant_offset_y": {
+            "default": 0.0,
+            "title": "Dominant Offset Y",
+            "type": "number"
+          },
+          "duplicate_layer_coverage_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Duplicate Layer Coverage Ratio",
+            "type": "number"
+          },
+          "duplicate_line_count": {
+            "minimum": 0.0,
+            "title": "Duplicate Line Count",
+            "type": "integer"
+          },
+          "duplicate_region_count": {
+            "minimum": 0.0,
+            "title": "Duplicate Region Count",
+            "type": "integer"
+          },
+          "geometric_overlap_present": {
+            "default": false,
+            "title": "Geometric Overlap Present",
+            "type": "boolean"
+          },
+          "hard_rejection": {
+            "default": false,
+            "title": "Hard Rejection",
+            "type": "boolean"
+          },
+          "matched_near_duplicate_count": {
+            "minimum": 0.0,
+            "title": "Matched Near Duplicate Count",
+            "type": "integer"
+          },
+          "near_overprint_duplicate_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Near Overprint Duplicate Ratio",
+            "type": "number"
+          },
+          "offset_cluster_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Offset Cluster Count",
+            "type": "integer"
+          },
+          "path_a_rules": {
+            "items": {
+              "$ref": "#/components/schemas/DuplicateRuleRecord"
+            },
+            "title": "Path A Rules",
+            "type": "array"
+          },
+          "path_a_satisfied": {
+            "default": false,
+            "title": "Path A Satisfied",
+            "type": "boolean"
+          },
+          "path_b_rules": {
+            "items": {
+              "$ref": "#/components/schemas/DuplicateRuleRecord"
+            },
+            "title": "Path B Rules",
+            "type": "array"
+          },
+          "path_b_satisfied": {
+            "default": false,
+            "title": "Path B Satisfied",
+            "type": "boolean"
+          },
+          "policy_version": {
+            "default": "phase3-v1.6",
+            "title": "Policy Version",
+            "type": "string"
+          },
+          "selected_path": {
+            "default": "none",
+            "enum": [
+              "A",
+              "B",
+              "none"
+            ],
+            "title": "Selected Path",
+            "type": "string"
+          },
+          "strict_duplicate_ratio": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Strict Duplicate Ratio",
+            "type": "number"
+          },
+          "top_k_offset_cluster_support_ratio": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Top K Offset Cluster Support Ratio",
+            "type": "number"
+          }
+        },
+        "required": [
+          "strict_duplicate_ratio",
+          "near_overprint_duplicate_ratio",
+          "duplicate_layer_coverage_ratio",
+          "matched_near_duplicate_count",
+          "duplicate_line_count",
+          "duplicate_region_count"
+        ],
+        "title": "DuplicateLayerEvidence",
+        "type": "object"
+      },
+      "DuplicateRuleRecord": {
+        "additionalProperties": false,
+        "description": "One evaluated duplicate-layer rule with visible threshold evidence.",
+        "properties": {
+          "actual_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Actual Value"
+          },
+          "applies_to_path": {
+            "enum": [
+              "A",
+              "B",
+              "both",
+              "info"
+            ],
+            "title": "Applies To Path",
+            "type": "string"
+          },
+          "explanation": {
+            "default": "",
+            "title": "Explanation",
+            "type": "string"
+          },
+          "mandatory": {
+            "title": "Mandatory",
+            "type": "boolean"
+          },
+          "metric_name": {
+            "title": "Metric Name",
+            "type": "string"
+          },
+          "operator": {
+            "title": "Operator",
+            "type": "string"
+          },
+          "passed": {
+            "title": "Passed",
+            "type": "boolean"
+          },
+          "rule_id": {
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Threshold"
+          }
+        },
+        "required": [
+          "rule_id",
+          "metric_name",
+          "actual_value",
+          "operator",
+          "threshold",
+          "mandatory",
+          "passed",
+          "applies_to_path"
+        ],
+        "title": "DuplicateRuleRecord",
+        "type": "object"
+      },
       "Geometry": {
         "additionalProperties": false,
         "description": "Polygon plus containing bounding box.",
@@ -2027,6 +2242,17 @@
             "title": "Duplicate Layer Coverage Ratio",
             "type": "number"
           },
+          "duplicate_layer_evidence": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DuplicateLayerEvidence"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Canonical duplicate-layer decision evidence (single source of truth)."
+          },
           "duplicate_line_count": {
             "default": 0,
             "description": "Lines with severe near-overprint duplication.",
@@ -2053,7 +2279,7 @@
             "type": "integer"
           },
           "hard_rule_explanation": {
-            "description": "Dev-oriented hard-rule condition lines (no private text).",
+            "description": "Dev-oriented hard-rule condition lines derived from DuplicateLayerEvidence.",
             "items": {
               "type": "string"
             },
@@ -2393,7 +2619,14 @@
           "decision": {
             "$ref": "#/components/schemas/NativePageDecision"
           },
+          "duplicate_hard_rejection": {
+            "default": false,
+            "description": "True only when a duplicate-layer path (A or B) caused hard rejection.",
+            "title": "Duplicate Hard Rejection",
+            "type": "boolean"
+          },
           "hard_rejection": {
+            "description": "Overall native hard rejection (any hard rule, including non-duplicate).",
             "title": "Hard Rejection",
             "type": "boolean"
           },
@@ -2533,10 +2766,11 @@
             "title": "Character Validity Score",
             "type": "number"
           },
-          "duplication_score": {
+          "duplication_quality_score": {
+            "description": "Quality after duplicate penalties (1.0 = no duplication pressure). Formerly named duplication_score; higher means less duplication.",
             "maximum": 1.0,
             "minimum": 0.0,
-            "title": "Duplication Score",
+            "title": "Duplication Quality Score",
             "type": "number"
           },
           "geometry_validity_score": {
@@ -2573,7 +2807,7 @@
         "required": [
           "character_validity_score",
           "geometry_validity_score",
-          "duplication_score",
+          "duplication_quality_score",
           "token_structure_score",
           "text_density_score",
           "order_plausibility_score",

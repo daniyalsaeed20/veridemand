@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from backend.app.contracts.native import NativePageMetrics, NativeTrustComponents
+from backend.app.contracts.native import (
+    DuplicateLayerEvidence,
+    NativePageMetrics,
+    NativeTrustComponents,
+)
 from backend.app.extraction.native.geometry_quality import GeometryMetrics, analyse_geometry
 from backend.app.extraction.native.image_dominance import (
     ImageDominanceMetrics,
@@ -64,6 +68,11 @@ def build_page_metrics(
         page_horizontal_span_ratio=geometry_m.page_horizontal_span_ratio,
         hard_rule_path=geometry_m.hard_rule_path,
         hard_rule_explanation=list(geometry_m.hard_rule_explanation),
+        duplicate_layer_evidence=(
+            geometry_m.duplicate_layer_evidence
+            if isinstance(geometry_m.duplicate_layer_evidence, DuplicateLayerEvidence)
+            else None
+        ),
         replacement_character_ratio=unicode_m.replacement_character_ratio,
         control_character_ratio=unicode_m.control_character_ratio,
         private_use_character_ratio=unicode_m.private_use_character_ratio,

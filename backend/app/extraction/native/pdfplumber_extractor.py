@@ -282,6 +282,7 @@ def _extract_one_page(
         page_horizontal_span_ratio=overprint.metrics.page_horizontal_span_ratio,
         hard_rule_path=overprint.metrics.hard_rule_path,
         hard_rule_explanation=overprint.metrics.hard_rule_explanation,
+        duplicate_layer_evidence=overprint.metrics.duplicate_layer_evidence,
         near_overprint_composite_evidence=overprint.metrics.composite_duplicate_layer_evidence,
         near_overprint_cleaned=near_overprint_cleaned,
         near_overprint_ambiguous=near_overprint_ambiguous,
