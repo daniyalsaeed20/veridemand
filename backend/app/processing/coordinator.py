@@ -862,7 +862,7 @@ class ProcessingCoordinator:
         full_ocr_pages_selected = 0
         full_ocr_pages_completed = 0
         visual_no_text_pages = 0
-        failed_pages = 0
+        failed_page_count = 0
         selected_page_numbers: list[int] = []
         progress_version = 1
         visual_settings = getattr(self._visual, "_settings", None)
@@ -1024,7 +1024,7 @@ class ProcessingCoordinator:
                 0, full_ocr_pages_selected - full_ocr_pages_completed
             )
             document.visual_no_text_pages = visual_no_text_pages
-            document.failed_pages = failed_pages
+            document.failed_pages = failed_page_count
             document.pages_terminal_total = pages_completed
             document.pages_remaining = max(
                 0, (document.pages_total or 0) - (document.pages_completed or 0)
@@ -1216,7 +1216,7 @@ class ProcessingCoordinator:
             nonlocal native_pages_retained, embedded_ocr_pages_verified
             nonlocal targeted_repair_pages_selected, targeted_repair_pages_completed
             nonlocal full_ocr_pages_selected, full_ocr_pages_completed
-            nonlocal visual_no_text_pages, failed_pages, selected_page_numbers
+            nonlocal visual_no_text_pages, failed_page_count, selected_page_numbers
             event_type = str(payload.get("type", ""))
             raw_page = payload.get("page_number")
             page_number = int(raw_page) if isinstance(raw_page, (int, float, str)) else None
@@ -1591,7 +1591,7 @@ class ProcessingCoordinator:
                     reason_code=str(reason) if reason else None,
                 )
                 pages_completed += 1
-                failed_pages += 1
+                failed_page_count += 1
                 snapshot.set_visual_page_progress(
                     pages_completed=pages_completed,
                     pages_selected=pages_selected,

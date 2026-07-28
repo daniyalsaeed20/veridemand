@@ -205,11 +205,14 @@ def test_slow_warning_resets_on_operation_change() -> None:
 
     time.sleep(0.02)
     snap.mark_heartbeat()
-    assert snap.slow_warning_status is SlowWarningStatus.ACTIVE
+    warning_while_running: SlowWarningStatus = snap.slow_warning_status
+    assert warning_while_running is SlowWarningStatus.ACTIVE
     assert snap.terminal_operation(OperationStatus.COMPLETED)
-    assert snap.slow_warning_status is SlowWarningStatus.RESOLVED
+    warning_after_terminal: SlowWarningStatus = snap.slow_warning_status
+    assert warning_after_terminal is SlowWarningStatus.RESOLVED
     assert snap.begin_operation("visual_page_render", attempt_number=1)
-    assert snap.slow_warning_status is SlowWarningStatus.INACTIVE
+    warning_after_restart: SlowWarningStatus = snap.slow_warning_status
+    assert warning_after_restart is SlowWarningStatus.INACTIVE
     assert snap.operation_elapsed_seconds < 0.05
 
 

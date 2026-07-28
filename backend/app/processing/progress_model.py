@@ -21,12 +21,22 @@ from backend.app.processing.operation_lifecycle import (
     OperationLifecycleLedger,
 )
 from backend.app.processing.progress_weights import (
-    OVERALL_CAP,
-    OVERALL_PAGE_PROCESSING_END,
-    OVERALL_PAGE_PROCESSING_START,
-    OVERALL_PAGE_PROCESSING_WIDTH,
-    OVERALL_SUMMARY_MID,
-    OVERALL_SUMMARY_START,
+    OVERALL_CAP as OVERALL_CAP,
+)
+from backend.app.processing.progress_weights import (
+    OVERALL_PAGE_PROCESSING_END as OVERALL_PAGE_PROCESSING_END,
+)
+from backend.app.processing.progress_weights import (
+    OVERALL_PAGE_PROCESSING_START as OVERALL_PAGE_PROCESSING_START,
+)
+from backend.app.processing.progress_weights import (
+    OVERALL_PAGE_PROCESSING_WIDTH as OVERALL_PAGE_PROCESSING_WIDTH,
+)
+from backend.app.processing.progress_weights import (
+    OVERALL_SUMMARY_MID as OVERALL_SUMMARY_MID,
+)
+from backend.app.processing.progress_weights import (
+    OVERALL_SUMMARY_START as OVERALL_SUMMARY_START,
 )
 
 

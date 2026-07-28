@@ -60,7 +60,7 @@ export const initialProgressReducerState: ProgressReducerState = {
 };
 
 function warnDev(reason: ProgressRejectReason, event: ProgressEventLike): void {
-  if (typeof process !== "undefined" && process.env.NODE_ENV === "development") {
+  if (import.meta.env.DEV) {
     // Privacy-safe: no filenames or text content.
     console.warn(reason, {
       event_sequence: event.event_sequence ?? null,
