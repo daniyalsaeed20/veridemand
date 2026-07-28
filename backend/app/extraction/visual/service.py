@@ -40,6 +40,7 @@ from backend.app.contracts.visual import (
 from backend.app.extraction.routing.materialise_embedded import (
     materialise_verified_embedded_words,
 )
+from backend.app.extraction.routing.metrics import log_document_routing_summary
 from backend.app.extraction.routing.native_words import native_words_for_routing
 from backend.app.extraction.routing.router import PageRouter
 from backend.app.extraction.routing.visual_agreement import sample_words_for_agreement
@@ -882,6 +883,24 @@ class VisualOcrService:
             status = VisualProcessingStatus.VISUAL_PROCESSING_COMPLETE
 
         policy = reconcile_document_policy(page_modes)
+        route_values = [
+            str(getattr(p, "page_route", None) or p.page_result_state or "")
+            for p in published.values()
+        ]
+        log_document_routing_summary(
+            document_id=document_id,
+            document_pages_total=len(page_modes),
+            digital_native_pages=sum(
+                1 for r in route_values if r == PageRoute.DIGITAL_NATIVE.value
+            ),
+            embedded_verified_pages=len(embedded_verified),
+            targeted_repair_pages=sum(
+                1 for r in route_values if r == PageRoute.EMBEDDED_OCR_TARGETED_REPAIR.value
+            ),
+            full_ocr_pages=len(selected),
+            no_text_pages=len(visual_no_text_pages),
+            failed_pages=failed,
+        )
         phase3_policy = native_summary.document_source_policy
         model_info = VisualModelInfo(
             detection_model_name=self._settings.ocr_detection_model_name,

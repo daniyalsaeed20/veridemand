@@ -17,6 +17,7 @@ from backend.app.contracts.visual import NativeVisibilityResult
 from backend.app.extraction.routing.digital_native import (
     build_digital_native_decision,
     is_trusted_digital_native,
+    restore_escalation_suppressed_native,
 )
 from backend.app.extraction.routing.embedded_coverage import evaluate_embedded_coverage
 from backend.app.extraction.routing.embedded_ocr import (
@@ -80,6 +81,7 @@ class PageRouter:
             return self._plan_for(decision)
 
         if not self._policy.hybrid_enabled:
+            page = restore_escalation_suppressed_native(page)
             image_dominant = page_is_image_dominant(page)
             if is_trusted_digital_native(
                 page, visibility=visibility, image_dominant=image_dominant
@@ -103,6 +105,7 @@ class PageRouter:
                 )
             return self._finish(document_id, decision, started)
 
+        page = restore_escalation_suppressed_native(page)
         image_dominant = page_is_image_dominant(page)
 
         if is_trusted_digital_native(page, visibility=visibility, image_dominant=image_dominant):
