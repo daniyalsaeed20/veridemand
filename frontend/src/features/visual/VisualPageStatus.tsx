@@ -5,6 +5,10 @@ export interface VisualPageStatusProps {
   readonly pagesCompleted: number;
   readonly pagesTotal: number;
   readonly sourcePolicy: string | null | undefined;
+  readonly phase3Policy?: string | null;
+  readonly embeddedVerified?: number | null;
+  readonly fullOcrSelected?: number | null;
+  readonly fullOcrCompleted?: number | null;
 }
 
 export function VisualPageStatus({
@@ -12,6 +16,10 @@ export function VisualPageStatus({
   pagesCompleted,
   pagesTotal,
   sourcePolicy,
+  phase3Policy,
+  embeddedVerified,
+  fullOcrSelected,
+  fullOcrCompleted,
 }: VisualPageStatusProps) {
   return (
     <Stack
@@ -21,11 +29,34 @@ export function VisualPageStatus({
       useFlexGap
       data-testid="visual-page-status"
     >
-      <Chip size="small" label={status} />
-      <Typography variant="body2">
+      <Chip size="small" label={status} data-testid="visual-processing-status-chip" />
+      <Typography variant="body2" data-testid="visual-pages-progress">
         Pages {pagesCompleted}/{pagesTotal}
       </Typography>
-      {sourcePolicy ? <Chip size="small" variant="outlined" label={sourcePolicy} /> : null}
+      {sourcePolicy ? (
+        <Chip
+          size="small"
+          variant="outlined"
+          label={`Phase 4: ${sourcePolicy}`}
+          data-testid="phase4-policy-chip"
+        />
+      ) : null}
+      {phase3Policy ? (
+        <Chip
+          size="small"
+          variant="outlined"
+          label={`Phase 3 provisional: ${phase3Policy}`}
+          data-testid="phase3-policy-chip"
+        />
+      ) : null}
+      {embeddedVerified != null ? (
+        <Typography variant="caption">Embedded verified: {embeddedVerified}</Typography>
+      ) : null}
+      {fullOcrSelected != null ? (
+        <Typography variant="caption">
+          Full OCR: {fullOcrCompleted ?? 0}/{fullOcrSelected}
+        </Typography>
+      ) : null}
     </Stack>
   );
 }

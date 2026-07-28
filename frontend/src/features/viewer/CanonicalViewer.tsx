@@ -10,6 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { OcrOverlayLayer } from "../visual/OcrOverlayLayer";
+import { overlaySourceKind } from "../visual/sourceLabels";
 import { useVisualPage } from "../visual/useVisualPage";
 import { useVisualSummary } from "../visual/useVisualSummary";
 import { VisualInspectionPanel } from "../visual/VisualInspectionPanel";
@@ -216,10 +217,13 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
     : null;
   const nativeOverlayActive =
     nativeOverlayEnabled && nativePageQuery.data?.decision === "accepted" && !dimensionMismatch;
+  const visualPage = visualPageQuery.data;
+  const visualHasBoxes =
+    Boolean(visualPage?.visual_result_available) &&
+    ((visualPage?.word_count ?? 0) > 0 || (visualPage?.line_count ?? 0) > 0);
   const ocrOverlayActive =
-    (ocrLineOverlayEnabled || ocrWordOverlayEnabled) &&
-    Boolean(visualPageQuery.data) &&
-    !dimensionMismatch;
+    (ocrLineOverlayEnabled || ocrWordOverlayEnabled) && visualHasBoxes && !dimensionMismatch;
+  const ocrOverlayKind = overlaySourceKind(visualPage ?? {});
 
   const pdfHardError = Boolean(pdfError || pageError);
   const metadataHardError = metadataQuery.isError && !pdfDocument;
@@ -355,6 +359,7 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
               pixelHeight={renderedViewport?.heightPx ?? 0}
               rotation={userRotation}
               enabled={ocrOverlayActive}
+              overlayKind={ocrOverlayKind}
             />
           </div>
         </Stack>

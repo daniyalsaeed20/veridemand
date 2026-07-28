@@ -4,6 +4,9 @@ import type { PrintedOcrLine, PrintedOcrWord } from "../../contracts";
 import type { RotationDegrees } from "../viewer/constants";
 import { rotateNormalizedRect, scaleRectToPixels } from "../viewer/geometry";
 
+export type OcrOverlayKind =
+  "verified_embedded_ocr_word" | "printed_visual_ocr_word" | "targeted_repair_word";
+
 export interface OcrOverlayLayerProps {
   readonly lines: readonly PrintedOcrLine[];
   readonly words: readonly PrintedOcrWord[];
@@ -14,6 +17,27 @@ export interface OcrOverlayLayerProps {
   readonly pixelHeight: number;
   readonly rotation: RotationDegrees;
   readonly enabled: boolean;
+  readonly overlayKind?: OcrOverlayKind;
+}
+
+function lineTitle(kind: OcrOverlayKind, text: string): string {
+  if (kind === "verified_embedded_ocr_word") {
+    return `${text} (verified_embedded_ocr_line)`;
+  }
+  if (kind === "targeted_repair_word") {
+    return `${text} (targeted_repair_line)`;
+  }
+  return `${text} (printed_visual_ocr_line)`;
+}
+
+function wordTitle(kind: OcrOverlayKind, text: string): string {
+  if (kind === "verified_embedded_ocr_word") {
+    return `${text} (verified_embedded_ocr_word)`;
+  }
+  if (kind === "targeted_repair_word") {
+    return `${text} (targeted_repair_word)`;
+  }
+  return `${text} (printed_visual_ocr_word)`;
 }
 
 export function OcrOverlayLayer({
@@ -26,6 +50,7 @@ export function OcrOverlayLayer({
   pixelHeight,
   rotation,
   enabled,
+  overlayKind = "printed_visual_ocr_word",
 }: OcrOverlayLayerProps) {
   if (!enabled || pixelWidth <= 0 || pixelHeight <= 0) {
     return null;
@@ -40,6 +65,7 @@ export function OcrOverlayLayer({
   return (
     <Box
       data-testid="ocr-overlay-layer"
+      data-overlay-source={overlayKind}
       aria-hidden="true"
       sx={{
         position: "absolute",
@@ -59,8 +85,8 @@ export function OcrOverlayLayer({
           const rotatedBbox = rotateNormalizedRect(line.bbox, rotation);
           const rect = scaleRectToPixels(rotatedBbox, pixelWidth, pixelHeight);
           return (
-            <g key={line.id}>
-              <title>{`${line.normalised_text} (provisional OCR line)`}</title>
+            <g key={line.id} data-overlay-kind="line" data-overlay-source={overlayKind}>
+              <title>{lineTitle(overlayKind, line.normalised_text)}</title>
               <rect
                 x={rect.left}
                 y={rect.top}
@@ -77,8 +103,8 @@ export function OcrOverlayLayer({
           const rotatedBbox = rotateNormalizedRect(word.bbox, rotation);
           const rect = scaleRectToPixels(rotatedBbox, pixelWidth, pixelHeight);
           return (
-            <g key={word.id}>
-              <title>{`${word.normalised_text} (provisional OCR word)`}</title>
+            <g key={word.id} data-overlay-kind="word" data-overlay-source={overlayKind}>
+              <title>{wordTitle(overlayKind, word.normalised_text)}</title>
               <rect
                 x={rect.left}
                 y={rect.top}

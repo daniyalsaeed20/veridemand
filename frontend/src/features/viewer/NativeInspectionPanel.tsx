@@ -27,9 +27,11 @@ export function NativeInspectionPanel({
     <Stack spacing={1.25} aria-label="Native inspection">
       <Typography variant="subtitle2">Native inspection</Typography>
       <Typography variant="body2">
-        Document source policy: {displayValue(summary.document_source_policy)}
+        Phase 3 provisional document source policy: {displayValue(summary.document_source_policy)}
       </Typography>
-      <Alert severity="info">Visual agreement not yet evaluated.</Alert>
+      <Alert severity="info" data-testid="phase3-visual-agreement">
+        Phase 3 visual agreement: not evaluated
+      </Alert>
       <Alert severity="info">Extraction order is provisional.</Alert>
 
       {page ? (
