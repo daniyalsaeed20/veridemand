@@ -1560,6 +1560,10 @@ export type NativePageResult = {
     characters?: Array<NativeCharacter>;
     decision: NativePageDecision;
     /**
+     * Glyph Materiality
+     */
+    glyph_materiality?: string | null;
+    /**
      * Page Number
      */
     page_number: number;
@@ -1570,6 +1574,14 @@ export type NativePageResult = {
      */
     provisional_native_text?: string | null;
     provisional_order_status?: ProvisionalOrderStatus;
+    /**
+     * Quarantined Glyph Count
+     */
+    quarantined_glyph_count?: number;
+    /**
+     * Quarantined Region Count
+     */
+    quarantined_region_count?: number;
     source_mode: SourceMode;
     trust: NativePageTrustResult;
     /**
@@ -1602,6 +1614,12 @@ export type NativePageTrustResult = {
      */
     duplicate_hard_rejection?: boolean;
     /**
+     * Glyph Materiality
+     *
+     * none | non_material | material | widespread
+     */
+    glyph_materiality?: string | null;
+    /**
      * Hard Rejection
      *
      * Overall native hard rejection (any hard rule, including non-duplicate).
@@ -1624,6 +1642,14 @@ export type NativePageTrustResult = {
      * Page Number
      */
     page_number: number;
+    /**
+     * Quarantined Glyph Count
+     */
+    quarantined_glyph_count?: number;
+    /**
+     * Quarantined Region Count
+     */
+    quarantined_region_count?: number;
     /**
      * Reason Codes
      */
@@ -3306,6 +3332,10 @@ export type VisualPageResult = {
      */
     detector_input_width?: number | null;
     /**
+     * Document Escalation Applied
+     */
+    document_escalation_applied?: boolean;
+    /**
      * Duration Ms
      */
     duration_ms?: number | null;
@@ -3317,6 +3347,10 @@ export type VisualPageResult = {
      * Fallback Used
      */
     fallback_used?: boolean;
+    /**
+     * Glyph Materiality
+     */
+    glyph_materiality?: string | null;
     /**
      * Grouping Duration Seconds
      */
@@ -3353,6 +3387,10 @@ export type VisualPageResult = {
      */
     page_number: number;
     /**
+     * Page Restored After Escalation
+     */
+    page_restored_after_escalation?: boolean;
+    /**
      * Canonical terminal page-result state after Phase 4 reconciliation.
      */
     page_result_state?: PageResultState | null;
@@ -3367,10 +3405,22 @@ export type VisualPageResult = {
      */
     peak_rss_mb?: number | null;
     /**
+     * Phase3 Page Decision
+     */
+    phase3_page_decision?: string | null;
+    /**
      * Preprocess Duration Seconds
      */
     preprocess_duration_seconds?: number | null;
     preprocessing_variant?: PreprocessingVariant | null;
+    /**
+     * Quarantined Glyph Count
+     */
+    quarantined_glyph_count?: number;
+    /**
+     * Quarantined Region Count
+     */
+    quarantined_region_count?: number;
     reading_order?: VisualReadingOrder | null;
     /**
      * Recognition Agreement Score

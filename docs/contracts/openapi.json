@@ -2553,6 +2553,17 @@
           "decision": {
             "$ref": "#/components/schemas/NativePageDecision"
           },
+          "glyph_materiality": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Glyph Materiality"
+          },
           "page_number": {
             "minimum": 1.0,
             "title": "Page Number",
@@ -2573,6 +2584,18 @@
           "provisional_order_status": {
             "$ref": "#/components/schemas/ProvisionalOrderStatus",
             "default": "unverified"
+          },
+          "quarantined_glyph_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Quarantined Glyph Count",
+            "type": "integer"
+          },
+          "quarantined_region_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Quarantined Region Count",
+            "type": "integer"
           },
           "source_mode": {
             "$ref": "#/components/schemas/SourceMode"
@@ -2625,6 +2648,18 @@
             "title": "Duplicate Hard Rejection",
             "type": "boolean"
           },
+          "glyph_materiality": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "none | non_material | material | widespread",
+            "title": "Glyph Materiality"
+          },
           "hard_rejection": {
             "description": "Overall native hard rejection (any hard rule, including non-duplicate).",
             "title": "Hard Rejection",
@@ -2657,6 +2692,18 @@
           "page_number": {
             "minimum": 1.0,
             "title": "Page Number",
+            "type": "integer"
+          },
+          "quarantined_glyph_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Quarantined Glyph Count",
+            "type": "integer"
+          },
+          "quarantined_region_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Quarantined Region Count",
             "type": "integer"
           },
           "reason_codes": {
@@ -5689,6 +5736,11 @@
             ],
             "title": "Detector Input Width"
           },
+          "document_escalation_applied": {
+            "default": false,
+            "title": "Document Escalation Applied",
+            "type": "boolean"
+          },
           "duration_ms": {
             "anyOf": [
               {
@@ -5716,6 +5768,17 @@
             "default": false,
             "title": "Fallback Used",
             "type": "boolean"
+          },
+          "glyph_materiality": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Glyph Materiality"
           },
           "grouping_duration_seconds": {
             "anyOf": [
@@ -5812,6 +5875,11 @@
             "title": "Page Number",
             "type": "integer"
           },
+          "page_restored_after_escalation": {
+            "default": false,
+            "title": "Page Restored After Escalation",
+            "type": "boolean"
+          },
           "page_result_state": {
             "anyOf": [
               {
@@ -5847,6 +5915,17 @@
             ],
             "title": "Peak Rss Mb"
           },
+          "phase3_page_decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phase3 Page Decision"
+          },
           "preprocess_duration_seconds": {
             "anyOf": [
               {
@@ -5868,6 +5947,18 @@
                 "type": "null"
               }
             ]
+          },
+          "quarantined_glyph_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Quarantined Glyph Count",
+            "type": "integer"
+          },
+          "quarantined_region_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Quarantined Region Count",
+            "type": "integer"
           },
           "reading_order": {
             "anyOf": [

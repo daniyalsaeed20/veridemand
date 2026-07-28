@@ -194,6 +194,126 @@ def write_raw_text_layer(path: Path, codepoints: list[int], content: bytes) -> N
         writer.write(handle)
 
 
+def write_isolated_private_use_checkbox(path: Path) -> None:
+    """Mostly clean digital text with one private-use checkbox glyph."""
+
+    codepoints = [
+        *[ord(c) for c in "Clean digital paragraph with digits 0123456789. "],
+        0xE001,
+        *[ord(c) for c in " More ordinary words remain trusted."],
+    ]
+    write_raw_text_layer(
+        path,
+        codepoints,
+        b"BT /F1 12 Tf 72 720 Td <"
+        + b"".join(f"{i + 1:02X}".encode() for i in range(len(codepoints)))
+        + b"> Tj ET",
+    )
+
+
+def write_valid_checkbox_symbol(path: Path) -> None:
+    """Clean digital text plus one mapped ballot-box checkbox (U+2610)."""
+
+    codepoints = [
+        *[ord(c) for c in "Form field label followed by "],
+        0x2610,
+        *[ord(c) for c in " and more valid sentence text 99."],
+    ]
+    write_raw_text_layer(
+        path,
+        codepoints,
+        b"BT /F1 12 Tf 72 720 Td <"
+        + b"".join(f"{i + 1:02X}".encode() for i in range(len(codepoints)))
+        + b"> Tj ET",
+    )
+
+
+def write_several_isolated_symbols(path: Path) -> None:
+    """Several isolated private-use symbols amid coherent text."""
+
+    chars: list[int] = []
+    for idx in range(8):
+        chars.extend(ord(c) for c in f"Line {idx} ordinary medical note text. ")
+        chars.append(0xE010 + idx)
+    write_raw_text_layer(
+        path,
+        chars,
+        b"BT /F1 11 Tf 72 720 Td <"
+        + b"".join(f"{i + 1:02X}".encode() for i in range(len(chars)))
+        + b"> Tj ET",
+    )
+
+
+def write_material_numeric_corruption(path: Path) -> None:
+    """Private-use corruption embedded inside a numeric/date-like token."""
+
+    codepoints = [
+        *[ord(c) for c in "Visit date "],
+        ord("2"),
+        ord("0"),
+        0xE001,
+        ord("6"),
+        ord("-"),
+        ord("0"),
+        ord("1"),
+        *[ord(c) for c in " and surrounding clinical notes remain."],
+    ]
+    write_raw_text_layer(
+        path,
+        codepoints,
+        b"BT /F1 12 Tf 72 720 Td <"
+        + b"".join(f"{i + 1:02X}".encode() for i in range(len(codepoints)))
+        + b"> Tj ET",
+    )
+
+
+def write_widespread_private_use(path: Path) -> None:
+    """Majority private-use encoding — must remain hard-rejected."""
+
+    codepoints = [0xE100 + (i % 20) for i in range(200)]
+    write_raw_text_layer(
+        path,
+        codepoints,
+        b"BT /F1 12 Tf 72 720 Td <"
+        + b"".join(f"{i + 1:02X}".encode() for i in range(len(codepoints)))
+        + b"> Tj ET",
+    )
+
+
+def write_one_bad_many_clean(path: Path) -> None:
+    """Multi-page: four clean pages + one widespread private-use page."""
+
+    clean = OUT_DIR / "_tmp_clean_page.pdf"
+    bad = OUT_DIR / "_tmp_bad_page.pdf"
+    write_good_single_page(clean)
+    write_widespread_private_use(bad)
+    writer = PdfWriter()
+    for _ in range(4):
+        writer.append(str(clean))
+    writer.append(str(bad))
+    with path.open("wb") as handle:
+        writer.write(handle)
+    clean.unlink(missing_ok=True)
+    bad.unlink(missing_ok=True)
+
+
+def write_symbol_font_with_good_text(path: Path) -> None:
+    """Symbol-category stand-ins plus coherent surrounding text."""
+
+    codepoints = [
+        *[ord(c) for c in "Heading and body text stay readable "],
+        0x2206,  # ∆ symbol
+        *[ord(c) for c in " while one symbol glyph is present."],
+    ]
+    write_raw_text_layer(
+        path,
+        codepoints,
+        b"BT /F1 12 Tf 72 720 Td <"
+        + b"".join(f"{i + 1:02X}".encode() for i in range(len(codepoints)))
+        + b"> Tj ET",
+    )
+
+
 def write_replacement_characters(path: Path) -> None:
     write_raw_text_layer(
         path,
@@ -602,6 +722,13 @@ def main() -> None:
         "replacement-character-layer.pdf": write_replacement_characters,
         "private-use-layer.pdf": write_private_use,
         "control-character-layer.pdf": write_control_characters,
+        "isolated-private-use-checkbox.pdf": write_isolated_private_use_checkbox,
+        "valid-checkbox-symbol.pdf": write_valid_checkbox_symbol,
+        "several-isolated-symbols.pdf": write_several_isolated_symbols,
+        "material-numeric-corruption.pdf": write_material_numeric_corruption,
+        "widespread-private-use.pdf": write_widespread_private_use,
+        "one-bad-many-clean.pdf": write_one_bad_many_clean,
+        "symbol-font-with-good-text.pdf": write_symbol_font_with_good_text,
         "duplicate-text-layer.pdf": write_duplicate_text,
         "near-overprint-cross-font.pdf": write_near_overprint_cross_font,
         "partial-duplicate-header-footer.pdf": write_partial_duplicate_header_footer,
