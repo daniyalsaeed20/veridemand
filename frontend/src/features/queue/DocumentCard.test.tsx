@@ -155,6 +155,10 @@ describe("DocumentCard", () => {
           major_phase_percent: 40,
           page_percent: 55,
           active_page_number: 2,
+          document_page_number: 2,
+          document_pages_total: 2,
+          selected_page_index: 2,
+          selected_pages_total: 2,
           pages_total: 2,
           pages_completed: 1,
           attempt_number: 2,
@@ -166,7 +170,7 @@ describe("DocumentCard", () => {
     );
     expect(screen.getByText(/Overall progress:\s*48\.0%/)).toBeInTheDocument();
     expect(screen.getByText(/Current phase:.*40\.0%/)).toBeInTheDocument();
-    expect(screen.getByText(/Document page:\s*2 of 2/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Document page\s*2 of 2/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/Worker attempt:\s*2 of 2/)).toBeInTheDocument();
   });
 
