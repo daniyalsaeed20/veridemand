@@ -23,13 +23,20 @@ function coalesceTimeline(
     return [...fallback].slice(-MAX_ROWS);
   }
   const rows: TimelineEntry[] = [];
+  const seenCompleted = new Set<string>();
   for (const item of stageTimeline) {
     const op = typeof item.operation === "string" ? item.operation : "stage";
+    const operationId = typeof item.operation_id === "string" ? item.operation_id : null;
     const status = typeof item.status === "string" ? item.status : "";
+    const attempt = typeof item.attempt_number === "number" ? String(item.attempt_number) : "1";
     const elapsed =
-      typeof item.elapsed_seconds === "number" ? ` — ${item.elapsed_seconds.toFixed(1)}s` : "";
+      typeof item.operation_elapsed_seconds === "number"
+        ? ` — ${item.operation_elapsed_seconds.toFixed(1)}s`
+        : typeof item.elapsed_seconds === "number"
+          ? ` — ${item.elapsed_seconds.toFixed(1)}s`
+          : "";
     const isHeartbeat = status === "heartbeat";
-    const label = `${op.replaceAll("_", " ")}${elapsed}`;
+    const rowKey = operationId ?? `${op}:${attempt}`;
     if (isHeartbeat && rows.length > 0) {
       // Coalesce heartbeats into the current active row.
       const last = rows[rows.length - 1];
@@ -40,10 +47,19 @@ function coalesceTimeline(
       };
       continue;
     }
+    if (
+      (status === "completed" || status === "skipped" || status === "failed") &&
+      seenCompleted.has(rowKey)
+    ) {
+      continue;
+    }
+    if (status === "completed" || status === "skipped" || status === "failed") {
+      seenCompleted.add(rowKey);
+    }
     rows.push({
-      id: `${op}-${rows.length}`,
-      label,
-      active: status === "started" || status === "running",
+      id: `${rowKey}-${rows.length}`,
+      label: `${op.replaceAll("_", " ")}${elapsed}`,
+      active: status === "started" || status === "running" || status === "retrying",
       done: status === "completed" || status === "skipped",
     });
   }

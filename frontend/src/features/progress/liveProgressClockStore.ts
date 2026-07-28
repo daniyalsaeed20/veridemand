@@ -6,6 +6,7 @@ let nowMs = 0;
 let intervalId: ReturnType<typeof setInterval> | null = null;
 let activeCount = 0;
 let hidden = false;
+let visibilityWired = false;
 const listeners = new Set<Listener>();
 
 function readMonotonic(): number {
@@ -37,16 +38,31 @@ function clearIntervalIfIdle(): void {
   }
 }
 
+function ensureVisibilityListener(): void {
+  if (visibilityWired || typeof document === "undefined") {
+    return;
+  }
+  visibilityWired = true;
+  const onVisibility = () => {
+    liveProgressClockStore.setHidden(document.visibilityState === "hidden");
+  };
+  document.addEventListener("visibilitychange", onVisibility);
+}
+
 export const liveProgressClockStore = {
   subscribe(listener: Listener): () => void {
     listeners.add(listener);
+    ensureVisibilityListener();
     return () => {
       listeners.delete(listener);
     };
   },
 
   getSnapshot(): number {
-    return nowMs || readMonotonic();
+    if (!nowMs) {
+      nowMs = readMonotonic();
+    }
+    return nowMs;
   },
 
   /** Server-snapshot receive time in monotonic ms. */
@@ -56,6 +72,7 @@ export const liveProgressClockStore = {
 
   acquire(): void {
     activeCount += 1;
+    ensureVisibilityListener();
     ensureInterval();
   },
 
@@ -84,6 +101,7 @@ export const liveProgressClockStore = {
     hidden = false;
     listeners.clear();
     nowMs = 0;
+    visibilityWired = false;
   },
 
   _activeCountForTests(): number {
@@ -92,5 +110,9 @@ export const liveProgressClockStore = {
 
   _hasIntervalForTests(): boolean {
     return intervalId !== null;
+  },
+
+  _isHiddenForTests(): boolean {
+    return hidden;
   },
 };

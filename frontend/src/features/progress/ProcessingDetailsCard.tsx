@@ -34,11 +34,38 @@ function phaseLabel(phase: string | null | undefined): string {
   return phase.replaceAll("_", " ");
 }
 
+function meaningfulAnnouncement(snapshot: ProgressSnapshotInput): string {
+  const parts: string[] = [];
+  if (snapshot.status) {
+    parts.push(`Status ${snapshot.status.replaceAll("_", " ")}`);
+  }
+  const docPage = snapshot.document_page_number ?? snapshot.active_page_number;
+  const docTotal = snapshot.document_pages_total;
+  if (docPage != null && docTotal != null) {
+    parts.push(`Document page ${docPage} of ${docTotal}`);
+  }
+  if (snapshot.selected_page_index != null && snapshot.selected_pages_total != null) {
+    const route = snapshot.current_route;
+    if (route === "digital_native") {
+      parts.push(`Native page ${snapshot.selected_page_index} of ${snapshot.selected_pages_total}`);
+    } else if ((snapshot.full_ocr_pages_selected ?? 0) > 0 || route === "full_visual_ocr") {
+      parts.push(
+        `Selected OCR page ${snapshot.selected_page_index} of ${snapshot.selected_pages_total}`,
+      );
+    }
+  }
+  if (snapshot.current_operation) {
+    parts.push(`Operation ${snapshot.current_operation.replaceAll("_", " ")}`);
+  }
+  return parts.join(". ");
+}
+
 export function ProcessingDetailsCard({ snapshot }: ProcessingDetailsCardProps) {
   const active = isProgressActive(snapshot.status);
   const now = useLiveProgressClock(active);
   const receivedAtRef = useRef(captureSnapshotReceivedAt());
   const lastVersionRef = useRef<number | null>(null);
+  const lastAnnouncementRef = useRef("");
 
   useEffect(() => {
     const version = snapshot.progress_version ?? null;
@@ -51,6 +78,8 @@ export function ProcessingDetailsCard({ snapshot }: ProcessingDetailsCardProps) 
     snapshot.document_elapsed_seconds,
     snapshot.estimated_document_remaining_seconds,
     snapshot.estimate_status,
+    snapshot.operation_id,
+    snapshot.document_page_number,
   ]);
 
   const live = deriveLiveProgress(snapshot, {
@@ -63,8 +92,40 @@ export function ProcessingDetailsCard({ snapshot }: ProcessingDetailsCardProps) 
     ? (ROUTE_LABELS[snapshot.current_route] ?? snapshot.current_route)
     : null;
 
+  const docPage = snapshot.document_page_number ?? snapshot.active_page_number;
+  const docTotal = snapshot.document_pages_total;
+  const selectedIndex = snapshot.selected_page_index ?? snapshot.visual_page_index;
+  const selectedTotal =
+    snapshot.selected_pages_total ?? snapshot.visual_pages_total ?? snapshot.pages_total;
+  const announcement = meaningfulAnnouncement(snapshot);
+  if (announcement && announcement !== lastAnnouncementRef.current) {
+    lastAnnouncementRef.current = announcement;
+  }
+
+  const selectedLabel =
+    snapshot.current_route === "digital_native"
+      ? "Native page"
+      : (snapshot.full_ocr_pages_selected ?? 0) > 0 || snapshot.current_route === "full_visual_ocr"
+        ? "Selected OCR page"
+        : "Selected page";
+
   return (
-    <Stack spacing={0.75} aria-live="polite" aria-atomic="false">
+    <Stack spacing={0.75}>
+      <Typography
+        component="div"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        sx={{
+          position: "absolute",
+          width: 1,
+          height: 1,
+          overflow: "hidden",
+          clip: "rect(0 0 0 0)",
+        }}
+      >
+        {lastAnnouncementRef.current}
+      </Typography>
       <Typography variant="body2">
         Overall progress:{" "}
         {snapshot.progress_percent != null ? `${snapshot.progress_percent.toFixed(1)}%` : "—"}
@@ -75,24 +136,41 @@ export function ProcessingDetailsCard({ snapshot }: ProcessingDetailsCardProps) 
           ? ` — ${snapshot.major_phase_percent.toFixed(1)}%`
           : ""}
       </Typography>
-      {(snapshot.active_page_number != null || snapshot.pages_total != null) && (
+      {docPage != null || docTotal != null ? (
         <Typography variant="body2">
-          Document page: {snapshot.active_page_number ?? "—"}
-          {snapshot.pages_total != null ? ` of ${snapshot.pages_total}` : ""}
+          Document page {docPage ?? "—"}
+          {docTotal != null ? ` of ${docTotal}` : ""}
         </Typography>
-      )}
+      ) : null}
+      {selectedIndex != null && selectedTotal != null && selectedTotal > 0 ? (
+        <Typography variant="body2">
+          {selectedLabel} {selectedIndex} of {selectedTotal}
+        </Typography>
+      ) : null}
       <Typography variant="body2">
-        Pages completed: {snapshot.pages_completed ?? "—"} · Pages remaining:{" "}
-        {snapshot.pages_remaining ?? "—"}
+        Document pages completed:{" "}
+        {snapshot.native_pages_completed ?? snapshot.pages_completed ?? "—"}
+        {docTotal != null ? ` of ${docTotal}` : ""}
       </Typography>
+      {(snapshot.full_ocr_pages_selected ?? 0) > 0 ? (
+        <Typography variant="body2">
+          Selected OCR pages completed: {snapshot.full_ocr_pages_completed ?? 0} · Selected OCR
+          pages remaining: {snapshot.full_ocr_pages_remaining ?? "—"}
+        </Typography>
+      ) : null}
       {routeLabel ? <Typography variant="body2">Current route: {routeLabel}</Typography> : null}
       {snapshot.current_operation ? (
         <Typography variant="body2">
           Current operation: {snapshot.current_operation.replaceAll("_", " ")}
         </Typography>
       ) : null}
+      <Typography variant="body2">Batch elapsed: {live.batchElapsedLabel}</Typography>
+      <Typography variant="body2">Current document elapsed: {live.documentElapsedLabel}</Typography>
+      <Typography variant="body2">Current phase elapsed: {live.phaseElapsedLabel}</Typography>
       <Typography variant="body2">Current page elapsed: {live.pageElapsedLabel}</Typography>
-      <Typography variant="body2">Total elapsed: {live.documentElapsedLabel}</Typography>
+      <Typography variant="body2">
+        Current operation elapsed: {live.operationElapsedLabel}
+      </Typography>
       {snapshot.average_full_ocr_page_seconds != null ? (
         <Typography variant="body2">
           Average full-OCR page: {formatDuration(snapshot.average_full_ocr_page_seconds)}
@@ -103,12 +181,18 @@ export function ProcessingDetailsCard({ snapshot }: ProcessingDetailsCardProps) 
           Current throughput: {snapshot.pages_per_minute.toFixed(1)} OCR pages/minute
         </Typography>
       ) : null}
-      <Typography variant="body2">Estimated document remaining: {live.eta.label}</Typography>
+      <Typography variant="body2">
+        Estimated current document remaining: {live.eta.label}
+      </Typography>
+      <Typography variant="body2">
+        Estimated entire batch remaining: {live.batchEta.label}
+      </Typography>
       {snapshot.estimate_confidence ? (
         <Typography variant="body2">
           Estimate confidence:{" "}
           {snapshot.estimate_confidence.charAt(0).toUpperCase() +
             snapshot.estimate_confidence.slice(1)}
+          {snapshot.current_route ? " (based on current routing)" : ""}
         </Typography>
       ) : null}
       <PageRouteBreakdown snapshot={snapshot} />

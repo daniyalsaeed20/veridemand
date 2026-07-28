@@ -192,9 +192,9 @@ export function DocumentCard({
                   : ""}
               </Typography>
             ) : null}
-            {document.progress_kind === "indeterminate" &&
-            document.document_elapsed_seconds != null &&
-            document.document_elapsed_seconds > 30 ? (
+            {document.slow_warning_status === "active" &&
+            document.slow_warning_operation_id != null &&
+            document.operation_id === document.slow_warning_operation_id ? (
               <Typography variant="caption" color="warning.main">
                 OCR is taking longer than expected. The backend timeout remains active.
               </Typography>

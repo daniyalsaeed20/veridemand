@@ -31,7 +31,8 @@ export function VisualPageStatus({
     >
       <Chip size="small" label={status} data-testid="visual-processing-status-chip" />
       <Typography variant="body2" data-testid="visual-pages-progress">
-        Pages {pagesCompleted}/{pagesTotal}
+        Document pages completed {pagesCompleted}
+        {pagesTotal > 0 ? ` of ${pagesTotal}` : ""}
       </Typography>
       {sourcePolicy ? (
         <Chip
