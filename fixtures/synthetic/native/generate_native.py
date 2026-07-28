@@ -415,6 +415,91 @@ def write_overprinted_currency(path: Path) -> None:
     pdf.save()
 
 
+def write_billing_duplicate_routing_cases(path: Path) -> None:
+    """Six-page synthetic billing-style PDF for Correction 2 routing/duplicate tests.
+
+    Page 1 (A): clean digital text.
+    Page 2 (B): widespread Path A duplicate layer.
+    Page 3 (C): coherent partial Path B (multiple severe lines/regions).
+    Page 4 (D): sparse ~22 near-overprint matches, zero severe lines/regions.
+    Page 5 (E): scattered incoherent matches without coherent regions.
+    Page 6 (F): legitimate repeats (dates, money, headers, double letters).
+    """
+
+    pdf = pdf_canvas(path)
+
+    # Page A — clean
+    pdf.setFont(UNICODE_BOLD_FONT, 14)
+    pdf.drawString(72, 720, "Synthetic Billing Page A - Clean Digital")
+    pdf.setFont(UNICODE_FONT, 11)
+    pdf.drawString(72, 690, "Account summary line with unique body text only.")
+    pdf.drawString(72, 670, "Amount reference INV-2026-100 without duplicate layers.")
+    pdf.showPage()
+
+    # Page B — Path A widespread
+    lines_b = (
+        "Billing line one full duplicate SAMPLE ALPHA",
+        "Billing line two full duplicate SAMPLE BRAVO",
+        "Billing line three full duplicate SAMPLE CHARLIE",
+        "Billing line four full duplicate SAMPLE DELTA",
+        "Billing line five full duplicate SAMPLE ECHO",
+    )
+    y = 720
+    for line in lines_b:
+        pdf.setFont("Helvetica", 12)
+        pdf.drawString(72, y, line)
+        pdf.setFont("Courier", 11.5)
+        pdf.drawString(73.5, y - 1.5, line)
+        y -= 28
+    pdf.showPage()
+
+    # Page C — Path B coherent partial region (header band duplicated)
+    header = "Billing Header Meta BLOCK VALUE RUN"
+    for offset_y, font, size in ((0.0, "Helvetica", 11), (1.75, "Times-Roman", 10.5)):
+        pdf.setFont(font, size)
+        for i in range(4):
+            pdf.drawString(72 + (0.75 if offset_y else 0), 750 - offset_y - i * 16, header)
+    pdf.setFont("Helvetica", 11)
+    y = 650
+    for i in range(20):
+        pdf.drawString(72, y, f"Unique billing body line {i:02d} without layer copy.")
+        y -= 16
+    pdf.showPage()
+
+    # Page D — sparse near-overprint (~22 chars), must not satisfy Path B structure
+    sparse = "SparseNearOverprint22"
+    pdf.setFont("Helvetica", 14)
+    pdf.drawString(72, 720, sparse)
+    pdf.setFont("Times-Roman", 13.5)
+    pdf.drawString(73.2, 718.7, sparse)
+    pdf.setFont("Helvetica", 11)
+    pdf.drawString(72, 680, "Remainder of page is single-copy digital text for billing.")
+    pdf.drawString(72, 660, "Second unique line keeps global near-ratio diluted.")
+    pdf.showPage()
+
+    # Page E — incoherent: many tiny offsets without contiguous severe lines
+    pdf.setFont("Helvetica", 10)
+    alphabet = "ABCDEFGHIJKLMNOPQRSTUV"
+    for i, ch in enumerate(alphabet):
+        x = 72 + (i % 11) * 40
+        y = 720 - (i // 11) * 80
+        pdf.setFont("Helvetica", 10)
+        pdf.drawString(x, y, ch)
+        pdf.setFont("Times-Roman", 9.5)
+        pdf.drawString(x + 0.8 + (i % 3) * 0.4, y - 0.6 - (i % 2) * 0.5, ch)
+    pdf.setFont("Helvetica", 11)
+    pdf.drawString(72, 520, "Incoherent match scatter page — no severe duplicate regions.")
+    pdf.showPage()
+
+    # Page F — legitimate repeats
+    pdf.setFont("Helvetica", 12)
+    pdf.drawString(72, 720, "Statement Date 04/08/2026 Amount 100.00 Account LABEL")
+    pdf.drawString(72, 700, "Statement Date 04/08/2026 Amount 100.00 Account LABEL")
+    pdf.drawString(72, 680, "letter bookkeeper Mississippi committee footer note")
+    pdf.drawString(72, 72, "Page footer repeated label ACCOUNT")
+    pdf.save()
+
+
 def write_out_of_bounds(path: Path) -> None:
     pdf = pdf_canvas(path)
     pdf.setFont("Helvetica", 12)
@@ -529,6 +614,7 @@ def main() -> None:
         "multi-displacement-clusters.pdf": write_multi_displacement_clusters,
         "diluted-coverage-duplicate-region.pdf": write_diluted_coverage_duplicate_region,
         "overprinted-currency.pdf": write_overprinted_currency,
+        "billing-duplicate-routing-cases.pdf": write_billing_duplicate_routing_cases,
         "out-of-bounds-text-layer.pdf": write_out_of_bounds,
         "cid-token-layer.pdf": write_cid_tokens,
         "symbol-noise-layer.pdf": write_symbol_noise,

@@ -140,6 +140,11 @@
       "filename": "overprinted-currency.pdf",
       "expected_native_status": "trusted_or_rejected_near_overprint",
       "note": "Intentional near-overprint of a currency line."
+    },
+    {
+      "filename": "billing-duplicate-routing-cases.pdf",
+      "expected_native_status": "mixed",
+      "note": "Six-page Correction 2 cases: clean, Path A, Path B, sparse non-B, incoherent, legitimate repeats."
     }
   ]
 }
