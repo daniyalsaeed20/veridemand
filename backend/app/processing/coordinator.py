@@ -89,7 +89,7 @@ async def _safe_publish(broker: EventBroker, event: ProgressEventType, **fields:
         return
     except Exception as publish_exc:
         logger.exception(
-            "Progress publication failed",
+            "progress_publication_failed",
             extra={
                 "exception_type": type(publish_exc).__name__,
                 "safe_error_code": ErrorCode.INTERNAL_ERROR.value,
@@ -98,6 +98,14 @@ async def _safe_publish(broker: EventBroker, event: ProgressEventType, **fields:
                 "document_id": fields.get("document_id"),
                 "job_id": fields.get("job_id"),
                 "page_number": fields.get("page_number"),
+                "document_page_number": fields.get("document_page_number"),
+                "event_sequence": fields.get("event_sequence"),
+                "progress_version": fields.get("progress_version"),
+                "event_id": fields.get("event_id"),
+                "operation_id": fields.get("operation_id"),
+                "operation": fields.get("operation"),
+                "operation_status": fields.get("operation_status"),
+                "attempt_number": fields.get("attempt_number"),
                 "progress_event": getattr(event, "value", str(event)),
             },
         )
@@ -853,6 +861,9 @@ class ProcessingCoordinator:
         targeted_repair_pages_completed = 0
         full_ocr_pages_selected = 0
         full_ocr_pages_completed = 0
+        visual_no_text_pages = 0
+        failed_pages = 0
+        selected_page_numbers: list[int] = []
         progress_version = 1
         visual_settings = getattr(self._visual, "_settings", None)
         eta = EtaEstimator(
@@ -863,6 +874,7 @@ class ProcessingCoordinator:
         document.fair_scheduling_enabled = fair_enabled
         document.document_pages_total = page_count
         document.document_started_at = document.document_started_at or datetime.now(UTC)
+        document.document_started_at_timestamp = document.document_started_at
         document.phase_started_at = datetime.now(UTC)
 
         # Test-only inject: abort after native, before OCR request creation.
@@ -884,6 +896,8 @@ class ProcessingCoordinator:
             major_phase_percent=0.0,
             pages_selected=page_count,
             pages_total=page_count,
+            document_pages_total=page_count,
+            document_id=document.document_id,
             operation="visual_page_selection",
             operation_status=OperationStatus.QUEUED,
         )
@@ -893,21 +907,57 @@ class ProcessingCoordinator:
         document.max_attempts = 2
         document.attempt_number = 1
 
-        def _apply_snapshot() -> None:
+        def _selected_index_for(doc_page: int | None) -> int | None:
+            if doc_page is None or not selected_page_numbers:
+                return None
+            try:
+                return selected_page_numbers.index(doc_page) + 1
+            except ValueError:
+                return None
+
+        def _page_label(doc_page: int | None) -> str:
+            sel = _selected_index_for(doc_page)
+            parts: list[str] = []
+            if doc_page is not None:
+                parts.append(f"Document page {doc_page} of {page_count}")
+            if sel is not None and pages_selected > 0:
+                parts.append(f"Selected OCR page {sel} of {pages_selected}")
+            return " · ".join(parts) if parts else "page"
+
+        def _apply_snapshot(*, advance_version: bool = True) -> None:
             nonlocal progress_version
-            progress_version += 1
+            if advance_version:
+                progress_version += 1
             remaining_by_route = {
                 EtaCostRoute.FULL_OCR_PRIMARY: max(
                     0, full_ocr_pages_selected - full_ocr_pages_completed
                 ),
+                EtaCostRoute.TARGETED_REPAIR: max(
+                    0, targeted_repair_pages_selected - targeted_repair_pages_completed
+                ),
+                EtaCostRoute.EMBEDDED_OCR_VISUAL_CHECK: max(
+                    0,
+                    (embedded_ocr_pages_verified + targeted_repair_pages_selected)
+                    - embedded_ocr_pages_verified
+                    - targeted_repair_pages_completed,
+                ),
+                EtaCostRoute.DIGITAL_NATIVE: max(0, native_pages_retained),
             }
+            # After routing, do not invent full-OCR remaining when none selected.
+            if full_ocr_pages_selected == 0:
+                remaining_by_route[EtaCostRoute.FULL_OCR_PRIMARY] = 0
             eta_snap = eta.estimate(
                 remaining_by_route=remaining_by_route,
+                queue_remaining_by_route=remaining_by_route,
                 current_operation_route=page_route_to_cost_route(
                     document.current_route or PageRoute.FULL_VISUAL_OCR
                 )
                 if document.current_route
-                else EtaCostRoute.FULL_OCR_PRIMARY,
+                else (
+                    EtaCostRoute.DIGITAL_NATIVE
+                    if full_ocr_pages_selected == 0 and pages_selected == 0
+                    else EtaCostRoute.FULL_OCR_PRIMARY
+                ),
                 current_page_route=page_route_to_cost_route(
                     document.current_route or PageRoute.FULL_VISUAL_OCR
                 )
@@ -918,17 +968,39 @@ class ProcessingCoordinator:
             document.major_phase = snapshot.major_phase.value
             document.major_phase_percent = snapshot.major_phase_percent
             document.page_percent = snapshot.page_percent
-            document.active_page_number = snapshot.page_number
+            document.document_page_number = snapshot.document_page_number
+            document.active_page_number = snapshot.document_page_number
+            document.document_pages_total = snapshot.document_pages_total or page_count
+            document.selected_page_index = snapshot.selected_page_index
+            document.selected_pages_total = snapshot.selected_pages_total or pages_selected
+            document.visual_page_index = snapshot.visual_page_index
+            document.visual_pages_total = snapshot.visual_pages_total or pages_selected
+            document.route_page_index = snapshot.route_page_index
+            document.route_pages_total = snapshot.route_pages_total
             document.pages_completed = snapshot.pages_completed
             document.pages_total = snapshot.pages_selected or pages_selected
             document.current_operation = snapshot.operation
+            document.operation_id = snapshot.operation_id
             document.operation_status = snapshot.operation_status.value
             document.progress_kind = snapshot.progress_kind.value
             document.elapsed_seconds = snapshot.document_elapsed_seconds
+            document.batch_elapsed_seconds = snapshot.batch_elapsed_seconds
             document.document_elapsed_seconds = snapshot.document_elapsed_seconds
+            document.phase_elapsed_seconds = snapshot.phase_elapsed_seconds
             document.page_elapsed_seconds = snapshot.page_elapsed_seconds
             document.operation_elapsed_seconds = snapshot.operation_elapsed_seconds
+            document.attempt_elapsed_seconds = snapshot.attempt_elapsed_seconds
             document.deadline_remaining_seconds = snapshot.deadline_remaining_seconds
+            document.document_deadline_remaining_seconds = (
+                snapshot.document_deadline_remaining_seconds
+            )
+            document.page_deadline_remaining_seconds = snapshot.page_deadline_remaining_seconds
+            document.operation_deadline_remaining_seconds = (
+                snapshot.operation_deadline_remaining_seconds
+            )
+            document.attempt_deadline_remaining_seconds = (
+                snapshot.attempt_deadline_remaining_seconds
+            )
             document.worker_generation = snapshot.worker_generation
             document.worker_restart_count = snapshot.worker_restart_count
             document.attempt_number = snapshot.attempt_number
@@ -937,7 +1009,13 @@ class ProcessingCoordinator:
             document.progress_version = progress_version
             document.server_timestamp = datetime.now(UTC)
             document.native_pages_retained = native_pages_retained
+            document.native_pages_selected = native_pages_retained
+            document.native_pages_completed = native_pages_retained
             document.embedded_ocr_pages_verified = embedded_ocr_pages_verified
+            document.embedded_verification_pages_selected = (
+                embedded_ocr_pages_verified + targeted_repair_pages_selected
+            )
+            document.embedded_verification_pages_completed = embedded_ocr_pages_verified
             document.targeted_repair_pages_selected = targeted_repair_pages_selected
             document.targeted_repair_pages_completed = targeted_repair_pages_completed
             document.full_ocr_pages_selected = full_ocr_pages_selected
@@ -945,6 +1023,9 @@ class ProcessingCoordinator:
             document.full_ocr_pages_remaining = max(
                 0, full_ocr_pages_selected - full_ocr_pages_completed
             )
+            document.visual_no_text_pages = visual_no_text_pages
+            document.failed_pages = failed_pages
+            document.pages_terminal_total = pages_completed
             document.pages_remaining = max(
                 0, (document.pages_total or 0) - (document.pages_completed or 0)
             )
@@ -955,7 +1036,10 @@ class ProcessingCoordinator:
                 eta_snap.estimated_document_remaining_seconds
             )
             document.estimated_queue_remaining_seconds = eta_snap.estimated_queue_remaining_seconds
+            document.estimated_batch_remaining_seconds = eta_snap.estimated_queue_remaining_seconds
             document.estimated_completion_at = eta_snap.estimated_completion_at
+            document.estimated_document_completion_at = eta_snap.estimated_completion_at
+            document.estimated_batch_completion_at = eta_snap.estimated_completion_at
             document.estimated_current_operation_seconds = (
                 eta_snap.estimated_current_operation_seconds
             )
@@ -963,18 +1047,53 @@ class ProcessingCoordinator:
             document.average_page_seconds = eta_snap.average_page_seconds
             document.average_full_ocr_page_seconds = eta_snap.average_full_ocr_page_seconds
             document.pages_per_minute = eta_snap.pages_per_minute
+            document.slow_warning_status = snapshot.slow_warning_status.value
+            document.slow_warning_operation_id = snapshot.slow_warning_operation_id
+            document.slow_warning_started_at = snapshot.slow_warning_started_at
+            document.slow_warning_threshold_seconds = snapshot.slow_warning_threshold_seconds
+            document.slow_warning_reason = snapshot.slow_warning_reason
             if snapshot.safe_message:
                 document.user_status_message = snapshot.safe_message
 
         def _stamp_deadline(payload: dict[str, object]) -> None:
-            deadline_remaining = payload.get("deadline_remaining_seconds")
-            if isinstance(deadline_remaining, (int, float)):
-                snapshot.deadline_remaining_seconds = float(deadline_remaining)
+            doc_dl = payload.get("document_deadline_remaining_seconds")
+            page_dl = payload.get("page_deadline_remaining_seconds")
+            op_dl = payload.get("operation_deadline_remaining_seconds")
+            attempt_dl = payload.get("attempt_deadline_remaining_seconds")
+            legacy = payload.get("deadline_remaining_seconds")
+            now = __import__("time").monotonic()
+            if isinstance(doc_dl, (int, float)):
+                snapshot.document_deadline_mono = now + float(doc_dl)
+            if isinstance(page_dl, (int, float)):
+                snapshot.page_deadline_mono = now + float(page_dl)
+            elif page_dl is None and "page_deadline_remaining_seconds" in payload:
+                snapshot.page_deadline_mono = None
+            if isinstance(op_dl, (int, float)):
+                snapshot.operation_deadline_mono = now + float(op_dl)
+            if isinstance(attempt_dl, (int, float)):
+                snapshot.attempt_deadline_mono = now + float(attempt_dl)
+            # Legacy single field must not overwrite separated clocks when
+            # explicit page/document deadlines are present.
+            if (
+                not isinstance(doc_dl, (int, float))
+                and not isinstance(page_dl, (int, float))
+                and isinstance(legacy, (int, float))
+            ):
+                snapshot.document_deadline_mono = now + float(legacy)
+            snapshot._refresh_deadlines(now=now)
 
         def _begin_op(op: str, *, kind: ProgressKind = ProgressKind.DETERMINATE) -> None:
             snapshot.complete_open_operation(OperationStatus.COMPLETED)
             snapshot.progress_kind = kind
-            snapshot.begin_operation(op)
+            accepted = snapshot.begin_operation(op)
+            if not accepted and snapshot.last_lifecycle_reject is not None:
+                log_progress(
+                    "duplicate_event_prevented",
+                    document_id=document.document_id,
+                    job_id=job.job_id,
+                    operation=op,
+                    reason_code=snapshot.last_lifecycle_reject.value,
+                )
 
         def _set_page_progress(page_number: int | None, page_pct: float) -> None:
             snapshot.set_visual_page_progress(
@@ -983,6 +1102,8 @@ class ProcessingCoordinator:
                 page_number=page_number,
                 page_percent=page_pct,
                 include_page_in_fraction=True,
+                selected_page_index=_selected_index_for(page_number),
+                document_pages_total=page_count,
             )
 
         async def _publish_visual(
@@ -990,31 +1111,50 @@ class ProcessingCoordinator:
             *,
             page_number: int | None = None,
             reasons: list[str] | None = None,
+            advance_version: bool = True,
         ) -> None:
             snapshot.mark_real_progress()
-            _apply_snapshot()
+            _apply_snapshot(advance_version=advance_version)
+            doc_page = page_number if page_number is not None else snapshot.document_page_number
+            sel_idx = snapshot.selected_page_index or _selected_index_for(doc_page)
             await _safe_publish(
                 session.broker,
                 event,
                 document_id=document.document_id,
                 job_id=job.job_id,
-                page_number=page_number,
+                page_number=doc_page,
                 pages_completed=pages_completed,
                 pages_total=pages_selected,
+                document_page_number=doc_page,
+                document_pages_total=page_count,
+                selected_page_index=sel_idx,
+                selected_pages_total=pages_selected,
+                visual_page_index=sel_idx,
+                visual_pages_total=pages_selected,
+                route_page_index=snapshot.route_page_index,
+                route_pages_total=snapshot.route_pages_total,
                 percent=document.progress_percent,
                 overall_percent=snapshot.overall_percent,
                 major_phase=snapshot.major_phase.value,
                 major_phase_percent=snapshot.major_phase_percent,
                 page_percent=snapshot.page_percent,
                 operation=snapshot.operation,
+                operation_id=snapshot.operation_id,
                 operation_status=snapshot.operation_status.value,
                 progress_kind=snapshot.progress_kind.value,
                 elapsed_seconds=snapshot.document_elapsed_seconds,
+                batch_elapsed_seconds=snapshot.batch_elapsed_seconds,
                 document_elapsed_seconds=snapshot.document_elapsed_seconds,
+                phase_elapsed_seconds=snapshot.phase_elapsed_seconds,
                 page_elapsed_seconds=snapshot.page_elapsed_seconds,
                 operation_elapsed_seconds=snapshot.operation_elapsed_seconds,
+                attempt_elapsed_seconds=snapshot.attempt_elapsed_seconds,
                 stage_elapsed_seconds=snapshot.operation_elapsed_seconds,
                 deadline_remaining_seconds=snapshot.deadline_remaining_seconds,
+                document_deadline_remaining_seconds=snapshot.document_deadline_remaining_seconds,
+                page_deadline_remaining_seconds=snapshot.page_deadline_remaining_seconds,
+                operation_deadline_remaining_seconds=snapshot.operation_deadline_remaining_seconds,
+                attempt_deadline_remaining_seconds=snapshot.attempt_deadline_remaining_seconds,
                 worker_generation=snapshot.worker_generation,
                 worker_restart_count=snapshot.worker_restart_count,
                 attempt_number=snapshot.attempt_number,
@@ -1023,6 +1163,11 @@ class ProcessingCoordinator:
                 message=document.user_status_message,
                 progress_version=document.progress_version,
                 server_timestamp=document.server_timestamp,
+                document_started_at=document.document_started_at,
+                document_started_at_timestamp=document.document_started_at_timestamp,
+                phase_started_at=document.phase_started_at,
+                page_started_at=document.page_started_at,
+                operation_started_at=document.operation_started_at,
                 current_route=document.current_route,
                 estimate_status=document.estimate_status,
                 estimate_confidence=document.estimate_confidence,
@@ -1031,25 +1176,39 @@ class ProcessingCoordinator:
                 estimated_document_seconds_remaining=document.estimated_document_remaining_seconds,
                 estimated_queue_remaining_seconds=document.estimated_queue_remaining_seconds,
                 estimated_queue_seconds_remaining=document.estimated_queue_remaining_seconds,
+                estimated_batch_remaining_seconds=document.estimated_batch_remaining_seconds,
                 estimated_completion_at=document.estimated_completion_at,
                 estimated_completion_time=document.estimated_completion_at,
+                estimated_document_completion_at=document.estimated_document_completion_at,
+                estimated_batch_completion_at=document.estimated_batch_completion_at,
                 estimated_current_operation_seconds=document.estimated_current_operation_seconds,
                 estimated_current_page_seconds=document.estimated_current_page_seconds,
                 average_page_seconds=document.average_page_seconds,
                 average_full_ocr_page_seconds=document.average_full_ocr_page_seconds,
                 pages_per_minute=document.pages_per_minute,
-                document_pages_total=document.document_pages_total,
                 native_pages_retained=document.native_pages_retained,
+                native_pages_selected=document.native_pages_selected,
+                native_pages_completed=document.native_pages_completed,
                 embedded_ocr_pages_verified=document.embedded_ocr_pages_verified,
+                embedded_verification_pages_selected=document.embedded_verification_pages_selected,
+                embedded_verification_pages_completed=document.embedded_verification_pages_completed,
                 targeted_repair_pages_selected=document.targeted_repair_pages_selected,
                 targeted_repair_pages_completed=document.targeted_repair_pages_completed,
                 full_ocr_pages_selected=document.full_ocr_pages_selected,
                 full_ocr_pages_completed=document.full_ocr_pages_completed,
                 full_ocr_pages_remaining=document.full_ocr_pages_remaining,
+                visual_no_text_pages=document.visual_no_text_pages,
+                failed_pages=document.failed_pages,
+                pages_terminal_total=document.pages_terminal_total,
                 fair_scheduling_enabled=document.fair_scheduling_enabled,
-                current_page=document.active_page_number,
-                current_page_total=document.pages_total,
+                current_page=document.document_page_number,
+                current_page_total=document.document_pages_total,
                 current_operation=document.current_operation,
+                slow_warning_status=document.slow_warning_status,
+                slow_warning_operation_id=document.slow_warning_operation_id,
+                slow_warning_started_at=document.slow_warning_started_at,
+                slow_warning_threshold_seconds=document.slow_warning_threshold_seconds,
+                slow_warning_reason=document.slow_warning_reason,
             )
 
         async def on_visual_progress(payload: dict[str, object]) -> None:
@@ -1057,6 +1216,7 @@ class ProcessingCoordinator:
             nonlocal native_pages_retained, embedded_ocr_pages_verified
             nonlocal targeted_repair_pages_selected, targeted_repair_pages_completed
             nonlocal full_ocr_pages_selected, full_ocr_pages_completed
+            nonlocal visual_no_text_pages, failed_pages, selected_page_numbers
             event_type = str(payload.get("type", ""))
             raw_page = payload.get("page_number")
             page_number = int(raw_page) if isinstance(raw_page, (int, float, str)) else None
@@ -1085,7 +1245,7 @@ class ProcessingCoordinator:
                 document.user_status_message = (
                     f"OCR in progress ({snapshot.operation.replace('_', ' ')})"
                 )
-                _apply_snapshot()
+                _apply_snapshot(advance_version=False)
                 log_progress(
                     "visual_heartbeat",
                     document_id=document.document_id,
@@ -1093,21 +1253,28 @@ class ProcessingCoordinator:
                     overall_percent=snapshot.overall_percent,
                     major_phase=snapshot.major_phase.value,
                     major_phase_percent=snapshot.major_phase_percent,
-                    page_number=page_number or snapshot.page_number,
-                    pages_total=pages_selected,
+                    document_page_number=page_number or snapshot.document_page_number,
+                    document_pages_total=page_count,
+                    selected_page_index=snapshot.selected_page_index,
+                    selected_pages_total=pages_selected,
                     page_percent=snapshot.page_percent,
                     operation=snapshot.operation,
+                    operation_id=snapshot.operation_id,
                     operation_status="heartbeat",
                     progress_kind="heartbeat",
                     elapsed_seconds=snapshot.document_elapsed_seconds,
                     document_elapsed_seconds=snapshot.document_elapsed_seconds,
                     page_elapsed_seconds=snapshot.page_elapsed_seconds,
                     operation_elapsed_seconds=snapshot.operation_elapsed_seconds,
-                    deadline_remaining_seconds=snapshot.deadline_remaining_seconds,
+                    document_deadline_remaining_seconds=(
+                        snapshot.document_deadline_remaining_seconds
+                    ),
+                    page_deadline_remaining_seconds=snapshot.page_deadline_remaining_seconds,
                     worker_pid=snapshot.worker_pid,
                     worker_generation=snapshot.worker_generation,
                     attempt_number=snapshot.attempt_number,
                     max_attempts=snapshot.max_attempts,
+                    slow_warning_status=snapshot.slow_warning_status.value,
                 )
                 return
 
@@ -1116,22 +1283,32 @@ class ProcessingCoordinator:
             reasons = [str(item) for item in reasons_raw] if isinstance(reasons_raw, list) else None
 
             if event_type == "visual_pages_selected":
+                if selection_completed:
+                    log_progress(
+                        "duplicate_event_prevented",
+                        document_id=document.document_id,
+                        job_id=job.job_id,
+                        operation="visual_page_selection",
+                        reason_code="duplicate_selection",
+                    )
+                    return
                 if not selection_started:
                     selection_started = True
                     _begin_op("visual_page_selection")
                     document.user_status_message = "Selecting pages for printed OCR"
                 raw_selected = payload.get("pages_selected")
-                if isinstance(raw_selected, (int, float)):
+                page_numbers = payload.get("page_numbers")
+                if isinstance(page_numbers, list):
+                    selected_page_numbers = [
+                        int(p) for p in page_numbers if isinstance(p, (int, float, str))
+                    ]
+                    pages_selected = len(selected_page_numbers)
+                elif isinstance(raw_selected, (int, float)):
                     pages_selected = max(0, int(raw_selected))
-                else:
-                    page_numbers = payload.get("page_numbers")
-                    if isinstance(page_numbers, list):
-                        pages_selected = len(page_numbers)
-                if not selection_completed:
-                    selection_completed = True
-                    snapshot.set_visual_selection_complete(pages_selected=pages_selected)
-                    snapshot.terminal_operation(OperationStatus.COMPLETED)
-                    document.user_status_message = "Visual pages selected"
+                selection_completed = True
+                snapshot.set_visual_selection_complete(pages_selected=pages_selected)
+                snapshot.terminal_operation(OperationStatus.COMPLETED)
+                document.user_status_message = "Visual pages selected"
                 for key in (
                     "native_pages_retained",
                     "embedded_ocr_pages_verified",
@@ -1183,10 +1360,34 @@ class ProcessingCoordinator:
                 publish_event = ProgressEventType.DOCUMENT_FULL_OCR_PRIMARY_STARTED
 
             elif event_type == "full_ocr_primary_completed":
+                if (
+                    snapshot.operation == "full_ocr_primary"
+                    and snapshot.operation_status is OperationStatus.COMPLETED
+                ):
+                    log_progress(
+                        "duplicate_event_prevented",
+                        document_id=document.document_id,
+                        job_id=job.job_id,
+                        operation="full_ocr_primary",
+                        reason_code="duplicate_terminal",
+                    )
+                    return
                 duration_ms = payload.get("primary_duration_ms")
                 if isinstance(duration_ms, (int, float)):
                     eta.record(EtaCostRoute.FULL_OCR_PRIMARY, float(duration_ms) / 1000.0)
-                snapshot.terminal_operation(OperationStatus.COMPLETED)
+                if not snapshot.terminal_operation(OperationStatus.COMPLETED):
+                    log_progress(
+                        "duplicate_event_prevented",
+                        document_id=document.document_id,
+                        job_id=job.job_id,
+                        operation="full_ocr_primary",
+                        reason_code=(
+                            snapshot.last_lifecycle_reject.value
+                            if snapshot.last_lifecycle_reject
+                            else "duplicate_terminal"
+                        ),
+                    )
+                    return
                 publish_event = ProgressEventType.DOCUMENT_FULL_OCR_PRIMARY_COMPLETED
 
             elif event_type == "full_ocr_fallback_started":
@@ -1201,6 +1402,13 @@ class ProcessingCoordinator:
                 publish_event = ProgressEventType.DOCUMENT_FULL_OCR_FALLBACK_COMPLETED
 
             elif event_type == "operation_skipped":
+                snapshot.complete_open_operation(OperationStatus.SKIPPED)
+                if snapshot.operation_status is not OperationStatus.SKIPPED:
+                    snapshot.begin_operation("operation_skipped", status=OperationStatus.STARTED)
+                    snapshot.terminal_operation(
+                        OperationStatus.SKIPPED,
+                        allow_skip_without_start=True,
+                    )
                 document.user_status_message = "Skipped full visual OCR (trusted native text)"
                 _apply_snapshot()
                 return
@@ -1211,7 +1419,7 @@ class ProcessingCoordinator:
                 if not selection_completed:
                     snapshot.bump_overall(OVERALL_VISUAL_SELECT_END)
                 document.user_status_message = "Dispatching printed OCR request"
-                _apply_snapshot()
+                _apply_snapshot(advance_version=False)
                 log_progress(
                     "visual_progress",
                     document_id=document.document_id,
@@ -1220,7 +1428,7 @@ class ProcessingCoordinator:
                     operation="worker_request",
                     operation_status="started",
                     pages_completed=pages_completed,
-                    pages_total=pages_selected,
+                    selected_pages_total=pages_selected,
                 )
                 return
 
@@ -1246,6 +1454,7 @@ class ProcessingCoordinator:
 
             elif event_type == "worker.retry":
                 snapshot.complete_open_operation(OperationStatus.FAILED)
+                snapshot.attempt_number = snapshot.attempt_number + 1
                 _begin_op("worker_retry")
                 snapshot.operation_status = OperationStatus.RETRYING
                 document.user_status_message = (
@@ -1254,14 +1463,21 @@ class ProcessingCoordinator:
                 )
 
             elif event_type == "page.started":
+                sel_idx = _selected_index_for(page_number)
                 if page_number is not None:
-                    snapshot.begin_page(page_number)
+                    snapshot.begin_page(
+                        page_number,
+                        selected_page_index=sel_idx,
+                        selected_pages_total=pages_selected,
+                        visual_page_index=sel_idx,
+                        visual_pages_total=pages_selected,
+                    )
+                    document.page_started_at = datetime.now(UTC)
+                    document.operation_started_at = document.page_started_at
                 _begin_op("visual_page_render")
                 _set_page_progress(page_number, PAGE_QUEUED)
                 document.user_status_message = (
-                    f"Rendering page {page_number} of {pages_selected}"
-                    if page_number
-                    else "Rendering page"
+                    f"Rendering {_page_label(page_number)}" if page_number else "Rendering page"
                 )
                 publish_event = ProgressEventType.DOCUMENT_VISUAL_PAGE_STARTED
 
@@ -1270,9 +1486,7 @@ class ProcessingCoordinator:
                 _begin_op("visual_preprocessing")
                 _set_page_progress(page_number, PAGE_RENDERED)
                 document.user_status_message = (
-                    f"Rendered page {page_number} of {pages_selected}"
-                    if page_number
-                    else "Page rendered"
+                    f"Rendered {_page_label(page_number)}" if page_number else "Page rendered"
                 )
                 publish_event = ProgressEventType.DOCUMENT_VISUAL_PAGE_RENDERED
 
@@ -1281,7 +1495,7 @@ class ProcessingCoordinator:
                 _begin_op("paddle_ocr_pipeline", kind=ProgressKind.INDETERMINATE)
                 _set_page_progress(page_number, PAGE_PREPROCESSED)
                 document.user_status_message = (
-                    f"Recognising page {page_number} of {pages_selected}"
+                    f"Recognising {_page_label(page_number)}"
                     if page_number
                     else "Recognising printed text"
                 )
@@ -1329,6 +1543,8 @@ class ProcessingCoordinator:
                     page_number=page_number,
                     page_percent=PAGE_PUBLISHED,
                     include_page_in_fraction=True,
+                    selected_page_index=_selected_index_for(page_number),
+                    document_pages_total=page_count,
                 )
                 snapshot.terminal_operation(OperationStatus.COMPLETED)
                 pages_completed += 1
@@ -1340,14 +1556,15 @@ class ProcessingCoordinator:
                     page_number=page_number,
                     page_percent=PAGE_PUBLISHED,
                     include_page_in_fraction=False,
+                    selected_page_index=_selected_index_for(page_number),
+                    document_pages_total=page_count,
                 )
                 document.user_status_message = (
-                    f"Published page {page_number} of {pages_selected}"
-                    if page_number
-                    else "Published page"
+                    f"Published {_page_label(page_number)}" if page_number else "Published page"
                 )
                 status = str(payload.get("status", ""))
                 if status == "completed_no_text":
+                    visual_no_text_pages += 1
                     publish_event = ProgressEventType.DOCUMENT_VISUAL_PAGE_NO_TEXT
                 else:
                     publish_event = ProgressEventType.DOCUMENT_VISUAL_PAGE_OCR_COMPLETED
@@ -1361,19 +1578,28 @@ class ProcessingCoordinator:
                     page_number=page_number,
                     page_percent=PAGE_PUBLISHED,
                     include_page_in_fraction=True,
+                    selected_page_index=_selected_index_for(page_number),
+                    document_pages_total=page_count,
                 )
                 reason = payload.get("reason_code") or payload.get("code")
+                timed_out = str(reason or "").endswith("timeout") or "timeout" in str(
+                    payload.get("message") or ""
+                )
+                terminal = OperationStatus.TIMED_OUT if timed_out else OperationStatus.FAILED
                 snapshot.terminal_operation(
-                    OperationStatus.FAILED,
+                    terminal,
                     reason_code=str(reason) if reason else None,
                 )
                 pages_completed += 1
+                failed_pages += 1
                 snapshot.set_visual_page_progress(
                     pages_completed=pages_completed,
                     pages_selected=pages_selected,
                     page_number=page_number,
                     page_percent=PAGE_PUBLISHED,
                     include_page_in_fraction=False,
+                    selected_page_index=_selected_index_for(page_number),
+                    document_pages_total=page_count,
                 )
                 document.user_status_message = (
                     f"Page {page_number} failed" if page_number else "Visual page failed"

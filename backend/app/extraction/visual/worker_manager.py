@@ -700,6 +700,14 @@ class OcrWorkerManager:
                             "document_elapsed_seconds": round(now_hb - active.created_at, 1),
                             "page_elapsed_seconds": page_elapsed,
                             "deadline_remaining_seconds": round(max(0.0, remaining), 1),
+                            "document_deadline_remaining_seconds": round(
+                                max(0.0, remaining_doc_hb), 1
+                            ),
+                            "page_deadline_remaining_seconds": (
+                                round(max(0.0, remaining_page_hb), 1)
+                                if page_deadline_armed
+                                else None
+                            ),
                             "pid": process.pid,
                             "worker_generation": generation,
                             "attempt_number": attempt_number,
@@ -757,6 +765,12 @@ class OcrWorkerManager:
                 if page_deadline_armed:
                     remaining_emit = min(remaining_doc_emit, remaining_page_emit)
                 message["deadline_remaining_seconds"] = round(max(0.0, remaining_emit), 1)
+                message["document_deadline_remaining_seconds"] = round(
+                    max(0.0, remaining_doc_emit), 1
+                )
+                message["page_deadline_remaining_seconds"] = (
+                    round(max(0.0, remaining_page_emit), 1) if page_deadline_armed else None
+                )
                 message["document_elapsed_seconds"] = round(emit_now - active.created_at, 1)
                 if active.page_started_at is not None:
                     message["page_elapsed_seconds"] = round(emit_now - active.page_started_at, 1)
