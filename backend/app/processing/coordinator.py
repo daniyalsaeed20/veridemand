@@ -1772,9 +1772,7 @@ class ProcessingCoordinator:
                         )
                         # Without a heavy consumer, OCR runs document-scoped here,
                         # so claim the turn now; otherwise the consumer claims it.
-                        claimed = (
-                            None if consumer_owned else self._scheduler.next_work_unit()
-                        )
+                        claimed = None if consumer_owned else self._scheduler.next_work_unit()
                         if claimed is not None and claimed[0].document_id == document.document_id:
                             document.scheduler_document_state = claimed[0].state.value
                             document.scheduler_turn_number = claimed[0].turn_number

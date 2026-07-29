@@ -370,8 +370,10 @@ async def test_small_document_interleaves_with_running_large_document(tmp_path: 
         await _wait_for(lambda: len(_pages_for(timeline, large.document_id)) >= 1)
         await coordinator.enqueue_documents(session, [small.document_id])
         await _wait_for(
-            lambda: small.status is DocumentStatus.VISUAL_PROCESSING_COMPLETE
-            and large.status is DocumentStatus.VISUAL_PROCESSING_COMPLETE
+            lambda: (
+                small.status is DocumentStatus.VISUAL_PROCESSING_COMPLETE
+                and large.status is DocumentStatus.VISUAL_PROCESSING_COMPLETE
+            )
         )
     finally:
         await coordinator.stop()
@@ -438,8 +440,10 @@ async def test_small_document_admitted_together_runs_first(tmp_path: Path) -> No
     try:
         await coordinator.enqueue_documents(session, [large.document_id, small.document_id])
         await _wait_for(
-            lambda: small.status is DocumentStatus.VISUAL_PROCESSING_COMPLETE
-            and large.status is DocumentStatus.VISUAL_PROCESSING_COMPLETE
+            lambda: (
+                small.status is DocumentStatus.VISUAL_PROCESSING_COMPLETE
+                and large.status is DocumentStatus.VISUAL_PROCESSING_COMPLETE
+            )
         )
     finally:
         await coordinator.stop()
@@ -469,23 +473,21 @@ async def test_native_document_completes_while_large_document_runs(tmp_path: Pat
         file_store,
         PageCountProcessor(file_store, page_counts),
         settings=settings,
-        native_service=RoutedNativeService(
-            {large.document_id: True, native.document_id: False}
-        ),
+        native_service=RoutedNativeService({large.document_id: True, native.document_id: False}),
         visual_service=visual,
     )
-    coordinator.set_scheduler(
-        FairDocumentScheduler(SchedulerConfig(enabled=True, page_quantum=1))
-    )
+    coordinator.set_scheduler(FairDocumentScheduler(SchedulerConfig(enabled=True, page_quantum=1)))
     coordinator.start()
     coordinator.start_heavy_consumer()
     try:
         await coordinator.enqueue_documents(session, [large.document_id, native.document_id])
         await _wait_for(
-            lambda: native.status
-            in (
-                DocumentStatus.VISUAL_PROCESSING_COMPLETE,
-                DocumentStatus.NATIVE_TRUST_COMPLETE,
+            lambda: (
+                native.status
+                in (
+                    DocumentStatus.VISUAL_PROCESSING_COMPLETE,
+                    DocumentStatus.NATIVE_TRUST_COMPLETE,
+                )
             )
         )
         pages_done_when_native_finished = len(_pages_for(timeline, large.document_id))
@@ -566,21 +568,19 @@ async def test_disabled_fair_mode_runs_whole_document(tmp_path: Path) -> None:
         file_store,
         PageCountProcessor(file_store, page_counts),
         settings=settings,
-        native_service=RoutedNativeService(
-            {first.document_id: True, second.document_id: True}
-        ),
+        native_service=RoutedNativeService({first.document_id: True, second.document_id: True}),
         visual_service=visual,
     )
-    coordinator.set_scheduler(
-        FairDocumentScheduler(SchedulerConfig(enabled=False, page_quantum=1))
-    )
+    coordinator.set_scheduler(FairDocumentScheduler(SchedulerConfig(enabled=False, page_quantum=1)))
     coordinator.start()
     coordinator.start_heavy_consumer()
     try:
         await coordinator.enqueue_documents(session, [first.document_id, second.document_id])
         await _wait_for(
-            lambda: first.status is DocumentStatus.VISUAL_PROCESSING_COMPLETE
-            and second.status is DocumentStatus.VISUAL_PROCESSING_COMPLETE
+            lambda: (
+                first.status is DocumentStatus.VISUAL_PROCESSING_COMPLETE
+                and second.status is DocumentStatus.VISUAL_PROCESSING_COMPLETE
+            )
         )
     finally:
         await coordinator.stop()
