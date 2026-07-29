@@ -2,7 +2,8 @@
 
 `openapi.json` in this directory is the **generated, committed** OpenAPI
 document for the VeriDemand API. It is the single input for the frontend's
-generated TypeScript types and Zod schemas.
+generated TypeScript types and Zod schemas. Phase 4 public contracts live under
+`backend/app/contracts/`.
 
 ## Regenerate
 

@@ -1,12 +1,10 @@
 # Direct dependencies
 
 Exact versions are taken from the committed lockfiles (`uv.lock`,
-`pnpm-lock.yaml`) and installed package metadata. Phase 0 introduced **no**
-OCR, PDF, image, MuPDF, HTR, vision-model, database, or queue dependencies.
-Phase 1 adds upload-validation and SSE libraries only. Phase 2 adds canonical
-PDF production (`reportlab`), PDF.js viewing (`pdfjs-dist`), and an external
-LibreOffice runtime for Word conversion — still **no** OCR, HTR, or vision-model
-dependencies.
+`pnpm-lock.yaml`) and installed package metadata. Phases 0–4 are inventoried
+below. Phase 4 adds printed OCR (optional `ocr` group), page rendering, hybrid
+routing, and fair scheduling — still **no** handwriting/HTR classifiers,
+vision-LLM clients, databases, or demand-letter packages.
 
 ## Python - runtime (`pyproject.toml` `[project].dependencies`)
 

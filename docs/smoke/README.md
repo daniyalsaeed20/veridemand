@@ -97,6 +97,17 @@ uv run python scripts/run_smoke_corpus.py --mode page-by-page --api-base-url htt
 
 Do not bind a long-lived smoke API on port **8010** — Playwright `chromium-holds` e2e uses that port.
 
+### Build identity (default on)
+
+`--require-build-identity` defaults to **true**. Before calling the API, the
+runner checks `GET /health/live` `git_commit` against repository `HEAD`. A
+matching VeriDemand process may be reused. A port occupied by a mismatched or
+non-VeriDemand listener fails the gate with a diagnostic — unrelated processes
+are **never** killed. Free the preferred port manually or point
+`--api-base-url` / `VERIDEMAND_API_BASE` at a dedicated matching server. See
+`scripts/lib/api_process_guard.py` and
+[`docs/operations/phase-4-local-runtime.md`](../operations/phase-4-local-runtime.md).
+
 Validate-only checks PDF/manifest presence, pypdf open, page counts, unique
 test IDs, authority/viewer outcomes, privacy heuristics, and checksums.
 
