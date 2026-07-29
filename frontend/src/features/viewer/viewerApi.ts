@@ -29,10 +29,20 @@ import {
   zDocumentFormat,
   zJobSummary,
   zPageCountStatus,
-  zQueueInfo,
+  zQueueInfo as zGeneratedQueueInfo,
   zRejectedDocument,
   zSessionLimits,
 } from "../../contracts";
+
+/** Extended QueueInfo with Correction 7 fair-scheduler fields. */
+export const zQueueInfo = zGeneratedQueueInfo.extend({
+  scheduler_enabled: z.boolean().optional(),
+  scheduler_active_document_id: z.string().nullish(),
+  scheduler_ready_count: z.int().gte(0).optional(),
+  scheduler_checkpointed_count: z.int().gte(0).optional(),
+  scheduler_turn_number: z.int().gte(0).optional(),
+});
+export type QueueInfo = z.infer<typeof zQueueInfo>;
 
 // Duplicated from `../session/sessionApi` (rather than imported) to avoid a
 // circular dependency: `sessionApi.ts` imports the temporary session/document
@@ -275,6 +285,18 @@ export const zDocumentSummary = z.object({
   pages_terminal_total: z.int().gte(0).nullish(),
   pages_remaining: z.int().gte(0).nullish(),
   fair_scheduling_enabled: z.boolean().nullish(),
+  scheduler_document_state: z.string().nullish(),
+  scheduler_priority_class: z.string().nullish(),
+  scheduler_effective_priority: z.int().gte(0).nullish(),
+  scheduler_queue_position: z.int().gte(1).nullish(),
+  scheduler_turn_number: z.int().gte(0).nullish(),
+  scheduler_quantum: z.int().gte(0).nullish(),
+  scheduler_quantum_completed: z.int().gte(0).nullish(),
+  scheduler_remaining_work_units: z.int().gte(0).nullish(),
+  scheduler_waiting_seconds: z.number().gte(0).nullish(),
+  scheduler_turns_skipped: z.int().gte(0).nullish(),
+  estimated_next_turn_seconds: z.number().gte(0).nullish(),
+  estimated_waiting_seconds: z.number().gte(0).nullish(),
   document_started_at: z.iso.datetime().nullish(),
   phase_started_at: z.iso.datetime().nullish(),
   page_started_at: z.iso.datetime().nullish(),
@@ -394,6 +416,15 @@ export const zProgressEventType = z.enum([
   "job.cancelled",
   "stream.resync_required",
   "heartbeat",
+  "scheduler.document_admitted",
+  "scheduler.document_ready",
+  "scheduler.turn_started",
+  "scheduler.quantum_completed",
+  "scheduler.document_yielded",
+  "scheduler.document_checkpointed",
+  "scheduler.priority_changed",
+  "scheduler.document_resumed",
+  "scheduler.document_terminal",
   "document.page_started",
   "document.page_completed",
   "document.completed",
@@ -452,6 +483,19 @@ export const zProgressEvent = z
     reason_codes: z.array(z.string()).nullish(),
     slow_warning_status: z.string().nullish(),
     slow_warning_operation_id: z.string().nullish(),
+    scheduler_turn_number: z.int().gte(0).nullish(),
+    scheduler_queue_position: z.int().gte(1).nullish(),
+    scheduler_priority_class: z.string().nullish(),
+    scheduler_effective_priority: z.int().gte(0).nullish(),
+    scheduler_quantum: z.int().gte(0).nullish(),
+    scheduler_quantum_completed: z.int().gte(0).nullish(),
+    scheduler_remaining_work_units: z.int().gte(0).nullish(),
+    scheduler_document_state: z.string().nullish(),
+    scheduler_reason: z.string().nullish(),
+    scheduler_waiting_seconds: z.number().gte(0).nullish(),
+    scheduler_turns_skipped: z.int().gte(0).nullish(),
+    estimated_next_turn_seconds: z.number().gte(0).nullish(),
+    estimated_waiting_seconds: z.number().gte(0).nullish(),
   })
   .passthrough();
 export type ProgressEvent = z.infer<typeof zProgressEvent>;

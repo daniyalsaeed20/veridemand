@@ -30,3 +30,44 @@ export function removeDocument(
     signal,
   });
 }
+
+const zUnknown = z.unknown();
+
+export function moveDocumentAhead(
+  sessionId: string,
+  documentId: string,
+  signal?: AbortSignal,
+): Promise<unknown> {
+  return sendJson(`${sessionPath(sessionId)}/documents/${documentId}/priority`, {
+    method: "POST",
+    json: { action: "move_ahead" },
+    schema: zUnknown,
+    signal,
+  });
+}
+
+export function moveDocumentBehind(
+  sessionId: string,
+  documentId: string,
+  signal?: AbortSignal,
+): Promise<unknown> {
+  return sendJson(`${sessionPath(sessionId)}/documents/${documentId}/priority`, {
+    method: "POST",
+    json: { action: "move_behind" },
+    schema: zUnknown,
+    signal,
+  });
+}
+
+export function restoreDocumentPriority(
+  sessionId: string,
+  documentId: string,
+  signal?: AbortSignal,
+): Promise<unknown> {
+  return sendJson(`${sessionPath(sessionId)}/documents/${documentId}/priority`, {
+    method: "POST",
+    json: { action: "restore_default_priority" },
+    schema: zUnknown,
+    signal,
+  });
+}

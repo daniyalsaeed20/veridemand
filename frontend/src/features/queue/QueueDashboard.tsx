@@ -56,7 +56,12 @@ export function QueueDashboard({
     (counts.ready_for_extraction ?? 0) +
     (counts.native_trust_complete ?? 0);
   const remainingCount = (counts.queued ?? 0) + (counts.uploaded ?? 0) + activeCount;
-  const fairSchedulingEnabled = documents.some((doc) => doc.fair_scheduling_enabled === true);
+  const fairSchedulingEnabled =
+    queue.scheduler_enabled === true ||
+    documents.some((doc) => doc.fair_scheduling_enabled === true);
+  const schedulerActiveDocument = documents.find(
+    (doc) => doc.document_id === queue.scheduler_active_document_id,
+  );
 
   return (
     <Card variant="outlined">
@@ -105,10 +110,28 @@ export function QueueDashboard({
             <CountChip label="Failed" value={counts.failed ?? 0} />
           </Stack>
 
-          <Typography variant="body2" color="text.secondary">
-            Queue: {queue.pending} pending · {queue.running} running · single-worker, first-in
-            first-out. Printed OCR progress is capped at 65% in this phase.
-          </Typography>
+          {fairSchedulingEnabled ? (
+            <Stack spacing={0.5}>
+              <Typography variant="body2" color="text.secondary">
+                Fair scheduler turn {queue.scheduler_turn_number ?? 0}
+                {schedulerActiveDocument
+                  ? ` · Active: ${schedulerActiveDocument.display_filename}`
+                  : queue.scheduler_active_document_id
+                    ? ` · Active: ${queue.scheduler_active_document_id}`
+                    : " · No active document"}
+              </Typography>
+              <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
+                <CountChip label="Scheduler ready" value={queue.scheduler_ready_count ?? 0} />
+                <CountChip label="Checkpointed" value={queue.scheduler_checkpointed_count ?? 0} />
+                <CountChip label="Completed" value={completedCount} />
+              </Stack>
+            </Stack>
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              Queue: {queue.pending} pending · {queue.running} running · single-worker, first-in
+              first-out. Printed OCR progress is capped at 65% in this phase.
+            </Typography>
+          )}
 
           <Divider />
 

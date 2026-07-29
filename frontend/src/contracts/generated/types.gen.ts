@@ -313,6 +313,102 @@ export type DocumentListResponse = {
 };
 
 /**
+ * DocumentSchedulingState
+ */
+export type DocumentSchedulingState = {
+    /**
+     * Admitted At
+     */
+    admitted_at: string;
+    /**
+     * Aging Adjustment
+     */
+    aging_adjustment?: number;
+    /**
+     * Current Quantum
+     */
+    current_quantum?: number;
+    /**
+     * Document Id
+     */
+    document_id: string;
+    /**
+     * Effective Priority
+     */
+    effective_priority?: number;
+    /**
+     * Estimated Document Remaining Seconds
+     */
+    estimated_document_remaining_seconds?: number | null;
+    /**
+     * Estimated Next Turn Seconds
+     */
+    estimated_next_turn_seconds?: number | null;
+    /**
+     * Last Checkpoint Version
+     */
+    last_checkpoint_version?: number;
+    /**
+     * Last Turn At
+     */
+    last_turn_at?: string | null;
+    /**
+     * Next Eligible Turn
+     */
+    next_eligible_turn?: number;
+    priority_class: PriorityClass;
+    /**
+     * Quantum Completed
+     */
+    quantum_completed?: number;
+    /**
+     * Quantum Remaining
+     */
+    quantum_remaining?: number;
+    /**
+     * Queue Position
+     */
+    queue_position?: number | null;
+    /**
+     * Remaining Embedded Work
+     */
+    remaining_embedded_work?: number;
+    /**
+     * Remaining Full Ocr Pages
+     */
+    remaining_full_ocr_pages?: number;
+    /**
+     * Remaining Native Work
+     */
+    remaining_native_work?: number;
+    /**
+     * Remaining Repair Pages
+     */
+    remaining_repair_pages?: number;
+    /**
+     * Session Id
+     */
+    session_id: string;
+    state: SchedulingDocumentState;
+    /**
+     * Turn Number
+     */
+    turn_number?: number;
+    /**
+     * Turns Completed
+     */
+    turns_completed?: number;
+    /**
+     * Turns Skipped
+     */
+    turns_skipped?: number;
+    /**
+     * Waiting Seconds
+     */
+    waiting_seconds?: number;
+};
+
+/**
  * DocumentSourcePolicy
  *
  * Document-level source authority after escalation rules.
@@ -587,9 +683,17 @@ export type DocumentSummary = {
      */
     estimated_document_remaining_seconds?: number | null;
     /**
+     * Estimated Next Turn Seconds
+     */
+    estimated_next_turn_seconds?: number | null;
+    /**
      * Estimated Queue Remaining Seconds
      */
     estimated_queue_remaining_seconds?: number | null;
+    /**
+     * Estimated Waiting Seconds
+     */
+    estimated_waiting_seconds?: number | null;
     /**
      * Extension
      *
@@ -826,6 +930,46 @@ export type DocumentSummary = {
      * Route Pages Total
      */
     route_pages_total?: number | null;
+    /**
+     * Scheduler Document State
+     */
+    scheduler_document_state?: string | null;
+    /**
+     * Scheduler Effective Priority
+     */
+    scheduler_effective_priority?: number | null;
+    /**
+     * Scheduler Priority Class
+     */
+    scheduler_priority_class?: string | null;
+    /**
+     * Scheduler Quantum
+     */
+    scheduler_quantum?: number | null;
+    /**
+     * Scheduler Quantum Completed
+     */
+    scheduler_quantum_completed?: number | null;
+    /**
+     * Scheduler Queue Position
+     */
+    scheduler_queue_position?: number | null;
+    /**
+     * Scheduler Remaining Work Units
+     */
+    scheduler_remaining_work_units?: number | null;
+    /**
+     * Scheduler Turn Number
+     */
+    scheduler_turn_number?: number | null;
+    /**
+     * Scheduler Turns Skipped
+     */
+    scheduler_turns_skipped?: number | null;
+    /**
+     * Scheduler Waiting Seconds
+     */
+    scheduler_waiting_seconds?: number | null;
     /**
      * Selected Page Index
      */
@@ -2690,6 +2834,63 @@ export type PrintedOcrWord = {
 };
 
 /**
+ * PriorityChangeRequest
+ */
+export type PriorityChangeRequest = {
+    /**
+     * Action
+     *
+     * move_ahead|move_behind|restore_default_priority
+     */
+    action: string;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+};
+
+/**
+ * PriorityChangeResponse
+ */
+export type PriorityChangeResponse = {
+    /**
+     * Action
+     */
+    action: string;
+    /**
+     * Document Id
+     */
+    document_id: string;
+    /**
+     * Effective Next Turn
+     */
+    effective_next_turn?: number | null;
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * New Effective Priority
+     */
+    new_effective_priority?: number | null;
+    new_priority_class?: PriorityClass | null;
+    /**
+     * Old Effective Priority
+     */
+    old_effective_priority?: number | null;
+    old_priority_class?: PriorityClass | null;
+    /**
+     * Success
+     */
+    success: boolean;
+};
+
+/**
+ * PriorityClass
+ */
+export type PriorityClass = 'interactive_short' | 'normal' | 'large_background';
+
+/**
  * ProcessRequest
  *
  * Request to queue documents for admission.
@@ -2926,6 +3127,10 @@ export type ProgressEvent = {
      */
     estimated_document_seconds_remaining?: number | null;
     /**
+     * Estimated Next Turn Seconds
+     */
+    estimated_next_turn_seconds?: number | null;
+    /**
      * Estimated Queue Remaining Seconds
      *
      * Alias of estimated_queue_seconds_remaining.
@@ -2935,6 +3140,10 @@ export type ProgressEvent = {
      * Estimated Queue Seconds Remaining
      */
     estimated_queue_seconds_remaining?: number | null;
+    /**
+     * Estimated Waiting Seconds
+     */
+    estimated_waiting_seconds?: number | null;
     /**
      * Event type.
      */
@@ -3174,6 +3383,50 @@ export type ProgressEvent = {
      */
     route_pages_total?: number | null;
     /**
+     * Scheduler Document State
+     */
+    scheduler_document_state?: string | null;
+    /**
+     * Scheduler Effective Priority
+     */
+    scheduler_effective_priority?: number | null;
+    /**
+     * Scheduler Priority Class
+     */
+    scheduler_priority_class?: string | null;
+    /**
+     * Scheduler Quantum
+     */
+    scheduler_quantum?: number | null;
+    /**
+     * Scheduler Quantum Completed
+     */
+    scheduler_quantum_completed?: number | null;
+    /**
+     * Scheduler Queue Position
+     */
+    scheduler_queue_position?: number | null;
+    /**
+     * Scheduler Reason
+     */
+    scheduler_reason?: string | null;
+    /**
+     * Scheduler Remaining Work Units
+     */
+    scheduler_remaining_work_units?: number | null;
+    /**
+     * Scheduler Turn Number
+     */
+    scheduler_turn_number?: number | null;
+    /**
+     * Scheduler Turns Skipped
+     */
+    scheduler_turns_skipped?: number | null;
+    /**
+     * Scheduler Waiting Seconds
+     */
+    scheduler_waiting_seconds?: number | null;
+    /**
      * Selected Page Index
      *
      * 1-based position within pages selected for the current work category.
@@ -3299,7 +3552,7 @@ export type ProgressEvent = {
  * Extraction-stage types are reserved for later phases and are never emitted in
  * Phase 1.
  */
-export type ProgressEventType = 'session.created' | 'session.snapshot' | 'session.expiring' | 'session.deleted' | 'document.uploaded' | 'document.rejected' | 'document.queued' | 'document.started' | 'document.stage_changed' | 'document.canonicalisation_started' | 'document.canonicalisation_progress' | 'document.canonicalisation_completed' | 'document.canonicalisation_failed' | 'document.canonicalisation_cancelled' | 'document.canonical_ready' | 'document.ready_for_extraction' | 'document.native_inspection_started' | 'document.native_page_started' | 'document.native_page_accepted' | 'document.native_page_rejected' | 'document.native_page_absent' | 'document.native_page_error' | 'document.native_document_escalated' | 'document.native_extraction_completed' | 'document.native_extraction_failed' | 'document.visual_processing_started' | 'document.visual_pages_selected' | 'document.native_visibility_started' | 'document.native_visibility_supported' | 'document.native_visibility_rejected' | 'document.visual_page_started' | 'document.visual_page_rendered' | 'document.visual_page_ocr_started' | 'document.visual_page_ocr_completed' | 'document.visual_page_no_text' | 'document.visual_page_failed' | 'document.visual_grouping_completed' | 'document.visual_processing_completed' | 'document.visual_processing_partial' | 'document.visual_processing_failed' | 'document.page_route_started' | 'document.page_route_completed' | 'document.embedded_ocr_visual_check_started' | 'document.embedded_ocr_visual_check_completed' | 'document.embedded_ocr_recognition_check_started' | 'document.embedded_ocr_recognition_check_completed' | 'document.embedded_ocr_verified' | 'document.embedded_ocr_targeted_repair_started' | 'document.embedded_ocr_targeted_repair_completed' | 'document.full_ocr_primary_started' | 'document.full_ocr_primary_completed' | 'document.full_ocr_quality_evaluation_started' | 'document.full_ocr_quality_evaluation_completed' | 'document.full_ocr_fallback_started' | 'document.full_ocr_fallback_completed' | 'document.full_ocr_result_selection_started' | 'document.full_ocr_result_selection_completed' | 'document.visual_no_text_completed' | 'document.removed' | 'document.warning' | 'document.failed' | 'document.cancelled' | 'job.queued' | 'job.started' | 'job.completed' | 'job.failed' | 'job.cancelled' | 'stream.resync_required' | 'heartbeat' | 'document.page_started' | 'document.page_completed' | 'document.completed';
+export type ProgressEventType = 'session.created' | 'session.snapshot' | 'session.expiring' | 'session.deleted' | 'document.uploaded' | 'document.rejected' | 'document.queued' | 'document.started' | 'document.stage_changed' | 'document.canonicalisation_started' | 'document.canonicalisation_progress' | 'document.canonicalisation_completed' | 'document.canonicalisation_failed' | 'document.canonicalisation_cancelled' | 'document.canonical_ready' | 'document.ready_for_extraction' | 'document.native_inspection_started' | 'document.native_page_started' | 'document.native_page_accepted' | 'document.native_page_rejected' | 'document.native_page_absent' | 'document.native_page_error' | 'document.native_document_escalated' | 'document.native_extraction_completed' | 'document.native_extraction_failed' | 'document.visual_processing_started' | 'document.visual_pages_selected' | 'document.native_visibility_started' | 'document.native_visibility_supported' | 'document.native_visibility_rejected' | 'document.visual_page_started' | 'document.visual_page_rendered' | 'document.visual_page_ocr_started' | 'document.visual_page_ocr_completed' | 'document.visual_page_no_text' | 'document.visual_page_failed' | 'document.visual_grouping_completed' | 'document.visual_processing_completed' | 'document.visual_processing_partial' | 'document.visual_processing_failed' | 'document.page_route_started' | 'document.page_route_completed' | 'document.embedded_ocr_visual_check_started' | 'document.embedded_ocr_visual_check_completed' | 'document.embedded_ocr_recognition_check_started' | 'document.embedded_ocr_recognition_check_completed' | 'document.embedded_ocr_verified' | 'document.embedded_ocr_targeted_repair_started' | 'document.embedded_ocr_targeted_repair_completed' | 'document.full_ocr_primary_started' | 'document.full_ocr_primary_completed' | 'document.full_ocr_quality_evaluation_started' | 'document.full_ocr_quality_evaluation_completed' | 'document.full_ocr_fallback_started' | 'document.full_ocr_fallback_completed' | 'document.full_ocr_result_selection_started' | 'document.full_ocr_result_selection_completed' | 'document.visual_no_text_completed' | 'document.removed' | 'document.warning' | 'document.failed' | 'document.cancelled' | 'job.queued' | 'job.started' | 'job.completed' | 'job.failed' | 'job.cancelled' | 'stream.resync_required' | 'heartbeat' | 'scheduler.document_admitted' | 'scheduler.document_ready' | 'scheduler.turn_started' | 'scheduler.quantum_completed' | 'scheduler.document_yielded' | 'scheduler.document_checkpointed' | 'scheduler.priority_changed' | 'scheduler.document_resumed' | 'scheduler.document_terminal' | 'document.page_started' | 'document.page_completed' | 'document.completed';
 
 /**
  * ProvisionalItemClass
@@ -3381,6 +3634,26 @@ export type QueueInfo = {
      * Admission jobs currently running.
      */
     running?: number;
+    /**
+     * Scheduler Active Document Id
+     */
+    scheduler_active_document_id?: string | null;
+    /**
+     * Scheduler Checkpointed Count
+     */
+    scheduler_checkpointed_count?: number;
+    /**
+     * Scheduler Enabled
+     */
+    scheduler_enabled?: boolean;
+    /**
+     * Scheduler Ready Count
+     */
+    scheduler_ready_count?: number;
+    /**
+     * Scheduler Turn Number
+     */
+    scheduler_turn_number?: number;
 };
 
 /**
@@ -3534,6 +3807,53 @@ export type RejectedDocument = {
      */
     message: string;
 };
+
+/**
+ * SchedulerSnapshot
+ */
+export type SchedulerSnapshot = {
+    /**
+     * Active Document Id
+     */
+    active_document_id?: string | null;
+    /**
+     * Active Work Unit Id
+     */
+    active_work_unit_id?: string | null;
+    /**
+     * Checkpointed Document Count
+     */
+    checkpointed_document_count?: number;
+    /**
+     * Documents
+     */
+    documents?: Array<DocumentSchedulingState>;
+    /**
+     * Estimated Batch Remaining Seconds
+     */
+    estimated_batch_remaining_seconds?: number | null;
+    /**
+     * Ready Document Count
+     */
+    ready_document_count?: number;
+    /**
+     * Scheduler Enabled
+     */
+    scheduler_enabled: boolean;
+    /**
+     * Scheduler Policy Version
+     */
+    scheduler_policy_version: string;
+    /**
+     * Turn Number
+     */
+    turn_number?: number;
+};
+
+/**
+ * SchedulingDocumentState
+ */
+export type SchedulingDocumentState = 'not_admitted' | 'ready' | 'running' | 'yielding' | 'checkpointed' | 'blocked' | 'cancelling' | 'cancelled' | 'completed' | 'failed';
 
 /**
  * SessionLimits
@@ -4866,6 +5186,44 @@ export type GetNativeSummaryApiV1SessionsSessionIdDocumentsDocumentIdNativeSumma
 
 export type GetNativeSummaryApiV1SessionsSessionIdDocumentsDocumentIdNativeSummaryGetResponse = GetNativeSummaryApiV1SessionsSessionIdDocumentsDocumentIdNativeSummaryGetResponses[keyof GetNativeSummaryApiV1SessionsSessionIdDocumentsDocumentIdNativeSummaryGetResponses];
 
+export type ChangeDocumentPriorityApiV1SessionsSessionIdDocumentsDocumentIdPriorityPostData = {
+    body: PriorityChangeRequest;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+        /**
+         * Document Id
+         */
+        document_id: string;
+    };
+    query?: never;
+    url: '/api/v1/sessions/{session_id}/documents/{document_id}/priority';
+};
+
+export type ChangeDocumentPriorityApiV1SessionsSessionIdDocumentsDocumentIdPriorityPostErrors = {
+    /**
+     * Session or document not found.
+     */
+    404: ApiErrorEnvelope;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ChangeDocumentPriorityApiV1SessionsSessionIdDocumentsDocumentIdPriorityPostError = ChangeDocumentPriorityApiV1SessionsSessionIdDocumentsDocumentIdPriorityPostErrors[keyof ChangeDocumentPriorityApiV1SessionsSessionIdDocumentsDocumentIdPriorityPostErrors];
+
+export type ChangeDocumentPriorityApiV1SessionsSessionIdDocumentsDocumentIdPriorityPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: PriorityChangeResponse;
+};
+
+export type ChangeDocumentPriorityApiV1SessionsSessionIdDocumentsDocumentIdPriorityPostResponse = ChangeDocumentPriorityApiV1SessionsSessionIdDocumentsDocumentIdPriorityPostResponses[keyof ChangeDocumentPriorityApiV1SessionsSessionIdDocumentsDocumentIdPriorityPostResponses];
+
 export type GetVisualPageApiV1SessionsSessionIdDocumentsDocumentIdVisualPagesPageNumberGetData = {
     body?: never;
     path: {
@@ -5088,6 +5446,40 @@ export type ProcessDocumentsApiV1SessionsSessionIdProcessPostResponses = {
 };
 
 export type ProcessDocumentsApiV1SessionsSessionIdProcessPostResponse = ProcessDocumentsApiV1SessionsSessionIdProcessPostResponses[keyof ProcessDocumentsApiV1SessionsSessionIdProcessPostResponses];
+
+export type GetSchedulerSnapshotApiV1SessionsSessionIdSchedulerGetData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/api/v1/sessions/{session_id}/scheduler';
+};
+
+export type GetSchedulerSnapshotApiV1SessionsSessionIdSchedulerGetErrors = {
+    /**
+     * Session or document not found.
+     */
+    404: ApiErrorEnvelope;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetSchedulerSnapshotApiV1SessionsSessionIdSchedulerGetError = GetSchedulerSnapshotApiV1SessionsSessionIdSchedulerGetErrors[keyof GetSchedulerSnapshotApiV1SessionsSessionIdSchedulerGetErrors];
+
+export type GetSchedulerSnapshotApiV1SessionsSessionIdSchedulerGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: SchedulerSnapshot;
+};
+
+export type GetSchedulerSnapshotApiV1SessionsSessionIdSchedulerGetResponse = GetSchedulerSnapshotApiV1SessionsSessionIdSchedulerGetResponses[keyof GetSchedulerSnapshotApiV1SessionsSessionIdSchedulerGetResponses];
 
 export type HealthLiveData = {
     body?: never;

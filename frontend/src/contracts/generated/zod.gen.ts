@@ -692,7 +692,9 @@ export const zDocumentSummary = z.object({
     estimated_current_page_seconds: z.number().gte(0).nullish(),
     estimated_document_completion_at: z.iso.datetime().nullish(),
     estimated_document_remaining_seconds: z.number().gte(0).nullish(),
+    estimated_next_turn_seconds: z.number().gte(0).nullish(),
     estimated_queue_remaining_seconds: z.number().gte(0).nullish(),
+    estimated_waiting_seconds: z.number().gte(0).nullish(),
     extension: z.string(),
     extraction_performed: z.boolean().optional().default(false),
     failed_pages: z.int().gte(0).nullish(),
@@ -740,6 +742,16 @@ export const zDocumentSummary = z.object({
     result_available: z.boolean().optional().default(false),
     route_page_index: z.int().gte(1).nullish(),
     route_pages_total: z.int().gte(0).nullish(),
+    scheduler_document_state: z.string().nullish(),
+    scheduler_effective_priority: z.int().gte(0).nullish(),
+    scheduler_priority_class: z.string().nullish(),
+    scheduler_quantum: z.int().gte(0).nullish(),
+    scheduler_quantum_completed: z.int().gte(0).nullish(),
+    scheduler_queue_position: z.int().gte(1).nullish(),
+    scheduler_remaining_work_units: z.int().gte(0).nullish(),
+    scheduler_turn_number: z.int().gte(0).nullish(),
+    scheduler_turns_skipped: z.int().gte(0).nullish(),
+    scheduler_waiting_seconds: z.number().gte(0).nullish(),
     selected_page_index: z.int().gte(1).nullish(),
     selected_pages_total: z.int().gte(0).nullish(),
     server_timestamp: z.iso.datetime().nullish(),
@@ -954,6 +966,38 @@ export const zOcrPassComparison = z.object({
 });
 
 /**
+ * PriorityChangeRequest
+ */
+export const zPriorityChangeRequest = z.object({
+    action: z.string(),
+    reason: z.string().nullish()
+});
+
+/**
+ * PriorityClass
+ */
+export const zPriorityClass = z.enum([
+    'interactive_short',
+    'normal',
+    'large_background'
+]);
+
+/**
+ * PriorityChangeResponse
+ */
+export const zPriorityChangeResponse = z.object({
+    action: z.string(),
+    document_id: z.string().regex(/^doc_[0-9a-f]{32}$/),
+    effective_next_turn: z.int().gte(0).nullish(),
+    message: z.string(),
+    new_effective_priority: z.int().nullish(),
+    new_priority_class: zPriorityClass.nullish(),
+    old_effective_priority: z.int().nullish(),
+    old_priority_class: zPriorityClass.nullish(),
+    success: z.boolean()
+});
+
+/**
  * ProcessRequest
  *
  * Request to queue documents for admission.
@@ -1044,6 +1088,15 @@ export const zProgressEventType = z.enum([
     'job.cancelled',
     'stream.resync_required',
     'heartbeat',
+    'scheduler.document_admitted',
+    'scheduler.document_ready',
+    'scheduler.turn_started',
+    'scheduler.quantum_completed',
+    'scheduler.document_yielded',
+    'scheduler.document_checkpointed',
+    'scheduler.priority_changed',
+    'scheduler.document_resumed',
+    'scheduler.document_terminal',
     'document.page_started',
     'document.page_completed',
     'document.completed'
@@ -1096,8 +1149,10 @@ export const zProgressEvent = z.object({
     estimated_document_completion_at: z.iso.datetime().nullish(),
     estimated_document_remaining_seconds: z.number().gte(0).nullish(),
     estimated_document_seconds_remaining: z.number().gte(0).nullish(),
+    estimated_next_turn_seconds: z.number().gte(0).nullish(),
     estimated_queue_remaining_seconds: z.number().gte(0).nullish(),
     estimated_queue_seconds_remaining: z.number().gte(0).nullish(),
+    estimated_waiting_seconds: z.number().gte(0).nullish(),
     event: zProgressEventType,
     event_id: z.string().regex(/^evt_[0-9]{12}$/),
     event_sequence: z.int().gte(1),
@@ -1146,6 +1201,17 @@ export const zProgressEvent = z.object({
     route: z.string().nullish(),
     route_page_index: z.int().gte(1).nullish(),
     route_pages_total: z.int().gte(0).nullish(),
+    scheduler_document_state: z.string().nullish(),
+    scheduler_effective_priority: z.int().gte(0).nullish(),
+    scheduler_priority_class: z.string().nullish(),
+    scheduler_quantum: z.int().gte(0).nullish(),
+    scheduler_quantum_completed: z.int().gte(0).nullish(),
+    scheduler_queue_position: z.int().gte(1).nullish(),
+    scheduler_reason: z.string().nullish(),
+    scheduler_remaining_work_units: z.int().gte(0).nullish(),
+    scheduler_turn_number: z.int().gte(0).nullish(),
+    scheduler_turns_skipped: z.int().gte(0).nullish(),
+    scheduler_waiting_seconds: z.number().gte(0).nullish(),
     selected_page_index: z.int().gte(1).nullish(),
     selected_pages_total: z.int().gte(0).nullish(),
     server_timestamp: z.iso.datetime().nullish(),
@@ -1246,7 +1312,12 @@ export const zQueueInfo = z.object({
     active_document_id: z.string().regex(/^doc_[0-9a-f]{32}$/).nullish(),
     active_job_id: z.string().regex(/^job_[0-9a-f]{32}$/).nullish(),
     pending: z.int().gte(0).optional().default(0),
-    running: z.int().gte(0).optional().default(0)
+    running: z.int().gte(0).optional().default(0),
+    scheduler_active_document_id: z.string().regex(/^doc_[0-9a-f]{32}$/).nullish(),
+    scheduler_checkpointed_count: z.int().gte(0).optional().default(0),
+    scheduler_enabled: z.boolean().optional().default(false),
+    scheduler_ready_count: z.int().gte(0).optional().default(0),
+    scheduler_turn_number: z.int().gte(0).optional().default(0)
 });
 
 /**
@@ -1313,6 +1384,67 @@ export const zRejectedDocument = z.object({
     error_code: z.string(),
     input_index: z.int().gte(0),
     message: z.string()
+});
+
+/**
+ * SchedulingDocumentState
+ */
+export const zSchedulingDocumentState = z.enum([
+    'not_admitted',
+    'ready',
+    'running',
+    'yielding',
+    'checkpointed',
+    'blocked',
+    'cancelling',
+    'cancelled',
+    'completed',
+    'failed'
+]);
+
+/**
+ * DocumentSchedulingState
+ */
+export const zDocumentSchedulingState = z.object({
+    admitted_at: z.iso.datetime(),
+    aging_adjustment: z.int().gte(0).optional().default(0),
+    current_quantum: z.int().gte(0).optional().default(0),
+    document_id: z.string().regex(/^doc_[0-9a-f]{32}$/),
+    effective_priority: z.int().optional().default(0),
+    estimated_document_remaining_seconds: z.number().gte(0).nullish(),
+    estimated_next_turn_seconds: z.number().gte(0).nullish(),
+    last_checkpoint_version: z.int().gte(0).optional().default(0),
+    last_turn_at: z.iso.datetime().nullish(),
+    next_eligible_turn: z.int().gte(0).optional().default(0),
+    priority_class: zPriorityClass,
+    quantum_completed: z.int().gte(0).optional().default(0),
+    quantum_remaining: z.int().gte(0).optional().default(0),
+    queue_position: z.int().gte(1).nullish(),
+    remaining_embedded_work: z.int().gte(0).optional().default(0),
+    remaining_full_ocr_pages: z.int().gte(0).optional().default(0),
+    remaining_native_work: z.int().gte(0).optional().default(0),
+    remaining_repair_pages: z.int().gte(0).optional().default(0),
+    session_id: z.string().regex(/^ses_[0-9a-f]{32}$/),
+    state: zSchedulingDocumentState,
+    turn_number: z.int().gte(0).optional().default(0),
+    turns_completed: z.int().gte(0).optional().default(0),
+    turns_skipped: z.int().gte(0).optional().default(0),
+    waiting_seconds: z.number().gte(0).optional().default(0)
+});
+
+/**
+ * SchedulerSnapshot
+ */
+export const zSchedulerSnapshot = z.object({
+    active_document_id: z.string().regex(/^doc_[0-9a-f]{32}$/).nullish(),
+    active_work_unit_id: z.string().nullish(),
+    checkpointed_document_count: z.int().gte(0).optional().default(0),
+    documents: z.array(zDocumentSchedulingState).optional(),
+    estimated_batch_remaining_seconds: z.number().gte(0).nullish(),
+    ready_document_count: z.int().gte(0).optional().default(0),
+    scheduler_enabled: z.boolean(),
+    scheduler_policy_version: z.string(),
+    turn_number: z.int().gte(0).optional().default(0)
 });
 
 /**
@@ -2006,6 +2138,18 @@ export const zGetNativeSummaryApiV1SessionsSessionIdDocumentsDocumentIdNativeSum
  */
 export const zGetNativeSummaryApiV1SessionsSessionIdDocumentsDocumentIdNativeSummaryGetResponse = zNativeDocumentSummary;
 
+export const zChangeDocumentPriorityApiV1SessionsSessionIdDocumentsDocumentIdPriorityPostBody = zPriorityChangeRequest;
+
+export const zChangeDocumentPriorityApiV1SessionsSessionIdDocumentsDocumentIdPriorityPostPath = z.object({
+    session_id: z.string(),
+    document_id: z.string()
+});
+
+/**
+ * Successful Response
+ */
+export const zChangeDocumentPriorityApiV1SessionsSessionIdDocumentsDocumentIdPriorityPostResponse = zPriorityChangeResponse;
+
 export const zGetVisualPageApiV1SessionsSessionIdDocumentsDocumentIdVisualPagesPageNumberGetPath = z.object({
     session_id: z.string(),
     document_id: z.string(),
@@ -2066,6 +2210,15 @@ export const zProcessDocumentsApiV1SessionsSessionIdProcessPostPath = z.object({
  * Successful Response
  */
 export const zProcessDocumentsApiV1SessionsSessionIdProcessPostResponse = zProcessResponse;
+
+export const zGetSchedulerSnapshotApiV1SessionsSessionIdSchedulerGetPath = z.object({
+    session_id: z.string()
+});
+
+/**
+ * Successful Response
+ */
+export const zGetSchedulerSnapshotApiV1SessionsSessionIdSchedulerGetResponse = zSchedulerSnapshot;
 
 /**
  * Successful Response

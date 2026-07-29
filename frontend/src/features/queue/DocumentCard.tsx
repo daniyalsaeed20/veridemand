@@ -17,11 +17,17 @@ import type {
   DocumentStatus,
   DocumentSummary,
 } from "../viewer/viewerApi";
-import { cancelDocument, removeDocument } from "./documentApi";
+import {
+  cancelDocument,
+  moveDocumentAhead,
+  moveDocumentBehind,
+  removeDocument,
+} from "./documentApi";
 import { applyMonotonicProgress, type ProgressFloor } from "./monotonicProgress";
 import { ProcessingDetailsCard } from "../progress/ProcessingDetailsCard";
 import { PageRouteBreakdown } from "../progress/PageRouteBreakdown";
 import { isProgressActive } from "../progress/deriveLiveProgress";
+import { formatDuration } from "../progress/formatDuration";
 
 const STATUS_LABEL: Record<DocumentStatus, string> = {
   uploaded: "Uploaded",
@@ -108,13 +114,23 @@ export function DocumentCard({
     mutationFn: () => removeDocument(sessionId, document.document_id),
     onSuccess: invalidate,
   });
+  const moveAheadMutation = useMutation({
+    mutationFn: () => moveDocumentAhead(sessionId, document.document_id),
+    onSuccess: invalidate,
+  });
+  const moveBehindMutation = useMutation({
+    mutationFn: () => moveDocumentBehind(sessionId, document.document_id),
+    onSuccess: invalidate,
+  });
 
+  const priorityBusy = moveAheadMutation.isPending || moveBehindMutation.isPending;
   const busy =
     disabled ||
     processBlocked ||
     processMutation.isPending ||
     cancelMutation.isPending ||
-    removeMutation.isPending;
+    removeMutation.isPending ||
+    priorityBusy;
 
   const canProcess = document.status === "uploaded";
   const canCancel =
@@ -133,6 +149,16 @@ export function DocumentCard({
     document.status === "visual_processing_failed" ||
     document.status === "cancelled" ||
     document.status === "failed";
+  const isTerminalStatus =
+    document.status === "cancelled" ||
+    document.status === "failed" ||
+    document.status === "visual_processing_complete" ||
+    document.status === "visual_processing_partial" ||
+    document.status === "visual_processing_failed" ||
+    document.status === "ready_for_extraction" ||
+    document.status === "native_trust_complete";
+  const showPriorityControls = document.fair_scheduling_enabled === true && !isTerminalStatus;
+  const isActiveSchedulerDocument = document.scheduler_document_state === "running";
   const isSelected = selectedDocumentId === document.document_id;
 
   const pageLabel =
@@ -318,6 +344,58 @@ export function DocumentCard({
           </Typography>
         ) : null}
 
+        {document.scheduler_document_state ? (
+          <Stack spacing={0.5} aria-label="Fair scheduler state">
+            {document.scheduler_document_state === "running" ? (
+              <Typography variant="caption" color="text.secondary">
+                Processing page{" "}
+                {document.scheduler_quantum_completed != null
+                  ? document.scheduler_quantum_completed + 1
+                  : (document.active_page_number ?? "—")}{" "}
+                of this turn
+                {document.scheduler_quantum != null
+                  ? ` · quantum ${document.scheduler_quantum_completed ?? 0}/${document.scheduler_quantum}`
+                  : ""}
+              </Typography>
+            ) : document.scheduler_document_state === "checkpointed" ||
+              document.scheduler_document_state === "ready" ? (
+              <Typography variant="caption" color="text.secondary">
+                Paused at a safe page checkpoint so another document can process.
+              </Typography>
+            ) : (
+              <Typography variant="caption" color="text.secondary">
+                Scheduler state: {document.scheduler_document_state}
+              </Typography>
+            )}
+            {(document.scheduler_remaining_work_units != null ||
+              document.scheduler_priority_class != null ||
+              document.estimated_next_turn_seconds != null) && (
+              <Typography variant="caption" color="text.secondary">
+                {[
+                  document.scheduler_remaining_work_units != null
+                    ? `Remaining work units: ${document.scheduler_remaining_work_units}`
+                    : null,
+                  document.scheduler_priority_class != null
+                    ? `Priority: ${document.scheduler_priority_class}`
+                    : null,
+                  document.estimated_next_turn_seconds != null
+                    ? `Next turn in ~${formatDuration(document.estimated_next_turn_seconds)}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </Typography>
+            )}
+            {document.scheduler_queue_position != null ? (
+              <Chip
+                label={`Scheduler position ${document.scheduler_queue_position}`}
+                size="small"
+                variant="outlined"
+              />
+            ) : null}
+          </Stack>
+        ) : null}
+
         <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
           {canProcess ? (
             <Button
@@ -341,6 +419,28 @@ export function DocumentCard({
             >
               Cancel
             </Button>
+          ) : null}
+          {showPriorityControls ? (
+            <>
+              <Button
+                size="small"
+                variant="outlined"
+                disabled={busy || isActiveSchedulerDocument}
+                aria-label={`Move ${document.display_filename} ahead in the fair schedule`}
+                onClick={() => moveAheadMutation.mutate()}
+              >
+                {moveAheadMutation.isPending ? "Moving..." : "Move ahead"}
+              </Button>
+              <Button
+                size="small"
+                variant="outlined"
+                disabled={busy || isActiveSchedulerDocument}
+                aria-label={`Move ${document.display_filename} behind in the fair schedule`}
+                onClick={() => moveBehindMutation.mutate()}
+              >
+                {moveBehindMutation.isPending ? "Moving..." : "Move behind"}
+              </Button>
+            </>
           ) : null}
           {document.canonical_view_available ? (
             <Button

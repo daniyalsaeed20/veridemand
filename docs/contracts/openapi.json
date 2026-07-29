@@ -461,6 +461,178 @@
         "title": "DocumentListResponse",
         "type": "object"
       },
+      "DocumentSchedulingState": {
+        "additionalProperties": false,
+        "properties": {
+          "admitted_at": {
+            "format": "date-time",
+            "title": "Admitted At",
+            "type": "string"
+          },
+          "aging_adjustment": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Aging Adjustment",
+            "type": "integer"
+          },
+          "current_quantum": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Current Quantum",
+            "type": "integer"
+          },
+          "document_id": {
+            "pattern": "^doc_[0-9a-f]{32}$",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "effective_priority": {
+            "default": 0,
+            "title": "Effective Priority",
+            "type": "integer"
+          },
+          "estimated_document_remaining_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Document Remaining Seconds"
+          },
+          "estimated_next_turn_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Next Turn Seconds"
+          },
+          "last_checkpoint_version": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Last Checkpoint Version",
+            "type": "integer"
+          },
+          "last_turn_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Turn At"
+          },
+          "next_eligible_turn": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Next Eligible Turn",
+            "type": "integer"
+          },
+          "priority_class": {
+            "$ref": "#/components/schemas/PriorityClass"
+          },
+          "quantum_completed": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Quantum Completed",
+            "type": "integer"
+          },
+          "quantum_remaining": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Quantum Remaining",
+            "type": "integer"
+          },
+          "queue_position": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queue Position"
+          },
+          "remaining_embedded_work": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Remaining Embedded Work",
+            "type": "integer"
+          },
+          "remaining_full_ocr_pages": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Remaining Full Ocr Pages",
+            "type": "integer"
+          },
+          "remaining_native_work": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Remaining Native Work",
+            "type": "integer"
+          },
+          "remaining_repair_pages": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Remaining Repair Pages",
+            "type": "integer"
+          },
+          "session_id": {
+            "pattern": "^ses_[0-9a-f]{32}$",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/SchedulingDocumentState"
+          },
+          "turn_number": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Turn Number",
+            "type": "integer"
+          },
+          "turns_completed": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Turns Completed",
+            "type": "integer"
+          },
+          "turns_skipped": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Turns Skipped",
+            "type": "integer"
+          },
+          "waiting_seconds": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "title": "Waiting Seconds",
+            "type": "number"
+          }
+        },
+        "required": [
+          "document_id",
+          "session_id",
+          "state",
+          "priority_class",
+          "admitted_at"
+        ],
+        "title": "DocumentSchedulingState",
+        "type": "object"
+      },
       "DocumentSourcePolicy": {
         "description": "Document-level source authority after escalation rules.",
         "enum": [
@@ -1057,6 +1229,18 @@
             ],
             "title": "Estimated Document Remaining Seconds"
           },
+          "estimated_next_turn_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Next Turn Seconds"
+          },
           "estimated_queue_remaining_seconds": {
             "anyOf": [
               {
@@ -1068,6 +1252,18 @@
               }
             ],
             "title": "Estimated Queue Remaining Seconds"
+          },
+          "estimated_waiting_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Waiting Seconds"
           },
           "extension": {
             "description": "Lowercased, validated file extension without the dot.",
@@ -1583,6 +1779,124 @@
               }
             ],
             "title": "Route Pages Total"
+          },
+          "scheduler_document_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduler Document State"
+          },
+          "scheduler_effective_priority": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduler Effective Priority"
+          },
+          "scheduler_priority_class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduler Priority Class"
+          },
+          "scheduler_quantum": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduler Quantum"
+          },
+          "scheduler_quantum_completed": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduler Quantum Completed"
+          },
+          "scheduler_queue_position": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduler Queue Position"
+          },
+          "scheduler_remaining_work_units": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduler Remaining Work Units"
+          },
+          "scheduler_turn_number": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduler Turn Number"
+          },
+          "scheduler_turns_skipped": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduler Turns Skipped"
+          },
+          "scheduler_waiting_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduler Waiting Seconds"
           },
           "selected_page_index": {
             "anyOf": [
@@ -4583,6 +4897,125 @@
         "title": "PrintedOcrWord",
         "type": "object"
       },
+      "PriorityChangeRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "description": "move_ahead|move_behind|restore_default_priority",
+            "title": "Action",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "PriorityChangeRequest",
+        "type": "object"
+      },
+      "PriorityChangeResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "document_id": {
+            "pattern": "^doc_[0-9a-f]{32}$",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "effective_next_turn": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Next Turn"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "new_effective_priority": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Effective Priority"
+          },
+          "new_priority_class": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PriorityClass"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "old_effective_priority": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Old Effective Priority"
+          },
+          "old_priority_class": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PriorityClass"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "success": {
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "document_id",
+          "action",
+          "success",
+          "message"
+        ],
+        "title": "PriorityChangeResponse",
+        "type": "object"
+      },
+      "PriorityClass": {
+        "enum": [
+          "interactive_short",
+          "normal",
+          "large_background"
+        ],
+        "title": "PriorityClass",
+        "type": "string"
+      },
       "ProcessRequest": {
         "additionalProperties": false,
         "description": "Request to queue documents for admission.\n\nWhen ``document_ids`` is null, all documents currently in the ``uploaded``\nstate are queued. When supplied, every id must belong to the session and only\neligible uploaded documents are queued.",
@@ -5140,6 +5573,18 @@
             ],
             "title": "Estimated Document Seconds Remaining"
           },
+          "estimated_next_turn_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Next Turn Seconds"
+          },
           "estimated_queue_remaining_seconds": {
             "anyOf": [
               {
@@ -5164,6 +5609,18 @@
               }
             ],
             "title": "Estimated Queue Seconds Remaining"
+          },
+          "estimated_waiting_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Waiting Seconds"
           },
           "event": {
             "$ref": "#/components/schemas/ProgressEventType",
@@ -5739,6 +6196,135 @@
             "description": "Page count for the active route category.",
             "title": "Route Pages Total"
           },
+          "scheduler_document_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduler Document State"
+          },
+          "scheduler_effective_priority": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduler Effective Priority"
+          },
+          "scheduler_priority_class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduler Priority Class"
+          },
+          "scheduler_quantum": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduler Quantum"
+          },
+          "scheduler_quantum_completed": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduler Quantum Completed"
+          },
+          "scheduler_queue_position": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduler Queue Position"
+          },
+          "scheduler_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduler Reason"
+          },
+          "scheduler_remaining_work_units": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduler Remaining Work Units"
+          },
+          "scheduler_turn_number": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduler Turn Number"
+          },
+          "scheduler_turns_skipped": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduler Turns Skipped"
+          },
+          "scheduler_waiting_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduler Waiting Seconds"
+          },
           "selected_page_index": {
             "anyOf": [
               {
@@ -6101,6 +6687,15 @@
           "job.cancelled",
           "stream.resync_required",
           "heartbeat",
+          "scheduler.document_admitted",
+          "scheduler.document_ready",
+          "scheduler.turn_started",
+          "scheduler.quantum_completed",
+          "scheduler.document_yielded",
+          "scheduler.document_checkpointed",
+          "scheduler.priority_changed",
+          "scheduler.document_resumed",
+          "scheduler.document_terminal",
           "document.page_started",
           "document.page_completed",
           "document.completed"
@@ -6222,6 +6817,41 @@
             "description": "Admission jobs currently running.",
             "minimum": 0.0,
             "title": "Running",
+            "type": "integer"
+          },
+          "scheduler_active_document_id": {
+            "anyOf": [
+              {
+                "pattern": "^doc_[0-9a-f]{32}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduler Active Document Id"
+          },
+          "scheduler_checkpointed_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Scheduler Checkpointed Count",
+            "type": "integer"
+          },
+          "scheduler_enabled": {
+            "default": false,
+            "title": "Scheduler Enabled",
+            "type": "boolean"
+          },
+          "scheduler_ready_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Scheduler Ready Count",
+            "type": "integer"
+          },
+          "scheduler_turn_number": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Scheduler Turn Number",
             "type": "integer"
           }
         },
@@ -6425,6 +7055,101 @@
         ],
         "title": "RejectedDocument",
         "type": "object"
+      },
+      "SchedulerSnapshot": {
+        "additionalProperties": false,
+        "properties": {
+          "active_document_id": {
+            "anyOf": [
+              {
+                "pattern": "^doc_[0-9a-f]{32}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Document Id"
+          },
+          "active_work_unit_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Work Unit Id"
+          },
+          "checkpointed_document_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Checkpointed Document Count",
+            "type": "integer"
+          },
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentSchedulingState"
+            },
+            "title": "Documents",
+            "type": "array"
+          },
+          "estimated_batch_remaining_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Batch Remaining Seconds"
+          },
+          "ready_document_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Ready Document Count",
+            "type": "integer"
+          },
+          "scheduler_enabled": {
+            "title": "Scheduler Enabled",
+            "type": "boolean"
+          },
+          "scheduler_policy_version": {
+            "title": "Scheduler Policy Version",
+            "type": "string"
+          },
+          "turn_number": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Turn Number",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "scheduler_enabled",
+          "scheduler_policy_version"
+        ],
+        "title": "SchedulerSnapshot",
+        "type": "object"
+      },
+      "SchedulingDocumentState": {
+        "enum": [
+          "not_admitted",
+          "ready",
+          "running",
+          "yielding",
+          "checkpointed",
+          "blocked",
+          "cancelling",
+          "cancelled",
+          "completed",
+          "failed"
+        ],
+        "title": "SchedulingDocumentState",
+        "type": "string"
       },
       "SessionLimits": {
         "additionalProperties": false,
@@ -8902,6 +9627,77 @@
         ]
       }
     },
+    "/api/v1/sessions/{session_id}/documents/{document_id}/priority": {
+      "post": {
+        "operationId": "change_document_priority_api_v1_sessions__session_id__documents__document_id__priority_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PriorityChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PriorityChangeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "Session or document not found."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Change a document's scheduling priority",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
     "/api/v1/sessions/{session_id}/documents/{document_id}/visual/pages/{page_number}": {
       "get": {
         "operationId": "get_visual_page_api_v1_sessions__session_id__documents__document_id__visual_pages__page_number__get",
@@ -9265,6 +10061,58 @@
         "summary": "Queue documents for admission",
         "tags": [
           "sessions"
+        ]
+      }
+    },
+    "/api/v1/sessions/{session_id}/scheduler": {
+      "get": {
+        "operationId": "get_scheduler_snapshot_api_v1_sessions__session_id__scheduler_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchedulerSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "Session or document not found."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get the fair-scheduler snapshot for a session",
+        "tags": [
+          "documents"
         ]
       }
     },
