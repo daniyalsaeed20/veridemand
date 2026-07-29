@@ -16,11 +16,11 @@ Implement fair scheduling at page boundaries only. Documents yield after
 completing a bounded page quantum. The OCR model remains loaded across document
 switches. No page is preempted during inference.
 
-**Interim implementation (Correction 7 branch):** the live path uses a
-document-level fair scheduler overlay (admission, priority, quantum accounting,
-cancel/terminal sync) on the Correction 6 single-job OCR hold. Cross-document
-OCR worker interleaving at page checkpoints remains the target architecture and
-is tracked as a follow-up exit gate.
+**Implementation:** after routing, heavy pages are admitted as work units. A
+lifespan-owned `_heavy_consumer_loop` claims units, runs
+`VisualOcrService.process_selected_pages` for the claimed page(s), checkpoints
+after atomic publish, and yields so another ready document can run. Cheap
+canonical/native/routing work proceeds on the admission worker while OCR is busy.
 
 ## Consequences
 

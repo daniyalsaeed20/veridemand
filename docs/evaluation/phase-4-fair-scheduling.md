@@ -2,10 +2,9 @@
 
 ## Interim architecture note
 
-Private and synthetic acceptance for this branch validates the **document-level
-fair scheduler overlay** (admission, priority, quantum accounting, cancel/terminal
-events). True page-quantum OCR worker interleaving across documents remains a
-follow-up exit gate and is not claimed by these metrics yet.
+Correction 7 now implements **page-quantum heavy OCR** via `_heavy_consumer_loop`.
+Synthetic acceptance must show a small document receiving a turn before a large
+document finishes all selected heavy pages.
 
 ## Fairness metrics
 

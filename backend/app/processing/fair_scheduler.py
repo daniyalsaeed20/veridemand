@@ -286,6 +286,15 @@ class FairDocumentScheduler:
 
     def close(self) -> None:
         self._closed = True
+        self._active_work_unit = None
+        self._active_document_id = None
+        for queue in self._ready_by_class.values():
+            queue.clear()
+        for doc in self._documents.values():
+            if doc.checkpoint is not None:
+                doc.checkpoint.clear()
+            doc.work_units.clear()
+        self._record_event("scheduler_closed")
 
     def admit_document(
         self,
@@ -592,11 +601,10 @@ class FairDocumentScheduler:
         queue = self._ready_by_class[doc.priority_class]
         if document_id not in queue:
             return False
-        items = list(queue)
-        idx = items.index(document_id)
-        if idx == 0:
+        items = [item for item in queue if item != document_id]
+        items.insert(0, document_id)
+        if list(queue) == items:
             return False
-        items[idx - 1], items[idx] = items[idx], items[idx - 1]
         queue.clear()
         queue.extend(items)
         self._record_event("priority_moved_ahead", document_id=document_id)

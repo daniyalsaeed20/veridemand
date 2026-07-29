@@ -590,3 +590,116 @@ async def test_disabled_fair_mode_runs_whole_document(tmp_path: Path) -> None:
     assert ordering[: len(first_block)] == first_block, "documents interleaved while disabled"
     assert sorted(_pages_for(timeline, first.document_id)) == [1, 2, 3]
     assert sorted(_pages_for(timeline, second.document_id)) == [1, 2, 3]
+
+
+@pytest.mark.asyncio
+async def test_move_ahead_changes_next_eligible_turn(tmp_path: Path) -> None:
+    """move_ahead promotes a waiting document for the next scheduler turn."""
+
+    settings = _settings(tmp_path)
+    timeline: list[tuple[str, str, int]] = []
+    registry, queue, file_store = build_runtime(settings)
+    worker = DeterministicFakeOcrWorkerManager(timeline)
+    visual = VisualOcrService(settings, worker)  # type: ignore[arg-type]
+    session = await registry.create()
+    large = register_document(file_store, session)
+    small_a = register_document(file_store, session)
+    small_b = register_document(file_store, session)
+    page_counts = {
+        large.document_id: 8,
+        small_a.document_id: 2,
+        small_b.document_id: 2,
+    }
+    needs_ocr = {
+        large.document_id: True,
+        small_a.document_id: True,
+        small_b.document_id: True,
+    }
+
+    coordinator = build_coordinator(
+        registry,
+        queue,
+        file_store,
+        PageCountProcessor(file_store, page_counts),
+        settings=settings,
+        native_service=RoutedNativeService(needs_ocr),
+        visual_service=visual,
+    )
+    scheduler = FairDocumentScheduler(SchedulerConfig(enabled=True, page_quantum=1))
+    coordinator.set_scheduler(scheduler)
+    coordinator.start()
+    coordinator.start_heavy_consumer()
+    try:
+        await coordinator.enqueue_documents(session, [large.document_id])
+        await _wait_for(lambda: len(_pages_for(timeline, large.document_id)) >= 1)
+        await coordinator.enqueue_documents(session, [small_a.document_id, small_b.document_id])
+        await _wait_for(
+            lambda: (
+                scheduler.get_document(small_a.document_id) is not None
+                and scheduler.get_document(small_b.document_id) is not None
+            )
+        )
+        # Prefer B for the next eligible interactive_short turn.
+        moved = False
+        for _ in range(300):
+            doc_b = scheduler.get_document(small_b.document_id)
+            if doc_b is not None and doc_b.state.value == "ready":
+                moved = coordinator.move_document_ahead(session.session_id, small_b.document_id)
+                if not moved:
+                    # Already at the front of the ready queue.
+                    moved = True
+                break
+            await asyncio.sleep(0.01)
+        assert moved, "priority control should find document B ready to reorder"
+        await _wait_for(
+            lambda: all(
+                doc.status is DocumentStatus.VISUAL_PROCESSING_COMPLETE
+                for doc in (large, small_a, small_b)
+            )
+        )
+    finally:
+        await coordinator.stop()
+
+    first_b = _first_index(timeline, small_b.document_id)
+    first_a = _first_index(timeline, small_a.document_id)
+    assert first_b < first_a, "moved-ahead document B should run before waiting document A"
+    assert sorted(_pages_for(timeline, small_b.document_id)) == [1, 2]
+    assert sorted(_pages_for(timeline, small_a.document_id)) == [1, 2]
+    assert sorted(_pages_for(timeline, large.document_id)) == list(range(1, 9))
+
+
+@pytest.mark.asyncio
+async def test_shutdown_leaves_no_orphan_heavy_consumer(tmp_path: Path) -> None:
+    """stop() cancels the heavy consumer and clears active scheduler ownership."""
+
+    settings = _settings(tmp_path)
+    timeline: list[tuple[str, str, int]] = []
+    registry, queue, file_store = build_runtime(settings)
+    worker = DeterministicFakeOcrWorkerManager(timeline)
+    visual = VisualOcrService(settings, worker)  # type: ignore[arg-type]
+    session = await registry.create()
+    large = register_document(file_store, session)
+
+    coordinator = build_coordinator(
+        registry,
+        queue,
+        file_store,
+        PageCountProcessor(file_store, {large.document_id: 6}),
+        settings=settings,
+        native_service=RoutedNativeService({large.document_id: True}),
+        visual_service=visual,
+    )
+    scheduler = FairDocumentScheduler(SchedulerConfig(enabled=True, page_quantum=1))
+    coordinator.set_scheduler(scheduler)
+    coordinator.start()
+    coordinator.start_heavy_consumer()
+    await coordinator.enqueue_documents(session, [large.document_id])
+    await _wait_for(lambda: len(_pages_for(timeline, large.document_id)) >= 1)
+    await coordinator.stop()
+
+    assert coordinator._heavy_task is None or coordinator._heavy_task.done()
+    scheduler.close()
+    assert scheduler.closed
+    assert scheduler.active_work_unit is None
+    assert scheduler.next_work_unit() is None
+    assert scheduler.ready_count() == 0

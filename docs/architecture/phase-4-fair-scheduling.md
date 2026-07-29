@@ -1,20 +1,21 @@
 # Phase 4 — Fair Document Scheduling (Correction 7)
 
-## Architecture lock (integration checkpoint)
+## Architecture lock
 
-**Chosen scope for this branch:** interim **document-level fair scheduler overlay** on Correction 6 FIFO.
+**Chosen scope:** true **page-quantum fair scheduling** with a dedicated heavy OCR consumer.
 
-- Cheap canonical / native / routing / successful targeted-repair work stays outside the heavy scheduler.
+- Cheap canonical / native / routing / successful targeted-repair work stays outside the heavy scheduler and can run while OCR is busy.
 - Heavy work units are full-OCR pages (`SchedulerWorkUnit` / `WorkClass.FULL_OCR_PAGE`).
 - One full-OCR page remains indivisible; safe checkpoint is after atomic page publish.
-- Live OCR still runs via one coordinator job worker and `VisualOcrService.process_document` (document-scoped). The scheduler admits, classifies, ages, accounts quantum, and syncs cancel/fail/complete — it does **not** yet pause mid-document OCR to run another document’s pages.
-- True page-quantum cross-document interleaving (a dedicated heavy consumer that yields the OCR worker between documents) is **out of scope** for the interim overlay and would be a follow-up change with its own exit gate.
+- After route/select, documents admit page units into `FairDocumentScheduler`. The cheap job worker releases so later documents can progress.
+- `_heavy_consumer_loop` claims the next work unit, runs `VisualOcrService.process_selected_pages` for that page (quantum-bounded), yields when the quantum is exhausted, and resumes without repeating published pages.
+- `VisualOcrService` is split into `route_and_select_heavy_pages` → `process_selected_pages` → `finalize_visual_summary`. Disabled fair mode still composes these into contiguous whole-document processing.
 
 Enums and API shapes live in `backend/app/contracts/scheduling.py`; the runtime scheduler imports them (single source of truth).
 
 ## Overview
 
-Correction 7 introduces deterministic fair scheduling for the VeriDemand OCR pipeline. Under the locked interim overlay, the scheduler tracks and prioritises heavy OCR work across documents so small documents are classified and ordered fairly relative to large ones, without changing the Correction 6 single-job OCR hold until a later interleaving upgrade.
+Correction 7 introduces deterministic page-boundary fair scheduling for the VeriDemand OCR pipeline. The heavy consumer interleaves OCR work across documents so small documents receive timely turns without waiting behind large scanned documents.
 
 ## Problem
 
