@@ -37,6 +37,8 @@ from backend.app.extraction.routing.metrics import log_page_route_decision
 from backend.app.extraction.routing.models import RouteExecutionPlan, RoutingPolicy
 from backend.app.extraction.routing.native_words import native_words_for_routing
 from backend.app.extraction.routing.recognition_check import evaluate_recognition_agreement
+from backend.app.extraction.routing.repair_clustering import cluster_failed_boxes
+from backend.app.extraction.routing.repair_eligibility import evaluate_targeted_repair_eligibility
 from backend.app.extraction.routing.targeted_repair import repair_regions
 from backend.app.extraction.routing.text_likelihood import evaluate_text_likelihood
 from backend.app.extraction.routing.visual_agreement import (
@@ -189,10 +191,28 @@ class PageRouter:
 
         if visual.visual_agreement_score < self._policy.min_visual_agreement:
             fail_ratio = len(visual.failed_box_indices) / max(1, visual.sampled_box_count)
+            failed_idx = list(visual.failed_box_indices)
+            regions = cluster_failed_boxes(
+                words,
+                failed_idx,
+                page_number=page.page_number,
+                policy=self._policy,
+                failure_reason_codes=["limited_visual_disagreement", *visual.reason_codes],
+            )
+            eligibility = evaluate_targeted_repair_eligibility(
+                page_number=page.page_number,
+                words=words,
+                failed_indices=failed_idx,
+                regions=regions,
+                policy=self._policy,
+                visual_agreement_score=visual.visual_agreement_score,
+                recognition_agreement_score=None,
+                geometry_shifted=False,
+            )
             if (
                 self._policy.targeted_repair_enabled
+                and eligibility.repair_eligible
                 and fail_ratio <= self._policy.max_fail_ratio_for_repair
-                and visual.visual_agreement_score >= self._policy.min_visual_agreement * 0.75
             ):
                 decision = self._targeted_decision(
                     page,
@@ -200,14 +220,29 @@ class PageRouter:
                     visual_score=visual.visual_agreement_score,
                     sampled=visual.sampled_box_count,
                     visible_ratio=visual.visible_box_ratio,
-                    reasons=["limited_visual_disagreement", *visual.reason_codes],
-                    failed_count=len(visual.failed_box_indices),
+                    reasons=[
+                        "limited_visual_disagreement",
+                        *visual.reason_codes,
+                        *eligibility.repair_reason_codes,
+                    ],
+                    failed_count=len(regions) or len(failed_idx),
                 )
-                return self._finish(document_id, decision, started, page=page)
+                return self._finish(
+                    document_id,
+                    decision,
+                    started,
+                    page=page,
+                    failed_word_indices=failed_idx,
+                    geometry_shifted=False,
+                )
             decision = build_full_ocr_decision(
                 page,
                 self._policy,
-                reason_codes=["embedded_visual_agreement_failed", *visual.reason_codes],
+                reason_codes=[
+                    "embedded_visual_agreement_failed",
+                    *visual.reason_codes,
+                    *eligibility.repair_reason_codes,
+                ],
                 image_dominant=image_dominant,
                 embedded_candidate=True,
                 visual_score=visual.visual_agreement_score,
@@ -233,10 +268,28 @@ class PageRouter:
                 fail_ratio = len(recognition.failed_sample_indices) / max(
                     1, recognition.sample_count
                 )
-                if (
-                    self._policy.targeted_repair_enabled
-                    and fail_ratio <= self._policy.max_fail_ratio_for_repair
-                ):
+                failed_idx = list(recognition.failed_sample_indices)
+                regions = cluster_failed_boxes(
+                    words,
+                    failed_idx,
+                    page_number=page.page_number,
+                    policy=self._policy,
+                    failure_reason_codes=[
+                        "limited_recognition_disagreement",
+                        *recognition.reason_codes,
+                    ],
+                )
+                eligibility = evaluate_targeted_repair_eligibility(
+                    page_number=page.page_number,
+                    words=words,
+                    failed_indices=failed_idx,
+                    regions=regions,
+                    policy=self._policy,
+                    visual_agreement_score=visual.visual_agreement_score,
+                    recognition_agreement_score=recognition_score,
+                    geometry_shifted=False,
+                )
+                if self._policy.targeted_repair_enabled and eligibility.repair_eligible:
                     decision = self._targeted_decision(
                         page,
                         image_dominant=image_dominant,
@@ -245,16 +298,28 @@ class PageRouter:
                         sampled=visual.sampled_box_count,
                         recognition_samples=recognition_count,
                         visible_ratio=visual.visible_box_ratio,
-                        reasons=["limited_recognition_disagreement", *recognition.reason_codes],
-                        failed_count=len(recognition_failed),
+                        reasons=[
+                            "limited_recognition_disagreement",
+                            *recognition.reason_codes,
+                            *eligibility.repair_reason_codes,
+                        ],
+                        failed_count=len(regions) or len(failed_idx),
                     )
-                    return self._finish(document_id, decision, started, page=page)
+                    return self._finish(
+                        document_id,
+                        decision,
+                        started,
+                        page=page,
+                        failed_word_indices=failed_idx,
+                        geometry_shifted=False,
+                    )
                 decision = build_full_ocr_decision(
                     page,
                     self._policy,
                     reason_codes=[
                         "embedded_recognition_agreement_failed",
                         *recognition.reason_codes,
+                        *eligibility.repair_reason_codes,
                     ],
                     image_dominant=image_dominant,
                     embedded_candidate=True,
@@ -388,6 +453,8 @@ class PageRouter:
         started: float,
         *,
         page: NativePageResult | None = None,
+        failed_word_indices: list[int] | None = None,
+        geometry_shifted: bool = False,
     ) -> RouteExecutionPlan:
         duration_ms = int((time.perf_counter() - started) * 1000)
         decision = decision.model_copy(update={"actual_duration_ms": duration_ms})
@@ -454,10 +521,19 @@ class PageRouter:
             failed_rule=failed_rule,
             decision_duration_ms=duration_ms,
         )
-        return self._plan_for(decision)
+        return self._plan_for(
+            decision,
+            failed_word_indices=failed_word_indices or [],
+            geometry_shifted=geometry_shifted,
+        )
 
     @staticmethod
-    def _plan_for(decision: PageRouteDecision) -> RouteExecutionPlan:
+    def _plan_for(
+        decision: PageRouteDecision,
+        *,
+        failed_word_indices: list[int] | None = None,
+        geometry_shifted: bool = False,
+    ) -> RouteExecutionPlan:
         route = decision.route
         return RouteExecutionPlan(
             decision=decision,
@@ -482,6 +558,8 @@ class PageRouter:
             run_targeted_repair=route is PageRoute.EMBEDDED_OCR_TARGETED_REPAIR,
             run_full_ocr=route is PageRoute.FULL_VISUAL_OCR,
             run_blank_preflight=route is PageRoute.VISUAL_NO_TEXT,
+            failed_word_indices=list(failed_word_indices or []),
+            geometry_shifted=geometry_shifted,
         )
 
 

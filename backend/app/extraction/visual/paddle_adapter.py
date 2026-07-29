@@ -284,6 +284,39 @@ class PaddleOcrAdapter:
         mean_score = sum(scores) / len(scores) if scores else 0.0
         return joined, mean_score
 
+    def recognise_only(self, image: Image.Image) -> tuple[str, float]:
+        """Recognition-only path for targeted repair when geometry is trusted.
+
+        Bypasses a separate detection stage by treating the crop as a single
+        recognition unit. Prefer this over full-page detect+recognise.
+        Never logs text.
+        """
+
+        # PaddleOCR 3.x exposes the full pipeline; for a tightly cropped word
+        # the detector typically returns one box. We still call predict on the
+        # crop only (never the full page) and take the best line.
+        return self.recognise_crop_text(image)
+
+    def detect_and_recognise_crop(
+        self, image: Image.Image, *, limit_side_len: int | None = None
+    ) -> list[tuple[str, float, list[tuple[float, float]]]]:
+        """Local detect+recognise inside a repair crop. Never logs text.
+
+        Returns (text, score, polygon_in_crop_pixels) for each line.
+        """
+
+        lines = self.recognise(image, limit_side_len=limit_side_len)
+        out: list[tuple[str, float, list[tuple[float, float]]]] = []
+        for line in lines:
+            text = (line.text or "").strip()
+            if not text:
+                continue
+            poly = [(float(x), float(y)) for x, y in (line.polygon_px or [])]
+            if len(poly) < 3:
+                continue
+            out.append((text, float(line.recognition_score or 0.0), poly))
+        return out
+
     def recognise_crops_batched(
         self, images: list[Image.Image], *, batch_size: int | None = None
     ) -> list[tuple[str, float]]:
@@ -294,7 +327,7 @@ class PaddleOcrAdapter:
         for start in range(0, len(images), size):
             chunk = images[start : start + size]
             for image in chunk:
-                results.append(self.recognise_crop_text(image))
+                results.append(self.recognise_only(image))
         return results
 
     def _adapt(self, raw: Any) -> list[RawOcrLine]:

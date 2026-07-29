@@ -1,31 +1,25 @@
-"""Targeted region repair for limited embedded-OCR failures."""
+"""Targeted region repair facade (Correction 6).
+
+Public helpers remain import-stable. Execution lives in repair_* modules.
+"""
 
 from __future__ import annotations
 
-import math
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
 
 from backend.app.contracts.native import NativeWord
+from backend.app.contracts.repair import RepairMethod, RepairRegionRecord
 from backend.app.contracts.routing import RepairRegionDiagnostics
 from backend.app.extraction.routing.models import RoutingPolicy
+from backend.app.extraction.routing.repair_clustering import (
+    cluster_failed_boxes as _cluster_failed_boxes,
+)
+from backend.app.extraction.routing.repair_clustering import expand_bbox
+from backend.app.extraction.routing.repair_eligibility import evaluate_targeted_repair_eligibility
 from PIL import Image
 
-
-@dataclass(slots=True)
-class FailedRegion:
-    """Cluster of nearby failed native boxes."""
-
-    region_id: str
-    word_indices: list[int]
-    x0: float
-    y0: float
-    x1: float
-    y1: float
-
-    @property
-    def coverage(self) -> float:
-        return max(0.0, (self.x1 - self.x0) * (self.y1 - self.y0))
+# Back-compat alias used by older tests/imports.
+FailedRegion = RepairRegionRecord
 
 
 def cluster_failed_boxes(
@@ -33,51 +27,29 @@ def cluster_failed_boxes(
     failed_indices: Sequence[int],
     *,
     page_number: int,
-    gap: float = 0.04,
-) -> list[FailedRegion]:
+    gap: float | None = None,
+    policy: RoutingPolicy | None = None,
+) -> list[RepairRegionRecord]:
     """Cluster nearby failed boxes into repair regions."""
 
-    items: list[tuple[int, NativeWord]] = [
-        (i, words[i]) for i in failed_indices if 0 <= i < len(words)
-    ]
-    items.sort(key=lambda pair: (pair[1].geometry.bbox.y, pair[1].geometry.bbox.x))
-    clusters: list[FailedRegion] = []
-    for idx, word in items:
-        bbox = word.geometry.bbox
-        wx0, wy0 = bbox.x, bbox.y
-        wx1, wy1 = bbox.x + bbox.width, bbox.y + bbox.height
-        placed = False
-        for cluster in clusters:
-            # Expand if overlapping / nearby.
-            if (
-                wx0 <= cluster.x1 + gap
-                and wx1 >= cluster.x0 - gap
-                and wy0 <= cluster.y1 + gap
-                and wy1 >= cluster.y0 - gap
-            ):
-                cluster.word_indices.append(idx)
-                cluster.x0 = min(cluster.x0, wx0)
-                cluster.y0 = min(cluster.y0, wy0)
-                cluster.x1 = max(cluster.x1, wx1)
-                cluster.y1 = max(cluster.y1, wy1)
-                placed = True
-                break
-        if not placed:
-            clusters.append(
-                FailedRegion(
-                    region_id=f"repair_p{page_number:04d}_{len(clusters) + 1:03d}",
-                    word_indices=[idx],
-                    x0=wx0,
-                    y0=wy0,
-                    x1=wx1,
-                    y1=wy1,
-                )
-            )
-    return clusters
+    from dataclasses import replace
+
+    if policy is None:
+        from backend.app.settings.config import get_settings
+
+        policy = RoutingPolicy.from_settings(get_settings())
+    if gap is not None:
+        policy = replace(policy, repair_cluster_gap=gap)
+    return _cluster_failed_boxes(
+        words,
+        failed_indices,
+        page_number=page_number,
+        policy=policy,
+    )
 
 
 def should_escalate_to_full_ocr(
-    regions: Sequence[FailedRegion],
+    regions: Sequence[RepairRegionRecord],
     policy: RoutingPolicy,
     *,
     fail_ratio: float,
@@ -86,28 +58,34 @@ def should_escalate_to_full_ocr(
         return True
     if fail_ratio > policy.max_fail_ratio_for_repair:
         return True
-    total_coverage = sum(r.coverage for r in regions)
+    total_coverage = sum(r.page_coverage_ratio for r in regions)
     return total_coverage > policy.max_repair_coverage
 
 
 def expand_region(
-    region: FailedRegion,
+    region: RepairRegionRecord,
     *,
     padding_ratio: float,
 ) -> tuple[float, float, float, float]:
-    width = region.x1 - region.x0
-    height = region.y1 - region.y0
-    pad_x = width * padding_ratio
-    pad_y = height * padding_ratio
+    bbox = region.normalised_bbox
+    expanded = expand_bbox(
+        bbox.x,
+        bbox.y,
+        bbox.x + bbox.width,
+        bbox.y + bbox.height,
+        padding_ratio=padding_ratio,
+    )
     return (
-        max(0.0, region.x0 - pad_x),
-        max(0.0, region.y0 - pad_y),
-        min(1.0, region.x1 + pad_x),
-        min(1.0, region.y1 + pad_y),
+        expanded.x,
+        expanded.y,
+        expanded.x + expanded.width,
+        expanded.y + expanded.height,
     )
 
 
 def crop_region(image: Image.Image, box: tuple[float, float, float, float]) -> Image.Image:
+    import math
+
     w, h = image.size
     x0, y0, x1, y1 = box
     px0 = int(max(0, math.floor(x0 * w)))
@@ -128,13 +106,13 @@ def repair_regions(
     page_number: int,
     recognise_region: Callable[[Image.Image], tuple[int, int]],
 ) -> tuple[list[RepairRegionDiagnostics], bool]:
-    """Attempt targeted repair. Returns (diagnostics, escalate_to_full_ocr).
+    """Legacy diagnostic helper — prefer ``run_targeted_repair_pipeline``.
 
     ``recognise_region`` returns (recognition_count, replacement_count) and must
     not log text or crops.
     """
 
-    regions = cluster_failed_boxes(words, failed_indices, page_number=page_number)
+    regions = cluster_failed_boxes(words, failed_indices, page_number=page_number, policy=policy)
     fail_ratio = (len(failed_indices) / max(1, len(words))) if words else 1.0
     if should_escalate_to_full_ocr(regions, policy, fail_ratio=fail_ratio):
         return [], True
@@ -149,14 +127,17 @@ def repair_regions(
             started = time.perf_counter()
             rec_count, replacements = recognise_region(crop)
             duration_ms = int((time.perf_counter() - started) * 1000)
+            method = (
+                RepairMethod.RECOGNITION_ONLY.value
+                if len(region.source_word_ids) <= 3
+                else RepairMethod.LOCAL_DETECTION_AND_RECOGNITION.value
+            )
             diagnostics.append(
                 RepairRegionDiagnostics(
-                    repair_region_id=region.region_id,
+                    repair_region_id=region.repair_region_id,
                     page_number=page_number,
-                    repair_method="recognition_only"
-                    if len(region.word_indices) <= 3
-                    else "local_detect_recognise",
-                    source_box_count=len(region.word_indices),
+                    repair_method=method,
+                    source_box_count=len(region.source_word_ids),
                     crop_width=crop.size[0],
                     crop_height=crop.size[1],
                     recognition_count=rec_count,
@@ -168,3 +149,14 @@ def repair_regions(
         finally:
             crop.close()
     return diagnostics, False
+
+
+__all__ = [
+    "FailedRegion",
+    "cluster_failed_boxes",
+    "crop_region",
+    "evaluate_targeted_repair_eligibility",
+    "expand_region",
+    "repair_regions",
+    "should_escalate_to_full_ocr",
+]
