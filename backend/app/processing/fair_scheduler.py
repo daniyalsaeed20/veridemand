@@ -3,9 +3,9 @@
 Implements weighted round-robin across documents with pending heavy OCR work.
 Native-only and cheap work bypass this scheduler entirely.
 
-Under the interim document-level overlay, quantum and priority are tracked here;
-live OCR still runs document-scoped via the coordinator job worker until a
-later page-interleaving consumer is added.
+Heavy OCR work is admitted as one work unit per selected page. The coordinator's
+heavy consumer claims a unit per turn, so quantum, priority, and yield decisions
+made here directly control which document's page runs next.
 """
 
 from __future__ import annotations
@@ -116,13 +116,51 @@ class SchedulerWorkUnit:
 
 @dataclass(slots=True)
 class DocumentCheckpoint:
+    """Resumable heavy-page state for one document. Never holds page text."""
+
     document_id: str
     last_terminal_page: int | None = None
     remaining_work_units: int = 0
     checkpoint_version: int = 0
     scheduler_turn: int = 0
     safe_resume_state: str = "checkpointed"
+    route_policy_version: str = ""
     completed_pages: set[int] = field(default_factory=set)
+    selected_heavy_pages: set[int] = field(default_factory=set)
+    failed_heavy_pages: set[int] = field(default_factory=set)
+    remaining_heavy_pages: set[int] = field(default_factory=set)
+    current_quantum: int = 0
+    turn_number: int = 0
+    summary_pending: bool = False
+    reconciliation_pending: bool = False
+
+    @property
+    def completed_heavy_pages(self) -> set[int]:
+        """Alias of ``completed_pages`` under the Correction 7 vocabulary."""
+
+        return self.completed_pages
+
+    def mark_completed(self, page_number: int) -> None:
+        self.completed_pages.add(page_number)
+        self.failed_heavy_pages.discard(page_number)
+        self.remaining_heavy_pages.discard(page_number)
+
+    def mark_failed(self, page_number: int) -> None:
+        self.failed_heavy_pages.add(page_number)
+        self.remaining_heavy_pages.discard(page_number)
+
+    def clear(self) -> None:
+        """Drop all resumable state once the document reaches a terminal state."""
+
+        self.completed_pages.clear()
+        self.selected_heavy_pages.clear()
+        self.failed_heavy_pages.clear()
+        self.remaining_heavy_pages.clear()
+        self.remaining_work_units = 0
+        self.current_quantum = 0
+        self.summary_pending = False
+        self.reconciliation_pending = False
+        self.safe_resume_state = "cleared"
 
 
 @dataclass(slots=True)
@@ -279,12 +317,24 @@ class FairDocumentScheduler:
             admitted_sequence=self._admitted_counter,
             total_heavy_pages=heavy_count,
         )
+        heavy_pages: set[int] = set()
         for i, unit in enumerate(work_units, 1):
             unit.admitted_sequence = self._admitted_counter
             unit.work_unit_sequence = i
             unit.priority_class = priority_class
             unit.priority_value = doc.effective_priority
+            unit.policy_version = self._config.policy_version
             doc.work_units.append(unit)
+            if unit.work_class in (WorkClass.FULL_OCR_PAGE, WorkClass.TARGETED_REPAIR_PAGE):
+                heavy_pages.add(unit.document_page_number)
+        doc.checkpoint = DocumentCheckpoint(
+            document_id=document_id,
+            remaining_work_units=len(doc.work_units),
+            route_policy_version=self._config.policy_version,
+            selected_heavy_pages=set(heavy_pages),
+            remaining_heavy_pages=set(heavy_pages),
+            safe_resume_state="admitted",
+        )
         doc.transition_to(SchedulingDocumentState.READY)
         self._documents[document_id] = doc
         self._ready_by_class[priority_class].append(document_id)
@@ -316,6 +366,7 @@ class FairDocumentScheduler:
                 unit.status = WorkUnitStatus.CANCELLED
         doc.transition_to(SchedulingDocumentState.CANCELLED)
         doc.work_units.clear()
+        self.cleanup_checkpoint(doc)
         self._remove_from_ready(document_id, doc.priority_class)
         if self._active_document_id == document_id:
             self._active_document_id = None
@@ -330,6 +381,7 @@ class FairDocumentScheduler:
         if doc.state in _TERMINAL_STATES:
             return doc
         doc.transition_to(SchedulingDocumentState.COMPLETED)
+        self.cleanup_checkpoint(doc)
         self._remove_from_ready(document_id, doc.priority_class)
         if self._active_document_id == document_id:
             self._active_document_id = None
@@ -418,22 +470,25 @@ class FairDocumentScheduler:
         if unit in doc.work_units:
             doc.work_units.remove(unit)
         doc.completed_units.append(unit)
-        if doc.checkpoint is None:
-            doc.checkpoint = DocumentCheckpoint(document_id=doc.document_id)
-        doc.checkpoint.last_terminal_page = unit.document_page_number
-        doc.checkpoint.completed_pages.add(unit.document_page_number)
-        doc.checkpoint.remaining_work_units = len(doc.work_units)
+        checkpoint = self._ensure_checkpoint(doc)
+        checkpoint.last_terminal_page = unit.document_page_number
+        checkpoint.mark_completed(unit.document_page_number)
+        checkpoint.remaining_work_units = len(doc.work_units)
         self._checkpoint_counter += 1
-        doc.checkpoint.checkpoint_version = self._checkpoint_counter
-        doc.checkpoint.scheduler_turn = self._turn_number
+        checkpoint.checkpoint_version = self._checkpoint_counter
+        checkpoint.scheduler_turn = self._turn_number
+        checkpoint.turn_number = self._turn_number
+        checkpoint.safe_resume_state = "checkpointed"
         if self._active_work_unit and self._active_work_unit.work_unit_id == work_unit_id:
             self._active_work_unit = None
         doc.quantum_completed += 1
+        checkpoint.current_quantum = doc.quantum_completed
         if doc.remaining_work == 0:
             self._active_document_id = None
             self._active_work_unit = None
             if doc.state == SchedulingDocumentState.RUNNING:
                 doc.transition_to(SchedulingDocumentState.COMPLETED)
+                checkpoint.clear()
         elif self.should_yield(doc.document_id):
             self.yield_document(doc.document_id)
         self._record_event(
@@ -462,10 +517,10 @@ class FairDocumentScheduler:
             if unit in doc.work_units:
                 doc.work_units.remove(unit)
             doc.completed_units.append(unit)
-            if doc.checkpoint is None:
-                doc.checkpoint = DocumentCheckpoint(document_id=doc.document_id)
-            doc.checkpoint.completed_pages.add(unit.document_page_number)
-            doc.checkpoint.remaining_work_units = len(doc.work_units)
+            checkpoint = self._ensure_checkpoint(doc)
+            checkpoint.last_terminal_page = unit.document_page_number
+            checkpoint.mark_failed(unit.document_page_number)
+            checkpoint.remaining_work_units = len(doc.work_units)
         if self._active_work_unit and self._active_work_unit.work_unit_id == work_unit_id:
             self._active_work_unit = None
         self._record_event(
@@ -505,6 +560,9 @@ class FairDocumentScheduler:
             return doc
         doc.consecutive_turns = 0
         doc.quantum_completed = 0
+        if doc.checkpoint is not None:
+            doc.checkpoint.current_quantum = 0
+            doc.checkpoint.safe_resume_state = "checkpointed"
         doc.transition_to(SchedulingDocumentState.READY)
         self._ready_by_class[doc.priority_class].append(document_id)
         if self._active_document_id == document_id:
@@ -590,6 +648,7 @@ class FairDocumentScheduler:
     def remove_document(self, document_id: str) -> None:
         doc = self._documents.pop(document_id, None)
         if doc is not None:
+            self.cleanup_checkpoint(doc)
             self._remove_from_ready(document_id, doc.priority_class)
             if self._active_document_id == document_id:
                 self._active_document_id = None
@@ -609,6 +668,21 @@ class FairDocumentScheduler:
         }
 
     # --- internal ---
+
+    def _ensure_checkpoint(self, doc: ScheduledDocument) -> DocumentCheckpoint:
+        if doc.checkpoint is None:
+            doc.checkpoint = DocumentCheckpoint(
+                document_id=doc.document_id,
+                route_policy_version=self._config.policy_version,
+            )
+        return doc.checkpoint
+
+    @staticmethod
+    def cleanup_checkpoint(doc: ScheduledDocument | None) -> None:
+        """Release resumable state; safe to call more than once."""
+
+        if doc is not None and doc.checkpoint is not None:
+            doc.checkpoint.clear()
 
     def _select_next_document(self) -> ScheduledDocument | None:
         for priority_class in (

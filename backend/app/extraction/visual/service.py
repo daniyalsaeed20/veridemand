@@ -6,6 +6,7 @@ import inspect
 import logging
 import shutil
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -94,6 +95,33 @@ _PHASE4_MIXED_MESSAGE = (
     "Page-level source reconciliation complete. Handwriting and final document structure "
     "have not been evaluated."
 )
+
+
+@dataclass(slots=True)
+class HeavySelectionResult:
+    """Routing outcome for one document: which pages still need heavy OCR.
+
+    Carries no page text — only page numbers, per-route membership sets, and the
+    staging/results locations needed to resume page work later.
+    """
+
+    session_id: str
+    document_id: str
+    job_id: str
+    canonical_pdf: Path
+    staging_dir: Path
+    results_dir: Path
+    document_pages_total: int
+    selected_page_numbers: list[int] = field(default_factory=list)
+    retained_native: set[int] = field(default_factory=set)
+    embedded_verified: set[int] = field(default_factory=set)
+    targeted_repair_pages: set[int] = field(default_factory=set)
+    visual_no_text_pages: set[int] = field(default_factory=set)
+    downgraded: set[int] = field(default_factory=set)
+    visibility_by_page: dict[int, NativeVisibilityResult] = field(default_factory=dict)
+    page_by_number: dict[int, CanonicalPageMetadata] = field(default_factory=dict)
+    route_policy_version: str = ""
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 def page_requires_visual(page: NativePageResult) -> bool:
@@ -299,7 +327,7 @@ class VisualOcrService:
             }
         )
 
-    async def process_document(
+    async def route_and_select_heavy_pages(
         self,
         *,
         session_id: str,
@@ -307,11 +335,16 @@ class VisualOcrService:
         job_id: str,
         canonical_pdf: Path,
         canonical_pages: list[CanonicalPageMetadata],
-        native_summary: NativeDocumentSummary,
         native_pages: dict[int, NativePageResult],
         cancel_token: CancellationToken | None = None,
         on_progress: ProgressCallback | None = None,
-    ) -> VisualDocumentSummary:
+    ) -> HeavySelectionResult:
+        """Run visibility probes and routing, publishing every cheap page result.
+
+        No OCR worker request is made and no document summary is published: the
+        caller decides when the selected heavy pages run and when to finalise.
+        """
+
         created_at = datetime.now(UTC)
         staging = storage_paths.staging_visual_dir(self._settings.temp_root, session_id, job_id)
         results = storage_paths.visual_results_dir(
@@ -769,8 +802,75 @@ class VisualOcrService:
                 "full_ocr_pages_selected": len(selected),
             }
         )
+        return HeavySelectionResult(
+            session_id=session_id,
+            document_id=document_id,
+            job_id=job_id,
+            canonical_pdf=canonical_pdf,
+            staging_dir=staging,
+            results_dir=results,
+            document_pages_total=len(canonical_pages),
+            selected_page_numbers=list(selected),
+            retained_native=retained_native,
+            embedded_verified=embedded_verified,
+            targeted_repair_pages=targeted_repair_pages,
+            visual_no_text_pages=visual_no_text_pages,
+            downgraded=downgraded,
+            visibility_by_page=visibility_by_page,
+            page_by_number=page_by_number,
+            route_policy_version=str(router.policy.version),
+            created_at=created_at,
+        )
 
-        if selected and not self._settings.ocr_enabled:
+    async def process_selected_pages(
+        self,
+        *,
+        session_id: str,
+        document_id: str,
+        job_id: str,
+        canonical_pdf: Path,
+        page_numbers: list[int],
+        selection: HeavySelectionResult | None = None,
+        canonical_pages: list[CanonicalPageMetadata] | None = None,
+        cancel_token: CancellationToken | None = None,
+        on_progress: ProgressCallback | None = None,
+    ) -> list[int]:
+        """Run heavy OCR for ``page_numbers`` only and publish those page results.
+
+        Pages already present in the results directory are skipped. No document
+        summary is published, so the caller may invoke this repeatedly (one page
+        or one quantum at a time) for the same document.
+        """
+
+        if selection is not None:
+            staging = selection.staging_dir
+            results = selection.results_dir
+            page_by_number = selection.page_by_number
+            visibility_by_page = selection.visibility_by_page
+        else:
+            staging = storage_paths.staging_visual_dir(self._settings.temp_root, session_id, job_id)
+            results = storage_paths.visual_results_dir(
+                self._settings.temp_root, session_id, document_id
+            )
+            page_by_number = {p.page_number: p for p in (canonical_pages or [])}
+            visibility_by_page = {}
+        staging.mkdir(parents=True, exist_ok=True)
+        results.mkdir(parents=True, exist_ok=True)
+
+        async def _progress(payload: dict[str, Any]) -> None:
+            if on_progress is not None:
+                result = on_progress(payload)
+                if inspect.isawaitable(result):
+                    await result
+
+        already_published = set(list_published_page_numbers(results))
+        selected = sorted(
+            {n for n in page_numbers if n in page_by_number and n not in already_published}
+        )
+        if not selected:
+            return [n for n in sorted(set(page_numbers)) if load_page(results, n) is not None]
+
+        if not self._settings.ocr_enabled:
             for n in selected:
                 page = VisualPageResult(
                     page_number=n,
@@ -785,9 +885,8 @@ class VisualOcrService:
                     error_code=ErrorCode.OCR_WORKER_NOT_READY.value,
                 )
                 publish_page_atomic(page, results)
-                published[n] = page
                 await _progress({"type": "page.failed", "page_number": n})
-        elif selected:
+        else:
             config = self._worker.config_from_settings()
             page_refs = [
                 VisualPageRef(
@@ -906,7 +1005,6 @@ class VisualOcrService:
                     if updates:
                         page_result = page_result.model_copy(update=updates)
                         publish_page_atomic(page_result, results)
-                    published[n] = page_result
                 elif last_error is not None:
                     failed_page = VisualPageResult(
                         page_number=n,
@@ -923,7 +1021,6 @@ class VisualOcrService:
                         error_code=last_error.code.value,
                     )
                     publish_page_atomic(failed_page, results)
-                    published[n] = failed_page
                     await _progress(
                         {
                             "type": "page.failed",
@@ -934,6 +1031,41 @@ class VisualOcrService:
                             "max_attempts": max_attempts,
                         }
                     )
+
+        return [n for n in sorted(set(page_numbers)) if load_page(results, n) is not None]
+
+    async def finalize_visual_summary(
+        self,
+        *,
+        canonical_pages: list[CanonicalPageMetadata],
+        native_summary: NativeDocumentSummary,
+        selection: HeavySelectionResult,
+        on_progress: ProgressCallback | None = None,
+    ) -> VisualDocumentSummary:
+        """Publish the single document summary from published pages and routing."""
+
+        document_id = selection.document_id
+        created_at = selection.created_at
+        results = selection.results_dir
+        staging = selection.staging_dir
+        selected = list(selection.selected_page_numbers)
+        retained_native = selection.retained_native
+        downgraded = selection.downgraded
+        embedded_verified = selection.embedded_verified
+        targeted_repair_pages = selection.targeted_repair_pages
+        visual_no_text_pages = selection.visual_no_text_pages
+
+        async def _progress(payload: dict[str, Any]) -> None:
+            if on_progress is not None:
+                result = on_progress(payload)
+                if inspect.isawaitable(result):
+                    await result
+
+        published: dict[int, VisualPageResult] = {}
+        for page_number in list_published_page_numbers(results):
+            page_result = load_page(results, page_number)
+            if page_result is not None:
+                published[page_number] = page_result
 
         # Ensure every canonical page has a row.
         for meta in canonical_pages:
@@ -1105,3 +1237,50 @@ class VisualOcrService:
         cleanup_staging(staging)
         cleanup_all_repair_staging(staging)
         return summary
+
+    async def process_document(
+        self,
+        *,
+        session_id: str,
+        document_id: str,
+        job_id: str,
+        canonical_pdf: Path,
+        canonical_pages: list[CanonicalPageMetadata],
+        native_summary: NativeDocumentSummary,
+        native_pages: dict[int, NativePageResult],
+        cancel_token: CancellationToken | None = None,
+        on_progress: ProgressCallback | None = None,
+    ) -> VisualDocumentSummary:
+        """Route, run every selected heavy page, and publish the summary.
+
+        Whole-document path used when fair scheduling is disabled; the fair path
+        drives the same three steps from the coordinator's heavy consumer.
+        """
+
+        selection = await self.route_and_select_heavy_pages(
+            session_id=session_id,
+            document_id=document_id,
+            job_id=job_id,
+            canonical_pdf=canonical_pdf,
+            canonical_pages=canonical_pages,
+            native_pages=native_pages,
+            cancel_token=cancel_token,
+            on_progress=on_progress,
+        )
+        if selection.selected_page_numbers:
+            await self.process_selected_pages(
+                session_id=session_id,
+                document_id=document_id,
+                job_id=job_id,
+                canonical_pdf=canonical_pdf,
+                page_numbers=list(selection.selected_page_numbers),
+                selection=selection,
+                cancel_token=cancel_token,
+                on_progress=on_progress,
+            )
+        return await self.finalize_visual_summary(
+            canonical_pages=canonical_pages,
+            native_summary=native_summary,
+            selection=selection,
+            on_progress=on_progress,
+        )
