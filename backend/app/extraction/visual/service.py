@@ -761,6 +761,7 @@ class VisualOcrService:
             {
                 "type": "visual_pages_selected",
                 "pages_selected": len(selected),
+                "page_numbers": list(selected),
                 "pages_total": len(canonical_pages),
                 "native_pages_retained": len(retained_native),
                 "embedded_ocr_pages_verified": len(embedded_verified),

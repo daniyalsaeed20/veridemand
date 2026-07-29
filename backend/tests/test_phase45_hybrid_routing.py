@@ -307,17 +307,50 @@ def test_eta_never_negative() -> None:
 
 
 def test_fair_scheduler_round_robin() -> None:
-    from backend.app.processing.fair_scheduler import FairOcrScheduler
+    from backend.app.processing.fair_scheduler import (
+        FairDocumentScheduler,
+        SchedulerConfig,
+        SchedulerWorkUnit,
+        WorkClass,
+        _new_work_unit_id,
+    )
 
-    sched = FairOcrScheduler(chunk_size=2, enabled=True)
-    sched.register("doc_a", [1, 2, 3, 4, 5])
-    sched.register("doc_b", [1, 2])
-    first = sched.next_chunk()
-    second = sched.next_chunk()
-    assert first is not None and second is not None
-    assert first[0] != second[0]
-    # Small doc should get a turn before large doc finishes.
-    seen = {first[0], second[0]}
+    config = SchedulerConfig(page_quantum=2, enabled=True)
+    sched = FairDocumentScheduler(config)
+
+    def _units(doc_id: str, session_id: str, pages: list[int]) -> list[SchedulerWorkUnit]:
+        return [
+            SchedulerWorkUnit(
+                work_unit_id=_new_work_unit_id(),
+                session_id=session_id,
+                document_id=doc_id,
+                route="full_visual_ocr",
+                work_class=WorkClass.FULL_OCR_PAGE,
+                document_page_number=p,
+                document_pages_total=len(pages),
+                selected_page_index=i + 1,
+                selected_pages_total=len(pages),
+            )
+            for i, p in enumerate(pages)
+        ]
+
+    sched.admit_document("doc_a", "ses_a", _units("doc_a", "ses_a", [1, 2, 3, 4, 5]))
+    sched.admit_document("doc_b", "ses_b", _units("doc_b", "ses_b", [1, 2]))
+
+    first = sched.next_work_unit()
+    assert first is not None
+    sched.complete_work_unit(first[1].work_unit_id)
+
+    second = sched.next_work_unit()
+    assert second is not None
+    sched.complete_work_unit(second[1].work_unit_id)
+
+    if sched.should_yield(first[0].document_id):
+        sched.yield_document(first[0].document_id)
+
+    third = sched.next_work_unit()
+    assert third is not None
+    seen = {first[0].document_id, second[0].document_id, third[0].document_id}
     assert "doc_b" in seen
 
 

@@ -32,6 +32,12 @@ from backend.app.observability.errors import ApiException
 from backend.app.observability.stage_log import log_progress, log_stage
 from backend.app.processing.cancellation import JobCancelledError
 from backend.app.processing.eta import EtaCostRoute, EtaEstimator, page_route_to_cost_route
+from backend.app.processing.fair_scheduler import (
+    FairDocumentScheduler,
+    SchedulerWorkUnit,
+    WorkClass,
+    _new_work_unit_id,
+)
 from backend.app.processing.models import ProcessingJob
 from backend.app.processing.progress_model import (
     OVERALL_CAP,
@@ -138,6 +144,27 @@ class ProcessingCoordinator:
         self._worker: asyncio.Task[None] | None = None
         self._current_job: ProcessingJob | None = None
         self._running = False
+        self._scheduler: FairDocumentScheduler | None = None
+
+    def set_scheduler(self, scheduler: FairDocumentScheduler) -> None:
+        """Attach the fair OCR document scheduler (Correction 7)."""
+
+        self._scheduler = scheduler
+
+    def move_document_ahead(self, session_id: str, document_id: str) -> bool:
+        if self._scheduler is None:
+            return False
+        return self._scheduler.move_ahead(document_id)
+
+    def move_document_behind(self, session_id: str, document_id: str) -> bool:
+        if self._scheduler is None:
+            return False
+        return self._scheduler.move_behind(document_id)
+
+    def restore_document_priority(self, session_id: str, document_id: str) -> bool:
+        if self._scheduler is None:
+            return False
+        return self._scheduler.restore_default_priority(document_id)
 
     @property
     def running(self) -> bool:
@@ -317,6 +344,10 @@ class ProcessingCoordinator:
                 and job is not None
             ):
                 job.request_cancellation()
+
+            if self._scheduler is not None:
+                self._scheduler.cancel_document(document_id)
+                document.scheduler_document_state = "cancelled"
 
             recompute_session_status(session)
             return document
@@ -654,7 +685,35 @@ class ProcessingCoordinator:
                         document_status=document.status,
                         message=document.failure_message,
                     )
+                    if self._scheduler is not None:
+                        self._scheduler.fail_document(document.document_id)
+                        document.scheduler_document_state = "failed"
                 else:
+                    if self._scheduler is not None:
+                        sched_doc = self._scheduler.get_document(document.document_id)
+                        if sched_doc is not None and sched_doc.state.value not in (
+                            "cancelled",
+                            "failed",
+                            "completed",
+                        ):
+                            try:
+                                # Document-level OCR may leave the doc READY if no
+                                # turn was claimed; promote so COMPLETED is valid.
+                                if sched_doc.state.value == "ready":
+                                    self._scheduler.next_work_unit()
+                                self._scheduler.complete_document(document.document_id)
+                            except Exception:
+                                self._scheduler.remove_document(document.document_id)
+                            document.scheduler_document_state = "completed"
+                            await _safe_publish(
+                                session.broker,
+                                ProgressEventType.SCHEDULER_DOCUMENT_TERMINAL,
+                                document_id=document.document_id,
+                                job_id=job.job_id,
+                                scheduler_document_state="completed",
+                                scheduler_reason="all_work_complete",
+                                scheduler_remaining_work_units=0,
+                            )
                     job.status = JobStatus.COMPLETED
                     job.finished_at = datetime.now(UTC)
                     await _safe_publish(
@@ -872,6 +931,8 @@ class ProcessingCoordinator:
         )
         fair_enabled = bool(getattr(visual_settings, "fair_ocr_scheduling_enabled", False))
         document.fair_scheduling_enabled = fair_enabled
+        if fair_enabled and self._scheduler is not None:
+            document.scheduler_document_state = "running"
         document.document_pages_total = page_count
         document.document_started_at = document.document_started_at or datetime.now(UTC)
         document.document_started_at_timestamp = document.document_started_at
@@ -1328,6 +1389,64 @@ class ProcessingCoordinator:
                     elif key == "full_ocr_pages_selected":
                         full_ocr_pages_selected = value
                 publish_event = ProgressEventType.DOCUMENT_VISUAL_PAGES_SELECTED
+                if (
+                    fair_enabled
+                    and self._scheduler is not None
+                    and full_ocr_pages_selected > 0
+                    and selected_page_numbers
+                ):
+                    units = [
+                        SchedulerWorkUnit(
+                            work_unit_id=_new_work_unit_id(),
+                            session_id=session.session_id,
+                            document_id=document.document_id,
+                            route="full_visual_ocr",
+                            work_class=WorkClass.FULL_OCR_PAGE,
+                            document_page_number=page_num,
+                            document_pages_total=page_count,
+                            selected_page_index=idx,
+                            selected_pages_total=full_ocr_pages_selected,
+                        )
+                        for idx, page_num in enumerate(selected_page_numbers, 1)
+                    ]
+                    try:
+                        sched_doc = self._scheduler.admit_document(
+                            document.document_id, session.session_id, units
+                        )
+                        document.scheduler_priority_class = sched_doc.priority_class.value
+                        document.scheduler_effective_priority = sched_doc.effective_priority
+                        document.scheduler_remaining_work_units = sched_doc.remaining_work
+                        document.scheduler_document_state = sched_doc.state.value
+                        document.scheduler_quantum = self._scheduler.config.page_quantum
+                        await _safe_publish(
+                            session.broker,
+                            ProgressEventType.SCHEDULER_DOCUMENT_ADMITTED,
+                            document_id=document.document_id,
+                            job_id=job.job_id,
+                            scheduler_priority_class=sched_doc.priority_class.value,
+                            scheduler_effective_priority=sched_doc.effective_priority,
+                            scheduler_remaining_work_units=sched_doc.remaining_work,
+                            scheduler_document_state=sched_doc.state.value,
+                            scheduler_quantum=self._scheduler.config.page_quantum,
+                        )
+                        # Claim a document-level turn while process_document owns OCR.
+                        claimed = self._scheduler.next_work_unit()
+                        if claimed is not None and claimed[0].document_id == document.document_id:
+                            document.scheduler_document_state = claimed[0].state.value
+                            document.scheduler_turn_number = claimed[0].turn_number
+                            await _safe_publish(
+                                session.broker,
+                                ProgressEventType.SCHEDULER_TURN_STARTED,
+                                document_id=document.document_id,
+                                job_id=job.job_id,
+                                scheduler_turn_number=claimed[0].turn_number,
+                                scheduler_priority_class=claimed[0].priority_class.value,
+                                scheduler_quantum=self._scheduler.config.page_quantum,
+                                scheduler_remaining_work_units=claimed[0].remaining_work,
+                                scheduler_document_state=claimed[0].state.value,
+                            )
+                    except (ValueError, RuntimeError):
+                        pass
 
             elif event_type == "page_route_started":
                 document.page_started_at = datetime.now(UTC)
@@ -1679,6 +1798,29 @@ class ProcessingCoordinator:
                     publish_event = ProgressEventType.DOCUMENT_VISUAL_PAGE_NO_TEXT
                 else:
                     publish_event = ProgressEventType.DOCUMENT_VISUAL_PAGE_OCR_COMPLETED
+                if fair_enabled and self._scheduler is not None and page_number is not None:
+                    sched_doc_state = self._scheduler.get_document(document.document_id)
+                    if sched_doc_state is not None:
+                        for unit in list(sched_doc_state.work_units):
+                            if unit.document_page_number == page_number:
+                                self._scheduler.complete_work_unit(unit.work_unit_id)
+                                break
+                        document.scheduler_remaining_work_units = sched_doc_state.remaining_work
+                        document.scheduler_quantum_completed = (
+                            document.scheduler_quantum_completed or 0
+                        ) + 1
+                        document.scheduler_turn_number = self._scheduler.turn_number
+                        await _safe_publish(
+                            session.broker,
+                            ProgressEventType.SCHEDULER_QUANTUM_COMPLETED,
+                            document_id=document.document_id,
+                            job_id=job.job_id,
+                            scheduler_turn_number=self._scheduler.turn_number,
+                            scheduler_quantum_completed=document.scheduler_quantum_completed,
+                            scheduler_remaining_work_units=document.scheduler_remaining_work_units,
+                            scheduler_document_state=sched_doc_state.state.value,
+                            page_number=page_number,
+                        )
 
             elif event_type == "page.failed":
                 snapshot.complete_open_operation(OperationStatus.FAILED)
@@ -1880,6 +2022,9 @@ class ProcessingCoordinator:
                 message=document.user_status_message,
                 reason_codes=[exc.code.value],
             )
+            if self._scheduler is not None:
+                self._scheduler.fail_document(document.document_id)
+                document.scheduler_document_state = "failed"
             return
 
         # Persist visibility downgrades onto published native results so public
@@ -2135,6 +2280,9 @@ class ProcessingCoordinator:
             job_id=job.job_id,
             job_status=JobStatus.CANCELLED,
         )
+        if self._scheduler is not None:
+            self._scheduler.cancel_document(document.document_id)
+            document.scheduler_document_state = "cancelled"
 
     async def _finalize_failed(
         self,

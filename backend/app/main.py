@@ -28,6 +28,7 @@ from backend.app.health.service import HealthService
 from backend.app.observability.errors import register_exception_handlers
 from backend.app.observability.request_id import RequestIdMiddleware
 from backend.app.processing.coordinator import ProcessingCoordinator
+from backend.app.processing.fair_scheduler import FairDocumentScheduler, SchedulerConfig
 from backend.app.processing.queue import InMemoryJobQueue
 from backend.app.sessions.registry import SessionRegistry
 from backend.app.settings.config import Settings, get_settings
@@ -70,6 +71,19 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         worker_count=settings.canonicalisation_workers,
         max_pages_per_session=settings.max_pages_per_session,
     )
+    scheduler = FairDocumentScheduler(
+        SchedulerConfig(
+            enabled=settings.fair_ocr_scheduling_enabled,
+            page_quantum=settings.fair_ocr_page_quantum,
+            repair_page_quantum=settings.fair_repair_page_quantum,
+            short_document_heavy_page_threshold=settings.short_document_heavy_page_threshold,
+            aging_enabled=settings.scheduler_aging_enabled,
+            aging_interval_seconds=settings.scheduler_aging_interval_seconds,
+            max_consecutive_turns=settings.scheduler_max_consecutive_turns,
+            policy_version=settings.scheduler_policy_version,
+        )
+    )
+    coordinator.set_scheduler(scheduler)
     upload_service = UploadService(settings, file_store)
     cleanup_service = CleanupService(registry, file_store, settings)
     cleanup_worker = CleanupWorker(cleanup_service, settings.session_cleanup_interval_seconds)
@@ -116,6 +130,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.job_queue = job_queue
     app.state.session_registry = registry
     app.state.coordinator = coordinator
+    app.state.scheduler = scheduler
     app.state.native_service = native_service
     app.state.visual_service = visual_service
     app.state.ocr_worker_manager = ocr_worker_manager
@@ -138,6 +153,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
             with contextlib.suppress(asyncio.CancelledError):
                 await ocr_start_task
         await cleanup_worker.stop()
+        scheduler.close()
         await coordinator.stop()
         await ocr_worker_manager.stop()
         await cleanup_service.shutdown_cleanup()
