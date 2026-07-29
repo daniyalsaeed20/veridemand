@@ -18,9 +18,15 @@ from backend.app.contracts.identifiers import DocumentId
 from backend.app.contracts.native import DocumentSourcePolicy, SourceMode
 from backend.app.contracts.ocr import (
     HandwritingAssessment,
+    OcrPassComparison,
+    OcrPassKind,
+    OcrQualityStatus,
+    PageProcessingProfile,
     PreprocessingVariant,
     PrintedOcrLine,
+    PrintedOcrQualityEvidence,
     PrintedOcrWord,
+    ProvisionalItemCounts,
 )
 
 
@@ -240,6 +246,20 @@ class VisualPageResult(ApiModel):
     render_height_pixels: int | None = Field(default=None, ge=0)
     preprocessing_variant: PreprocessingVariant | None = None
     fallback_used: bool = False
+    selected_ocr_pass: OcrPassKind | None = None
+    primary_quality_status: OcrQualityStatus | None = None
+    fallback_quality_status: OcrQualityStatus | None = None
+    fallback_reason_codes: list[str] = Field(default_factory=list)
+    quality_policy_version: str | None = None
+    page_profile: PageProcessingProfile | None = None
+    page_profile_reason_codes: list[str] = Field(default_factory=list)
+    primary_quality: PrintedOcrQualityEvidence | None = None
+    fallback_quality: PrintedOcrQualityEvidence | None = None
+    ocr_pass_comparison: OcrPassComparison | None = None
+    provisional_item_counts: ProvisionalItemCounts | None = None
+    primary_limit_side: int | None = Field(default=None, gt=0)
+    fallback_limit_side: int | None = Field(default=None, gt=0)
+    fallback_duration_ms: int | None = Field(default=None, ge=0)
     line_count: int = Field(default=0, ge=0)
     word_count: int = Field(default=0, ge=0)
     average_detection_score: float | None = Field(default=None, ge=0.0, le=1.0)

@@ -65,6 +65,53 @@ class PreprocessingVariant(StrEnum):
 
     ORIGINAL_RGB = "original_rgb"
     GRAYSCALE_AUTOCONTRAST = "grayscale_autocontrast"
+    GRAYSCALE = "grayscale"
+    CONTRAST_NORMALISED = "contrast_normalised"
+
+
+class PageProcessingProfile(StrEnum):
+    """Cheap visual/structural processing profile (not semantic form ID)."""
+
+    ORDINARY_DOCUMENT = "ordinary_document"
+    DENSE_FORM = "dense_form"
+    TABLE_LIKE = "table_like"
+    SPARSE_DOCUMENT = "sparse_document"
+    PHOTO_WITH_TEXT = "photo_with_text"
+
+
+class OcrQualityStatus(StrEnum):
+    """Derived OCR quality status for a single pass or selected result.
+
+    Derived from PrintedOcrQualityEvidence — never from mean confidence alone.
+    """
+
+    GOOD = "good"
+    USABLE_WITH_WARNINGS = "usable_with_warnings"
+    LOW_QUALITY = "low_quality"
+    INSUFFICIENT = "insufficient"
+    FAILED = "failed"
+
+
+class OcrPassKind(StrEnum):
+    """Which detector-side OCR pass produced a result."""
+
+    PRIMARY = "primary"
+    FALLBACK = "fallback"
+
+
+class ProvisionalItemClass(StrEnum):
+    """Provisional classification of an OCR item (Phase 4; not final HTR)."""
+
+    CREDIBLE_PRINTED_TEXT = "credible_printed_text"
+    LOW_CONFIDENCE_TEXT = "low_confidence_text"
+    ISOLATED_FORM_NUMBER = "isolated_form_number"
+    CHECKBOX_OR_SYMBOL_CANDIDATE = "checkbox_or_symbol_candidate"
+    LINE_OR_GRID_ARTEFACT = "line_or_grid_artefact"
+    HANDWRITING_CANDIDATE_PENDING_PHASE_5 = "handwriting_candidate_pending_phase_5"
+    UNRESOLVED = "unresolved"
+
+
+QUALITY_POLICY_VERSION = "phase4-ocr-quality-v1"
 
 
 class PixelBoundingBox(ApiModel):
@@ -121,6 +168,14 @@ class PrintedOcrLine(ApiModel):
     recognition_method: OcrRecognitionMethod = OcrRecognitionMethod.PADDLEOCR_PRINTED
     source_mode: OcrSourceMode = OcrSourceMode.VISUAL_AUTHORITY
     handwriting_assessment: HandwritingAssessment = HandwritingAssessment.PENDING_PHASE_5
+    ocr_pass: OcrPassKind | None = Field(
+        default=None,
+        description="Detector-side pass that produced this line (primary or fallback).",
+    )
+    provisional_class: ProvisionalItemClass | None = Field(
+        default=None,
+        description="Provisional noise/text classification for transcript filtering.",
+    )
     source_native_word_ids: list[str] = Field(
         default_factory=list,
         description="Native/verification candidate word ids that produced this line.",
@@ -152,7 +207,137 @@ class PrintedOcrWord(ApiModel):
     recognition_status: OcrRecognitionStatus
     handwriting_assessment: HandwritingAssessment = HandwritingAssessment.PENDING_PHASE_5
     source_mode: OcrSourceMode = OcrSourceMode.VISUAL_AUTHORITY
+    ocr_pass: OcrPassKind | None = Field(
+        default=None,
+        description="Detector-side pass that produced this word (primary or fallback).",
+    )
+    provisional_class: ProvisionalItemClass | None = Field(
+        default=None,
+        description="Provisional noise/text classification for transcript filtering.",
+    )
     source_native_word_id: str | None = Field(
         default=None,
         description="Native/verification candidate word id this public word was materialised from.",
     )
+
+
+class ProvisionalItemCounts(ApiModel):
+    """Counts of provisional OCR item classes (no text)."""
+
+    credible_text: int = Field(default=0, ge=0)
+    low_confidence: int = Field(default=0, ge=0)
+    isolated_form_numbers: int = Field(default=0, ge=0)
+    symbol_candidates: int = Field(default=0, ge=0)
+    artefacts: int = Field(default=0, ge=0)
+    unresolved: int = Field(default=0, ge=0)
+    handwriting_pending: int = Field(default=0, ge=0)
+
+
+class PrintedOcrQualityEvidence(ApiModel):
+    """Canonical typed evidence for printed OCR quality decisions.
+
+    Score directions (documented so high never means both good and bad):
+
+    - fragmentation_score: higher = more suspected fragmentation (worse)
+    - over_segmentation_score: higher = more suspected over-segmentation (worse)
+    - box_overlap_ratio: higher = more overlapping OCR boxes (worse)
+    - near_duplicate_box_ratio: higher = more near-duplicate boxes (worse)
+    - grid_intersection_ratio: higher = more boxes intersecting ruling lines (signal)
+    - text_coverage_ratio: higher = more page area covered by OCR geometry (better)
+    - geometry_valid_ratio: higher = better
+    - out_of_bounds_ratio: higher = worse
+    - low_confidence_ratio: higher = worse
+    - single_character_* / symbol_only_* / numeric_fragment_ratio: higher = worse noise
+    - mean_confidence / median_confidence: recognition confidence aggregates only;
+      never treated as transcript accuracy.
+    """
+
+    policy_version: str = Field(default=QUALITY_POLICY_VERSION)
+    page_number: int = Field(ge=1)
+    route: str | None = None
+    ocr_pass: OcrPassKind
+    detector_limit_side: int = Field(gt=0)
+    preprocessing_variant: PreprocessingVariant | None = None
+    page_profile: PageProcessingProfile = PageProcessingProfile.ORDINARY_DOCUMENT
+    profile_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    profile_reason_codes: list[str] = Field(default_factory=list)
+
+    detected_region_count: int = Field(default=0, ge=0)
+    line_count: int = Field(default=0, ge=0)
+    word_count: int = Field(default=0, ge=0)
+
+    mean_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    median_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    p10_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    low_confidence_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
+
+    single_character_token_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
+    single_character_line_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
+    symbol_only_token_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
+    symbol_only_line_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
+    numeric_fragment_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
+
+    median_token_length: float = Field(default=0.0, ge=0.0)
+    median_words_per_line: float = Field(default=0.0, ge=0.0)
+
+    fragmentation_score: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Higher means more suspected fragmentation.",
+    )
+    over_segmentation_score: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Higher means more suspected over-segmentation.",
+    )
+    box_overlap_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
+    near_duplicate_box_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
+    grid_intersection_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
+    text_coverage_ratio: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Higher means more page area represented by OCR geometry.",
+    )
+    geometry_valid_ratio: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description="Higher means better geometry validity.",
+    )
+    out_of_bounds_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
+
+    fallback_recommended: bool = False
+    fallback_reason_codes: list[str] = Field(default_factory=list)
+    quality_gate_passed: bool = True
+    quality_status: OcrQualityStatus = OcrQualityStatus.GOOD
+
+
+class ConfidenceDistribution(ApiModel):
+    """Privacy-safe recognition confidence distribution (no text)."""
+
+    mean: float | None = Field(default=None, ge=0.0, le=1.0)
+    median: float | None = Field(default=None, ge=0.0, le=1.0)
+    p10: float | None = Field(default=None, ge=0.0, le=1.0)
+    low_confidence_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
+class OcrPassComparison(ApiModel):
+    """Typed comparison of primary vs fallback OCR passes."""
+
+    primary_quality: PrintedOcrQualityEvidence
+    fallback_quality: PrintedOcrQualityEvidence | None = None
+    primary_valid_words: int = Field(default=0, ge=0)
+    fallback_valid_words: int = Field(default=0, ge=0)
+    primary_confidence_distribution: ConfidenceDistribution
+    fallback_confidence_distribution: ConfidenceDistribution | None = None
+    primary_fragmentation: float = Field(default=0.0, ge=0.0, le=1.0)
+    fallback_fragmentation: float | None = Field(default=None, ge=0.0, le=1.0)
+    primary_geometry_quality: float = Field(default=1.0, ge=0.0, le=1.0)
+    fallback_geometry_quality: float | None = Field(default=None, ge=0.0, le=1.0)
+    primary_text_coverage: float = Field(default=0.0, ge=0.0, le=1.0)
+    fallback_text_coverage: float | None = Field(default=None, ge=0.0, le=1.0)
+    selected_pass: OcrPassKind
+    selection_reason_codes: list[str] = Field(default_factory=list)
