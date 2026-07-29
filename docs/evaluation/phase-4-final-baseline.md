@@ -82,10 +82,18 @@ private paths.
 | Wall duration (phase45 HTTP) | ~2364 s (~39.4 min) |
 | Pass | true |
 
-Note: document-level route aggregate helpers can label overlapping fields; the
-HTTP acceptance recorded `pass=true` with `page_count=104` and the route fields
-above. Exclusive page_route histograms were not separately re-exported after
-session reset.
+Note: document-level route aggregate helpers previously labelled **overlapping**
+fields (`native_pages_retained` includes embedded-verified pages). Summing
+retained + embedded + full OCR produced **121** for this 104-page document.
+Exclusive `page_result_state` histograms were not re-exported in that
+consolidation pass.
+
+**Live evidence (session `ses_59027…`, commit `408f4faa`, before reset):**
+per-page exclusive terminal histogram was `embedded_ocr_verified` 17 +
+`full_visual_ocr` 87 (+ `digital_native` 0) = **104**. See
+[phase-4-live-seven-doc-route-accounting-evidence.md](../phases/phase-4-live-seven-doc-route-accounting-evidence.md).
+Post-fix acceptance should prefer `final_route_histogram` (or per-page
+states) and must not map `native_pages_retained` → exclusive `digital_native`.
 
 Earlier fragmented full-OCR baseline (~47 min) remains historical context only;
 this run used hybrid routing with verified embedded pages avoiding full OCR.
@@ -109,13 +117,21 @@ this run used hybrid routing with verified embedded pages avoiding full OCR.
 | Field | Value |
 |-------|-------|
 | Document count | 7 |
-| Total pages | 217 |
-| Route aggregates | digital_native 124; embedded_ocr_verified 17; full_visual_ocr 93 |
+| Total pages | **218** (sum of validated per-document page counts) |
+| Exclusive final routes (live evidence) | digital_native 107; embedded_ocr_verified 17; full_visual_ocr 93; visual_no_text 1; targeted_repair 0; failed 0 |
 | Time to first result | 0.56 s |
 | Total batch duration | 2491.3 s (~41.5 min) |
 | Success / failure | 7 / 0 |
 | Session reset cleared | true |
 | Pass | true |
+
+The earlier consolidation table listed **217** pages from an outdated or
+different corpus-page mapping. The exact live seven-document corpus measured
+for route-accounting correction has **218** pages
+(\(107 + 17 + 93 + 1 = 218\)). Batch page total must be derived as the sum of
+validated document `document_pages_total` values — never a hard-coded expected
+constant. See
+[phase-4-live-seven-doc-route-accounting-evidence.md](../phases/phase-4-live-seven-doc-route-accounting-evidence.md).
 
 ---
 
