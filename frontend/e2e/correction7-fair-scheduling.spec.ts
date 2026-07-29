@@ -9,10 +9,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const FIXTURE = path.resolve(
-  ROOT,
-  "fixtures/synthetic/ocr/targeted-repair/A-one-wrong-word.pdf",
-);
+const FIXTURE = path.resolve(ROOT, "fixtures/synthetic/ocr/targeted-repair/A-one-wrong-word.pdf");
 
 test.describe("Correction 7 fair document scheduling", () => {
   test("queue dashboard can show scheduler turn metadata when enabled", async ({ page }) => {
@@ -30,7 +27,10 @@ test.describe("Correction 7 fair document scheduling", () => {
 
     const processBtn = page.getByRole("button", { name: /process|start/i });
     if ((await processBtn.count()) > 0) {
-      await processBtn.first().click({ timeout: 15_000 }).catch(() => null);
+      await processBtn
+        .first()
+        .click({ timeout: 15_000 })
+        .catch(() => null);
     }
 
     // Scheduler chrome may appear after admission; tolerate builds without OCR ready.
