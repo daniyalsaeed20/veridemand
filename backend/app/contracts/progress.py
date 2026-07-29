@@ -86,8 +86,14 @@ class ProgressEventType(StrEnum):
     )
     DOCUMENT_FULL_OCR_PRIMARY_STARTED = "document.full_ocr_primary_started"
     DOCUMENT_FULL_OCR_PRIMARY_COMPLETED = "document.full_ocr_primary_completed"
+    DOCUMENT_FULL_OCR_QUALITY_EVALUATION_STARTED = "document.full_ocr_quality_evaluation_started"
+    DOCUMENT_FULL_OCR_QUALITY_EVALUATION_COMPLETED = (
+        "document.full_ocr_quality_evaluation_completed"
+    )
     DOCUMENT_FULL_OCR_FALLBACK_STARTED = "document.full_ocr_fallback_started"
     DOCUMENT_FULL_OCR_FALLBACK_COMPLETED = "document.full_ocr_fallback_completed"
+    DOCUMENT_FULL_OCR_RESULT_SELECTION_STARTED = "document.full_ocr_result_selection_started"
+    DOCUMENT_FULL_OCR_RESULT_SELECTION_COMPLETED = "document.full_ocr_result_selection_completed"
     DOCUMENT_VISUAL_NO_TEXT_COMPLETED = "document.visual_no_text_completed"
 
     DOCUMENT_REMOVED = "document.removed"

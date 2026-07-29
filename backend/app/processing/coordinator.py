@@ -1390,8 +1390,49 @@ class ProcessingCoordinator:
                     return
                 publish_event = ProgressEventType.DOCUMENT_FULL_OCR_PRIMARY_COMPLETED
 
+            elif event_type == "full_ocr_quality_evaluation_started":
+                _begin_op("full_ocr_quality_evaluation", kind=ProgressKind.INDETERMINATE)
+                document.user_status_message = "Evaluating primary OCR quality"
+                publish_event = ProgressEventType.DOCUMENT_FULL_OCR_QUALITY_EVALUATION_STARTED
+
+            elif event_type == "full_ocr_quality_evaluation_completed":
+                snapshot.terminal_operation(OperationStatus.COMPLETED)
+                raw_fallback_reasons = payload.get("fallback_reason_codes")
+                fallback_reasons: list[str] = (
+                    [str(r) for r in raw_fallback_reasons]
+                    if isinstance(raw_fallback_reasons, list)
+                    else []
+                )
+                if payload.get("fallback_recommended"):
+                    reason_txt = (
+                        "Dense-form output was too fragmented"
+                        if "excessive_fragmentation" in fallback_reasons
+                        or "dense_form_fragmentation" in fallback_reasons
+                        else "Primary OCR quality gate failed"
+                    )
+                    document.user_status_message = f"Fallback reason: {reason_txt}"
+                else:
+                    document.user_status_message = "Primary OCR quality accepted"
+                quality_page = payload.get("page_number")
+                log_progress(
+                    "ocr_quality_evaluated",
+                    document_id=document.document_id,
+                    page_number=int(quality_page) if isinstance(quality_page, int) else None,
+                    page_profile=payload.get("page_profile"),
+                    quality_policy_version=payload.get("quality_policy_version"),
+                    primary_limit_side=payload.get("primary_limit_side"),
+                    primary_quality_status=payload.get("primary_quality_status"),
+                    primary_fragmentation_score=payload.get("primary_fragmentation_score"),
+                    primary_low_confidence_ratio=payload.get("primary_low_confidence_ratio"),
+                    primary_symbol_ratio=payload.get("primary_symbol_ratio"),
+                    fallback_triggered=bool(payload.get("fallback_recommended")),
+                    fallback_reason_codes=fallback_reasons,
+                )
+                publish_event = ProgressEventType.DOCUMENT_FULL_OCR_QUALITY_EVALUATION_COMPLETED
+
             elif event_type == "full_ocr_fallback_started":
                 _begin_op("full_ocr_fallback", kind=ProgressKind.INDETERMINATE)
+                document.user_status_message = "Running high-resolution OCR fallback"
                 publish_event = ProgressEventType.DOCUMENT_FULL_OCR_FALLBACK_STARTED
 
             elif event_type == "full_ocr_fallback_completed":
@@ -1400,6 +1441,30 @@ class ProcessingCoordinator:
                     eta.record(EtaCostRoute.FULL_OCR_FALLBACK, float(duration_ms) / 1000.0)
                 snapshot.terminal_operation(OperationStatus.COMPLETED)
                 publish_event = ProgressEventType.DOCUMENT_FULL_OCR_FALLBACK_COMPLETED
+
+            elif event_type == "full_ocr_result_selection_started":
+                _begin_op("full_ocr_result_selection", kind=ProgressKind.INDETERMINATE)
+                document.user_status_message = "Selecting the best OCR result"
+                publish_event = ProgressEventType.DOCUMENT_FULL_OCR_RESULT_SELECTION_STARTED
+
+            elif event_type == "full_ocr_result_selection_completed":
+                snapshot.terminal_operation(OperationStatus.COMPLETED)
+                selected = payload.get("selected_pass") or "primary"
+                document.user_status_message = f"Selected OCR pass: {selected}"
+                selection_page = payload.get("page_number")
+                raw_sel = payload.get("selection_reason_codes")
+                selection_reasons = [str(r) for r in raw_sel] if isinstance(raw_sel, list) else []
+                log_progress(
+                    "ocr_quality_evaluated",
+                    document_id=document.document_id,
+                    page_number=int(selection_page) if isinstance(selection_page, int) else None,
+                    selected_pass=selected,
+                    selection_reason_codes=selection_reasons,
+                    primary_limit_side=payload.get("primary_limit_side"),
+                    fallback_limit_side=payload.get("fallback_limit_side"),
+                    fallback_triggered=bool(payload.get("fallback_triggered")),
+                )
+                publish_event = ProgressEventType.DOCUMENT_FULL_OCR_RESULT_SELECTION_COMPLETED
 
             elif event_type == "operation_skipped":
                 snapshot.complete_open_operation(OperationStatus.SKIPPED)

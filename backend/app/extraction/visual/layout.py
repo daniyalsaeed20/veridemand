@@ -85,7 +85,11 @@ def group_lines_into_blocks(
     page_number: int,
     thresholds: LayoutThresholds,
 ) -> list[VisualTextBlock]:
-    """Group OCR lines into geometric ``text_unknown`` blocks."""
+    """Group OCR lines into geometric ``text_unknown`` blocks.
+
+    Deterministic provisional grouping only — no semantic structure.
+    Prevents distant columns joining and dissimilar-height form rows merging.
+    """
 
     if not lines:
         return []
@@ -95,7 +99,7 @@ def group_lines_into_blocks(
     median_height = max(_median(heights), 1e-4)
     max_gap = max(thresholds.max_vertical_gap_ratio, median_height * 1.5)
 
-    # First pass: cluster by vertical proximity + horizontal overlap.
+    # First pass: cluster by vertical proximity + horizontal overlap + height similarity.
     clusters: list[list[PrintedOcrLine]] = []
     current: list[PrintedOcrLine] = []
     for line in ordered:
@@ -105,7 +109,15 @@ def group_lines_into_blocks(
         prev = current[-1]
         gap = _vertical_gap(_line_bbox(prev), _line_bbox(line))
         overlap = _horizontal_overlap_ratio(_line_bbox(prev), _line_bbox(line))
-        if gap <= max_gap and overlap >= thresholds.min_horizontal_overlap_ratio:
+        h_prev = max(_line_bbox(prev).height, 1e-6)
+        h_cur = max(_line_bbox(line).height, 1e-6)
+        height_ratio = max(h_prev, h_cur) / min(h_prev, h_cur)
+        # Dissimilar heights (e.g. form label vs body) should not merge into one row cluster.
+        if (
+            gap <= max_gap
+            and overlap >= thresholds.min_horizontal_overlap_ratio
+            and height_ratio <= 2.2
+        ):
             current.append(line)
         else:
             clusters.append(current)
@@ -137,6 +149,53 @@ def group_lines_into_blocks(
             )
         )
     return blocks
+
+
+@dataclass(frozen=True, slots=True)
+class GroupingQualityMetrics:
+    """Privacy-safe provisional line-grouping quality metrics."""
+
+    words_grouped: int
+    single_word_line_count: int
+    single_character_line_count: int
+    unassigned_item_count: int
+    line_overlap_count: int
+
+
+def compute_grouping_quality(
+    lines: list[PrintedOcrLine],
+    blocks: list[VisualTextBlock],
+    *,
+    total_items_before_filter: int | None = None,
+) -> GroupingQualityMetrics:
+    assigned = {lid for block in blocks for lid in block.line_ids}
+    single_word = 0
+    single_char = 0
+    for line in lines:
+        tokens = line.normalised_text.split()
+        if len(tokens) <= 1:
+            single_word += 1
+        if len(line.normalised_text.strip()) == 1:
+            single_char += 1
+    overlap = 0
+    for i, a in enumerate(lines):
+        for b in lines[i + 1 :]:
+            if _horizontal_overlap_ratio(a.bbox, b.bbox) > 0.8:
+                va = max(
+                    0.0,
+                    min(a.bbox.y + a.bbox.height, b.bbox.y + b.bbox.height)
+                    - max(a.bbox.y, b.bbox.y),
+                )
+                if va > 0.5 * min(a.bbox.height, b.bbox.height):
+                    overlap += 1
+    unassigned = max(0, (total_items_before_filter or len(lines)) - len(assigned))
+    return GroupingQualityMetrics(
+        words_grouped=len(assigned),
+        single_word_line_count=single_word,
+        single_character_line_count=single_char,
+        unassigned_item_count=unassigned,
+        line_overlap_count=overlap,
+    )
 
 
 def _split_columns(

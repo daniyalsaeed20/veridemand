@@ -20,10 +20,14 @@ from typing import Any
 from backend.app.contracts.errors import ErrorCode
 from backend.app.contracts.native import SourceMode
 from backend.app.contracts.ocr import (
+    HandwritingAssessment,
+    OcrPassKind,
+    OcrQualityStatus,
     OcrRecognitionStatus,
     PreprocessingVariant,
     PrintedOcrLine,
     PrintedOcrWord,
+    ProvisionalItemClass,
     WordGeometrySource,
     WordScoreSource,
 )
@@ -31,15 +35,26 @@ from backend.app.contracts.visual import VisualPageResult, VisualPageStatus, Vis
 from backend.app.contracts.warnings import NativeReasonCode, reason_message
 from backend.app.extraction.visual.coordinates import map_pixel_polygon
 from backend.app.extraction.visual.errors import VisualOcrError
+from backend.app.extraction.visual.grid import detect_grid_interference, is_suppressible_line_only
 from backend.app.extraction.visual.layout import LayoutThresholds, group_lines_into_blocks
 from backend.app.extraction.visual.models import (
     OcrRuntimeConfig,
     VisualPageRef,
     VisualWorkerRequest,
 )
+from backend.app.extraction.visual.noise import (
+    classify_raw_lines,
+    count_provisional_classes,
+)
 from backend.app.extraction.visual.paddle_adapter import PaddleOcrAdapter
+from backend.app.extraction.visual.page_profile import analyse_page_profile
 from backend.app.extraction.visual.preprocessing import prepare_grayscale_fallback, prepare_primary
 from backend.app.extraction.visual.protocol import emit_message, parse_message
+from backend.app.extraction.visual.quality import (
+    build_quality_evidence,
+    compare_ocr_passes,
+    count_valid_words,
+)
 from backend.app.extraction.visual.reading_order import (
     apply_block_reading_order_indices,
     build_reading_order,
@@ -131,11 +146,16 @@ def _build_contract_lines(
     height_pixels: int,
     variant: PreprocessingVariant,
     config: OcrRuntimeConfig,
+    ocr_pass: OcrPassKind | None = None,
+    provisional_by_index: dict[int, ProvisionalItemClass] | None = None,
+    publish_indices: set[int] | None = None,
 ) -> tuple[list[PrintedOcrLine], list[PrintedOcrWord]]:
     lines: list[PrintedOcrLine] = []
     words: list[PrintedOcrWord] = []
     word_seq = 0
     for line_index, raw in enumerate(raw_lines):
+        if publish_indices is not None and line_index not in publish_indices:
+            continue
         try:
             mapped = map_pixel_polygon(
                 raw.polygon_px, width_pixels=width_pixels, height_pixels=height_pixels
@@ -149,6 +169,7 @@ def _build_contract_lines(
             minimum=config.ocr_min_recognition_score,
         )
         normalised = unicodedata.normalize("NFC", str(raw.text))
+        provisional = (provisional_by_index or {}).get(line_index)
         lines.append(
             PrintedOcrLine(
                 id=line_id,
@@ -165,6 +186,9 @@ def _build_contract_lines(
                 pixel_polygon=mapped.pixel_polygon,
                 pixel_bbox=mapped.pixel_bbox,
                 preprocessing_variant=variant,
+                ocr_pass=ocr_pass,
+                provisional_class=provisional,
+                handwriting_assessment=HandwritingAssessment.PENDING_PHASE_5,
             )
         )
         for raw_word in raw.words:
@@ -211,6 +235,8 @@ def _build_contract_lines(
                         low=config.ocr_low_confidence_score,
                         minimum=config.ocr_min_recognition_score,
                     ),
+                    ocr_pass=ocr_pass,
+                    provisional_class=provisional,
                 )
             )
     return lines, words
@@ -346,15 +372,19 @@ def process_page(
             "operation": "full_ocr_primary",
         }
     )
+
+    def _recognise(image: Any, limit_side: int) -> list[Any]:
+        try:
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                return pool.submit(adapter.recognise, image, limit_side_len=limit_side).result(
+                    timeout=page_timeout
+                )
+        except TypeError:
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                return pool.submit(adapter.recognise, image).result(timeout=page_timeout)
+
     try:
-        with ThreadPoolExecutor(max_workers=1) as pool:
-            raw_lines = pool.submit(
-                adapter.recognise, primary_image, limit_side_len=active_limit
-            ).result(timeout=page_timeout)
-    except TypeError:
-        # Adapter builds without limit_side_len kwarg.
-        with ThreadPoolExecutor(max_workers=1) as pool:
-            raw_lines = pool.submit(adapter.recognise, primary_image).result(timeout=page_timeout)
+        primary_raw = _recognise(primary_image, active_limit)
     except FuturesTimeout as exc:
         raise VisualOcrError(
             ErrorCode.OCR_PAGE_TIMEOUT,
@@ -365,8 +395,8 @@ def process_page(
         ) from exc
     primary_duration_ms = int((time.perf_counter() - pipeline_started) * 1000)
     primary_conf = None
-    if raw_lines:
-        primary_conf = sum(line.recognition_score for line in raw_lines) / len(raw_lines)
+    if primary_raw:
+        primary_conf = sum(line.recognition_score for line in primary_raw) / len(primary_raw)
     emit_message(
         {
             "type": "full_ocr_primary_completed",
@@ -374,71 +404,165 @@ def process_page(
             "page_number": page_ref.page_number,
             "primary_limit_side": active_limit,
             "primary_duration_ms": primary_duration_ms,
-            "primary_detection_count": len(raw_lines),
+            "primary_detection_count": len(primary_raw),
             "primary_average_confidence": primary_conf,
             "operation": "full_ocr_primary",
         }
     )
+
+    profile = analyse_page_profile(primary_image, raw_lines=primary_raw)
+    grid = detect_grid_interference(primary_image, primary_raw)
+    emit_message(
+        {
+            "type": "full_ocr_quality_evaluation_started",
+            "request_id": request_id,
+            "page_number": page_ref.page_number,
+            "operation": "full_ocr_quality_evaluation",
+            "page_profile": profile.page_profile.value,
+        }
+    )
+    primary_quality = build_quality_evidence(
+        primary_raw,
+        page_number=page_ref.page_number,
+        ocr_pass=OcrPassKind.PRIMARY,
+        detector_limit_side=active_limit,
+        page_width=primary_image.size[0],
+        page_height=primary_image.size[1],
+        low_confidence_threshold=config.ocr_low_confidence_score,
+        preprocessing_variant=variant,
+        profile=profile,
+        grid=grid,
+        route="full_visual_ocr",
+    )
+    emit_message(
+        {
+            "type": "full_ocr_quality_evaluation_completed",
+            "request_id": request_id,
+            "page_number": page_ref.page_number,
+            "operation": "full_ocr_quality_evaluation",
+            "page_profile": primary_quality.page_profile.value,
+            "quality_policy_version": primary_quality.policy_version,
+            "primary_limit_side": active_limit,
+            "primary_quality_status": primary_quality.quality_status.value,
+            "primary_fragmentation_score": primary_quality.fragmentation_score,
+            "primary_low_confidence_ratio": primary_quality.low_confidence_ratio,
+            "primary_symbol_ratio": primary_quality.symbol_only_token_ratio,
+            "fallback_recommended": primary_quality.fallback_recommended,
+            "fallback_reason_codes": list(primary_quality.fallback_reason_codes),
+            "quality_gate_passed": primary_quality.quality_gate_passed,
+        }
+    )
+
+    fallback_raw: list[Any] | None = None
+    fallback_quality = None
     fallback_side_used = False
-    if fast_pass and active_limit < fallback_limit:
-        coverage = 0.0
-        # Rough coverage from polygon extents when available.
-        for line in raw_lines:
-            if line.polygon_px:
-                xs = [p[0] for p in line.polygon_px]
-                ys = [p[1] for p in line.polygon_px]
-                coverage += max(0.0, (max(xs) - min(xs)) * (max(ys) - min(ys)))
-        page_area = float(max(1, primary_image.size[0] * primary_image.size[1]))
-        coverage_ratio = min(1.0, coverage / page_area)
-        min_det = int(getattr(config, "ocr_fast_pass_min_detections", 3))
-        min_conf = float(getattr(config, "ocr_fast_pass_min_average_confidence", 0.55))
-        min_cov = float(getattr(config, "ocr_fast_pass_min_coverage", 0.02))
-        inadequate = (
-            len(raw_lines) < min_det
-            or (primary_conf is not None and primary_conf < min_conf)
-            or coverage_ratio < min_cov
+    fallback_duration_ms: int | None = None
+    fallback_limit_used: int | None = None
+    rss_before_fallback = monitor.snapshot().rss_mb
+
+    if (
+        fast_pass
+        and active_limit < fallback_limit
+        and primary_quality.fallback_recommended
+        and not primary_quality.quality_gate_passed
+    ):
+        fallback_limit_used = fallback_limit
+        emit_message(
+            {
+                "type": "full_ocr_fallback_started",
+                "request_id": request_id,
+                "page_number": page_ref.page_number,
+                "fallback_limit_side": fallback_limit,
+                "fallback_reason_codes": list(primary_quality.fallback_reason_codes),
+                "operation": "full_ocr_fallback",
+            }
         )
-        if inadequate:
-            emit_message(
-                {
-                    "type": "full_ocr_fallback_started",
-                    "request_id": request_id,
-                    "page_number": page_ref.page_number,
-                    "fallback_limit_side": fallback_limit,
-                    "fallback_reason": "primary_inadequate",
-                    "operation": "full_ocr_fallback",
-                }
-            )
-            fallback_started = time.perf_counter()
-            try:
-                with ThreadPoolExecutor(max_workers=1) as pool:
-                    raw_lines = pool.submit(
-                        adapter.recognise, primary_image, limit_side_len=fallback_limit
-                    ).result(timeout=page_timeout)
-            except TypeError:
-                with ThreadPoolExecutor(max_workers=1) as pool:
-                    raw_lines = pool.submit(adapter.recognise, primary_image).result(
-                        timeout=page_timeout
-                    )
-            except FuturesTimeout as exc:
-                raise VisualOcrError(
-                    ErrorCode.OCR_PAGE_TIMEOUT,
-                    "OCR fallback inference timed out.",
-                    operation="paddle_ocr_pipeline",
-                    failing_component="visual.worker",
-                    exception_type=type(exc).__name__,
-                ) from exc
-            fallback_side_used = True
-            emit_message(
-                {
-                    "type": "full_ocr_fallback_completed",
-                    "request_id": request_id,
-                    "page_number": page_ref.page_number,
-                    "fallback_limit_side": fallback_limit,
-                    "fallback_duration_ms": int((time.perf_counter() - fallback_started) * 1000),
-                    "operation": "full_ocr_fallback",
-                }
-            )
+        fallback_started = time.perf_counter()
+        try:
+            fallback_raw = _recognise(primary_image, fallback_limit)
+        except FuturesTimeout as exc:
+            raise VisualOcrError(
+                ErrorCode.OCR_PAGE_TIMEOUT,
+                "OCR fallback inference timed out.",
+                operation="paddle_ocr_pipeline",
+                failing_component="visual.worker",
+                exception_type=type(exc).__name__,
+            ) from exc
+        fallback_side_used = True
+        fallback_duration_ms = int((time.perf_counter() - fallback_started) * 1000)
+        fallback_grid = detect_grid_interference(primary_image, fallback_raw)
+        fallback_profile = analyse_page_profile(primary_image, raw_lines=fallback_raw)
+        fallback_quality = build_quality_evidence(
+            fallback_raw,
+            page_number=page_ref.page_number,
+            ocr_pass=OcrPassKind.FALLBACK,
+            detector_limit_side=fallback_limit,
+            page_width=primary_image.size[0],
+            page_height=primary_image.size[1],
+            low_confidence_threshold=config.ocr_low_confidence_score,
+            preprocessing_variant=variant,
+            profile=fallback_profile,
+            grid=fallback_grid,
+            route="full_visual_ocr",
+        )
+        emit_message(
+            {
+                "type": "full_ocr_fallback_completed",
+                "request_id": request_id,
+                "page_number": page_ref.page_number,
+                "fallback_limit_side": fallback_limit,
+                "fallback_duration_ms": fallback_duration_ms,
+                "fallback_quality_status": fallback_quality.quality_status.value,
+                "fallback_memory_delta_mb": round(
+                    monitor.snapshot().rss_mb - rss_before_fallback, 2
+                ),
+                "operation": "full_ocr_fallback",
+            }
+        )
+
+    emit_message(
+        {
+            "type": "full_ocr_result_selection_started",
+            "request_id": request_id,
+            "page_number": page_ref.page_number,
+            "operation": "full_ocr_result_selection",
+        }
+    )
+    comparison = compare_ocr_passes(
+        primary_quality,
+        fallback_quality,
+        primary_valid_words=count_valid_words(
+            primary_raw, min_score=config.ocr_min_recognition_score
+        ),
+        fallback_valid_words=count_valid_words(
+            fallback_raw or [], min_score=config.ocr_min_recognition_score
+        ),
+    )
+    selected_pass = comparison.selected_pass
+    if selected_pass is OcrPassKind.FALLBACK and fallback_raw is not None:
+        raw_lines = fallback_raw
+        selected_quality = fallback_quality or primary_quality
+    else:
+        raw_lines = primary_raw
+        selected_pass = OcrPassKind.PRIMARY
+        selected_quality = primary_quality
+        if fallback_raw is not None:
+            del fallback_raw
+            fallback_raw = None
+    emit_message(
+        {
+            "type": "full_ocr_result_selection_completed",
+            "request_id": request_id,
+            "page_number": page_ref.page_number,
+            "operation": "full_ocr_result_selection",
+            "selected_pass": selected_pass.value,
+            "selection_reason_codes": list(comparison.selection_reason_codes),
+            "primary_limit_side": active_limit,
+            "fallback_limit_side": fallback_limit_used,
+            "fallback_triggered": fallback_side_used,
+        }
+    )
+
     paddle_pipeline_duration_s = time.perf_counter() - pipeline_started
     emit_message(
         {
@@ -449,14 +573,16 @@ def process_page(
             "paddle_pipeline_duration_seconds": round(paddle_pipeline_duration_s, 3),
             "detected_line_count": len(raw_lines),
             "fast_pass_fallback_used": fallback_side_used,
+            "selected_ocr_pass": selected_pass.value,
             "peak_rss_mb": monitor.snapshot().rss_mb,
         }
     )
-    fallback_used = False
+    grayscale_fallback_used = False
     if (
         config.ocr_enable_grayscale_fallback
         and config.ocr_fallback_max_attempts >= 1
         and _raw_needs_fallback(raw_lines, config)
+        and not fallback_side_used
     ):
         fallback_image, variant = prepare_grayscale_fallback(rendered.image)
         try:
@@ -473,8 +599,31 @@ def process_page(
                 failing_component="visual.worker",
                 exception_type=type(exc).__name__,
             ) from exc
-        fallback_used = True
+        grayscale_fallback_used = True
         fallback_image.close()
+
+    # Suppress confidently line-only detections before contract mapping.
+    selected_grid = detect_grid_interference(primary_image, raw_lines)
+    line_only = set(selected_grid.line_only_detection_indices)
+    suppressible = {
+        idx for idx in line_only if is_suppressible_line_only(raw_lines[idx], line_only_index=True)
+    }
+    dense = profile.page_profile.value == "dense_form"
+    classified = classify_raw_lines(
+        raw_lines,
+        low_confidence_threshold=config.ocr_low_confidence_score,
+        line_only_indices=line_only,
+        page_has_dense_form=dense,
+    )
+    provisional_by_index = {c.index: c.provisional_class for c in classified}
+    # Transcript publish set: credible + low-confidence; keep geometry for others via
+    # diagnostics counts only (artefacts not mixed into provisional reading text).
+    publish_indices = {
+        c.index for c in classified if c.publish_in_transcript and c.index not in suppressible
+    }
+    # Always retain unresolved/handwriting geometry in overlay diagnostics by publishing
+    # low-confidence and credible only in lines list; artefact indices excluded.
+    provisional_counts = count_provisional_classes(classified)
 
     primary_image.close()
     rendered.image.close()
@@ -495,6 +644,9 @@ def process_page(
         height_pixels=rendered.height_pixels,
         variant=variant,
         config=config,
+        ocr_pass=selected_pass,
+        provisional_by_index=provisional_by_index,
+        publish_indices=publish_indices,
     )
     mapping_duration_s = time.perf_counter() - map_started
     emit_message(
@@ -562,6 +714,21 @@ def process_page(
                     page_number=page_ref.page_number,
                 )
             )
+        if selected_quality.quality_status in {
+            OcrQualityStatus.LOW_QUALITY,
+            OcrQualityStatus.INSUFFICIENT,
+        } or (
+            fallback_side_used
+            and comparison.selected_pass is OcrPassKind.PRIMARY
+            and "fallback_no_measured_improvement" in comparison.selection_reason_codes
+        ):
+            warnings.append(
+                VisualWarning(
+                    code=NativeReasonCode.OCR_LOW_CONFIDENCE.value,
+                    message="Printed OCR quality is low; fallback did not improve the result.",
+                    page_number=page_ref.page_number,
+                )
+            )
 
     duration_ms = int((time.perf_counter() - started) * 1000)
     snap = monitor.snapshot()
@@ -579,7 +746,23 @@ def process_page(
         render_width_pixels=rendered.width_pixels,
         render_height_pixels=rendered.height_pixels,
         preprocessing_variant=variant,
-        fallback_used=fallback_used,
+        fallback_used=fallback_side_used or grayscale_fallback_used,
+        selected_ocr_pass=selected_pass,
+        primary_quality_status=primary_quality.quality_status,
+        fallback_quality_status=(
+            fallback_quality.quality_status if fallback_quality is not None else None
+        ),
+        fallback_reason_codes=list(primary_quality.fallback_reason_codes),
+        quality_policy_version=primary_quality.policy_version,
+        page_profile=primary_quality.page_profile,
+        page_profile_reason_codes=list(primary_quality.profile_reason_codes),
+        primary_quality=primary_quality,
+        fallback_quality=fallback_quality,
+        ocr_pass_comparison=comparison,
+        provisional_item_counts=provisional_counts,
+        primary_limit_side=active_limit,
+        fallback_limit_side=fallback_limit_used,
+        fallback_duration_ms=fallback_duration_ms,
         line_count=len(lines),
         word_count=len(words),
         average_detection_score=avg_det,
@@ -591,6 +774,7 @@ def process_page(
         reading_order=reading_order,
         visual_result_available=bool(lines),
         visual_processing_attempted=True,
+        handwriting_assessment=HandwritingAssessment.PENDING_PHASE_5,
         warnings=warnings,
         duration_ms=duration_ms,
         peak_rss_mb=snap.rss_mb,

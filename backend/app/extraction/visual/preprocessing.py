@@ -14,6 +14,22 @@ def prepare_primary(image: Image.Image) -> tuple[Image.Image, PreprocessingVaria
     return rgb, PreprocessingVariant.ORIGINAL_RGB
 
 
+def prepare_grayscale(image: Image.Image) -> tuple[Image.Image, PreprocessingVariant]:
+    """Return plain grayscale (as RGB) without aggressive thresholding."""
+
+    rgb = flatten_to_rgb(image)
+    gray = ImageOps.grayscale(rgb)
+    return gray.convert("RGB"), PreprocessingVariant.GRAYSCALE
+
+
+def prepare_contrast_normalised(image: Image.Image) -> tuple[Image.Image, PreprocessingVariant]:
+    """Return modest contrast-normalised RGB (autocontrast, no binary threshold)."""
+
+    rgb = flatten_to_rgb(image)
+    contrasted = ImageOps.autocontrast(rgb, cutoff=1)
+    return contrasted, PreprocessingVariant.CONTRAST_NORMALISED
+
+
 def prepare_grayscale_fallback(image: Image.Image) -> tuple[Image.Image, PreprocessingVariant]:
     """Return modest autocontrast grayscale (as RGB) for a single fallback pass."""
 
