@@ -176,6 +176,9 @@ class ProcessingCoordinator:
         self._running = False
         self._scheduler: FairDocumentScheduler | None = None
         self._heavy_contexts: dict[str, HeavyDocumentContext] = {}
+        # Documents that are routing right now: their work units may already be
+        # admitted while the context is still being built.
+        self._heavy_pending: set[str] = set()
         self._heavy_wake = asyncio.Event()
         self._heavy_task: asyncio.Task[None] | None = None
         self._heavy_running = False
@@ -242,6 +245,7 @@ class ProcessingCoordinator:
             with contextlib.suppress(asyncio.CancelledError):
                 await task
         self._heavy_contexts.clear()
+        self._heavy_pending.clear()
 
     async def stop(self) -> None:
         """Stop accepting jobs, cancel active work, and await worker termination."""
@@ -510,8 +514,13 @@ class ProcessingCoordinator:
                 sched_doc, unit = claimed
                 context = self._heavy_contexts.get(sched_doc.document_id)
                 if context is None:
-                    # Routing has not registered this document (or it is gone);
-                    # drop the unit rather than spin on it.
+                    if sched_doc.document_id in self._heavy_pending:
+                        # Routing admitted the pages but has not finished; hand
+                        # the turn back and retry on the next wake.
+                        scheduler.yield_document(sched_doc.document_id)
+                        await asyncio.sleep(_HEAVY_IDLE_POLL_SECONDS)
+                        break
+                    # Orphaned unit: no document owns it any more.
                     scheduler.fail_work_unit(unit.work_unit_id, retryable=False)
                     continue
                 try:
@@ -2587,65 +2596,73 @@ class ProcessingCoordinator:
             await _finalize_document(whole_summary)
             return
 
+        self._heavy_pending.add(document.document_id)
         try:
-            selection = await self._visual.route_and_select_heavy_pages(
-                session_id=session.session_id,
-                document_id=document.document_id,
-                job_id=job.job_id,
-                canonical_pdf=canonical_pdf,
-                canonical_pages=document.canonical_pages,
-                native_pages=native_pages,
-                cancel_token=job.cancellation,
-                on_progress=on_visual_progress,
-            )
-        except JobCancelledError:
-            raise
-        except VisualOcrError as exc:
-            await _handle_visual_error(exc)
-            return
+            try:
+                selection = await self._visual.route_and_select_heavy_pages(
+                    session_id=session.session_id,
+                    document_id=document.document_id,
+                    job_id=job.job_id,
+                    canonical_pdf=canonical_pdf,
+                    canonical_pages=document.canonical_pages,
+                    native_pages=native_pages,
+                    cancel_token=job.cancellation,
+                    on_progress=on_visual_progress,
+                )
+            except JobCancelledError:
+                raise
+            except VisualOcrError as exc:
+                await _handle_visual_error(exc)
+                return
 
-        scheduler = self._scheduler
-        sched_doc = scheduler.get_document(document.document_id) if scheduler else None
-        if selection.selected_page_numbers and sched_doc is not None and sched_doc.remaining_work:
-            if sched_doc.checkpoint is not None:
-                sched_doc.checkpoint.summary_pending = True
-                sched_doc.checkpoint.reconciliation_pending = True
-            self._heavy_contexts[document.document_id] = HeavyDocumentContext(
-                session=session,
-                job=job,
-                document=document,
-                selection=selection,
-                canonical_pdf=canonical_pdf,
-                canonical_pages=list(document.canonical_pages),
-                native_summary=native_summary,
-                on_progress=on_visual_progress,
-                finalize=_finalize_document,
-                handle_error=_handle_visual_error,
-            )
-            log_stage(
-                component="visual",
-                operation="heavy_pages_deferred",
-                document_id=document.document_id,
-                job_id=job.job_id,
-                pages_selected=len(selection.selected_page_numbers),
-            )
-            self._heavy_wake.set()
-            return
+            scheduler = self._scheduler
+            sched_doc = scheduler.get_document(document.document_id) if scheduler else None
+            if (
+                selection.selected_page_numbers
+                and sched_doc is not None
+                and sched_doc.remaining_work
+            ):
+                if sched_doc.checkpoint is not None:
+                    sched_doc.checkpoint.summary_pending = True
+                    sched_doc.checkpoint.reconciliation_pending = True
+                self._heavy_contexts[document.document_id] = HeavyDocumentContext(
+                    session=session,
+                    job=job,
+                    document=document,
+                    selection=selection,
+                    canonical_pdf=canonical_pdf,
+                    canonical_pages=list(document.canonical_pages),
+                    native_summary=native_summary,
+                    on_progress=on_visual_progress,
+                    finalize=_finalize_document,
+                    handle_error=_handle_visual_error,
+                )
+                log_stage(
+                    component="visual",
+                    operation="heavy_pages_deferred",
+                    document_id=document.document_id,
+                    job_id=job.job_id,
+                    pages_selected=len(selection.selected_page_numbers),
+                )
+                self._heavy_wake.set()
+                return
 
-        # Nothing heavy to schedule: finish this document in the cheap path.
-        try:
-            summary = await self._visual.finalize_visual_summary(
-                canonical_pages=document.canonical_pages,
-                native_summary=native_summary,  # type: ignore[arg-type]
-                selection=selection,
-                on_progress=on_visual_progress,
-            )
-        except JobCancelledError:
-            raise
-        except VisualOcrError as exc:
-            await _handle_visual_error(exc)
-            return
-        await _finalize_document(summary)
+            # Nothing heavy to schedule: finish this document in the cheap path.
+            try:
+                summary = await self._visual.finalize_visual_summary(
+                    canonical_pages=document.canonical_pages,
+                    native_summary=native_summary,  # type: ignore[arg-type]
+                    selection=selection,
+                    on_progress=on_visual_progress,
+                )
+            except JobCancelledError:
+                raise
+            except VisualOcrError as exc:
+                await _handle_visual_error(exc)
+                return
+            await _finalize_document(summary)
+        finally:
+            self._heavy_pending.discard(document.document_id)
 
     async def _finalize_native_failed(
         self,
