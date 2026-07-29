@@ -25,6 +25,20 @@ from backend.app.contracts.scheduling import (
     WorkUnitStatus,
 )
 
+__all__ = [
+    "DocumentCheckpoint",
+    "FairDocumentScheduler",
+    "InvalidTransitionError",
+    "PriorityClass",
+    "ScheduledDocument",
+    "SchedulerConfig",
+    "SchedulerWorkUnit",
+    "SchedulingDocumentState",
+    "WorkClass",
+    "WorkUnitStatus",
+    "classify_priority",
+]
+
 _TERMINAL_STATES = frozenset(
     {
         SchedulingDocumentState.CANCELLED,

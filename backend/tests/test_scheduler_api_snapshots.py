@@ -41,7 +41,7 @@ def test_priority_change_response_shape() -> None:
 async def test_build_session_snapshot_fills_queue_scheduler_fields(
     tmp_path: object,
 ) -> None:
-    settings = Settings(temp_root=tmp_path)  # type: ignore[arg-type]
+    settings = Settings(temp_root=tmp_path)
     registry, _queue, _store = build_runtime(settings)
     session = await registry.create()
     sched = FairDocumentScheduler(SchedulerConfig(enabled=True, page_quantum=2))
