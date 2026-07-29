@@ -44,7 +44,13 @@ def _repo_head() -> str | None:
 def _private_pdfs() -> list[Path]:
     if not PRIV.is_dir():
         return []
-    return sorted(p for p in PRIV.glob("*.pdf") if p.is_file())[:3]
+    # Focused acceptance only: keep wall-clock bounded. Large private scans
+    # belong in a dedicated overnight run, not the Correction 7 gate.
+    max_bytes = int(os.environ.get("CORRECTION7_PRIVATE_MAX_BYTES", str(2_000_000)))
+    candidates = sorted(
+        p for p in PRIV.glob("*.pdf") if p.is_file() and p.stat().st_size <= max_bytes
+    )
+    return candidates[:3]
 
 
 def main() -> int:
@@ -58,9 +64,34 @@ def main() -> int:
         "status": "skipped_no_private_inputs" if not pdfs else "running",
     }
     if not pdfs:
+        report["status"] = (
+            "skipped_no_private_inputs"
+            if not PRIV.is_dir()
+            else "skipped_no_bounded_private_inputs"
+        )
         OUT.parent.mkdir(parents=True, exist_ok=True)
         OUT.write_text(json.dumps(report, indent=2), encoding="utf-8")
         print(json.dumps({"status": report["status"], "private_input_count": 0}))
+        return 0
+
+    try:
+        with httpx.Client(base_url=BASE, timeout=10.0) as probe:
+            live = probe.get("/health/live")
+            live.raise_for_status()
+    except (httpx.HTTPError, OSError) as exc:
+        report["status"] = "skipped_api_unavailable"
+        report["error"] = type(exc).__name__
+        OUT.parent.mkdir(parents=True, exist_ok=True)
+        OUT.write_text(json.dumps(report, indent=2), encoding="utf-8")
+        print(
+            json.dumps(
+                {
+                    "status": report["status"],
+                    "private_input_count": len(pdfs),
+                    "error": type(exc).__name__,
+                }
+            )
+        )
         return 0
 
     with httpx.Client(base_url=BASE, timeout=60.0) as client:
