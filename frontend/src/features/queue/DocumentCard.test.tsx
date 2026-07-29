@@ -228,7 +228,9 @@ describe("DocumentCard", () => {
     );
     expect(screen.getByLabelText("Page route breakdown")).toBeInTheDocument();
     expect(screen.getByText(/Digital native:\s*97/)).toBeInTheDocument();
-    expect(screen.getByText(/Native pages retained \(includes embedded\):\s*97/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Native pages retained \(includes embedded\):\s*97/),
+    ).toBeInTheDocument();
     expect(screen.getByText(/Full OCR selected:\s*0/)).toBeInTheDocument();
   });
 
