@@ -23,6 +23,7 @@ def test_allows_keep_and_readme_only_under_private() -> None:
         "fixtures/private/.gitkeep",
         "fixtures/private/README.example.md",
         "fixtures/private/visual-ocr-manifest.local.json.example",
+        "fixtures/private/phase4-final-batch.local.json.example",
         "fixtures/synthetic/uploads/valid.png",
         "docs/example/README.md",
     ]

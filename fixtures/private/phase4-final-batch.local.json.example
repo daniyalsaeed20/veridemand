@@ -1,0 +1,11 @@
+{
+  "documents": {
+    "private_police_scan": "private_scan_001.pdf",
+    "private_billing_document": "correction2/private_billing_document.pdf",
+    "private_billing_digital": "private_digital_001.pdf",
+    "private_medical_embedded_ocr": "REPLACE_WITH_LOCAL_104PAGE_PDF.pdf",
+    "private_text_rich_097": "REPLACE_WITH_LOCAL_97PAGE_PDF.pdf",
+    "private_image_photo": "REPLACE_WITH_LOCAL_IMAGE_PDF.pdf"
+  },
+  "notes": "Copy to phase4-final-batch.local.json. Opaque relative paths under fixtures/private/ only. Never commit the local file or private binaries."
+}
