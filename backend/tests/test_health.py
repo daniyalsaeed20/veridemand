@@ -24,6 +24,13 @@ def test_liveness_returns_200_and_matches_contract(client: TestClient) -> None:
     assert model.timestamp.tzinfo is not None
     assert model.timestamp.utcoffset() is not None
     assert model.request_id
+    assert model.application_version == model.version
+    assert model.process_id > 0
+    assert model.worker_generation >= 1
+    assert model.configuration_profile
+    assert "temp" not in model.configuration_profile.lower()
+    assert "\\" not in model.configuration_profile
+    assert "/" not in (model.git_commit or "")
 
     # Header and body request ids match.
     assert response.headers["X-Request-ID"] == model.request_id
