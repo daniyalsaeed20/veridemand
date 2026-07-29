@@ -1349,7 +1349,53 @@ class ProcessingCoordinator:
                 publish_event = ProgressEventType.DOCUMENT_EMBEDDED_OCR_VERIFIED
 
             elif event_type == "embedded_ocr_targeted_repair_started":
+                _begin_op("embedded_ocr_targeted_repair", kind=ProgressKind.INDETERMINATE)
                 publish_event = ProgressEventType.DOCUMENT_EMBEDDED_OCR_TARGETED_REPAIR_STARTED
+
+            elif event_type == "embedded_ocr_targeted_repair_completed":
+                targeted_repair_pages_completed += 1
+                pages_completed += 1
+                snapshot.complete_open_operation(OperationStatus.COMPLETED)
+                publish_event = ProgressEventType.DOCUMENT_EMBEDDED_OCR_TARGETED_REPAIR_COMPLETED
+
+            elif event_type == "embedded_ocr_targeted_repair_insufficient":
+                if snapshot.operation == "embedded_ocr_targeted_repair":
+                    snapshot.terminal_operation(OperationStatus.FAILED)
+                document.user_status_message = (
+                    f"Targeted repair insufficient — falling back to full OCR on page {page_number}"
+                    if page_number
+                    else "Targeted repair insufficient — falling back to full OCR"
+                )
+                return
+
+            elif event_type == "operation":
+                op = payload.get("operation")
+                status = payload.get("status")
+                if isinstance(op, str) and status == "started":
+                    _begin_op(str(op), kind=ProgressKind.INDETERMINATE)
+                    document.user_status_message = (
+                        f"{op} on page {page_number}" if page_number else str(op)
+                    )
+                elif isinstance(op, str) and status == "completed" and snapshot.operation == op:
+                    snapshot.terminal_operation(OperationStatus.COMPLETED)
+                return
+
+            elif event_type == "targeted_repair_progress":
+                # Intermediate region progress — keep page vs region indices distinct.
+                region_idx = payload.get("repair_region_index")
+                region_total = payload.get("repair_regions_total")
+                method = payload.get("repair_method")
+                page_no = payload.get("page_number")
+                parts = []
+                if isinstance(page_no, int):
+                    parts.append(f"Document page {page_no}")
+                if isinstance(region_idx, int) and isinstance(region_total, int):
+                    parts.append(f"Repair region {region_idx} of {region_total}")
+                if isinstance(method, str) and method:
+                    parts.append(f"method={method}")
+                if parts:
+                    document.user_status_message = " · ".join(parts)
+                return
 
             elif event_type == "visual_no_text_completed":
                 pages_completed += 1

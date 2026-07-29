@@ -42,6 +42,10 @@ from backend.app.extraction.routing.materialise_embedded import (
 )
 from backend.app.extraction.routing.metrics import log_document_routing_summary
 from backend.app.extraction.routing.native_words import native_words_for_routing
+from backend.app.extraction.routing.repair_pipeline import (
+    cleanup_all_repair_staging,
+    run_targeted_repair_pipeline,
+)
 from backend.app.extraction.routing.router import PageRouter
 from backend.app.extraction.routing.visual_agreement import sample_words_for_agreement
 from backend.app.extraction.visual.errors import VisualOcrError
@@ -78,6 +82,10 @@ _PHASE4_FULL_OCR_MESSAGE = (
 _PHASE4_EMBEDDED_MESSAGE = (
     "Verified embedded OCR complete. Handwriting and final document "
     "structure have not been evaluated."
+)
+_PHASE4_REPAIR_MESSAGE = (
+    "Verified embedded OCR with visual repair complete. Handwriting and final "
+    "document structure have not been evaluated."
 )
 _PHASE4_NATIVE_MESSAGE = (
     "Native PDF text retained. Handwriting and final document structure have not been evaluated."
@@ -148,6 +156,20 @@ class VisualOcrService:
     def __init__(self, settings: Settings, worker_manager: OcrWorkerManager | None = None) -> None:
         self._settings = settings
         self._worker = worker_manager or OcrWorkerManager(settings)
+        self._repair_adapter: Any | None = None
+
+    def _ensure_repair_adapter(self) -> Any:
+        """Lazy in-process Paddle adapter for bounded repair crops only."""
+
+        if self._repair_adapter is not None:
+            return self._repair_adapter
+        from backend.app.extraction.visual.paddle_adapter import PaddleOcrAdapter
+
+        config = self._worker.config_from_settings()
+        adapter = PaddleOcrAdapter(config)
+        adapter.load()
+        self._repair_adapter = adapter
+        return adapter
 
     @property
     def worker_manager(self) -> OcrWorkerManager:
@@ -570,21 +592,83 @@ class VisualOcrService:
                                 }
                             )
                     elif decision.route is PageRoute.EMBEDDED_OCR_TARGETED_REPAIR:
-                        # Escalate to full OCR when recognition-only repair worker
-                        # is unavailable in this process; mark for selection.
                         repair_ok = (
                             self._settings.targeted_region_repair_enabled
                             and self._settings.ocr_enabled
+                            and probe_image is not None
                         )
-                        if repair_ok:
+                        if not repair_ok:
+                            selected.append(page_number)
+                            await _progress(
+                                {
+                                    "type": "embedded_ocr_targeted_repair_started",
+                                    "page_number": page_number,
+                                }
+                            )
+                            await _progress(
+                                {
+                                    "type": "embedded_ocr_targeted_repair_insufficient",
+                                    "page_number": page_number,
+                                    "reason_codes": ["repair_engine_unavailable"],
+                                }
+                            )
+                        else:
                             targeted_repair_pages.add(page_number)
-                        selected.append(page_number)
-                        await _progress(
-                            {
-                                "type": "embedded_ocr_targeted_repair_started",
-                                "page_number": page_number,
-                            }
-                        )
+                            await _progress(
+                                {
+                                    "type": "embedded_ocr_targeted_repair_started",
+                                    "page_number": page_number,
+                                }
+                            )
+                            adapter = self._ensure_repair_adapter()
+                            assert probe_image is not None
+                            repair_image = probe_image
+                            meta = page_by_number[page_number]
+                            render_scale = float(repair_image.width) / max(
+                                1.0, float(meta.width_points)
+                            )
+
+                            def _recognise(
+                                img: Image.Image, _adapter: Any = adapter
+                            ) -> tuple[str, float]:
+                                text, score = _adapter.recognise_only(img)
+                                return str(text), float(score)
+
+                            def _detect_rec(
+                                img: Image.Image,
+                                limit: int | None,
+                                _adapter: Any = adapter,
+                            ) -> list[tuple[str, float, list[tuple[float, float]]]]:
+                                return list(
+                                    _adapter.detect_and_recognise_crop(img, limit_side_len=limit)
+                                )
+
+                            repair_result = await run_targeted_repair_pipeline(
+                                page_number=page_number,
+                                words=native_words_for_routing(native_page),
+                                failed_indices=list(plan.failed_word_indices),
+                                page_image=repair_image,
+                                policy=router.policy,
+                                visual_agreement_score=decision.visual_agreement_score,
+                                recognition_agreement_score=decision.recognition_agreement_score,
+                                page_width_points=float(meta.width_points),
+                                page_height_points=float(meta.height_points),
+                                render_scale=render_scale,
+                                intrinsic_rotation=int(meta.intrinsic_rotation or 0),
+                                recognise_crop=_recognise,
+                                detect_recognise=_detect_rec,
+                                results_dir=results,
+                                staging_dir=staging,
+                                cancel_token=cancel_token,
+                                on_progress=_progress,
+                                geometry_shifted=plan.geometry_shifted,
+                                route_reason_codes=list(decision.reason_codes),
+                                document_id=document_id,
+                            )
+                            if repair_result.fallback_to_full_ocr:
+                                selected.append(page_number)
+                            elif repair_result.page_result is not None:
+                                published[page_number] = repair_result.page_result
                     elif decision.route is PageRoute.VISUAL_NO_TEXT:
                         visual_no_text_pages.add(page_number)
                         no_text_reason = next(
@@ -1018,4 +1102,5 @@ class VisualOcrService:
         publish_summary_atomic(summary, results)
         await _progress({"type": "visual_summary_publication.completed"})
         cleanup_staging(staging)
+        cleanup_all_repair_staging(staging)
         return summary
