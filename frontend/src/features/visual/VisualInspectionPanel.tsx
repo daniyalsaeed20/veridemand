@@ -145,18 +145,36 @@ export function VisualInspectionPanel({
                 Document escalation applied: {page.document_escalation_applied ? "yes" : "no"}
                 {page.page_restored_after_escalation ? " · restored after escalation" : ""}
               </Typography>
-              <Typography variant="body2">
-                Targeted repair status:{" "}
-                {page.page_route === "embedded_ocr_targeted_repair"
-                  ? "selected"
-                  : page.page_route === "full_visual_ocr"
-                    ? "not used (full OCR)"
-                    : "not required"}
-              </Typography>
               {page.page_route === "full_visual_ocr" ? (
                 <Typography variant="body2" data-testid="full-ocr-reason">
                   Full-OCR reason:{" "}
                   {page.route_reason_codes?.length ? page.route_reason_codes.join(", ") : "—"}
+                </Typography>
+              ) : null}
+            </Stack>
+          ) : null}
+          {page.page_result_state === "embedded_ocr_targeted_repair" ||
+          page.page_route === "embedded_ocr_targeted_repair" ? (
+            <Stack spacing={0.25} data-testid="targeted-repair-summary">
+              <Typography variant="body2">Source: {sourceLabelForPage(page)}</Typography>
+              <Typography variant="body2">
+                Repair regions: {page.repair_region_count ?? "—"}
+              </Typography>
+              <Typography variant="body2">
+                Words retained: {page.retained_embedded_words ?? page.retained_native_words ?? "—"}
+              </Typography>
+              <Typography variant="body2">Words repaired: {page.repaired_words ?? "—"}</Typography>
+              <Typography variant="body2">
+                Repair status:{" "}
+                {page.repair_quality_status === "repair_complete_with_warnings"
+                  ? "Complete with warnings"
+                  : page.repair_quality_status === "repair_complete"
+                    ? "Complete"
+                    : (page.repair_quality_status ?? "—")}
+              </Typography>
+              {import.meta.env.DEV ? (
+                <Typography variant="body2">
+                  Method: {page.repair_method ?? "—"} · suppressed: {page.suppressed_words ?? 0}
                 </Typography>
               ) : null}
             </Stack>

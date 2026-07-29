@@ -4131,9 +4131,33 @@ export type VisualPageResult = {
      */
     render_width_pixels?: number | null;
     /**
+     * Repair Method
+     */
+    repair_method?: string | null;
+    /**
+     * Repair Quality Status
+     */
+    repair_quality_status?: string | null;
+    /**
+     * Repair Region Count
+     */
+    repair_region_count?: number | null;
+    /**
+     * Repaired Words
+     */
+    repaired_words?: number | null;
+    /**
      * Requested Dpi
      */
     requested_dpi?: number | null;
+    /**
+     * Retained Embedded Words
+     */
+    retained_embedded_words?: number | null;
+    /**
+     * Retained Native Words
+     */
+    retained_native_words?: number | null;
     /**
      * Route Reason Codes
      */
@@ -4155,6 +4179,10 @@ export type VisualPageResult = {
      */
     source_width_px?: number | null;
     status: VisualPageStatus;
+    /**
+     * Suppressed Words
+     */
+    suppressed_words?: number | null;
     /**
      * Visual Agreement Policy Version
      */

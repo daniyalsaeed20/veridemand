@@ -20,10 +20,15 @@ describe("sourceLabels", () => {
     ).toBe("Verified embedded OCR with visual repair");
   });
 
-  it("selects overlay kind for embedded authority", () => {
-    expect(overlaySourceKind({ source_mode: "embedded_ocr_authority" })).toBe(
-      "verified_embedded_ocr_word",
+  it("maps repaired page state to visual repair label", () => {
+    expect(sourceLabelForPage({ page_result_state: "embedded_ocr_targeted_repair" })).toBe(
+      "Verified embedded OCR with visual repair",
     );
-    expect(overlaySourceKind({ source_mode: "visual_authority" })).toBe("printed_visual_ocr_word");
+    expect(
+      overlaySourceKind({
+        page_result_state: "embedded_ocr_targeted_repair",
+        overlay_source: "targeted_repair_word",
+      }),
+    ).toBe("targeted_repair_word");
   });
 });

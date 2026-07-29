@@ -7599,6 +7599,52 @@
             ],
             "title": "Render Width Pixels"
           },
+          "repair_method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repair Method"
+          },
+          "repair_quality_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repair Quality Status"
+          },
+          "repair_region_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repair Region Count"
+          },
+          "repaired_words": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repaired Words"
+          },
           "requested_dpi": {
             "anyOf": [
               {
@@ -7610,6 +7656,30 @@
               }
             ],
             "title": "Requested Dpi"
+          },
+          "retained_embedded_words": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retained Embedded Words"
+          },
+          "retained_native_words": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retained Native Words"
           },
           "route_reason_codes": {
             "items": {
@@ -7669,6 +7739,18 @@
           },
           "status": {
             "$ref": "#/components/schemas/VisualPageStatus"
+          },
+          "suppressed_words": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suppressed Words"
           },
           "visual_agreement_policy_version": {
             "anyOf": [
