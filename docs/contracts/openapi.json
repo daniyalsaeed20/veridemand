@@ -333,6 +333,60 @@
         "title": "CheckState",
         "type": "string"
       },
+      "ConfidenceDistribution": {
+        "additionalProperties": false,
+        "description": "Privacy-safe recognition confidence distribution (no text).",
+        "properties": {
+          "low_confidence_ratio": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Low Confidence Ratio",
+            "type": "number"
+          },
+          "mean": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean"
+          },
+          "median": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median"
+          },
+          "p10": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P10"
+          }
+        },
+        "title": "ConfidenceDistribution",
+        "type": "object"
+      },
       "DependencyCheck": {
         "additionalProperties": false,
         "description": "Outcome of one readiness dependency check.",
@@ -2245,6 +2299,33 @@
             "title": "App Name",
             "type": "string"
           },
+          "application_version": {
+            "description": "Same as version; explicit alias for acceptance gates.",
+            "title": "Application Version",
+            "type": "string"
+          },
+          "configuration_profile": {
+            "description": "Privacy-safe configuration profile label (no secrets or paths).",
+            "title": "Configuration Profile",
+            "type": "string"
+          },
+          "git_commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Git commit SHA when available in development; never a filesystem path.",
+            "title": "Git Commit"
+          },
+          "process_id": {
+            "description": "Operating-system process id of the API worker.",
+            "title": "Process Id",
+            "type": "integer"
+          },
           "request_id": {
             "description": "Correlates the response with server logs.",
             "title": "Request Id",
@@ -2274,11 +2355,21 @@
             "description": "Application version.",
             "title": "Version",
             "type": "string"
+          },
+          "worker_generation": {
+            "default": 1,
+            "description": "Worker generation counter for recycle detection.",
+            "minimum": 1.0,
+            "title": "Worker Generation",
+            "type": "integer"
           }
         },
         "required": [
           "app_name",
           "version",
+          "application_version",
+          "process_id",
+          "configuration_profile",
           "timestamp",
           "request_id"
         ],
@@ -3534,6 +3625,148 @@
         "title": "NormalisedPolygon",
         "type": "object"
       },
+      "OcrPassComparison": {
+        "additionalProperties": false,
+        "description": "Typed comparison of primary vs fallback OCR passes.",
+        "properties": {
+          "fallback_confidence_distribution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConfidenceDistribution"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fallback_fragmentation": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Fragmentation"
+          },
+          "fallback_geometry_quality": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Geometry Quality"
+          },
+          "fallback_quality": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PrintedOcrQualityEvidence"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fallback_text_coverage": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Text Coverage"
+          },
+          "fallback_valid_words": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Fallback Valid Words",
+            "type": "integer"
+          },
+          "primary_confidence_distribution": {
+            "$ref": "#/components/schemas/ConfidenceDistribution"
+          },
+          "primary_fragmentation": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Primary Fragmentation",
+            "type": "number"
+          },
+          "primary_geometry_quality": {
+            "default": 1.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Primary Geometry Quality",
+            "type": "number"
+          },
+          "primary_quality": {
+            "$ref": "#/components/schemas/PrintedOcrQualityEvidence"
+          },
+          "primary_text_coverage": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Primary Text Coverage",
+            "type": "number"
+          },
+          "primary_valid_words": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Primary Valid Words",
+            "type": "integer"
+          },
+          "selected_pass": {
+            "$ref": "#/components/schemas/OcrPassKind"
+          },
+          "selection_reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Selection Reason Codes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "primary_quality",
+          "primary_confidence_distribution",
+          "selected_pass"
+        ],
+        "title": "OcrPassComparison",
+        "type": "object"
+      },
+      "OcrPassKind": {
+        "description": "Which detector-side OCR pass produced a result.",
+        "enum": [
+          "primary",
+          "fallback"
+        ],
+        "title": "OcrPassKind",
+        "type": "string"
+      },
+      "OcrQualityStatus": {
+        "description": "Derived OCR quality status for a single pass or selected result.\n\nDerived from PrintedOcrQualityEvidence — never from mean confidence alone.",
+        "enum": [
+          "good",
+          "usable_with_warnings",
+          "low_quality",
+          "insufficient",
+          "failed"
+        ],
+        "title": "OcrQualityStatus",
+        "type": "string"
+      },
       "OcrRecognitionMethod": {
         "description": "How printed OCR text was obtained.",
         "enum": [
@@ -3661,6 +3894,18 @@
           "pending_canonicalisation"
         ],
         "title": "PageCountStatus",
+        "type": "string"
+      },
+      "PageProcessingProfile": {
+        "description": "Cheap visual/structural processing profile (not semantic form ID).",
+        "enum": [
+          "ordinary_document",
+          "dense_form",
+          "table_like",
+          "sparse_document",
+          "photo_with_text"
+        ],
+        "title": "PageProcessingProfile",
         "type": "string"
       },
       "PageResultState": {
@@ -3794,7 +4039,9 @@
         "description": "Conservative preprocessing variants used before OCR.",
         "enum": [
           "original_rgb",
-          "grayscale_autocontrast"
+          "grayscale_autocontrast",
+          "grayscale",
+          "contrast_normalised"
         ],
         "title": "PreprocessingVariant",
         "type": "string"
@@ -3838,6 +4085,17 @@
             "title": "Normalised Text",
             "type": "string"
           },
+          "ocr_pass": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OcrPassKind"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Detector-side pass that produced this line (primary or fallback)."
+          },
           "page_number": {
             "minimum": 1.0,
             "title": "Page Number",
@@ -3854,6 +4112,17 @@
           },
           "preprocessing_variant": {
             "$ref": "#/components/schemas/PreprocessingVariant"
+          },
+          "provisional_class": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProvisionalItemClass"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Provisional noise/text classification for transcript filtering."
           },
           "recognition_method": {
             "$ref": "#/components/schemas/OcrRecognitionMethod",
@@ -3910,6 +4179,268 @@
         "title": "PrintedOcrLine",
         "type": "object"
       },
+      "PrintedOcrQualityEvidence": {
+        "additionalProperties": false,
+        "description": "Canonical typed evidence for printed OCR quality decisions.\n\nScore directions (documented so high never means both good and bad):\n\n- fragmentation_score: higher = more suspected fragmentation (worse)\n- over_segmentation_score: higher = more suspected over-segmentation (worse)\n- box_overlap_ratio: higher = more overlapping OCR boxes (worse)\n- near_duplicate_box_ratio: higher = more near-duplicate boxes (worse)\n- grid_intersection_ratio: higher = more boxes intersecting ruling lines (signal)\n- text_coverage_ratio: higher = more page area covered by OCR geometry (better)\n- geometry_valid_ratio: higher = better\n- out_of_bounds_ratio: higher = worse\n- low_confidence_ratio: higher = worse\n- single_character_* / symbol_only_* / numeric_fragment_ratio: higher = worse noise\n- mean_confidence / median_confidence: recognition confidence aggregates only;\n  never treated as transcript accuracy.",
+        "properties": {
+          "box_overlap_ratio": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Box Overlap Ratio",
+            "type": "number"
+          },
+          "detected_region_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Detected Region Count",
+            "type": "integer"
+          },
+          "detector_limit_side": {
+            "exclusiveMinimum": 0.0,
+            "title": "Detector Limit Side",
+            "type": "integer"
+          },
+          "fallback_reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fallback Reason Codes",
+            "type": "array"
+          },
+          "fallback_recommended": {
+            "default": false,
+            "title": "Fallback Recommended",
+            "type": "boolean"
+          },
+          "fragmentation_score": {
+            "default": 0.0,
+            "description": "Higher means more suspected fragmentation.",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Fragmentation Score",
+            "type": "number"
+          },
+          "geometry_valid_ratio": {
+            "default": 1.0,
+            "description": "Higher means better geometry validity.",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Geometry Valid Ratio",
+            "type": "number"
+          },
+          "grid_intersection_ratio": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Grid Intersection Ratio",
+            "type": "number"
+          },
+          "line_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Line Count",
+            "type": "integer"
+          },
+          "low_confidence_ratio": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Low Confidence Ratio",
+            "type": "number"
+          },
+          "mean_confidence": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Confidence"
+          },
+          "median_confidence": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Confidence"
+          },
+          "median_token_length": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "title": "Median Token Length",
+            "type": "number"
+          },
+          "median_words_per_line": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "title": "Median Words Per Line",
+            "type": "number"
+          },
+          "near_duplicate_box_ratio": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Near Duplicate Box Ratio",
+            "type": "number"
+          },
+          "numeric_fragment_ratio": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Numeric Fragment Ratio",
+            "type": "number"
+          },
+          "ocr_pass": {
+            "$ref": "#/components/schemas/OcrPassKind"
+          },
+          "out_of_bounds_ratio": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Out Of Bounds Ratio",
+            "type": "number"
+          },
+          "over_segmentation_score": {
+            "default": 0.0,
+            "description": "Higher means more suspected over-segmentation.",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Over Segmentation Score",
+            "type": "number"
+          },
+          "p10_confidence": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P10 Confidence"
+          },
+          "page_number": {
+            "minimum": 1.0,
+            "title": "Page Number",
+            "type": "integer"
+          },
+          "page_profile": {
+            "$ref": "#/components/schemas/PageProcessingProfile",
+            "default": "ordinary_document"
+          },
+          "policy_version": {
+            "default": "phase4-ocr-quality-v1",
+            "title": "Policy Version",
+            "type": "string"
+          },
+          "preprocessing_variant": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PreprocessingVariant"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "profile_confidence": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Profile Confidence",
+            "type": "number"
+          },
+          "profile_reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Profile Reason Codes",
+            "type": "array"
+          },
+          "quality_gate_passed": {
+            "default": true,
+            "title": "Quality Gate Passed",
+            "type": "boolean"
+          },
+          "quality_status": {
+            "$ref": "#/components/schemas/OcrQualityStatus",
+            "default": "good"
+          },
+          "route": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route"
+          },
+          "single_character_line_ratio": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Single Character Line Ratio",
+            "type": "number"
+          },
+          "single_character_token_ratio": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Single Character Token Ratio",
+            "type": "number"
+          },
+          "symbol_only_line_ratio": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Symbol Only Line Ratio",
+            "type": "number"
+          },
+          "symbol_only_token_ratio": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Symbol Only Token Ratio",
+            "type": "number"
+          },
+          "text_coverage_ratio": {
+            "default": 0.0,
+            "description": "Higher means more page area represented by OCR geometry.",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Text Coverage Ratio",
+            "type": "number"
+          },
+          "word_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Word Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "page_number",
+          "ocr_pass",
+          "detector_limit_side"
+        ],
+        "title": "PrintedOcrQualityEvidence",
+        "type": "object"
+      },
       "PrintedOcrWord": {
         "additionalProperties": false,
         "description": "One printed OCR word/token with geometry and confidence.",
@@ -3954,6 +4485,17 @@
             "title": "Normalised Text",
             "type": "string"
           },
+          "ocr_pass": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OcrPassKind"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Detector-side pass that produced this word (primary or fallback)."
+          },
           "page_number": {
             "minimum": 1.0,
             "title": "Page Number",
@@ -3967,6 +4509,17 @@
           },
           "polygon": {
             "$ref": "#/components/schemas/NormalisedPolygon"
+          },
+          "provisional_class": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProvisionalItemClass"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Provisional noise/text classification for transcript filtering."
           },
           "recognition_method": {
             "$ref": "#/components/schemas/OcrRecognitionMethod",
@@ -5530,8 +6083,12 @@
           "document.embedded_ocr_targeted_repair_completed",
           "document.full_ocr_primary_started",
           "document.full_ocr_primary_completed",
+          "document.full_ocr_quality_evaluation_started",
+          "document.full_ocr_quality_evaluation_completed",
           "document.full_ocr_fallback_started",
           "document.full_ocr_fallback_completed",
+          "document.full_ocr_result_selection_started",
+          "document.full_ocr_result_selection_completed",
           "document.visual_no_text_completed",
           "document.removed",
           "document.warning",
@@ -5550,6 +6107,70 @@
         ],
         "title": "ProgressEventType",
         "type": "string"
+      },
+      "ProvisionalItemClass": {
+        "description": "Provisional classification of an OCR item (Phase 4; not final HTR).",
+        "enum": [
+          "credible_printed_text",
+          "low_confidence_text",
+          "isolated_form_number",
+          "checkbox_or_symbol_candidate",
+          "line_or_grid_artefact",
+          "handwriting_candidate_pending_phase_5",
+          "unresolved"
+        ],
+        "title": "ProvisionalItemClass",
+        "type": "string"
+      },
+      "ProvisionalItemCounts": {
+        "additionalProperties": false,
+        "description": "Counts of provisional OCR item classes (no text).",
+        "properties": {
+          "artefacts": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Artefacts",
+            "type": "integer"
+          },
+          "credible_text": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Credible Text",
+            "type": "integer"
+          },
+          "handwriting_pending": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Handwriting Pending",
+            "type": "integer"
+          },
+          "isolated_form_numbers": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Isolated Form Numbers",
+            "type": "integer"
+          },
+          "low_confidence": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Low Confidence",
+            "type": "integer"
+          },
+          "symbol_candidates": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Symbol Candidates",
+            "type": "integer"
+          },
+          "unresolved": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Unresolved",
+            "type": "integer"
+          }
+        },
+        "title": "ProvisionalItemCounts",
+        "type": "object"
       },
       "ProvisionalOrderStatus": {
         "description": "Extraction order is not final reading order.",
@@ -5616,6 +6237,11 @@
             "title": "App Name",
             "type": "string"
           },
+          "application_version": {
+            "description": "Same as version; explicit alias for acceptance gates.",
+            "title": "Application Version",
+            "type": "string"
+          },
           "checks": {
             "description": "Individual dependency check results.",
             "items": {
@@ -5623,6 +6249,28 @@
             },
             "title": "Checks",
             "type": "array"
+          },
+          "configuration_profile": {
+            "description": "Privacy-safe configuration profile label (no secrets or paths).",
+            "title": "Configuration Profile",
+            "type": "string"
+          },
+          "git_commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Git commit SHA when available in development; never a filesystem path.",
+            "title": "Git Commit"
+          },
+          "process_id": {
+            "description": "Operating-system process id of the API worker.",
+            "title": "Process Id",
+            "type": "integer"
           },
           "request_id": {
             "description": "Correlates the response with server logs.",
@@ -5656,12 +6304,22 @@
             "description": "Application version.",
             "title": "Version",
             "type": "string"
+          },
+          "worker_generation": {
+            "default": 1,
+            "description": "Worker generation counter for recycle detection.",
+            "minimum": 1.0,
+            "title": "Worker Generation",
+            "type": "integer"
           }
         },
         "required": [
           "status",
           "app_name",
           "version",
+          "application_version",
+          "process_id",
+          "configuration_profile",
           "timestamp",
           "request_id",
           "checks"
@@ -6511,6 +7169,57 @@
             ],
             "title": "Error Code"
           },
+          "fallback_duration_ms": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Duration Ms"
+          },
+          "fallback_limit_side": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Limit Side"
+          },
+          "fallback_quality": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PrintedOcrQualityEvidence"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fallback_quality_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OcrQualityStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fallback_reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fallback Reason Codes",
+            "type": "array"
+          },
           "fallback_used": {
             "default": false,
             "title": "Fallback Used",
@@ -6595,6 +7304,16 @@
             ],
             "title": "No Text Reason Code"
           },
+          "ocr_pass_comparison": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OcrPassComparison"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "overlay_source": {
             "anyOf": [
               {
@@ -6621,6 +7340,23 @@
             "minimum": 1.0,
             "title": "Page Number",
             "type": "integer"
+          },
+          "page_profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageProcessingProfile"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "page_profile_reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Page Profile Reason Codes",
+            "type": "array"
           },
           "page_restored_after_escalation": {
             "default": false,
@@ -6694,6 +7430,59 @@
                 "type": "null"
               }
             ]
+          },
+          "primary_limit_side": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Limit Side"
+          },
+          "primary_quality": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PrintedOcrQualityEvidence"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "primary_quality_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OcrQualityStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provisional_item_counts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProvisionalItemCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quality_policy_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quality Policy Version"
           },
           "quarantined_glyph_count": {
             "default": 0,
@@ -6828,6 +7617,16 @@
             },
             "title": "Route Reason Codes",
             "type": "array"
+          },
+          "selected_ocr_pass": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OcrPassKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "source_height_px": {
             "anyOf": [

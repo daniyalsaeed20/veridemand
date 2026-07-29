@@ -95,6 +95,18 @@ export const zCheckState = z.enum([
 ]);
 
 /**
+ * ConfidenceDistribution
+ *
+ * Privacy-safe recognition confidence distribution (no text).
+ */
+export const zConfidenceDistribution = z.object({
+    low_confidence_ratio: z.number().gte(0).lte(1).optional().default(0),
+    mean: z.number().gte(0).lte(1).nullish(),
+    median: z.number().gte(0).lte(1).nullish(),
+    p10: z.number().gte(0).lte(1).nullish()
+});
+
+/**
  * DependencyCheck
  *
  * Outcome of one readiness dependency check.
@@ -309,11 +321,16 @@ export const zJobListResponse = z.object({
  */
 export const zLivenessResponse = z.object({
     app_name: z.string(),
+    application_version: z.string(),
+    configuration_profile: z.string(),
+    git_commit: z.string().nullish(),
+    process_id: z.int(),
     request_id: z.string(),
     service: z.literal('veridemand-api').optional().default('veridemand-api'),
     status: z.literal('ok').optional().default('ok'),
     timestamp: z.iso.datetime(),
-    version: z.string()
+    version: z.string(),
+    worker_generation: z.int().gte(1).optional().default(1)
 });
 
 /**
@@ -532,6 +549,28 @@ export const zGeometry = z.object({
 });
 
 /**
+ * OcrPassKind
+ *
+ * Which detector-side OCR pass produced a result.
+ */
+export const zOcrPassKind = z.enum(['primary', 'fallback']);
+
+/**
+ * OcrQualityStatus
+ *
+ * Derived OCR quality status for a single pass or selected result.
+ *
+ * Derived from PrintedOcrQualityEvidence — never from mean confidence alone.
+ */
+export const zOcrQualityStatus = z.enum([
+    'good',
+    'usable_with_warnings',
+    'low_quality',
+    'insufficient',
+    'failed'
+]);
+
+/**
  * OcrRecognitionMethod
  *
  * How printed OCR text was obtained.
@@ -738,6 +777,19 @@ export const zDocumentListResponse = z.object({
 });
 
 /**
+ * PageProcessingProfile
+ *
+ * Cheap visual/structural processing profile (not semantic form ID).
+ */
+export const zPageProcessingProfile = z.enum([
+    'ordinary_document',
+    'dense_form',
+    'table_like',
+    'sparse_document',
+    'photo_with_text'
+]);
+
+/**
  * PageResultState
  *
  * Canonical terminal page-result state (Phase 4 reconciled authority).
@@ -814,32 +866,91 @@ export const zPixelPolygon = z.object({
  *
  * Conservative preprocessing variants used before OCR.
  */
-export const zPreprocessingVariant = z.enum(['original_rgb', 'grayscale_autocontrast']);
+export const zPreprocessingVariant = z.enum([
+    'original_rgb',
+    'grayscale_autocontrast',
+    'grayscale',
+    'contrast_normalised'
+]);
 
 /**
- * PrintedOcrLine
+ * PrintedOcrQualityEvidence
  *
- * One printed OCR text line with geometry and confidence.
+ * Canonical typed evidence for printed OCR quality decisions.
+ *
+ * Score directions (documented so high never means both good and bad):
+ *
+ * - fragmentation_score: higher = more suspected fragmentation (worse)
+ * - over_segmentation_score: higher = more suspected over-segmentation (worse)
+ * - box_overlap_ratio: higher = more overlapping OCR boxes (worse)
+ * - near_duplicate_box_ratio: higher = more near-duplicate boxes (worse)
+ * - grid_intersection_ratio: higher = more boxes intersecting ruling lines (signal)
+ * - text_coverage_ratio: higher = more page area covered by OCR geometry (better)
+ * - geometry_valid_ratio: higher = better
+ * - out_of_bounds_ratio: higher = worse
+ * - low_confidence_ratio: higher = worse
+ * - single_character_* / symbol_only_* / numeric_fragment_ratio: higher = worse noise
+ * - mean_confidence / median_confidence: recognition confidence aggregates only;
+ * never treated as transcript accuracy.
  */
-export const zPrintedOcrLine = z.object({
-    bbox: zNormalisedBoundingBox,
-    detection_score: z.number().gte(0).lte(1),
-    geometry: zGeometry.nullish(),
-    handwriting_assessment: zHandwritingAssessment.optional().default('pending_phase_5'),
-    id: z.string(),
-    normalised_text: z.string().min(1),
+export const zPrintedOcrQualityEvidence = z.object({
+    box_overlap_ratio: z.number().gte(0).lte(1).optional().default(0),
+    detected_region_count: z.int().gte(0).optional().default(0),
+    detector_limit_side: z.int().gt(0),
+    fallback_reason_codes: z.array(z.string()).optional(),
+    fallback_recommended: z.boolean().optional().default(false),
+    fragmentation_score: z.number().gte(0).lte(1).optional().default(0),
+    geometry_valid_ratio: z.number().gte(0).lte(1).optional().default(1),
+    grid_intersection_ratio: z.number().gte(0).lte(1).optional().default(0),
+    line_count: z.int().gte(0).optional().default(0),
+    low_confidence_ratio: z.number().gte(0).lte(1).optional().default(0),
+    mean_confidence: z.number().gte(0).lte(1).nullish(),
+    median_confidence: z.number().gte(0).lte(1).nullish(),
+    median_token_length: z.number().gte(0).optional().default(0),
+    median_words_per_line: z.number().gte(0).optional().default(0),
+    near_duplicate_box_ratio: z.number().gte(0).lte(1).optional().default(0),
+    numeric_fragment_ratio: z.number().gte(0).lte(1).optional().default(0),
+    ocr_pass: zOcrPassKind,
+    out_of_bounds_ratio: z.number().gte(0).lte(1).optional().default(0),
+    over_segmentation_score: z.number().gte(0).lte(1).optional().default(0),
+    p10_confidence: z.number().gte(0).lte(1).nullish(),
     page_number: z.int().gte(1),
-    pixel_bbox: zPixelBoundingBox,
-    pixel_polygon: zPixelPolygon,
-    polygon: zNormalisedPolygon,
-    preprocessing_variant: zPreprocessingVariant,
-    recognition_method: zOcrRecognitionMethod.optional().default('paddleocr_printed'),
-    recognition_score: z.number().gte(0).lte(1),
-    recognition_status: zOcrRecognitionStatus,
-    sequence_index: z.int().gte(0),
-    source_mode: zOcrSourceMode.optional().default('visual_authority'),
-    source_native_word_ids: z.array(z.string()).optional(),
-    text: z.string().min(1)
+    page_profile: zPageProcessingProfile.optional().default('ordinary_document'),
+    policy_version: z.string().optional().default('phase4-ocr-quality-v1'),
+    preprocessing_variant: zPreprocessingVariant.nullish(),
+    profile_confidence: z.number().gte(0).lte(1).optional().default(0),
+    profile_reason_codes: z.array(z.string()).optional(),
+    quality_gate_passed: z.boolean().optional().default(true),
+    quality_status: zOcrQualityStatus.optional().default('good'),
+    route: z.string().nullish(),
+    single_character_line_ratio: z.number().gte(0).lte(1).optional().default(0),
+    single_character_token_ratio: z.number().gte(0).lte(1).optional().default(0),
+    symbol_only_line_ratio: z.number().gte(0).lte(1).optional().default(0),
+    symbol_only_token_ratio: z.number().gte(0).lte(1).optional().default(0),
+    text_coverage_ratio: z.number().gte(0).lte(1).optional().default(0),
+    word_count: z.int().gte(0).optional().default(0)
+});
+
+/**
+ * OcrPassComparison
+ *
+ * Typed comparison of primary vs fallback OCR passes.
+ */
+export const zOcrPassComparison = z.object({
+    fallback_confidence_distribution: zConfidenceDistribution.nullish(),
+    fallback_fragmentation: z.number().gte(0).lte(1).nullish(),
+    fallback_geometry_quality: z.number().gte(0).lte(1).nullish(),
+    fallback_quality: zPrintedOcrQualityEvidence.nullish(),
+    fallback_text_coverage: z.number().gte(0).lte(1).nullish(),
+    fallback_valid_words: z.int().gte(0).optional().default(0),
+    primary_confidence_distribution: zConfidenceDistribution,
+    primary_fragmentation: z.number().gte(0).lte(1).optional().default(0),
+    primary_geometry_quality: z.number().gte(0).lte(1).optional().default(1),
+    primary_quality: zPrintedOcrQualityEvidence,
+    primary_text_coverage: z.number().gte(0).lte(1).optional().default(0),
+    primary_valid_words: z.int().gte(0).optional().default(0),
+    selected_pass: zOcrPassKind,
+    selection_reason_codes: z.array(z.string()).optional()
 });
 
 /**
@@ -915,8 +1026,12 @@ export const zProgressEventType = z.enum([
     'document.embedded_ocr_targeted_repair_completed',
     'document.full_ocr_primary_started',
     'document.full_ocr_primary_completed',
+    'document.full_ocr_quality_evaluation_started',
+    'document.full_ocr_quality_evaluation_completed',
     'document.full_ocr_fallback_started',
     'document.full_ocr_fallback_completed',
+    'document.full_ocr_result_selection_started',
+    'document.full_ocr_result_selection_completed',
     'document.visual_no_text_completed',
     'document.removed',
     'document.warning',
@@ -1058,6 +1173,64 @@ export const zProgressEvent = z.object({
 });
 
 /**
+ * ProvisionalItemClass
+ *
+ * Provisional classification of an OCR item (Phase 4; not final HTR).
+ */
+export const zProvisionalItemClass = z.enum([
+    'credible_printed_text',
+    'low_confidence_text',
+    'isolated_form_number',
+    'checkbox_or_symbol_candidate',
+    'line_or_grid_artefact',
+    'handwriting_candidate_pending_phase_5',
+    'unresolved'
+]);
+
+/**
+ * PrintedOcrLine
+ *
+ * One printed OCR text line with geometry and confidence.
+ */
+export const zPrintedOcrLine = z.object({
+    bbox: zNormalisedBoundingBox,
+    detection_score: z.number().gte(0).lte(1),
+    geometry: zGeometry.nullish(),
+    handwriting_assessment: zHandwritingAssessment.optional().default('pending_phase_5'),
+    id: z.string(),
+    normalised_text: z.string().min(1),
+    ocr_pass: zOcrPassKind.nullish(),
+    page_number: z.int().gte(1),
+    pixel_bbox: zPixelBoundingBox,
+    pixel_polygon: zPixelPolygon,
+    polygon: zNormalisedPolygon,
+    preprocessing_variant: zPreprocessingVariant,
+    provisional_class: zProvisionalItemClass.nullish(),
+    recognition_method: zOcrRecognitionMethod.optional().default('paddleocr_printed'),
+    recognition_score: z.number().gte(0).lte(1),
+    recognition_status: zOcrRecognitionStatus,
+    sequence_index: z.int().gte(0),
+    source_mode: zOcrSourceMode.optional().default('visual_authority'),
+    source_native_word_ids: z.array(z.string()).optional(),
+    text: z.string().min(1)
+});
+
+/**
+ * ProvisionalItemCounts
+ *
+ * Counts of provisional OCR item classes (no text).
+ */
+export const zProvisionalItemCounts = z.object({
+    artefacts: z.int().gte(0).optional().default(0),
+    credible_text: z.int().gte(0).optional().default(0),
+    handwriting_pending: z.int().gte(0).optional().default(0),
+    isolated_form_numbers: z.int().gte(0).optional().default(0),
+    low_confidence: z.int().gte(0).optional().default(0),
+    symbol_candidates: z.int().gte(0).optional().default(0),
+    unresolved: z.int().gte(0).optional().default(0)
+});
+
+/**
  * ProvisionalOrderStatus
  *
  * Extraction order is not final reading order.
@@ -1083,7 +1256,11 @@ export const zQueueInfo = z.object({
  */
 export const zReadinessResponse = z.object({
     app_name: z.string(),
+    application_version: z.string(),
     checks: z.array(zDependencyCheck),
+    configuration_profile: z.string(),
+    git_commit: z.string().nullish(),
+    process_id: z.int(),
     request_id: z.string(),
     service: z.literal('veridemand-api').optional().default('veridemand-api'),
     status: z.enum([
@@ -1092,7 +1269,8 @@ export const zReadinessResponse = z.object({
         'not_ready'
     ]),
     timestamp: z.iso.datetime(),
-    version: z.string()
+    version: z.string(),
+    worker_generation: z.int().gte(1).optional().default(1)
 });
 
 /**
@@ -1601,10 +1779,12 @@ export const zPrintedOcrWord = z.object({
     id: z.string(),
     line_id: z.string(),
     normalised_text: z.string().min(1),
+    ocr_pass: zOcrPassKind.nullish(),
     page_number: z.int().gte(1),
     pixel_bbox: zPixelBoundingBox,
     pixel_polygon: zPixelPolygon,
     polygon: zNormalisedPolygon,
+    provisional_class: zProvisionalItemClass.nullish(),
     recognition_method: zOcrRecognitionMethod.optional().default('paddleocr_printed'),
     recognition_score: z.number().gte(0).lte(1),
     recognition_status: zOcrRecognitionStatus,
@@ -1632,6 +1812,11 @@ export const zVisualPageResult = z.object({
     document_escalation_applied: z.boolean().optional().default(false),
     duration_ms: z.int().gte(0).nullish(),
     error_code: z.string().nullish(),
+    fallback_duration_ms: z.int().gte(0).nullish(),
+    fallback_limit_side: z.int().gt(0).nullish(),
+    fallback_quality: zPrintedOcrQualityEvidence.nullish(),
+    fallback_quality_status: zOcrQualityStatus.nullish(),
+    fallback_reason_codes: z.array(z.string()).optional(),
     fallback_used: z.boolean().optional().default(false),
     glyph_materiality: z.string().nullish(),
     grouping_duration_seconds: z.number().gte(0).nullish(),
@@ -1642,9 +1827,12 @@ export const zVisualPageResult = z.object({
     mapping_duration_seconds: z.number().gte(0).nullish(),
     native_visibility_result: zNativeVisibilityResult.nullish(),
     no_text_reason_code: z.string().nullish(),
+    ocr_pass_comparison: zOcrPassComparison.nullish(),
     overlay_source: zOverlaySourceKind.nullish(),
     paddle_pipeline_duration_seconds: z.number().gte(0).nullish(),
     page_number: z.int().gte(1),
+    page_profile: zPageProcessingProfile.nullish(),
+    page_profile_reason_codes: z.array(z.string()).optional(),
     page_restored_after_escalation: z.boolean().optional().default(false),
     page_result_state: zPageResultState.nullish(),
     page_route: z.string().nullish(),
@@ -1652,6 +1840,11 @@ export const zVisualPageResult = z.object({
     phase3_page_decision: z.string().nullish(),
     preprocess_duration_seconds: z.number().gte(0).nullish(),
     preprocessing_variant: zPreprocessingVariant.nullish(),
+    primary_limit_side: z.int().gt(0).nullish(),
+    primary_quality: zPrintedOcrQualityEvidence.nullish(),
+    primary_quality_status: zOcrQualityStatus.nullish(),
+    provisional_item_counts: zProvisionalItemCounts.nullish(),
+    quality_policy_version: z.string().nullish(),
     quarantined_glyph_count: z.int().gte(0).optional().default(0),
     quarantined_region_count: z.int().gte(0).optional().default(0),
     reading_order: zVisualReadingOrder.nullish(),
@@ -1666,6 +1859,7 @@ export const zVisualPageResult = z.object({
     render_width_pixels: z.int().gte(0).nullish(),
     requested_dpi: z.number().gt(0).nullish(),
     route_reason_codes: z.array(z.string()).optional(),
+    selected_ocr_pass: zOcrPassKind.nullish(),
     source_height_px: z.int().gte(0).nullish(),
     source_label: z.string().nullish(),
     source_mode: zSourceMode,

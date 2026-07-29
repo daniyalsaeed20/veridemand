@@ -174,11 +174,66 @@ export function VisualInspectionPanel({
           <Typography variant="body2">
             Lines: {page.line_count} · Words: {page.word_count}
           </Typography>
-          <OcrConfidenceBadge score={page.average_recognition_score} />
+          <OcrConfidenceBadge
+            score={page.average_recognition_score}
+            qualityStatus={page.primary_quality_status ?? page.fallback_quality_status}
+            fallbackUsed={page.fallback_used}
+            selectedPass={page.selected_ocr_pass}
+            primaryLimitSide={page.primary_limit_side}
+            fallbackLimitSide={page.fallback_limit_side}
+            lowConfidenceCount={page.low_confidence_line_count}
+          />
+          {page.fallback_used && (page.fallback_reason_codes?.length ?? 0) > 0 ? (
+            <Typography variant="body2" data-testid="ocr-fallback-reason">
+              Fallback reason:{" "}
+              {page.fallback_reason_codes?.includes("excessive_fragmentation") ||
+              page.fallback_reason_codes?.includes("dense_form_fragmentation")
+                ? "Dense-form output was too fragmented"
+                : page.fallback_reason_codes?.join(", ")}
+            </Typography>
+          ) : null}
+          {page.page_profile ? (
+            <Typography variant="body2">Page profile: {page.page_profile}</Typography>
+          ) : null}
           <Typography variant="body2">
             Preprocessing: {page.preprocessing_variant ?? "n/a"}
             {page.fallback_used ? " (fallback used)" : ""}
           </Typography>
+          {import.meta.env.DEV && page.primary_quality ? (
+            <details data-testid="ocr-quality-dev-panel">
+              <summary>OCR quality evidence (development)</summary>
+              <Typography
+                component="pre"
+                variant="caption"
+                sx={{ whiteSpace: "pre-wrap", fontFamily: "monospace" }}
+              >
+                {JSON.stringify(
+                  {
+                    policy_version: page.quality_policy_version,
+                    page_profile: page.page_profile,
+                    selected_ocr_pass: page.selected_ocr_pass,
+                    primary: {
+                      status: page.primary_quality_status,
+                      fragmentation: page.primary_quality.fragmentation_score,
+                      low_confidence_ratio: page.primary_quality.low_confidence_ratio,
+                      symbol_ratio: page.primary_quality.symbol_only_token_ratio,
+                      gate_passed: page.primary_quality.quality_gate_passed,
+                    },
+                    fallback: page.fallback_quality
+                      ? {
+                          status: page.fallback_quality_status,
+                          fragmentation: page.fallback_quality.fragmentation_score,
+                        }
+                      : null,
+                    selection: page.ocr_pass_comparison?.selection_reason_codes ?? [],
+                    provisional_counts: page.provisional_item_counts,
+                  },
+                  null,
+                  2,
+                )}
+              </Typography>
+            </details>
+          ) : null}
           <VisualWarnings warnings={page.warnings ?? []} />
           <VisualTextPanel page={page} />
         </>

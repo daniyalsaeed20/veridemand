@@ -238,6 +238,30 @@ export type CanonicalisationMethod = 'original_pdf' | 'libreoffice_writer_pdf' |
 export type CheckState = 'pass' | 'fail' | 'not_configured';
 
 /**
+ * ConfidenceDistribution
+ *
+ * Privacy-safe recognition confidence distribution (no text).
+ */
+export type ConfidenceDistribution = {
+    /**
+     * Low Confidence Ratio
+     */
+    low_confidence_ratio?: number;
+    /**
+     * Mean
+     */
+    mean?: number | null;
+    /**
+     * Median
+     */
+    median?: number | null;
+    /**
+     * P10
+     */
+    p10?: number | null;
+};
+
+/**
  * DependencyCheck
  *
  * Outcome of one readiness dependency check.
@@ -1215,6 +1239,30 @@ export type LivenessResponse = {
      */
     app_name: string;
     /**
+     * Application Version
+     *
+     * Same as version; explicit alias for acceptance gates.
+     */
+    application_version: string;
+    /**
+     * Configuration Profile
+     *
+     * Privacy-safe configuration profile label (no secrets or paths).
+     */
+    configuration_profile: string;
+    /**
+     * Git Commit
+     *
+     * Git commit SHA when available in development; never a filesystem path.
+     */
+    git_commit?: string | null;
+    /**
+     * Process Id
+     *
+     * Operating-system process id of the API worker.
+     */
+    process_id: number;
+    /**
      * Request Id
      *
      * Correlates the response with server logs.
@@ -1244,6 +1292,12 @@ export type LivenessResponse = {
      * Application version.
      */
     version: string;
+    /**
+     * Worker Generation
+     *
+     * Worker generation counter for recycle detection.
+     */
+    worker_generation?: number;
 };
 
 /**
@@ -2067,6 +2121,71 @@ export type NormalisedPolygon = {
 };
 
 /**
+ * OcrPassComparison
+ *
+ * Typed comparison of primary vs fallback OCR passes.
+ */
+export type OcrPassComparison = {
+    fallback_confidence_distribution?: ConfidenceDistribution | null;
+    /**
+     * Fallback Fragmentation
+     */
+    fallback_fragmentation?: number | null;
+    /**
+     * Fallback Geometry Quality
+     */
+    fallback_geometry_quality?: number | null;
+    fallback_quality?: PrintedOcrQualityEvidence | null;
+    /**
+     * Fallback Text Coverage
+     */
+    fallback_text_coverage?: number | null;
+    /**
+     * Fallback Valid Words
+     */
+    fallback_valid_words?: number;
+    primary_confidence_distribution: ConfidenceDistribution;
+    /**
+     * Primary Fragmentation
+     */
+    primary_fragmentation?: number;
+    /**
+     * Primary Geometry Quality
+     */
+    primary_geometry_quality?: number;
+    primary_quality: PrintedOcrQualityEvidence;
+    /**
+     * Primary Text Coverage
+     */
+    primary_text_coverage?: number;
+    /**
+     * Primary Valid Words
+     */
+    primary_valid_words?: number;
+    selected_pass: OcrPassKind;
+    /**
+     * Selection Reason Codes
+     */
+    selection_reason_codes?: Array<string>;
+};
+
+/**
+ * OcrPassKind
+ *
+ * Which detector-side OCR pass produced a result.
+ */
+export type OcrPassKind = 'primary' | 'fallback';
+
+/**
+ * OcrQualityStatus
+ *
+ * Derived OCR quality status for a single pass or selected result.
+ *
+ * Derived from PrintedOcrQualityEvidence — never from mean confidence alone.
+ */
+export type OcrQualityStatus = 'good' | 'usable_with_warnings' | 'low_quality' | 'insufficient' | 'failed';
+
+/**
  * OcrRecognitionMethod
  *
  * How printed OCR text was obtained.
@@ -2170,6 +2289,13 @@ export type OverlaySourceKind = 'native_pdf_word' | 'verified_embedded_ocr_word'
 export type PageCountStatus = 'known' | 'pending_canonicalisation';
 
 /**
+ * PageProcessingProfile
+ *
+ * Cheap visual/structural processing profile (not semantic form ID).
+ */
+export type PageProcessingProfile = 'ordinary_document' | 'dense_form' | 'table_like' | 'sparse_document' | 'photo_with_text';
+
+/**
  * PageResultState
  *
  * Canonical terminal page-result state (Phase 4 reconciled authority).
@@ -2264,7 +2390,7 @@ export type PixelPolygon = {
  *
  * Conservative preprocessing variants used before OCR.
  */
-export type PreprocessingVariant = 'original_rgb' | 'grayscale_autocontrast';
+export type PreprocessingVariant = 'original_rgb' | 'grayscale_autocontrast' | 'grayscale' | 'contrast_normalised';
 
 /**
  * PrintedOcrLine
@@ -2295,6 +2421,10 @@ export type PrintedOcrLine = {
      */
     normalised_text: string;
     /**
+     * Detector-side pass that produced this line (primary or fallback).
+     */
+    ocr_pass?: OcrPassKind | null;
+    /**
      * Page Number
      */
     page_number: number;
@@ -2302,6 +2432,10 @@ export type PrintedOcrLine = {
     pixel_polygon: PixelPolygon;
     polygon: NormalisedPolygon;
     preprocessing_variant: PreprocessingVariant;
+    /**
+     * Provisional noise/text classification for transcript filtering.
+     */
+    provisional_class?: ProvisionalItemClass | null;
     recognition_method?: OcrRecognitionMethod;
     /**
      * Recognition Score
@@ -2325,6 +2459,165 @@ export type PrintedOcrLine = {
      * Exact OCR string (NFC applied separately).
      */
     text: string;
+};
+
+/**
+ * PrintedOcrQualityEvidence
+ *
+ * Canonical typed evidence for printed OCR quality decisions.
+ *
+ * Score directions (documented so high never means both good and bad):
+ *
+ * - fragmentation_score: higher = more suspected fragmentation (worse)
+ * - over_segmentation_score: higher = more suspected over-segmentation (worse)
+ * - box_overlap_ratio: higher = more overlapping OCR boxes (worse)
+ * - near_duplicate_box_ratio: higher = more near-duplicate boxes (worse)
+ * - grid_intersection_ratio: higher = more boxes intersecting ruling lines (signal)
+ * - text_coverage_ratio: higher = more page area covered by OCR geometry (better)
+ * - geometry_valid_ratio: higher = better
+ * - out_of_bounds_ratio: higher = worse
+ * - low_confidence_ratio: higher = worse
+ * - single_character_* / symbol_only_* / numeric_fragment_ratio: higher = worse noise
+ * - mean_confidence / median_confidence: recognition confidence aggregates only;
+ * never treated as transcript accuracy.
+ */
+export type PrintedOcrQualityEvidence = {
+    /**
+     * Box Overlap Ratio
+     */
+    box_overlap_ratio?: number;
+    /**
+     * Detected Region Count
+     */
+    detected_region_count?: number;
+    /**
+     * Detector Limit Side
+     */
+    detector_limit_side: number;
+    /**
+     * Fallback Reason Codes
+     */
+    fallback_reason_codes?: Array<string>;
+    /**
+     * Fallback Recommended
+     */
+    fallback_recommended?: boolean;
+    /**
+     * Fragmentation Score
+     *
+     * Higher means more suspected fragmentation.
+     */
+    fragmentation_score?: number;
+    /**
+     * Geometry Valid Ratio
+     *
+     * Higher means better geometry validity.
+     */
+    geometry_valid_ratio?: number;
+    /**
+     * Grid Intersection Ratio
+     */
+    grid_intersection_ratio?: number;
+    /**
+     * Line Count
+     */
+    line_count?: number;
+    /**
+     * Low Confidence Ratio
+     */
+    low_confidence_ratio?: number;
+    /**
+     * Mean Confidence
+     */
+    mean_confidence?: number | null;
+    /**
+     * Median Confidence
+     */
+    median_confidence?: number | null;
+    /**
+     * Median Token Length
+     */
+    median_token_length?: number;
+    /**
+     * Median Words Per Line
+     */
+    median_words_per_line?: number;
+    /**
+     * Near Duplicate Box Ratio
+     */
+    near_duplicate_box_ratio?: number;
+    /**
+     * Numeric Fragment Ratio
+     */
+    numeric_fragment_ratio?: number;
+    ocr_pass: OcrPassKind;
+    /**
+     * Out Of Bounds Ratio
+     */
+    out_of_bounds_ratio?: number;
+    /**
+     * Over Segmentation Score
+     *
+     * Higher means more suspected over-segmentation.
+     */
+    over_segmentation_score?: number;
+    /**
+     * P10 Confidence
+     */
+    p10_confidence?: number | null;
+    /**
+     * Page Number
+     */
+    page_number: number;
+    page_profile?: PageProcessingProfile;
+    /**
+     * Policy Version
+     */
+    policy_version?: string;
+    preprocessing_variant?: PreprocessingVariant | null;
+    /**
+     * Profile Confidence
+     */
+    profile_confidence?: number;
+    /**
+     * Profile Reason Codes
+     */
+    profile_reason_codes?: Array<string>;
+    /**
+     * Quality Gate Passed
+     */
+    quality_gate_passed?: boolean;
+    quality_status?: OcrQualityStatus;
+    /**
+     * Route
+     */
+    route?: string | null;
+    /**
+     * Single Character Line Ratio
+     */
+    single_character_line_ratio?: number;
+    /**
+     * Single Character Token Ratio
+     */
+    single_character_token_ratio?: number;
+    /**
+     * Symbol Only Line Ratio
+     */
+    symbol_only_line_ratio?: number;
+    /**
+     * Symbol Only Token Ratio
+     */
+    symbol_only_token_ratio?: number;
+    /**
+     * Text Coverage Ratio
+     *
+     * Higher means more page area represented by OCR geometry.
+     */
+    text_coverage_ratio?: number;
+    /**
+     * Word Count
+     */
+    word_count?: number;
 };
 
 /**
@@ -2358,12 +2651,20 @@ export type PrintedOcrWord = {
      */
     normalised_text: string;
     /**
+     * Detector-side pass that produced this word (primary or fallback).
+     */
+    ocr_pass?: OcrPassKind | null;
+    /**
      * Page Number
      */
     page_number: number;
     pixel_bbox: PixelBoundingBox;
     pixel_polygon: PixelPolygon;
     polygon: NormalisedPolygon;
+    /**
+     * Provisional noise/text classification for transcript filtering.
+     */
+    provisional_class?: ProvisionalItemClass | null;
     recognition_method?: OcrRecognitionMethod;
     /**
      * Recognition Score
@@ -2998,7 +3299,50 @@ export type ProgressEvent = {
  * Extraction-stage types are reserved for later phases and are never emitted in
  * Phase 1.
  */
-export type ProgressEventType = 'session.created' | 'session.snapshot' | 'session.expiring' | 'session.deleted' | 'document.uploaded' | 'document.rejected' | 'document.queued' | 'document.started' | 'document.stage_changed' | 'document.canonicalisation_started' | 'document.canonicalisation_progress' | 'document.canonicalisation_completed' | 'document.canonicalisation_failed' | 'document.canonicalisation_cancelled' | 'document.canonical_ready' | 'document.ready_for_extraction' | 'document.native_inspection_started' | 'document.native_page_started' | 'document.native_page_accepted' | 'document.native_page_rejected' | 'document.native_page_absent' | 'document.native_page_error' | 'document.native_document_escalated' | 'document.native_extraction_completed' | 'document.native_extraction_failed' | 'document.visual_processing_started' | 'document.visual_pages_selected' | 'document.native_visibility_started' | 'document.native_visibility_supported' | 'document.native_visibility_rejected' | 'document.visual_page_started' | 'document.visual_page_rendered' | 'document.visual_page_ocr_started' | 'document.visual_page_ocr_completed' | 'document.visual_page_no_text' | 'document.visual_page_failed' | 'document.visual_grouping_completed' | 'document.visual_processing_completed' | 'document.visual_processing_partial' | 'document.visual_processing_failed' | 'document.page_route_started' | 'document.page_route_completed' | 'document.embedded_ocr_visual_check_started' | 'document.embedded_ocr_visual_check_completed' | 'document.embedded_ocr_recognition_check_started' | 'document.embedded_ocr_recognition_check_completed' | 'document.embedded_ocr_verified' | 'document.embedded_ocr_targeted_repair_started' | 'document.embedded_ocr_targeted_repair_completed' | 'document.full_ocr_primary_started' | 'document.full_ocr_primary_completed' | 'document.full_ocr_fallback_started' | 'document.full_ocr_fallback_completed' | 'document.visual_no_text_completed' | 'document.removed' | 'document.warning' | 'document.failed' | 'document.cancelled' | 'job.queued' | 'job.started' | 'job.completed' | 'job.failed' | 'job.cancelled' | 'stream.resync_required' | 'heartbeat' | 'document.page_started' | 'document.page_completed' | 'document.completed';
+export type ProgressEventType = 'session.created' | 'session.snapshot' | 'session.expiring' | 'session.deleted' | 'document.uploaded' | 'document.rejected' | 'document.queued' | 'document.started' | 'document.stage_changed' | 'document.canonicalisation_started' | 'document.canonicalisation_progress' | 'document.canonicalisation_completed' | 'document.canonicalisation_failed' | 'document.canonicalisation_cancelled' | 'document.canonical_ready' | 'document.ready_for_extraction' | 'document.native_inspection_started' | 'document.native_page_started' | 'document.native_page_accepted' | 'document.native_page_rejected' | 'document.native_page_absent' | 'document.native_page_error' | 'document.native_document_escalated' | 'document.native_extraction_completed' | 'document.native_extraction_failed' | 'document.visual_processing_started' | 'document.visual_pages_selected' | 'document.native_visibility_started' | 'document.native_visibility_supported' | 'document.native_visibility_rejected' | 'document.visual_page_started' | 'document.visual_page_rendered' | 'document.visual_page_ocr_started' | 'document.visual_page_ocr_completed' | 'document.visual_page_no_text' | 'document.visual_page_failed' | 'document.visual_grouping_completed' | 'document.visual_processing_completed' | 'document.visual_processing_partial' | 'document.visual_processing_failed' | 'document.page_route_started' | 'document.page_route_completed' | 'document.embedded_ocr_visual_check_started' | 'document.embedded_ocr_visual_check_completed' | 'document.embedded_ocr_recognition_check_started' | 'document.embedded_ocr_recognition_check_completed' | 'document.embedded_ocr_verified' | 'document.embedded_ocr_targeted_repair_started' | 'document.embedded_ocr_targeted_repair_completed' | 'document.full_ocr_primary_started' | 'document.full_ocr_primary_completed' | 'document.full_ocr_quality_evaluation_started' | 'document.full_ocr_quality_evaluation_completed' | 'document.full_ocr_fallback_started' | 'document.full_ocr_fallback_completed' | 'document.full_ocr_result_selection_started' | 'document.full_ocr_result_selection_completed' | 'document.visual_no_text_completed' | 'document.removed' | 'document.warning' | 'document.failed' | 'document.cancelled' | 'job.queued' | 'job.started' | 'job.completed' | 'job.failed' | 'job.cancelled' | 'stream.resync_required' | 'heartbeat' | 'document.page_started' | 'document.page_completed' | 'document.completed';
+
+/**
+ * ProvisionalItemClass
+ *
+ * Provisional classification of an OCR item (Phase 4; not final HTR).
+ */
+export type ProvisionalItemClass = 'credible_printed_text' | 'low_confidence_text' | 'isolated_form_number' | 'checkbox_or_symbol_candidate' | 'line_or_grid_artefact' | 'handwriting_candidate_pending_phase_5' | 'unresolved';
+
+/**
+ * ProvisionalItemCounts
+ *
+ * Counts of provisional OCR item classes (no text).
+ */
+export type ProvisionalItemCounts = {
+    /**
+     * Artefacts
+     */
+    artefacts?: number;
+    /**
+     * Credible Text
+     */
+    credible_text?: number;
+    /**
+     * Handwriting Pending
+     */
+    handwriting_pending?: number;
+    /**
+     * Isolated Form Numbers
+     */
+    isolated_form_numbers?: number;
+    /**
+     * Low Confidence
+     */
+    low_confidence?: number;
+    /**
+     * Symbol Candidates
+     */
+    symbol_candidates?: number;
+    /**
+     * Unresolved
+     */
+    unresolved?: number;
+};
 
 /**
  * ProvisionalOrderStatus
@@ -3052,11 +3396,35 @@ export type ReadinessResponse = {
      */
     app_name: string;
     /**
+     * Application Version
+     *
+     * Same as version; explicit alias for acceptance gates.
+     */
+    application_version: string;
+    /**
      * Checks
      *
      * Individual dependency check results.
      */
     checks: Array<DependencyCheck>;
+    /**
+     * Configuration Profile
+     *
+     * Privacy-safe configuration profile label (no secrets or paths).
+     */
+    configuration_profile: string;
+    /**
+     * Git Commit
+     *
+     * Git commit SHA when available in development; never a filesystem path.
+     */
+    git_commit?: string | null;
+    /**
+     * Process Id
+     *
+     * Operating-system process id of the API worker.
+     */
+    process_id: number;
     /**
      * Request Id
      *
@@ -3087,6 +3455,12 @@ export type ReadinessResponse = {
      * Application version.
      */
     version: string;
+    /**
+     * Worker Generation
+     *
+     * Worker generation counter for recycle detection.
+     */
+    worker_generation?: number;
 };
 
 /**
@@ -3614,6 +3988,20 @@ export type VisualPageResult = {
      */
     error_code?: string | null;
     /**
+     * Fallback Duration Ms
+     */
+    fallback_duration_ms?: number | null;
+    /**
+     * Fallback Limit Side
+     */
+    fallback_limit_side?: number | null;
+    fallback_quality?: PrintedOcrQualityEvidence | null;
+    fallback_quality_status?: OcrQualityStatus | null;
+    /**
+     * Fallback Reason Codes
+     */
+    fallback_reason_codes?: Array<string>;
+    /**
      * Fallback Used
      */
     fallback_used?: boolean;
@@ -3647,6 +4035,7 @@ export type VisualPageResult = {
      * No Text Reason Code
      */
     no_text_reason_code?: string | null;
+    ocr_pass_comparison?: OcrPassComparison | null;
     overlay_source?: OverlaySourceKind | null;
     /**
      * Paddle Pipeline Duration Seconds
@@ -3656,6 +4045,11 @@ export type VisualPageResult = {
      * Page Number
      */
     page_number: number;
+    page_profile?: PageProcessingProfile | null;
+    /**
+     * Page Profile Reason Codes
+     */
+    page_profile_reason_codes?: Array<string>;
     /**
      * Page Restored After Escalation
      */
@@ -3683,6 +4077,17 @@ export type VisualPageResult = {
      */
     preprocess_duration_seconds?: number | null;
     preprocessing_variant?: PreprocessingVariant | null;
+    /**
+     * Primary Limit Side
+     */
+    primary_limit_side?: number | null;
+    primary_quality?: PrintedOcrQualityEvidence | null;
+    primary_quality_status?: OcrQualityStatus | null;
+    provisional_item_counts?: ProvisionalItemCounts | null;
+    /**
+     * Quality Policy Version
+     */
+    quality_policy_version?: string | null;
     /**
      * Quarantined Glyph Count
      */
@@ -3733,6 +4138,7 @@ export type VisualPageResult = {
      * Route Reason Codes
      */
     route_reason_codes?: Array<string>;
+    selected_ocr_pass?: OcrPassKind | null;
     /**
      * Source Height Px
      */
