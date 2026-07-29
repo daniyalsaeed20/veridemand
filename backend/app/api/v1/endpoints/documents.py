@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from typing import Annotated, Any
 
 from fastapi import APIRouter, File, Response, UploadFile, status
@@ -183,7 +184,7 @@ async def change_document_priority(
     after = scheduler.get_document(document_id)
     if success:
         message = f"Document priority action '{body.action}' applied."
-        try:
+        with contextlib.suppress(Exception):
             await session.broker.publish(
                 ProgressEventType.SCHEDULER_PRIORITY_CHANGED,
                 document_id=document_id,
@@ -197,8 +198,6 @@ async def change_document_priority(
                 scheduler_reason=body.action,
                 fair_scheduling_enabled=scheduler.enabled,
             )
-        except Exception:
-            pass
     else:
         message = f"Document priority action '{body.action}' could not be applied."
     return PriorityChangeResponse(
