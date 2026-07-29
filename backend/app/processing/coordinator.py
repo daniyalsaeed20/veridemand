@@ -32,7 +32,11 @@ from backend.app.contracts.visual import VisualDocumentSummary
 from backend.app.extraction.native.errors import NativeExtractionError
 from backend.app.extraction.native.service import NativeExtractionService
 from backend.app.extraction.visual.errors import VisualOcrError
-from backend.app.extraction.visual.service import HeavySelectionResult, VisualOcrService
+from backend.app.extraction.visual.service import (
+    HeavySelectionResult,
+    VisualOcrService,
+    provisional_exclusive_histogram_from_diagnostics,
+)
 from backend.app.observability.errors import ApiException
 from backend.app.observability.stage_log import log_progress, log_stage
 from backend.app.processing.cancellation import JobCancelledError
@@ -1370,6 +1374,10 @@ class ProcessingCoordinator:
             document.route_pages_total = snapshot.route_pages_total
             document.pages_completed = snapshot.pages_completed
             document.pages_total = snapshot.pages_selected or pages_selected
+            if document.final_route_histogram is not None:
+                # Exclusive terminal count for "Document pages completed" (P1).
+                document.pages_completed = document.final_route_histogram.exclusive_terminal_total()
+                document.pages_total = document.document_pages_total or page_count
             document.current_operation = snapshot.operation
             document.operation_id = snapshot.operation_id
             document.operation_status = snapshot.operation_status.value
@@ -1588,6 +1596,7 @@ class ProcessingCoordinator:
                 full_ocr_pages_selected=document.full_ocr_pages_selected,
                 full_ocr_pages_completed=document.full_ocr_pages_completed,
                 full_ocr_pages_remaining=document.full_ocr_pages_remaining,
+                final_route_histogram=document.final_route_histogram,
                 visual_no_text_pages=document.visual_no_text_pages,
                 failed_pages=document.failed_pages,
                 pages_terminal_total=document.pages_terminal_total,
@@ -1705,6 +1714,7 @@ class ProcessingCoordinator:
                     "embedded_ocr_pages_verified",
                     "targeted_repair_pages_selected",
                     "full_ocr_pages_selected",
+                    "visual_no_text_pages",
                 ):
                     raw = payload.get(key)
                     if not isinstance(raw, (int, float)):
@@ -1718,6 +1728,20 @@ class ProcessingCoordinator:
                         targeted_repair_pages_selected = value
                     elif key == "full_ocr_pages_selected":
                         full_ocr_pages_selected = value
+                    elif key == "visual_no_text_pages":
+                        visual_no_text_pages = value
+                document.final_route_histogram = provisional_exclusive_histogram_from_diagnostics(
+                    document_pages_total=page_count,
+                    native_pages_retained=native_pages_retained,
+                    embedded_ocr_pages_verified=embedded_ocr_pages_verified,
+                    targeted_repair_pages=targeted_repair_pages_selected,
+                    full_ocr_pages_selected=full_ocr_pages_selected,
+                    full_ocr_pages_completed=full_ocr_pages_completed,
+                    visual_no_text_pages=visual_no_text_pages,
+                    failed_pages=failed_page_count,
+                )
+                document.pages_completed = document.final_route_histogram.exclusive_terminal_total()
+                document.pages_total = page_count
                 publish_event = ProgressEventType.DOCUMENT_VISUAL_PAGES_SELECTED
                 if (
                     fair_enabled
@@ -2140,6 +2164,18 @@ class ProcessingCoordinator:
                     publish_event = ProgressEventType.DOCUMENT_VISUAL_PAGE_NO_TEXT
                 else:
                     publish_event = ProgressEventType.DOCUMENT_VISUAL_PAGE_OCR_COMPLETED
+                document.final_route_histogram = provisional_exclusive_histogram_from_diagnostics(
+                    document_pages_total=page_count,
+                    native_pages_retained=native_pages_retained,
+                    embedded_ocr_pages_verified=embedded_ocr_pages_verified,
+                    targeted_repair_pages=targeted_repair_pages_selected,
+                    full_ocr_pages_selected=full_ocr_pages_selected,
+                    # Mid-run: OCR completed_no_text pages are already in
+                    # full_ocr_pages_completed; do not also add visual_no_text.
+                    full_ocr_pages_completed=full_ocr_pages_completed,
+                    visual_no_text_pages=0,
+                    failed_pages=failed_page_count,
+                )
                 if (
                     fair_enabled
                     and not consumer_owned
@@ -2542,6 +2578,8 @@ class ProcessingCoordinator:
             document.major_phase_percent = 100.0
             document.operation_status = OperationStatus.COMPLETED.value
             document.current_operation = "visual_processing_complete"
+            if summary.final_route_histogram is not None:
+                document.final_route_histogram = summary.final_route_histogram
             _apply_snapshot()
 
             await _safe_publish(

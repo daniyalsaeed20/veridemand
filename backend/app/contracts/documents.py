@@ -17,6 +17,7 @@ from backend.app.contracts.base import ApiModel
 from backend.app.contracts.canonical import CanonicalisationMethod, CanonicalStatus
 from backend.app.contracts.identifiers import DocumentId, JobId
 from backend.app.contracts.native import DocumentSourcePolicy
+from backend.app.contracts.routing import FinalRouteHistogram
 
 # Progress never exceeds this in Phase 4: handwriting/LLM/structure remain later.
 MAX_PHASE4_PROGRESS_PERCENT = 65
@@ -262,6 +263,10 @@ class DocumentSummary(ApiModel):
     full_ocr_pages_selected: int | None = Field(default=None, ge=0)
     full_ocr_pages_completed: int | None = Field(default=None, ge=0)
     full_ocr_pages_remaining: int | None = Field(default=None, ge=0)
+    final_route_histogram: FinalRouteHistogram | None = Field(
+        default=None,
+        description="Exclusive terminal route histogram when known.",
+    )
     visual_no_text_pages: int | None = Field(default=None, ge=0)
     failed_pages: int | None = Field(default=None, ge=0)
     pages_terminal_total: int | None = Field(default=None, ge=0)

@@ -17,6 +17,7 @@ from backend.app.contracts.base import ApiModel
 from backend.app.contracts.documents import DocumentStatus
 from backend.app.contracts.identifiers import DocumentId, EventId, JobId, SessionId
 from backend.app.contracts.jobs import JobStatus
+from backend.app.contracts.routing import FinalRouteHistogram
 
 
 class ProgressEventType(StrEnum):
@@ -305,6 +306,10 @@ class ProgressEvent(ApiModel):
     full_ocr_pages_selected: int | None = Field(default=None, ge=0)
     full_ocr_pages_completed: int | None = Field(default=None, ge=0)
     full_ocr_pages_remaining: int | None = Field(default=None, ge=0)
+    final_route_histogram: FinalRouteHistogram | None = Field(
+        default=None,
+        description="Exclusive terminal route histogram when known.",
+    )
     queue_documents_total: int | None = Field(default=None, ge=0)
     queue_documents_completed: int | None = Field(default=None, ge=0)
     queue_documents_remaining: int | None = Field(default=None, ge=0)

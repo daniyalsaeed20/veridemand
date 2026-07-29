@@ -22,7 +22,7 @@ from backend.app.contracts.native import (
     VisualAgreementStatus,
 )
 from backend.app.contracts.ocr import HandwritingAssessment
-from backend.app.contracts.routing import PageRoute
+from backend.app.contracts.routing import FinalRouteHistogram, PageRoute
 from backend.app.contracts.visual import (
     AgreementEvaluationStatus,
     NativeVisibilityResult,
@@ -95,6 +95,96 @@ _PHASE4_MIXED_MESSAGE = (
     "Page-level source reconciliation complete. Handwriting and final document structure "
     "have not been evaluated."
 )
+
+
+def build_final_route_histogram(
+    published: dict[int, VisualPageResult] | list[VisualPageResult],
+) -> FinalRouteHistogram:
+    """Count terminal page_result_state values (exclusive partition)."""
+    pages = published.values() if isinstance(published, dict) else published
+    counts = {
+        PageResultState.DIGITAL_NATIVE: 0,
+        PageResultState.EMBEDDED_OCR_VERIFIED: 0,
+        PageResultState.EMBEDDED_OCR_TARGETED_REPAIR: 0,
+        PageResultState.FULL_VISUAL_OCR: 0,
+        PageResultState.VISUAL_NO_TEXT: 0,
+        PageResultState.PAGE_FAILED: 0,
+        PageResultState.CANCELLED: 0,
+        PageResultState.PENDING: 0,
+    }
+    for page in pages:
+        state = page.page_result_state
+        if state is None:
+            route = getattr(page, "page_route", None)
+            if isinstance(route, PageRoute):
+                try:
+                    state = PageResultState(route.value)
+                except ValueError:
+                    state = PageResultState.PENDING
+            elif isinstance(route, str) and route:
+                try:
+                    state = PageResultState(route)
+                except ValueError:
+                    state = PageResultState.PENDING
+            else:
+                state = PageResultState.PENDING
+        if state not in counts:
+            state = PageResultState.PENDING
+        counts[state] += 1
+    return FinalRouteHistogram(
+        digital_native_pages=counts[PageResultState.DIGITAL_NATIVE],
+        embedded_ocr_verified_pages=counts[PageResultState.EMBEDDED_OCR_VERIFIED],
+        embedded_ocr_targeted_repair_pages=counts[PageResultState.EMBEDDED_OCR_TARGETED_REPAIR],
+        full_visual_ocr_pages=counts[PageResultState.FULL_VISUAL_OCR],
+        visual_no_text_pages=counts[PageResultState.VISUAL_NO_TEXT],
+        page_failed_pages=counts[PageResultState.PAGE_FAILED],
+        page_cancelled_pages=counts[PageResultState.CANCELLED],
+        pending_pages=counts[PageResultState.PENDING],
+    )
+
+
+def provisional_exclusive_histogram_from_diagnostics(
+    *,
+    document_pages_total: int,
+    native_pages_retained: int,
+    embedded_ocr_pages_verified: int,
+    targeted_repair_pages: int,
+    full_ocr_pages_selected: int,
+    full_ocr_pages_completed: int = 0,
+    visual_no_text_pages: int = 0,
+    failed_pages: int = 0,
+) -> FinalRouteHistogram:
+    """Build a live exclusive histogram from overlapping diagnostics.
+
+    Terminal-ish buckets use completed work only for full OCR so
+    ``exclusive_terminal_total()`` tracks document pages completed.
+    Remaining selected full-OCR pages stay in ``pending_pages``.
+    ``native_pages_retained`` is a superset of embedded-verified pages; exclusive
+    digital-native is the set difference (backend-only — UI must not re-derive).
+    """
+    digital_native = max(0, int(native_pages_retained) - int(embedded_ocr_pages_verified))
+    embedded = max(0, int(embedded_ocr_pages_verified))
+    _ = targeted_repair_pages
+    selected = max(0, int(full_ocr_pages_selected))
+    completed_full = min(selected, max(0, int(full_ocr_pages_completed)))
+    no_text = max(0, int(visual_no_text_pages))
+    failed = max(0, int(failed_pages))
+    remaining_full = max(0, selected - completed_full)
+    accounted_terminal = digital_native + embedded + completed_full + no_text + failed
+    pending = max(0, int(document_pages_total) - accounted_terminal)
+    # Prefer remaining selected OCR as pending when totals disagree slightly.
+    if remaining_full > pending:
+        pending = remaining_full
+    return FinalRouteHistogram(
+        digital_native_pages=digital_native,
+        embedded_ocr_verified_pages=embedded,
+        embedded_ocr_targeted_repair_pages=0,
+        full_visual_ocr_pages=completed_full,
+        visual_no_text_pages=no_text,
+        page_failed_pages=failed,
+        page_cancelled_pages=0,
+        pending_pages=pending,
+    )
 
 
 @dataclass(slots=True)
@@ -800,6 +890,7 @@ class VisualOcrService:
                 "embedded_ocr_pages_verified": len(embedded_verified),
                 "targeted_repair_pages_selected": len(targeted_repair_pages),
                 "full_ocr_pages_selected": len(selected),
+                "visual_no_text_pages": len(visual_no_text_pages),
             }
         )
         return HeavySelectionResult(
@@ -1122,24 +1213,17 @@ class VisualOcrService:
         else:
             status = VisualProcessingStatus.VISUAL_PROCESSING_COMPLETE
 
+        exclusive_histogram = build_final_route_histogram(published)
         policy = reconcile_document_policy(page_modes)
-        route_values = [
-            str(getattr(p, "page_route", None) or p.page_result_state or "")
-            for p in published.values()
-        ]
         log_document_routing_summary(
             document_id=document_id,
             document_pages_total=len(page_modes),
-            digital_native_pages=sum(
-                1 for r in route_values if r == PageRoute.DIGITAL_NATIVE.value
-            ),
-            embedded_verified_pages=len(embedded_verified),
-            targeted_repair_pages=sum(
-                1 for r in route_values if r == PageRoute.EMBEDDED_OCR_TARGETED_REPAIR.value
-            ),
-            full_ocr_pages=len(selected),
-            no_text_pages=len(visual_no_text_pages),
-            failed_pages=failed,
+            digital_native_pages=exclusive_histogram.digital_native_pages,
+            embedded_verified_pages=exclusive_histogram.embedded_ocr_verified_pages,
+            targeted_repair_pages=exclusive_histogram.embedded_ocr_targeted_repair_pages,
+            full_ocr_pages=exclusive_histogram.full_visual_ocr_pages,
+            no_text_pages=exclusive_histogram.visual_no_text_pages,
+            failed_pages=exclusive_histogram.page_failed_pages,
         )
         phase3_policy = native_summary.document_source_policy
         model_info = VisualModelInfo(
@@ -1176,10 +1260,8 @@ class VisualOcrService:
             }
             and p.page_number in selected
         )
-        pages_not_requiring_full = (
-            len(retained_native - set(selected))
-            + len(embedded_verified)
-            + len(visual_no_text_pages)
+        pages_not_requiring_full = len(
+            (retained_native | set(visual_no_text_pages)) - set(selected)
         )
         if policy is DocumentSourcePolicy.NATIVE_AUTHORITY:
             user_message = _PHASE4_NATIVE_MESSAGE
@@ -1191,19 +1273,21 @@ class VisualOcrService:
             user_message = _PHASE4_FULL_OCR_MESSAGE
 
         page_total = len(canonical_pages)
+        exclusive_completed = exclusive_histogram.exclusive_terminal_total()
         summary = VisualDocumentSummary(
             document_id=document_id,
             visual_processing_status=status,
             page_count=page_total,
             document_pages_total=page_total,
             pages_selected=len(selected),
-            pages_completed=completed + no_text + len(embedded_verified),
+            pages_completed=exclusive_completed,
             pages_no_text=no_text + len(visual_no_text_pages),
             pages_failed=failed,
             pages_cancelled=cancelled,
             native_pages_retained=len(retained_native),
             native_pages_downgraded=len(downgraded),
             pages_not_requiring_full_ocr=pages_not_requiring_full,
+            final_route_histogram=exclusive_histogram,
             embedded_ocr_pages_verified=len(embedded_verified),
             embedded_pages_verified=len(embedded_verified),
             targeted_repair_pages=len(targeted_repair_pages),
@@ -1221,7 +1305,7 @@ class VisualOcrService:
             phase3_provisional_document_policy=phase3_policy,
             progress=VisualProgress(
                 percent=65,
-                pages_completed=completed + no_text + len(retained_native) + len(embedded_verified),
+                pages_completed=exclusive_completed,
                 pages_total=page_total,
             ),
             model_info=model_info,

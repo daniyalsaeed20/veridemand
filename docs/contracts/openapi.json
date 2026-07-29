@@ -1348,6 +1348,17 @@
             ],
             "title": "Fair Scheduling Enabled"
           },
+          "final_route_histogram": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FinalRouteHistogram"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exclusive terminal route histogram when known."
+          },
           "format": {
             "$ref": "#/components/schemas/DocumentFormat",
             "description": "Canonical internal format key."
@@ -2389,6 +2400,62 @@
           "applies_to_path"
         ],
         "title": "DuplicateRuleRecord",
+        "type": "object"
+      },
+      "FinalRouteHistogram": {
+        "additionalProperties": false,
+        "description": "Mutually exclusive terminal page-route counts (must sum to document pages).",
+        "properties": {
+          "digital_native_pages": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Digital Native Pages",
+            "type": "integer"
+          },
+          "embedded_ocr_targeted_repair_pages": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Embedded Ocr Targeted Repair Pages",
+            "type": "integer"
+          },
+          "embedded_ocr_verified_pages": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Embedded Ocr Verified Pages",
+            "type": "integer"
+          },
+          "full_visual_ocr_pages": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Full Visual Ocr Pages",
+            "type": "integer"
+          },
+          "page_cancelled_pages": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Page Cancelled Pages",
+            "type": "integer"
+          },
+          "page_failed_pages": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Page Failed Pages",
+            "type": "integer"
+          },
+          "pending_pages": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Pending Pages",
+            "type": "integer"
+          },
+          "visual_no_text_pages": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Visual No Text Pages",
+            "type": "integer"
+          }
+        },
+        "title": "FinalRouteHistogram",
         "type": "object"
       },
       "Geometry": {
@@ -5661,6 +5728,17 @@
             ],
             "title": "Fair Scheduling Enabled"
           },
+          "final_route_histogram": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FinalRouteHistogram"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exclusive terminal route histogram when known."
+          },
           "full_ocr_pages_completed": {
             "anyOf": [
               {
@@ -7534,6 +7612,17 @@
             "title": "Final Result Available",
             "type": "boolean"
           },
+          "final_route_histogram": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FinalRouteHistogram"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exclusive terminal page_result_state histogram; terminal buckets sum to document_pages_total when complete."
+          },
           "full_ocr_pages": {
             "default": 0,
             "minimum": 0.0,
@@ -7573,6 +7662,7 @@
             "type": "integer"
           },
           "native_pages_retained": {
+            "description": "Diagnostic: pages retained without full visual OCR (digital-native union embedded-verified). Not exclusive digital_native.",
             "minimum": 0.0,
             "title": "Native Pages Retained",
             "type": "integer"

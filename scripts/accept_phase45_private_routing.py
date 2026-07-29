@@ -81,7 +81,6 @@ def _wait_terminal(client: httpx.Client, sid: str, doc_id: str, timeout: float) 
 
 
 def _route_counts_from_visual(summary: dict[str, Any]) -> dict[str, int]:
-    pages = summary.get("page_summaries")
     counts = {
         "digital_native": 0,
         "embedded_ocr_verified": 0,
@@ -92,30 +91,45 @@ def _route_counts_from_visual(summary: dict[str, Any]) -> dict[str, int]:
         "page_cancelled": 0,
         "unknown": 0,
     }
+    hist = summary.get("final_route_histogram")
+    if isinstance(hist, dict):
+        mapping = (
+            ("digital_native", "digital_native_pages"),
+            ("embedded_ocr_verified", "embedded_ocr_verified_pages"),
+            ("embedded_ocr_targeted_repair", "embedded_ocr_targeted_repair_pages"),
+            ("full_visual_ocr", "full_visual_ocr_pages"),
+            ("visual_no_text", "visual_no_text_pages"),
+            ("page_failed", "page_failed_pages"),
+        )
+        for out_key, hist_key in mapping:
+            counts[out_key] = int(hist.get(hist_key) or hist.get(out_key) or 0)
+        counts["page_cancelled"] = int(
+            hist.get("page_cancelled_pages") or hist.get("page_cancelled") or 0
+        )
+        return counts
+    pages = summary.get("page_summaries")
     if isinstance(pages, list):
         for page in pages:
             if not isinstance(page, dict):
                 continue
-            route = str(page.get("page_route") or "")
+            route = str(page.get("page_result_state") or page.get("page_route") or "")
             if route in counts:
                 counts[route] += 1
-            elif page.get("native_retained"):
-                counts["digital_native"] += 1
-            elif str(page.get("status") or "") in {"no_text", "visual_no_text"}:
+            elif route == "cancelled":
+                counts["page_cancelled"] += 1
+            elif page.get("native_retained") and not page.get("page_result_state"):
+                # native_retained alone is not exclusive digital_native when embedded
+                # may also set the flag; prefer unknown over double-counting.
+                counts["unknown"] += 1
+            elif str(page.get("status") or "") in {
+                "no_text",
+                "visual_no_text",
+                "completed_no_text",
+            }:
                 counts["visual_no_text"] += 1
             else:
                 counts["unknown"] += 1
-    # Prefer document-level counters when present.
-    if int(summary.get("native_pages_retained") or 0) and counts["digital_native"] == 0:
-        counts["digital_native"] = int(summary.get("native_pages_retained") or 0)
-    if int(summary.get("embedded_ocr_pages_verified") or 0):
-        counts["embedded_ocr_verified"] = int(summary.get("embedded_ocr_pages_verified") or 0)
-    if int(summary.get("targeted_repair_pages") or 0):
-        counts["embedded_ocr_targeted_repair"] = int(summary.get("targeted_repair_pages") or 0)
-    if int(summary.get("full_ocr_pages") or 0):
-        counts["full_visual_ocr"] = int(summary.get("full_ocr_pages") or 0)
-    if int(summary.get("visual_no_text_pages") or 0):
-        counts["visual_no_text"] = int(summary.get("visual_no_text_pages") or 0)
+    # Do not map native_pages_retained → digital_native (overlapping diagnostic).
     return counts
 
 

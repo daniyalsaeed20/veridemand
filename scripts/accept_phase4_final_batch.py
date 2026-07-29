@@ -111,23 +111,33 @@ def _wait_all_terminal(
 
 def _route_counts(summary: dict[str, Any]) -> Counter[str]:
     counts: Counter[str] = Counter()
+    hist = summary.get("final_route_histogram")
+    if isinstance(hist, dict):
+        mapping = (
+            ("digital_native", "digital_native_pages"),
+            ("embedded_ocr_verified", "embedded_ocr_verified_pages"),
+            ("embedded_ocr_targeted_repair", "embedded_ocr_targeted_repair_pages"),
+            ("full_visual_ocr", "full_visual_ocr_pages"),
+            ("visual_no_text", "visual_no_text_pages"),
+            ("page_failed", "page_failed_pages"),
+            ("page_cancelled", "page_cancelled_pages"),
+        )
+        for out_key, hist_key in mapping:
+            value = int(hist.get(hist_key) or hist.get(out_key) or 0)
+            if value:
+                counts[out_key] = value
+        return counts
     pages = summary.get("page_summaries")
     if isinstance(pages, list):
         for page in pages:
             if not isinstance(page, dict):
                 continue
-            route = str(page.get("page_route") or page.get("page_result_state") or "unknown")
-            counts[route] += 1
-    for key, field in (
-        ("digital_native", "native_pages_retained"),
-        ("embedded_ocr_verified", "embedded_ocr_pages_verified"),
-        ("embedded_ocr_targeted_repair", "targeted_repair_pages"),
-        ("full_visual_ocr", "full_ocr_pages"),
-        ("visual_no_text", "visual_no_text_pages"),
-    ):
-        value = int(summary.get(field) or 0)
-        if value and counts.get(key, 0) == 0:
-            counts[key] = value
+            route = str(page.get("page_result_state") or page.get("page_route") or "unknown")
+            if route == "cancelled":
+                counts["page_cancelled"] += 1
+            else:
+                counts[route] += 1
+    # Do not map native_pages_retained → digital_native (overlapping diagnostic).
     return counts
 
 

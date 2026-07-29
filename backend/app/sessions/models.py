@@ -27,6 +27,7 @@ from backend.app.contracts.documents import (
     PageCountStatus,
 )
 from backend.app.contracts.native import DocumentSourcePolicy
+from backend.app.contracts.routing import FinalRouteHistogram
 from backend.app.contracts.sessions import SessionStatus
 from backend.app.processing.models import ProcessingJob
 from backend.app.progress.broker import EventBroker
@@ -180,6 +181,7 @@ class RuntimeDocument:
     full_ocr_pages_selected: int | None = None
     full_ocr_pages_completed: int | None = None
     full_ocr_pages_remaining: int | None = None
+    final_route_histogram: FinalRouteHistogram | None = None
     visual_no_text_pages: int | None = None
     failed_pages: int | None = None
     pages_terminal_total: int | None = None
@@ -328,6 +330,7 @@ class RuntimeDocument:
             full_ocr_pages_selected=self.full_ocr_pages_selected,
             full_ocr_pages_completed=self.full_ocr_pages_completed,
             full_ocr_pages_remaining=self.full_ocr_pages_remaining,
+            final_route_histogram=self.final_route_histogram,
             visual_no_text_pages=self.visual_no_text_pages,
             failed_pages=self.failed_pages,
             pages_terminal_total=self.pages_terminal_total,

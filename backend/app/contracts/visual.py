@@ -28,6 +28,7 @@ from backend.app.contracts.ocr import (
     PrintedOcrWord,
     ProvisionalItemCounts,
 )
+from backend.app.contracts.routing import FinalRouteHistogram
 
 
 class VisualPageStatus(StrEnum):
@@ -440,9 +441,22 @@ class VisualDocumentSummary(ApiModel):
     pages_no_text: int = Field(ge=0)
     pages_failed: int = Field(ge=0)
     pages_cancelled: int = Field(ge=0)
-    native_pages_retained: int = Field(ge=0)
+    native_pages_retained: int = Field(
+        ge=0,
+        description=(
+            "Diagnostic: pages retained without full visual OCR "
+            "(digital-native union embedded-verified). Not exclusive digital_native."
+        ),
+    )
     native_pages_downgraded: int = Field(ge=0)
     pages_not_requiring_full_ocr: int = Field(default=0, ge=0)
+    final_route_histogram: FinalRouteHistogram | None = Field(
+        default=None,
+        description=(
+            "Exclusive terminal page_result_state histogram; "
+            "terminal buckets sum to document_pages_total when complete."
+        ),
+    )
     embedded_ocr_pages_verified: int = Field(default=0, ge=0)
     embedded_pages_verified: int = Field(default=0, ge=0)
     targeted_repair_pages: int = Field(default=0, ge=0)

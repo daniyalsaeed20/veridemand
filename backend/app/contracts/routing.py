@@ -118,11 +118,52 @@ class FastOcrPassDiagnostics(ApiModel):
     fallback_duration_ms: int | None = Field(default=None, ge=0)
 
 
+class FinalRouteHistogram(ApiModel):
+    """Mutually exclusive terminal page-route counts (must sum to document pages)."""
+
+    digital_native_pages: int = Field(default=0, ge=0)
+    embedded_ocr_verified_pages: int = Field(default=0, ge=0)
+    embedded_ocr_targeted_repair_pages: int = Field(default=0, ge=0)
+    full_visual_ocr_pages: int = Field(default=0, ge=0)
+    visual_no_text_pages: int = Field(default=0, ge=0)
+    page_failed_pages: int = Field(default=0, ge=0)
+    page_cancelled_pages: int = Field(default=0, ge=0)
+    pending_pages: int = Field(default=0, ge=0)
+
+    def exclusive_terminal_total(self) -> int:
+        """Sum of non-pending buckets (each page contributes to exactly one)."""
+        return (
+            self.digital_native_pages
+            + self.embedded_ocr_verified_pages
+            + self.embedded_ocr_targeted_repair_pages
+            + self.full_visual_ocr_pages
+            + self.visual_no_text_pages
+            + self.page_failed_pages
+            + self.page_cancelled_pages
+        )
+
+    def total(self) -> int:
+        return self.exclusive_terminal_total() + self.pending_pages
+
+
 class DocumentRouteBreakdown(ApiModel):
-    """Aggregate route counts for progress UI (no text)."""
+    """Overlapping selection/workload diagnostics for progress UI (no text).
+
+    These fields are **not** an exclusive partition of document pages.
+    ``native_pages_retained`` includes embedded-verified pages and must not be
+    summed with ``embedded_ocr_pages_verified`` as if both were exclusive.
+    Prefer ``FinalRouteHistogram`` for mutually exclusive route totals.
+    """
 
     document_pages_total: int = Field(default=0, ge=0)
-    native_pages_retained: int = Field(default=0, ge=0)
+    native_pages_retained: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "Pages retained without full visual OCR (digital-native union "
+            "embedded-verified). Overlaps embedded_ocr_pages_verified."
+        ),
+    )
     embedded_ocr_pages_verified: int = Field(default=0, ge=0)
     targeted_repair_pages_selected: int = Field(default=0, ge=0)
     targeted_repair_pages_completed: int = Field(default=0, ge=0)
@@ -130,3 +171,7 @@ class DocumentRouteBreakdown(ApiModel):
     full_ocr_pages_completed: int = Field(default=0, ge=0)
     full_ocr_pages_remaining: int = Field(default=0, ge=0)
     visual_no_text_pages: int = Field(default=0, ge=0)
+    final_route_histogram: FinalRouteHistogram | None = Field(
+        default=None,
+        description="Exclusive terminal histogram when known; sums to document pages.",
+    )
