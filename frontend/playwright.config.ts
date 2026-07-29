@@ -2,6 +2,9 @@ import { defineConfig, devices } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const configDir = path.dirname(fileURLToPath(import.meta.url));
 
 // Two independent stacks:
 //  - "normal": default backend + dev server, for upload/queue/reset/refresh flows.
@@ -28,7 +31,7 @@ function probeBackend(baseUrl: string): PortProbe {
   if (isCI) {
     return "free";
   }
-  const root = path.resolve(__dirname, "..");
+  const root = path.resolve(configDir, "..");
   const py = path.join(root, pythonBin);
   if (!existsSync(py)) {
     return "unavailable";
