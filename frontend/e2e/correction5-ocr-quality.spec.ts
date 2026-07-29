@@ -5,8 +5,10 @@
  */
 import { expect, test } from "@playwright/test";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const FIXTURE = path.resolve(__dirname, "../../../fixtures/synthetic/ocr/clean_printable.pdf");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const FIXTURE = path.resolve(ROOT, "fixtures/synthetic/ocr/clean_printable.pdf");
 
 test.describe("Correction 5 OCR quality gate UI", () => {
   test("clean OCR page shows primary selection without forcing fallback UI noise", async ({

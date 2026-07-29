@@ -22,6 +22,11 @@ const LIVE_BODY = {
   service: "veridemand-api",
   app_name: "VeriDemand",
   version: "0.1.0",
+  application_version: "0.1.0",
+  git_commit: "abc1234",
+  process_id: 12345,
+  worker_generation: 1,
+  configuration_profile: "development+ocr_on+fast_pass",
   timestamp: "2026-07-21T14:53:54.484945Z",
   request_id: "req-test-123",
 };
@@ -31,6 +36,11 @@ const READY_BODY = {
   service: "veridemand-api",
   app_name: "VeriDemand",
   version: "0.1.0",
+  application_version: "0.1.0",
+  git_commit: "abc1234",
+  process_id: 12345,
+  worker_generation: 1,
+  configuration_profile: "development+ocr_on+fast_pass",
   timestamp: "2026-07-21T14:53:54.484945Z",
   request_id: "req-test-123",
   checks: [
