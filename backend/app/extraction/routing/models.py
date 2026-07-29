@@ -29,7 +29,20 @@ class RoutingPolicy:
     max_fail_ratio_for_repair: float
     max_repair_regions: int
     max_repair_coverage: float
+    max_largest_region_coverage: float
+    min_retained_coverage: float
+    min_visual_floor_for_repair: float
+    repair_cluster_gap: float
+    repair_line_v_overlap: float
+    allow_repair_method_transition: bool
     repair_padding_ratio: float
+    repair_policy_version: str
+    repair_min_mean_confidence: float
+    repair_max_low_confidence_ratio: float
+    repair_min_geometry_valid_ratio: float
+    repair_min_region_coverage: float
+    repair_max_duplicate_overlap: float
+    repair_crop_ttl_seconds: int
     blank_max_ink_density: float
     blank_max_edge_density: float
     blank_max_variance: float
@@ -63,7 +76,24 @@ class RoutingPolicy:
             max_fail_ratio_for_repair=settings.embedded_ocr_targeted_repair_max_fail_ratio,
             max_repair_regions=settings.embedded_ocr_targeted_repair_max_regions,
             max_repair_coverage=settings.embedded_ocr_targeted_repair_max_coverage,
+            max_largest_region_coverage=(
+                settings.embedded_ocr_targeted_repair_max_largest_region_coverage
+            ),
+            min_retained_coverage=settings.embedded_ocr_targeted_repair_min_retained_coverage,
+            min_visual_floor_for_repair=settings.embedded_ocr_targeted_repair_min_visual_floor,
+            repair_cluster_gap=settings.embedded_ocr_targeted_repair_cluster_gap,
+            repair_line_v_overlap=settings.embedded_ocr_targeted_repair_line_v_overlap,
+            allow_repair_method_transition=(
+                settings.embedded_ocr_targeted_repair_allow_method_transition
+            ),
             repair_padding_ratio=settings.embedded_ocr_repair_padding_ratio,
+            repair_policy_version=settings.targeted_repair_policy_version,
+            repair_min_mean_confidence=settings.targeted_repair_min_mean_confidence,
+            repair_max_low_confidence_ratio=settings.targeted_repair_max_low_confidence_ratio,
+            repair_min_geometry_valid_ratio=settings.targeted_repair_min_geometry_valid_ratio,
+            repair_min_region_coverage=settings.targeted_repair_min_region_coverage,
+            repair_max_duplicate_overlap=settings.targeted_repair_max_duplicate_overlap,
+            repair_crop_ttl_seconds=settings.targeted_repair_crop_ttl_seconds,
             blank_max_ink_density=settings.blank_page_max_ink_density,
             blank_max_edge_density=settings.blank_page_max_edge_density,
             blank_max_variance=settings.blank_page_max_variance,
@@ -125,6 +155,8 @@ class RouteExecutionPlan:
     run_targeted_repair: bool
     run_full_ocr: bool
     run_blank_preflight: bool
+    failed_word_indices: list[int] = field(default_factory=list)
+    geometry_shifted: bool = False
 
     @property
     def route(self) -> PageRoute:

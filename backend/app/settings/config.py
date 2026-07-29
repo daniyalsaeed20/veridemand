@@ -244,7 +244,22 @@ class Settings(BaseSettings):
     embedded_ocr_targeted_repair_max_fail_ratio: float = Field(default=0.25, ge=0.0, le=1.0)
     embedded_ocr_targeted_repair_max_regions: int = Field(default=6, ge=1, le=32)
     embedded_ocr_targeted_repair_max_coverage: float = Field(default=0.35, ge=0.0, le=1.0)
+    embedded_ocr_targeted_repair_max_largest_region_coverage: float = Field(
+        default=0.28, ge=0.0, le=1.0
+    )
+    embedded_ocr_targeted_repair_min_retained_coverage: float = Field(default=0.40, ge=0.0, le=1.0)
+    embedded_ocr_targeted_repair_min_visual_floor: float = Field(default=0.52, ge=0.0, le=1.0)
+    embedded_ocr_targeted_repair_cluster_gap: float = Field(default=0.04, ge=0.0, le=0.25)
+    embedded_ocr_targeted_repair_line_v_overlap: float = Field(default=0.45, ge=0.0, le=1.0)
+    embedded_ocr_targeted_repair_allow_method_transition: bool = True
     embedded_ocr_repair_padding_ratio: float = Field(default=0.04, ge=0.0, le=0.25)
+    targeted_repair_policy_version: str = Field(default="phase4-targeted-repair-v1", min_length=1)
+    targeted_repair_min_mean_confidence: float = Field(default=0.45, ge=0.0, le=1.0)
+    targeted_repair_max_low_confidence_ratio: float = Field(default=0.45, ge=0.0, le=1.0)
+    targeted_repair_min_geometry_valid_ratio: float = Field(default=0.90, ge=0.0, le=1.0)
+    targeted_repair_min_region_coverage: float = Field(default=0.35, ge=0.0, le=1.0)
+    targeted_repair_max_duplicate_overlap: float = Field(default=0.35, ge=0.0, le=1.0)
+    targeted_repair_crop_ttl_seconds: int = Field(default=300, ge=30, le=3600)
     # Embedded coverage gate (form/grid pages with sparse OCR layers).
     embedded_ocr_min_candidate_box_coverage: float = Field(default=0.12, ge=0.0, le=1.0)
     embedded_ocr_max_ink_outside_candidates_ratio: float = Field(default=0.45, ge=0.0, le=1.0)
