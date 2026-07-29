@@ -6,11 +6,16 @@ consume these to activate processing capabilities; Phase 0 only reads them.
 
 from __future__ import annotations
 
+import logging
+import os
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 from pydantic import AnyHttpUrl, Field, SecretStr, TypeAdapter, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_logger = logging.getLogger(__name__)
 
 # Bounded, sensible range for streamed upload chunk size (4 KiB - 16 MiB).
 _MIN_UPLOAD_CHUNK_BYTES = 4_096
@@ -227,8 +232,15 @@ class Settings(BaseSettings):
     ocr_fast_pass_enabled: bool = True
     ocr_primary_limit_side_len: int = Field(default=960, gt=0)
     ocr_fallback_limit_side_len: int = Field(default=1600, gt=0)
-    fair_ocr_scheduling_enabled: bool = False
-    fair_ocr_page_chunk_size: int = Field(default=5, ge=1, le=32)
+    fair_ocr_scheduling_enabled: bool = True
+    # Replaces fair_ocr_page_chunk_size / FAIR_OCR_PAGE_CHUNK_SIZE (see migration validator).
+    fair_ocr_page_quantum: int = Field(default=2, ge=1, le=32)
+    fair_repair_page_quantum: int = Field(default=2, ge=1, le=32)
+    short_document_heavy_page_threshold: int = Field(default=3, ge=1, le=50)
+    scheduler_aging_enabled: bool = True
+    scheduler_aging_interval_seconds: float = Field(default=30.0, gt=0)
+    scheduler_max_consecutive_turns: int = Field(default=4, ge=1, le=32)
+    scheduler_policy_version: str = Field(default="correction7-v1", min_length=1)
     progress_live_clock_interval_ms: int = Field(default=1000, ge=250, le=5000)
     eta_minimum_sample_count: int = Field(default=3, ge=1, le=50)
     eta_stale_after_seconds: float = Field(default=120.0, gt=0)
@@ -293,6 +305,36 @@ class Settings(BaseSettings):
     # Logging.
     log_level: str = "INFO"
     log_document_text: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_fair_ocr_page_chunk_size(cls, data: Any) -> Any:
+        """Map deprecated FAIR_OCR_PAGE_CHUNK_SIZE → fair_ocr_page_quantum.
+
+        Unknown env vars are otherwise dropped by ``extra=\"ignore\"``, which
+        would silently reset quantum to the default (2) after the old chunk
+        default of 5. Prefer an explicit new setting when both are present.
+        """
+        values: dict[str, Any] = dict(data) if isinstance(data, dict) else {}
+        old_from_data = values.pop("fair_ocr_page_chunk_size", None)
+        if old_from_data is None:
+            old_from_data = values.pop("FAIR_OCR_PAGE_CHUNK_SIZE", None)
+        old_from_env = os.environ.get("FAIR_OCR_PAGE_CHUNK_SIZE")
+        old_value = old_from_data if old_from_data is not None else old_from_env
+
+        has_new = (
+            "fair_ocr_page_quantum" in values
+            or "FAIR_OCR_PAGE_QUANTUM" in values
+            or os.environ.get("FAIR_OCR_PAGE_QUANTUM") is not None
+        )
+        if old_value is not None:
+            _logger.warning(
+                "FAIR_OCR_PAGE_CHUNK_SIZE is deprecated; use FAIR_OCR_PAGE_QUANTUM. "
+                "The old setting will be removed in a future release."
+            )
+            if not has_new:
+                values["fair_ocr_page_quantum"] = int(old_value)
+        return values
 
     @field_validator("api_prefix")
     @classmethod
