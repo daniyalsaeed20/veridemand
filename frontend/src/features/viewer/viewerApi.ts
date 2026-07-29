@@ -280,6 +280,18 @@ export const zDocumentSummary = z.object({
   full_ocr_pages_selected: z.int().gte(0).nullish(),
   full_ocr_pages_completed: z.int().gte(0).nullish(),
   full_ocr_pages_remaining: z.int().gte(0).nullish(),
+  final_route_histogram: z
+    .object({
+      digital_native_pages: z.int().gte(0).optional().default(0),
+      embedded_ocr_verified_pages: z.int().gte(0).optional().default(0),
+      embedded_ocr_targeted_repair_pages: z.int().gte(0).optional().default(0),
+      full_visual_ocr_pages: z.int().gte(0).optional().default(0),
+      visual_no_text_pages: z.int().gte(0).optional().default(0),
+      page_failed_pages: z.int().gte(0).optional().default(0),
+      page_cancelled_pages: z.int().gte(0).optional().default(0),
+      pending_pages: z.int().gte(0).optional().default(0),
+    })
+    .nullish(),
   visual_no_text_pages: z.int().gte(0).nullish(),
   failed_pages: z.int().gte(0).nullish(),
   pages_terminal_total: z.int().gte(0).nullish(),

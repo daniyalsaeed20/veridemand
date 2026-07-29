@@ -739,6 +739,10 @@ export type DocumentSummary = {
      */
     fair_scheduling_enabled?: boolean | null;
     /**
+     * Exclusive terminal route histogram when known.
+     */
+    final_route_histogram?: FinalRouteHistogram | null;
+    /**
      * Canonical internal format key.
      */
     format: DocumentFormat;
@@ -1222,6 +1226,46 @@ export type DuplicateRuleRecord = {
      * Threshold
      */
     threshold: number | number | boolean | string;
+};
+
+/**
+ * FinalRouteHistogram
+ *
+ * Mutually exclusive terminal page-route counts (must sum to document pages).
+ */
+export type FinalRouteHistogram = {
+    /**
+     * Digital Native Pages
+     */
+    digital_native_pages?: number;
+    /**
+     * Embedded Ocr Targeted Repair Pages
+     */
+    embedded_ocr_targeted_repair_pages?: number;
+    /**
+     * Embedded Ocr Verified Pages
+     */
+    embedded_ocr_verified_pages?: number;
+    /**
+     * Full Visual Ocr Pages
+     */
+    full_visual_ocr_pages?: number;
+    /**
+     * Page Cancelled Pages
+     */
+    page_cancelled_pages?: number;
+    /**
+     * Page Failed Pages
+     */
+    page_failed_pages?: number;
+    /**
+     * Pending Pages
+     */
+    pending_pages?: number;
+    /**
+     * Visual No Text Pages
+     */
+    visual_no_text_pages?: number;
 };
 
 /**
@@ -3169,6 +3213,10 @@ export type ProgressEvent = {
      */
     fair_scheduling_enabled?: boolean | null;
     /**
+     * Exclusive terminal route histogram when known.
+     */
+    final_route_histogram?: FinalRouteHistogram | null;
+    /**
      * Full Ocr Pages Completed
      */
     full_ocr_pages_completed?: number | null;
@@ -4129,6 +4177,10 @@ export type VisualDocumentSummary = {
      */
     final_result_available?: boolean;
     /**
+     * Exclusive terminal page_result_state histogram; terminal buckets sum to document_pages_total when complete.
+     */
+    final_route_histogram?: FinalRouteHistogram | null;
+    /**
      * Full Ocr Pages
      */
     full_ocr_pages?: number;
@@ -4151,6 +4203,8 @@ export type VisualDocumentSummary = {
     native_pages_downgraded: number;
     /**
      * Native Pages Retained
+     *
+     * Diagnostic: pages retained without full visual OCR (digital-native union embedded-verified). Not exclusive digital_native.
      */
     native_pages_retained: number;
     /**

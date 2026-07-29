@@ -256,6 +256,22 @@ export const zDuplicateLayerEvidence = z.object({
 });
 
 /**
+ * FinalRouteHistogram
+ *
+ * Mutually exclusive terminal page-route counts (must sum to document pages).
+ */
+export const zFinalRouteHistogram = z.object({
+    digital_native_pages: z.int().gte(0).optional().default(0),
+    embedded_ocr_targeted_repair_pages: z.int().gte(0).optional().default(0),
+    embedded_ocr_verified_pages: z.int().gte(0).optional().default(0),
+    full_visual_ocr_pages: z.int().gte(0).optional().default(0),
+    page_cancelled_pages: z.int().gte(0).optional().default(0),
+    page_failed_pages: z.int().gte(0).optional().default(0),
+    pending_pages: z.int().gte(0).optional().default(0),
+    visual_no_text_pages: z.int().gte(0).optional().default(0)
+});
+
+/**
  * HandwritingAssessment
  *
  * Handwriting is not assessed until Phase 5.
@@ -703,6 +719,7 @@ export const zDocumentSummary = z.object({
     failure_page_number: z.int().gte(1).nullish(),
     failure_stage: z.string().nullish(),
     fair_scheduling_enabled: z.boolean().nullish(),
+    final_route_histogram: zFinalRouteHistogram.nullish(),
     format: zDocumentFormat,
     full_ocr_pages_completed: z.int().gte(0).nullish(),
     full_ocr_pages_remaining: z.int().gte(0).nullish(),
@@ -1158,6 +1175,7 @@ export const zProgressEvent = z.object({
     event_sequence: z.int().gte(1),
     failed_pages: z.int().gte(0).nullish(),
     fair_scheduling_enabled: z.boolean().nullish(),
+    final_route_histogram: zFinalRouteHistogram.nullish(),
     full_ocr_pages_completed: z.int().gte(0).nullish(),
     full_ocr_pages_remaining: z.int().gte(0).nullish(),
     full_ocr_pages_selected: z.int().gte(0).nullish(),
@@ -1849,6 +1867,7 @@ export const zVisualDocumentSummary = z.object({
     error_codes: z.array(z.string()).optional(),
     failed_pages: z.int().gte(0).optional().default(0),
     final_result_available: z.boolean().optional().default(false),
+    final_route_histogram: zFinalRouteHistogram.nullish(),
     full_ocr_pages: z.int().gte(0).optional().default(0),
     full_ocr_pages_completed: z.int().gte(0).optional().default(0),
     full_ocr_pages_selected: z.int().gte(0).optional().default(0),

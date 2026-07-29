@@ -148,8 +148,7 @@ export function ProcessingDetailsCard({ snapshot }: ProcessingDetailsCardProps) 
         </Typography>
       ) : null}
       <Typography variant="body2">
-        Document pages completed:{" "}
-        {snapshot.native_pages_completed ?? snapshot.pages_completed ?? "—"}
+        Document pages completed: {snapshot.pages_completed ?? "—"}
         {docTotal != null ? ` of ${docTotal}` : ""}
       </Typography>
       {(snapshot.full_ocr_pages_selected ?? 0) > 0 ? (

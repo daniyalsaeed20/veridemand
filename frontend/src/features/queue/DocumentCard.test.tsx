@@ -211,12 +211,25 @@ describe("DocumentCard", () => {
           full_ocr_pages_selected: 0,
           full_ocr_pages_completed: 0,
           embedded_ocr_pages_verified: 0,
+          final_route_histogram: {
+            digital_native_pages: 97,
+            embedded_ocr_verified_pages: 0,
+            embedded_ocr_targeted_repair_pages: 0,
+            full_visual_ocr_pages: 0,
+            visual_no_text_pages: 0,
+            page_failed_pages: 0,
+            page_cancelled_pages: 0,
+            pending_pages: 0,
+          },
+          document_pages_total: 97,
+          pages_completed: 97,
         })}
       />,
     );
     expect(screen.getByLabelText("Page route breakdown")).toBeInTheDocument();
-    expect(screen.getByText(/Native pages retained:\s*97/)).toBeInTheDocument();
-    expect(screen.getByText(/Full OCR required:\s*0/)).toBeInTheDocument();
+    expect(screen.getByText(/Digital native:\s*97/)).toBeInTheDocument();
+    expect(screen.getByText(/Native pages retained \(includes embedded\):\s*97/)).toBeInTheDocument();
+    expect(screen.getByText(/Full OCR selected:\s*0/)).toBeInTheDocument();
   });
 
   it("disables Process when processBlocked is set", () => {

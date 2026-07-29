@@ -41,6 +41,18 @@ export interface ProgressSnapshotInput {
   readonly full_ocr_pages_selected?: number | null;
   readonly full_ocr_pages_completed?: number | null;
   readonly full_ocr_pages_remaining?: number | null;
+  readonly visual_no_text_pages?: number | null;
+  readonly failed_pages?: number | null;
+  readonly final_route_histogram?: {
+    readonly digital_native_pages?: number;
+    readonly embedded_ocr_verified_pages?: number;
+    readonly embedded_ocr_targeted_repair_pages?: number;
+    readonly full_visual_ocr_pages?: number;
+    readonly visual_no_text_pages?: number;
+    readonly page_failed_pages?: number;
+    readonly page_cancelled_pages?: number;
+    readonly pending_pages?: number;
+  } | null;
   readonly average_full_ocr_page_seconds?: number | null;
   readonly pages_per_minute?: number | null;
   readonly estimated_completion_at?: string | null;
