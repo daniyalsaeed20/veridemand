@@ -34,19 +34,21 @@ alwaysApply: true
 
 - Implement only the current roadmap phase from the specification. Do not start a dependent
   phase before the prior exit gate is satisfied with evidence.
-- This repository is currently at the **foundation shell** (health endpoints only). No
-  upload, queue, session, rendering, OCR, detection, routing, LLM, or extraction feature is
-  implemented yet.
+- This repository has completed **Phase 4** (visual detection, printed OCR, hybrid routing,
+  targeted repair, progress/ETA, fair scheduling). Do **not** begin Phase 5 (handwriting
+  classification / HTR, LLM vision, final reading order, or final table/form structure)
+  until the Phase 4 release exit gates are green with evidence.
 
 ## Contracts
 
-- Pydantic models under `backend/app/models/` are the machine source of truth for API shapes.
+- Pydantic models under `backend/app/contracts/` are the machine source of truth for API
+  shapes (historical rule text named `backend/app/models/` — that path is obsolete).
 - Frontend Zod schemas are generated from exported JSON Schema; do not hand-maintain duplicate
   field shapes. Keep the drift guard green.
 
 ## Dependencies and evidence
 
 - Do not add production dependencies without recording purpose, version, and licence in
-  `DEPENDENCY_INVENTORY.md`.
+  `DEPENDENCY_INVENTORY.md` (see also `docs/dependencies/`).
 - Do not invent extraction results, and do not add private/case documents to the repository.
   Local regression documents live under the git-ignored `fixtures/private/`.

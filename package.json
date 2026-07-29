@@ -2,7 +2,7 @@
   "name": "veridemand",
   "version": "0.1.0",
   "private": true,
-  "description": "VeriDemand document-extraction platform monorepo (Phase 0 foundation).",
+  "description": "VeriDemand document-extraction platform monorepo (Phase 4 complete).",
   "type": "module",
   "packageManager": "pnpm@11.15.1",
   "engines": {

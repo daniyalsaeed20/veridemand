@@ -18,9 +18,6 @@ from backend.app.extraction.routing.repair_clustering import expand_bbox
 from backend.app.extraction.routing.repair_eligibility import evaluate_targeted_repair_eligibility
 from PIL import Image
 
-# Back-compat alias used by older tests/imports.
-FailedRegion = RepairRegionRecord
-
 
 def cluster_failed_boxes(
     words: Sequence[NativeWord],
@@ -152,7 +149,6 @@ def repair_regions(
 
 
 __all__ = [
-    "FailedRegion",
     "cluster_failed_boxes",
     "crop_region",
     "evaluate_targeted_repair_eligibility",

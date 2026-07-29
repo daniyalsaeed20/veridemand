@@ -1,7 +1,8 @@
 """Typed, validated application settings loaded from the environment.
 
-Every value below defines a Phase 0 configuration contract. Later phases will
-consume these to activate processing capabilities; Phase 0 only reads them.
+Phase 4 (visual OCR, hybrid routing, targeted repair, fair scheduling) is the
+active configuration surface. Values are validated at startup; unsafe
+combinations fail clearly before the app accepts work.
 """
 
 from __future__ import annotations

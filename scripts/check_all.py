@@ -2,8 +2,9 @@
 
 Runs the full validation suite in a sensible fail-fast order. Each command is
 printed before it runs; the first failure stops the run and its exit code is
-preserved. Covers Phase 0-2 (backend + frontend tests, build, E2E, LibreOffice
-availability, and a residual-session-data guard).
+preserved. Covers Phase 0-4 (backend + frontend tests, build, E2E, LibreOffice
+availability, OCR verify when models are present, and a residual-session-data
+guard).
 """
 
 from __future__ import annotations
