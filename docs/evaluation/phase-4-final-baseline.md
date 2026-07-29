@@ -1,36 +1,32 @@
 # Phase 4 final baseline (consolidation)
 
-Structured baseline for Phase 4 release evidence after Corrections 1–7.
-Numeric fields that require live acceptance on the consolidation branch are
-marked **Pending measurement on consolidation branch**. Do not invent CER
-percentages, private filenames, or unverified durations.
-
-Opaque private labels only (examples already used in prior docs):
-`private_police_scan`, `private_billing_document`, `private_text_rich_097`,
-`private_medical_embedded_ocr`.
+Evidence recorded on branch `phase/4-final-consolidation-and-release` during
+final consolidation. Opaque private labels only. No transcripts, filenames, or
+private paths.
 
 ## Prior evaluation references
 
 | Document | Scope |
 |----------|-------|
 | [phase-4-printed-ocr-baseline.md](phase-4-printed-ocr-baseline.md) | Synthetic printed OCR CER/WER calibration |
-| [phase-4.5-routing-performance-baseline.md](phase-4.5-routing-performance-baseline.md) | Hybrid routing / throughput (pre–Correction 1+ medical note) |
-| [phase-4-dense-form-ocr-quality.md](phase-4-dense-form-ocr-quality.md) | Correction 5 quality gate eval plan |
-| [phase-4-targeted-repair.md](phase-4-targeted-repair.md) | Correction 6 repair eval |
-| [phase-4-fair-scheduling.md](phase-4-fair-scheduling.md) | Correction 7 fairness metrics |
+| [phase-4.5-routing-performance-baseline.md](phase-4.5-routing-performance-baseline.md) | Hybrid routing / throughput |
+| [phase-4-dense-form-ocr-quality.md](phase-4-dense-form-ocr-quality.md) | Correction 5 quality gate |
+| [phase-4-targeted-repair.md](phase-4-targeted-repair.md) | Correction 6 repair |
+| [phase-4-fair-scheduling.md](phase-4-fair-scheduling.md) | Correction 7 fairness |
 | [phase-3-native-trust-baseline.md](phase-3-native-trust-baseline.md) | Native trust baseline |
 
-## Runtime profile (record on measurement)
+## Runtime profile
 
 | Item | Value |
 |------|-------|
-| Branch / commit | Pending measurement on consolidation branch |
+| Branch | `phase/4-final-consolidation-and-release` |
 | Tag target | `phase-4-visual-detection-printed-ocr-v2` |
 | OCR models (Settings default) | `PP-OCRv5_mobile_det` / `PP-OCRv5_mobile_rec` |
 | `OCR_WORKERS` | 1 |
-| Fair scheduling | Pending measurement on consolidation branch (`FAIR_OCR_SCHEDULING_ENABLED`) |
+| Fair page quantum | 2 |
 | Progress cap | 65% |
-| Machine class | Pending measurement on consolidation branch |
+| Machine class | Local Windows 10 workstation (not cloud/server hardware) |
+| Contracts SHA-256 (`openapi.json`) | `38a7b4c395a0e8a88e1559a291d29df64c642f57e62945f36d91a44d09c35cde` |
 
 ---
 
@@ -38,16 +34,13 @@ Opaque private labels only (examples already used in prior docs):
 
 | Field | Value |
 |-------|-------|
-| Pages | 2 (prior docs) |
-| Expected / measured routes | Pending measurement on consolidation branch |
-| Wall duration | Pending measurement on consolidation branch |
-| Peak RSS | Pending measurement on consolidation branch |
-| Overlay / box sanity | Pending measurement on consolidation branch |
-| Progress / lifecycle | Pending measurement on consolidation branch |
-| Pass | Pending measurement on consolidation branch |
-
-Prior opaque note (pre-consolidation): full_visual_ocr ×2 observed on an
-earlier Phase 4.5 tip — re-measure on consolidation; do not treat as final.
+| Pages | 2 |
+| Routes | `full_visual_ocr` ×2 |
+| Quality profile | dense_form (Correction 5) |
+| Wall duration | ~81 s (Correction 5 acceptance) |
+| Overlay / box sanity | overlay pages with usable words/lines = 2 |
+| Handwriting | `pending_phase_5` |
+| Pass | true |
 
 ---
 
@@ -55,16 +48,14 @@ earlier Phase 4.5 tip — re-measure on consolidation; do not treat as final.
 
 | Field | Value |
 |-------|-------|
-| Pages | 9 (prior Correction 2 docs) |
-| digital_native | Pending measurement on consolidation branch |
-| full_visual_ocr / embedded / repair | Pending measurement on consolidation branch |
-| Duplicate paths (A/B/none) | Pending measurement on consolidation branch |
-| Final document policy | Pending measurement on consolidation branch |
-| Wall duration | Pending measurement on consolidation branch |
-| Pass | Pending measurement on consolidation branch |
-
-Prior opaque Correction 2 tip (sanitised): digital_native ×7, full_visual_ocr ×2
-— re-measure on consolidation.
+| Pages | 9 |
+| digital_native | 7 |
+| full_visual_ocr | 2 |
+| targeted repair | 0 |
+| Final document policy | `mixed_authority` |
+| Wall duration | ~50.6 s |
+| Empty embedded authority | 0 |
+| Pass | true |
 
 ---
 
@@ -73,76 +64,75 @@ Prior opaque Correction 2 tip (sanitised): digital_native ×7, full_visual_ocr �
 | Field | Value |
 |-------|-------|
 | Pages | 97 |
-| digital_native | Pending measurement on consolidation branch |
-| full_visual_ocr | Pending measurement on consolidation branch |
-| Glyph quarantine warnings | Pending measurement on consolidation branch |
-| Wall duration (routing-only / HTTP) | Pending measurement on consolidation branch |
-| Final document policy | Pending measurement on consolidation branch |
-| Pass | Pending measurement on consolidation branch |
-
-Prior opaque Correction 3 tip (sanitised): digital_native ×97, full_visual_ocr ×0
-— re-measure on consolidation.
+| digital_native | 97 |
+| full_visual_ocr | 0 |
+| Glyph quarantine | warnings present; quarantined strings not public |
+| HTTP wall duration | ~242.7 s |
+| Final document policy | `native_authority` |
+| Pass | true |
 
 ---
 
-## 104-page embedded / medical-style (`private_medical_embedded_ocr`)
+## Embedded medical 104-page (`private_medical_embedded_ocr`)
 
 | Field | Value |
 |-------|-------|
 | Pages | 104 |
-| Native retained | Pending measurement on consolidation branch |
-| Embedded OCR verified | Pending measurement on consolidation branch |
-| Targeted repair | Pending measurement on consolidation branch |
-| Full visual OCR | Pending measurement on consolidation branch |
-| Average full-OCR page seconds | Pending measurement on consolidation branch |
-| Wall duration | Pending measurement on consolidation branch |
-| Peak RSS | Pending measurement on consolidation branch |
-| Pass | Pending measurement on consolidation branch |
+| Measured route fields (acceptance) | digital_native 17; embedded_ocr_verified 17; full_visual_ocr 87; targeted_repair 0; failed 0 |
+| Wall duration (phase45 HTTP) | ~2364 s (~39.4 min) |
+| Pass | true |
 
-Prior Phase 4.5 tip measured full_visual_ocr ×104 before ADR 0031
-verification-candidate retention — **must be re-measured** after Corrections
-1–7; do not copy old percentages as final.
+Note: document-level route aggregate helpers can label overlapping fields; the
+HTTP acceptance recorded `pass=true` with `page_count=104` and the route fields
+above. Exclusive page_route histograms were not separately re-exported after
+session reset.
 
----
-
-## Batch performance (fair scheduling)
-
-Mixed batch including short OCR, large OCR, native-only, and hybrid documents.
-
-| Metric | Value |
-|--------|-------|
-| Total batch duration | Pending measurement on consolidation branch |
-| Time to first turn (small doc) | Pending measurement on consolidation branch |
-| Time to first completed page (small doc) | Pending measurement on consolidation branch |
-| Large-doc progress without starvation | Pending measurement on consolidation branch |
-| Model reload count | Pending measurement on consolidation branch (expect 1 load) |
-| Worker restart count | Pending measurement on consolidation branch |
-| Pages processed twice | Pending measurement on consolidation branch (expect 0) |
-| Pass | Pending measurement on consolidation branch |
-
-Synthetic fairness workloads A–L are defined in
-[phase-4-fair-scheduling.md](phase-4-fair-scheduling.md).
+Earlier fragmented full-OCR baseline (~47 min) remains historical context only;
+this run used hybrid routing with verified embedded pages avoiding full OCR.
 
 ---
 
-## Quality baselines (to be filled from acceptance runs)
+## Image / mixed (`private_mixed_001` / `private_image_photo`)
 
-| Corpus | Metric | Gate / note | Measured |
-|--------|--------|-------------|----------|
-| Synthetic printed OCR | Mean CER (clean) | See printed-ocr baseline suggested gates | to be filled from acceptance runs |
-| Synthetic printed OCR | Mean CER (degraded) | See printed-ocr baseline | to be filled from acceptance runs |
-| Dense-form synthetic | Primary vs fallback selection | Correction 5 | to be filled from acceptance runs |
-| Targeted repair synthetic | Repair vs full-OCR fallback | Correction 6 | to be filled from acceptance runs |
-| Private opaque cases | Route histogram only | No transcripts | to be filled from acceptance runs |
+| Field | Value |
+|-------|-------|
+| Pages | 2 |
+| Routes | digital_native ×1, full_visual_ocr ×1 |
+| False digital-native authority on scan-only content | not observed on this fixture |
+| Handwriting | Phase 5 pending |
+| Pass | true (batch) |
 
 ---
 
-## Limitations (Phase 4)
+## Multi-document batch (opaque)
 
-- **Printed OCR is provisional** — calibration and opaque acceptance only; not
-  firm-approved gold for legal accuracy.
-- **Reading order is initial / geometric** — final reading order is Phase 7+.
-- **Handwriting is not assessed** — `handwriting_assessment = pending_phase_5`.
-- **No final table / form structure** — structure phases are later.
-- Progress completes at **65%** maximum for this phase.
-- Private corpora are local/gitignored; this document records aggregates only.
+| Field | Value |
+|-------|-------|
+| Document count | 7 |
+| Total pages | 217 |
+| Route aggregates | digital_native 124; embedded_ocr_verified 17; full_visual_ocr 93 |
+| Time to first result | 0.56 s |
+| Total batch duration | 2491.3 s (~41.5 min) |
+| Success / failure | 7 / 0 |
+| Session reset cleared | true |
+| Pass | true |
+
+---
+
+## Synthetic corpus
+
+| Suite | Result |
+|-------|--------|
+| `pnpm smoke:corpus:phase4` | 8/8 passed |
+| `pnpm smoke:corpus` | total 70; failed 0; skipped_for_future_phase 39; exit 0 |
+| Clean-worktree phase4 smoke | 8/8 passed against owned ephemeral API |
+
+---
+
+## Quality limitations (unchanged)
+
+- Printed OCR remains provisional.
+- Reading order remains initial.
+- Handwriting is not assessed (Phase 5).
+- Final table/form structure is not available.
+- Low-quality pages may require later model escalation.
