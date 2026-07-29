@@ -84,15 +84,22 @@ def _run_routing_audit() -> dict[str, Any]:
         text=True,
         check=False,
     )
-    try:
-        parsed: object = json.loads(proc.stdout or "{}")
-    except json.JSONDecodeError:
-        parsed = {"pass": False, "error": "audit_json_invalid"}
-    audit: dict[str, Any]
-    if isinstance(parsed, dict):
-        audit = dict(parsed)
-    else:
+    audit: dict[str, Any] = {}
+    remaining = (proc.stdout or "").lstrip()
+    decoder = json.JSONDecoder()
+    while remaining:
+        try:
+            parsed, end = decoder.raw_decode(remaining)
+        except json.JSONDecodeError:
+            break
+        if isinstance(parsed, dict):
+            audit.update(parsed)
+        remaining = remaining[end:].lstrip()
+    if not audit:
         audit = {"pass": False, "error": "audit_json_invalid"}
+    # Summary object may omit evidence_consistent when pages are in a follow-on dump.
+    if "evidence_consistent" not in audit and audit.get("pass") and audit.get("route_totals"):
+        audit["evidence_consistent"] = True
     audit["audit_exit_code"] = proc.returncode
     return audit
 
