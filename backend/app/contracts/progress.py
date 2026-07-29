@@ -110,6 +110,17 @@ class ProgressEventType(StrEnum):
     STREAM_RESYNC_REQUIRED = "stream.resync_required"
     HEARTBEAT = "heartbeat"
 
+    # Correction 7 — fair document scheduling events.
+    SCHEDULER_DOCUMENT_ADMITTED = "scheduler.document_admitted"
+    SCHEDULER_DOCUMENT_READY = "scheduler.document_ready"
+    SCHEDULER_TURN_STARTED = "scheduler.turn_started"
+    SCHEDULER_QUANTUM_COMPLETED = "scheduler.quantum_completed"
+    SCHEDULER_DOCUMENT_YIELDED = "scheduler.document_yielded"
+    SCHEDULER_DOCUMENT_CHECKPOINTED = "scheduler.document_checkpointed"
+    SCHEDULER_PRIORITY_CHANGED = "scheduler.priority_changed"
+    SCHEDULER_DOCUMENT_RESUMED = "scheduler.document_resumed"
+    SCHEDULER_DOCUMENT_TERMINAL = "scheduler.document_terminal"
+
     # Reserved for later phases.
     DOCUMENT_PAGE_STARTED = "document.page_started"
     DOCUMENT_PAGE_COMPLETED = "document.page_completed"
@@ -305,6 +316,20 @@ class ProgressEvent(ApiModel):
     route: str | None = Field(default=None, description="Page route for route events.")
     average_full_ocr_page_seconds: float | None = Field(default=None, ge=0.0)
     fair_scheduling_enabled: bool | None = Field(default=None)
+    # Correction 7 — scheduler turn/position/quantum fields.
+    scheduler_turn_number: int | None = Field(default=None, ge=0)
+    scheduler_queue_position: int | None = Field(default=None, ge=1)
+    scheduler_priority_class: str | None = Field(default=None)
+    scheduler_effective_priority: int | None = Field(default=None, ge=0)
+    scheduler_quantum: int | None = Field(default=None, ge=0)
+    scheduler_quantum_completed: int | None = Field(default=None, ge=0)
+    scheduler_remaining_work_units: int | None = Field(default=None, ge=0)
+    scheduler_document_state: str | None = Field(default=None)
+    scheduler_reason: str | None = Field(default=None)
+    scheduler_waiting_seconds: float | None = Field(default=None, ge=0.0)
+    scheduler_turns_skipped: int | None = Field(default=None, ge=0)
+    estimated_next_turn_seconds: float | None = Field(default=None, ge=0.0)
+    estimated_waiting_seconds: float | None = Field(default=None, ge=0.0)
     # Correction 4 clocks, deadlines, slow warning, batch ETA.
     batch_elapsed_seconds: float | None = Field(default=None, ge=0.0)
     attempt_elapsed_seconds: float | None = Field(default=None, ge=0.0)
