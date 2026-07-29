@@ -294,6 +294,14 @@ class VisualPageResult(ApiModel):
     phase3_page_decision: str | None = None
     document_escalation_applied: bool = False
     page_restored_after_escalation: bool = False
+    # Targeted-repair aggregates (privacy-safe counts only).
+    retained_native_words: int | None = Field(default=None, ge=0)
+    retained_embedded_words: int | None = Field(default=None, ge=0)
+    repaired_words: int | None = Field(default=None, ge=0)
+    suppressed_words: int | None = Field(default=None, ge=0)
+    repair_region_count: int | None = Field(default=None, ge=0)
+    repair_quality_status: str | None = None
+    repair_method: str | None = None
     duration_ms: int | None = Field(default=None, ge=0)
     peak_rss_mb: float | None = Field(default=None, ge=0.0)
     # Privacy-safe performance observability (no OCR text).
