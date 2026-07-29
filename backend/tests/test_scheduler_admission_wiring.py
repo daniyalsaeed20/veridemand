@@ -21,9 +21,7 @@ def _admit_like_coordinator(
     selected_page_numbers: list[int] = []
     page_numbers = payload.get("page_numbers")
     if isinstance(page_numbers, list):
-        selected_page_numbers = [
-            int(p) for p in page_numbers if isinstance(p, (int, float, str))
-        ]
+        selected_page_numbers = [int(p) for p in page_numbers if isinstance(p, (int, float, str))]
     full_raw = payload.get("full_ocr_pages_selected")
     full_ocr_pages_selected = int(full_raw) if isinstance(full_raw, (int, float)) else 0
 

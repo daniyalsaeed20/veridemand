@@ -140,8 +140,10 @@ def main() -> int:
                     or str(d.get("status") or "") in {"failed", "cancelled", "uploaded"}
                     for d in documents
                 )
-                if documents and terminal and all(
-                    str(d.get("status") or "") != "uploaded" for d in documents
+                if (
+                    documents
+                    and terminal
+                    and all(str(d.get("status") or "") != "uploaded" for d in documents)
                 ):
                     report["terminal_document_states"] = [
                         {
