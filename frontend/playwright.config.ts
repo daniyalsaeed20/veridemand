@@ -1,4 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
+import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import path from "node:path";
 
 // Two independent stacks:
 //  - "normal": default backend + dev server, for upload/queue/reset/refresh flows.
@@ -12,13 +15,80 @@ const HOLDS_BACKEND = "http://127.0.0.1:8010";
 
 const HOLDS_SPECS = /\.holds\.spec\.ts$/;
 
-// Read CI without pulling in @types/node (no new frontend dependencies).
 const nodeProcess = (
   globalThis as { process?: { env?: Record<string, string | undefined>; platform?: string } }
 ).process;
 const isCI = Boolean(nodeProcess?.env?.CI);
 const pythonBin =
   nodeProcess?.platform === "win32" ? ".venv\\Scripts\\python.exe" : ".venv/bin/python";
+
+type PortProbe = "match" | "mismatch" | "occupied" | "free" | "unavailable";
+
+function probeBackend(baseUrl: string): PortProbe {
+  if (isCI) {
+    return "free";
+  }
+  const root = path.resolve(__dirname, "..");
+  const py = path.join(root, pythonBin);
+  if (!existsSync(py)) {
+    return "unavailable";
+  }
+  const code = `
+from scripts.lib.api_process_guard import (
+    commits_match,
+    parse_host_port,
+    port_in_use,
+    probe_live,
+    repo_head,
+)
+base = ${JSON.stringify(baseUrl)}
+host, port = parse_host_port(base)
+live = probe_live(base)
+head = repo_head()
+if live.reachable:
+    print("match" if commits_match(live.git_commit, head) else "mismatch")
+elif port_in_use(host, port):
+    print("occupied")
+else:
+    print("free")
+`;
+  try {
+    const out = execFileSync(py, ["-c", code], {
+      cwd: root,
+      encoding: "utf8",
+      timeout: 8_000,
+      windowsHide: true,
+    })
+      .trim()
+      .toLowerCase();
+    if (out === "match" || out === "mismatch" || out === "occupied" || out === "free") {
+      return out;
+    }
+    return "unavailable";
+  } catch {
+    return "unavailable";
+  }
+}
+
+function assertBackendReusableOrFree(label: string, baseUrl: string): boolean {
+  const status = probeBackend(baseUrl);
+  if (status === "match") {
+    return true;
+  }
+  if (status === "mismatch" || status === "occupied") {
+    throw new Error(
+      `Playwright ${label} backend at ${baseUrl} is occupied by a process that ` +
+        `does not match this repository HEAD (or is not a reachable VeriDemand API). ` +
+        `Stop the obsolete VeriDemand process or free the port before running E2E. ` +
+        `Unrelated processes are never killed. (probe=${status})`,
+    );
+  }
+  // free / unavailable → Playwright starts a new server (reuseExistingServer false).
+  return false;
+}
+
+const reuseNormalBackend = isCI ? false : assertBackendReusableOrFree("normal", NORMAL_BACKEND);
+const reuseHoldsBackend = isCI ? false : assertBackendReusableOrFree("holds", HOLDS_BACKEND);
 
 export default defineConfig({
   testDir: "./e2e",
@@ -58,7 +128,7 @@ export default defineConfig({
       command: `${pythonBin} -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000`,
       cwd: "..",
       url: `${NORMAL_BACKEND}/health/live`,
-      reuseExistingServer: true,
+      reuseExistingServer: reuseNormalBackend,
       timeout: 120_000,
       env: {
         OCR_ENABLED: nodeProcess?.env?.OCR_ENABLED ?? "false",
@@ -67,14 +137,14 @@ export default defineConfig({
     {
       command: "pnpm dev",
       url: NORMAL_FRONTEND,
-      reuseExistingServer: true,
+      reuseExistingServer: !isCI,
       timeout: 120_000,
     },
     {
       command: `${pythonBin} -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8010`,
       cwd: "..",
       url: `${HOLDS_BACKEND}/health/live`,
-      reuseExistingServer: true,
+      reuseExistingServer: reuseHoldsBackend,
       timeout: 120_000,
       env: {
         TEMP_ROOT: "./temp-e2e",
@@ -88,7 +158,7 @@ export default defineConfig({
     {
       command: "pnpm dev --port 5273 --strictPort",
       url: HOLDS_FRONTEND,
-      reuseExistingServer: true,
+      reuseExistingServer: !isCI,
       timeout: 120_000,
       env: {
         VITE_API_BASE_URL: HOLDS_BACKEND,

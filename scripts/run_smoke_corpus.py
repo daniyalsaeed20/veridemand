@@ -14,6 +14,7 @@ import json
 import sys
 from pathlib import Path
 
+from scripts.lib.api_process_guard import assert_api_matches_head, resolve_api_base
 from scripts.smoke_corpus.report import SmokeReport
 from scripts.smoke_corpus.runner import (
     filter_pages,
@@ -82,6 +83,25 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip README checksum presence check (tests only).",
     )
+    parser.add_argument(
+        "--require-build-identity",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Require /health/live git_commit to match repository HEAD before "
+            "calling the API (default: true)."
+        ),
+    )
+    parser.add_argument(
+        "--allow-ephemeral-port",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "When the preferred API port is occupied by a mismatched build, "
+            "print a diagnostic and exit (default). Pass --allow-ephemeral-port "
+            "only when the caller will start a server on the resolved URL."
+        ),
+    )
     return parser
 
 
@@ -113,6 +133,57 @@ async def _async_main(args: argparse.Namespace) -> tuple[int, SmokeReport | None
         )
         return 0, None
 
+    api_base = args.api_base_url
+    if args.require_build_identity:
+        try:
+            if args.allow_ephemeral_port:
+                resolved = resolve_api_base(
+                    api_base,
+                    require_match=True,
+                    allow_ephemeral=True,
+                )
+                if resolved.reused_existing:
+                    assert_api_matches_head(resolved.base_url)
+                elif resolved.reason != "port_free_start_required":
+                    print(
+                        json.dumps(
+                            {
+                                "ok": False,
+                                "error": "api_port_conflict",
+                                "preferred": api_base,
+                                "resolved": resolved.base_url,
+                                "reason": resolved.reason,
+                                "hint": (
+                                    "Start the API on the resolved URL or free "
+                                    "the preferred port. Unrelated processes "
+                                    "are never killed."
+                                ),
+                            },
+                            indent=2,
+                            sort_keys=True,
+                        ),
+                        file=sys.stderr,
+                    )
+                    return 2, None
+                api_base = resolved.base_url
+            else:
+                assert_api_matches_head(api_base)
+        except RuntimeError as exc:
+            print(
+                json.dumps(
+                    {
+                        "ok": False,
+                        "error": "build_identity_mismatch",
+                        "message": str(exc),
+                        "api_base_url": api_base,
+                    },
+                    indent=2,
+                    sort_keys=True,
+                ),
+                file=sys.stderr,
+            )
+            return 2, None
+
     pages = filter_pages(
         bundle.manifest.get("pages") or [],
         start_page=args.start_page,
@@ -130,7 +201,7 @@ async def _async_main(args: argparse.Namespace) -> tuple[int, SmokeReport | None
 
     if args.mode == "page-by-page":
         report = await run_page_by_page(
-            api_base_url=args.api_base_url,
+            api_base_url=api_base,
             bundle=bundle,
             pages=pages,
             fail_fast=args.fail_fast,
@@ -138,7 +209,7 @@ async def _async_main(args: argparse.Namespace) -> tuple[int, SmokeReport | None
         )
     else:
         report = await run_whole_document(
-            api_base_url=args.api_base_url,
+            api_base_url=api_base,
             bundle=bundle,
             pages=pages,
             fail_fast=args.fail_fast,

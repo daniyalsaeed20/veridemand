@@ -9,12 +9,13 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import time
 from pathlib import Path
 from typing import Any
 
 import httpx
+
+from scripts.lib.api_process_guard import assert_api_matches_head
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE = os.environ.get("VERIDEMAND_API_BASE", "http://127.0.0.1:8000")
@@ -24,38 +25,8 @@ OUT = ROOT / "temp" / "private_acceptance" / "correction5_police.json"
 OPAQUE = "private_police_scan"
 
 
-def _repo_head() -> str | None:
-    try:
-        completed = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=ROOT,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=5.0,
-        )
-        if completed.returncode != 0:
-            return None
-        return (completed.stdout or "").strip()[:40] or None
-    except (OSError, subprocess.SubprocessError, TimeoutError):
-        return None
-
-
-def _verify_build(client: httpx.Client) -> dict[str, Any]:
-    live = client.get("/health/live", timeout=5.0)
-    live.raise_for_status()
-    body = live.json()
-    head = _repo_head()
-    commit = body.get("git_commit")
-    return {
-        "application_version": body.get("application_version") or body.get("version"),
-        "git_commit": commit,
-        "process_id": body.get("process_id"),
-        "worker_generation": body.get("worker_generation"),
-        "configuration_profile": body.get("configuration_profile"),
-        "repo_head": head,
-        "commit_matches": bool(head and commit and str(commit).startswith(str(head)[:7])),
-    }
+def _verify_build() -> dict[str, Any]:
+    return assert_api_matches_head(BASE, root=ROOT)
 
 
 def _ready(client: httpx.Client) -> bool:
@@ -89,20 +60,22 @@ def main() -> int:
         return 2
 
     started = time.perf_counter()
-    with httpx.Client(base_url=BASE, timeout=120.0) as client:
-        identity = _verify_build(client)
-        if not identity.get("commit_matches"):
-            print(
-                json.dumps(
-                    {
-                        "opaque_label": OPAQUE,
-                        "pass": False,
-                        "error": "build_identity_mismatch",
-                        "identity": identity,
-                    }
-                )
+    try:
+        identity = _verify_build()
+    except RuntimeError as exc:
+        print(
+            json.dumps(
+                {
+                    "opaque_label": OPAQUE,
+                    "pass": False,
+                    "error": "build_identity_mismatch",
+                    "message": str(exc),
+                }
             )
-            return 2
+        )
+        return 2
+
+    with httpx.Client(base_url=BASE, timeout=120.0) as client:
         if not _ready(client):
             print(json.dumps({"opaque_label": OPAQUE, "pass": False, "error": "api_not_ready"}))
             return 2
