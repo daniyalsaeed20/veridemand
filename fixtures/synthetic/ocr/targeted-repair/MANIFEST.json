@@ -1,0 +1,68 @@
+{
+  "policy_version": "phase4-targeted-repair-v1",
+  "fixtures": [
+    {
+      "id": "A",
+      "path": "fixtures/synthetic/ocr/targeted-repair/A-one-wrong-word.pdf",
+      "expected_route": "embedded_ocr_targeted_repair",
+      "notes": "One wrong embedded word; expect targeted repair"
+    },
+    {
+      "id": "B",
+      "path": "fixtures/synthetic/ocr/targeted-repair/B-shifted-line.pdf",
+      "expected_route": "embedded_ocr_targeted_repair",
+      "expected_method": "local_detection_and_recognition",
+      "notes": "Shifted line; local detection if geometry unreliable"
+    },
+    {
+      "id": "C",
+      "path": "fixtures/synthetic/ocr/targeted-repair/C-defective-header.pdf",
+      "expected_route": "embedded_ocr_targeted_repair",
+      "notes": "Header-only repair"
+    },
+    {
+      "id": "D",
+      "path": "fixtures/synthetic/ocr/targeted-repair/D-defective-footer.pdf",
+      "expected_route": "embedded_ocr_targeted_repair",
+      "notes": "Footer-only repair"
+    },
+    {
+      "id": "E",
+      "path": "fixtures/synthetic/ocr/targeted-repair/E-two-distant-regions.pdf",
+      "expected_route": "embedded_ocr_targeted_repair",
+      "expected_region_count": 2,
+      "notes": "Two bounded distant regions"
+    },
+    {
+      "id": "F",
+      "path": "fixtures/synthetic/ocr/targeted-repair/F-large-defective-region.pdf",
+      "expected_route": "full_visual_ocr",
+      "notes": "Large defective coverage \u2192 full visual OCR"
+    },
+    {
+      "id": "G",
+      "path": "fixtures/synthetic/ocr/targeted-repair/G-scattered-defects.pdf",
+      "expected_route": "full_visual_ocr",
+      "notes": "Many scattered failures \u2192 full OCR not hundreds of crops"
+    },
+    {
+      "id": "H",
+      "path": "fixtures/synthetic/ocr/targeted-repair/H-clean-embedded.pdf",
+      "expected_route": "embedded_ocr_verified",
+      "notes": "Clean embedded OCR; no repair"
+    },
+    {
+      "id": "I",
+      "path": "fixtures/synthetic/ocr/targeted-repair/I-image-only.pdf",
+      "expected_route": "full_visual_ocr",
+      "notes": "Image-only; full visual OCR"
+    },
+    {
+      "id": "J",
+      "path": "fixtures/synthetic/ocr/targeted-repair/J-handwriting-crop.pdf",
+      "expected_route": "embedded_ocr_targeted_repair",
+      "handwriting_assessment": "pending_phase_5",
+      "notes": "Printed repair provisional; handwriting pending Phase 5"
+    }
+  ]
+}
