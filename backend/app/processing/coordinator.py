@@ -11,11 +11,14 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 
 from backend.app.canonical.errors import CanonicalisationError
 from backend.app.canonical.processor import CanonicalisationProcessor
-from backend.app.contracts.canonical import CanonicalStatus
+from backend.app.contracts.canonical import CanonicalPageMetadata, CanonicalStatus
 from backend.app.contracts.documents import DocumentStatus, PageCountStatus
 from backend.app.contracts.errors import ErrorCode
 from backend.app.contracts.identifiers import new_job_id
@@ -24,18 +27,20 @@ from backend.app.contracts.native import NativeDocumentSummary, NativePageDecisi
 from backend.app.contracts.processing import IgnoredDocument
 from backend.app.contracts.progress import ProgressEventType
 from backend.app.contracts.routing import PageRoute
+from backend.app.contracts.scheduling import SchedulingDocumentState, WorkClass
+from backend.app.contracts.visual import VisualDocumentSummary
 from backend.app.extraction.native.errors import NativeExtractionError
 from backend.app.extraction.native.service import NativeExtractionService
 from backend.app.extraction.visual.errors import VisualOcrError
-from backend.app.extraction.visual.service import VisualOcrService
+from backend.app.extraction.visual.service import HeavySelectionResult, VisualOcrService
 from backend.app.observability.errors import ApiException
 from backend.app.observability.stage_log import log_progress, log_stage
 from backend.app.processing.cancellation import JobCancelledError
 from backend.app.processing.eta import EtaCostRoute, EtaEstimator, page_route_to_cost_route
 from backend.app.processing.fair_scheduler import (
     FairDocumentScheduler,
+    InvalidTransitionError,
     SchedulerWorkUnit,
-    WorkClass,
     _new_work_unit_id,
 )
 from backend.app.processing.models import ProcessingJob
@@ -81,6 +86,9 @@ _VISUAL_PAGE_END = 63
 _VISUAL_GROUP_PROGRESS = 64
 _MAX_PROGRESS_PERCENT = 65
 _PROGRESS_STARTED = 2
+# Idle poll interval for the heavy consumer; wakes are event-driven, this only
+# covers work admitted while the consumer was between turns.
+_HEAVY_IDLE_POLL_SECONDS = 0.05
 _PHASE4_COMPLETE_MESSAGE = (
     "Printed visual OCR complete. Handwriting and final document structure have not been evaluated."
 )
@@ -117,6 +125,28 @@ async def _safe_publish(broker: EventBroker, event: ProgressEventType, **fields:
         )
 
 
+@dataclass(slots=True)
+class HeavyDocumentContext:
+    """Everything the heavy consumer needs to resume one document's OCR pages.
+
+    Created once routing has selected heavy pages and the cheap job worker has
+    released the document, so page work can interleave with other documents.
+    """
+
+    session: RuntimeSession
+    job: ProcessingJob
+    document: RuntimeDocument
+    selection: HeavySelectionResult
+    canonical_pdf: Path
+    canonical_pages: list[CanonicalPageMetadata]
+    native_summary: object
+    on_progress: Callable[[dict[str, object]], Awaitable[None]]
+    finalize: Callable[[VisualDocumentSummary], Awaitable[None]]
+    handle_error: Callable[[VisualOcrError], Awaitable[None]]
+    quantum_completed: int = 0
+    pages_processed: set[int] = field(default_factory=set)
+
+
 class ProcessingCoordinator:
     """Coordinates canonicalisation, native trust, and visual OCR with one worker."""
 
@@ -145,6 +175,10 @@ class ProcessingCoordinator:
         self._current_job: ProcessingJob | None = None
         self._running = False
         self._scheduler: FairDocumentScheduler | None = None
+        self._heavy_contexts: dict[str, HeavyDocumentContext] = {}
+        self._heavy_wake = asyncio.Event()
+        self._heavy_task: asyncio.Task[None] | None = None
+        self._heavy_running = False
 
     def set_scheduler(self, scheduler: FairDocumentScheduler) -> None:
         """Attach the fair OCR document scheduler (Correction 7)."""
@@ -186,11 +220,35 @@ class ProcessingCoordinator:
         self._running = True
         self._worker = asyncio.create_task(self._worker_loop(), name="canonicalisation-worker")
 
+    def start_heavy_consumer(self) -> None:
+        """Start the page-quantum OCR consumer that drains scheduler work units."""
+
+        if self._heavy_task is not None:
+            return
+        self._heavy_running = True
+        self._heavy_task = asyncio.create_task(
+            self._heavy_consumer_loop(), name="fair-heavy-ocr-consumer"
+        )
+
+    async def stop_heavy_consumer(self) -> None:
+        """Stop the heavy consumer and await its termination."""
+
+        self._heavy_running = False
+        self._heavy_wake.set()
+        task = self._heavy_task
+        self._heavy_task = None
+        if task is not None:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+        self._heavy_contexts.clear()
+
     async def stop(self) -> None:
         """Stop accepting jobs, cancel active work, and await worker termination."""
 
         self._running = False
         await self._queue.close()
+        await self.stop_heavy_consumer()
         if self._current_job is not None:
             self._current_job.request_cancellation()
         if self._worker is not None:
@@ -345,6 +403,16 @@ class ProcessingCoordinator:
             ):
                 job.request_cancellation()
 
+            heavy_context = self._heavy_contexts.pop(document_id, None)
+            if heavy_context is not None:
+                # The job worker already released this document, so cancellation
+                # has to finalise it here rather than in the running job.
+                heavy_context.job.request_cancellation()
+                self._heavy_wake.set()
+                await self._finalize_cancelled(session, heavy_context.job, document)
+                recompute_session_status(session)
+                return document
+
             if self._scheduler is not None:
                 self._scheduler.cancel_document(document_id)
                 document.scheduler_document_state = "cancelled"
@@ -424,6 +492,228 @@ class ProcessingCoordinator:
             finally:
                 self._current_job = None
                 await self._queue.task_done(job.job_id)
+
+    async def _heavy_consumer_loop(self) -> None:
+        """Claim one scheduler work unit at a time and run that single page."""
+
+        while self._heavy_running:
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(self._heavy_wake.wait(), timeout=_HEAVY_IDLE_POLL_SECONDS)
+            self._heavy_wake.clear()
+            while self._heavy_running:
+                scheduler = self._scheduler
+                if scheduler is None or scheduler.closed or not scheduler.enabled:
+                    break
+                claimed = scheduler.next_work_unit()
+                if claimed is None:
+                    break
+                sched_doc, unit = claimed
+                context = self._heavy_contexts.get(sched_doc.document_id)
+                if context is None:
+                    # Routing has not registered this document (or it is gone);
+                    # drop the unit rather than spin on it.
+                    scheduler.fail_work_unit(unit.work_unit_id, retryable=False)
+                    continue
+                try:
+                    await self._run_heavy_work_unit(context, unit)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    logger.exception(
+                        "heavy_consumer_work_unit_failed",
+                        extra={
+                            "document_id": sched_doc.document_id,
+                            "job_id": context.job.job_id,
+                            "page_number": unit.document_page_number,
+                            "failing_component": "ProcessingCoordinator",
+                            "failing_operation": "heavy_work_unit",
+                        },
+                    )
+                # Give the cheap job worker a chance between pages.
+                await asyncio.sleep(0)
+            if self._scheduler is not None and self._scheduler.has_work():
+                self._heavy_wake.set()
+
+    async def _run_heavy_work_unit(
+        self, context: HeavyDocumentContext, unit: SchedulerWorkUnit
+    ) -> None:
+        scheduler = self._scheduler
+        if scheduler is None or self._visual is None:
+            return
+        page_number = unit.document_page_number
+        document_id = context.document.document_id
+
+        if context.job.cancellation.cancelled:
+            scheduler.cancel_document(document_id)
+            await self._finish_heavy_document(context, cancelled=True)
+            return
+
+        failure: VisualOcrError | None = None
+        try:
+            await self._visual.process_selected_pages(
+                session_id=context.session.session_id,
+                document_id=document_id,
+                job_id=context.job.job_id,
+                canonical_pdf=context.canonical_pdf,
+                page_numbers=[page_number],
+                selection=context.selection,
+                cancel_token=context.job.cancellation,
+                on_progress=context.on_progress,
+            )
+        except JobCancelledError:
+            scheduler.cancel_document(document_id)
+            await self._finish_heavy_document(context, cancelled=True)
+            return
+        except VisualOcrError as exc:
+            failure = exc
+
+        context.pages_processed.add(page_number)
+        if self._heavy_contexts.get(document_id) is not context:
+            # Cancelled or otherwise finalised while this page was running.
+            return
+        if failure is not None:
+            scheduler.fail_work_unit(unit.work_unit_id, retryable=False)
+        else:
+            state_before = scheduler.get_document(document_id)
+            was_running = (
+                state_before is not None and state_before.state is SchedulingDocumentState.RUNNING
+            )
+            scheduler.complete_work_unit(unit.work_unit_id)
+            context.quantum_completed += 1
+            await self._publish_heavy_turn_events(
+                context, page_number=page_number, was_running=was_running
+            )
+
+        sched_doc = scheduler.get_document(document_id)
+        if sched_doc is None or sched_doc.remaining_work == 0:
+            if failure is not None and not context.pages_processed - {page_number}:
+                await context.handle_error(failure)
+                self._heavy_contexts.pop(document_id, None)
+                await self._release_heavy_job(context, job_status=JobStatus.FAILED)
+                return
+            await self._finish_heavy_document(context)
+
+    async def _publish_heavy_turn_events(
+        self, context: HeavyDocumentContext, *, page_number: int, was_running: bool
+    ) -> None:
+        scheduler = self._scheduler
+        if scheduler is None:
+            return
+        sched_doc = scheduler.get_document(context.document.document_id)
+        if sched_doc is None:
+            return
+        document = context.document
+        session = context.session
+        job = context.job
+        document.scheduler_remaining_work_units = sched_doc.remaining_work
+        document.scheduler_quantum_completed = context.quantum_completed
+        document.scheduler_turn_number = scheduler.turn_number
+        document.scheduler_document_state = sched_doc.state.value
+        await _safe_publish(
+            session.broker,
+            ProgressEventType.SCHEDULER_QUANTUM_COMPLETED,
+            document_id=document.document_id,
+            job_id=job.job_id,
+            scheduler_turn_number=scheduler.turn_number,
+            scheduler_quantum_completed=context.quantum_completed,
+            scheduler_remaining_work_units=sched_doc.remaining_work,
+            scheduler_document_state=sched_doc.state.value,
+            page_number=page_number,
+        )
+        # complete_work_unit may yield the turn: RUNNING → CHECKPOINTED → READY.
+        if (
+            was_running
+            and sched_doc.state is SchedulingDocumentState.READY
+            and sched_doc.remaining_work > 0
+        ):
+            context.quantum_completed = 0
+            for event in (
+                ProgressEventType.SCHEDULER_DOCUMENT_CHECKPOINTED,
+                ProgressEventType.SCHEDULER_DOCUMENT_YIELDED,
+            ):
+                await _safe_publish(
+                    session.broker,
+                    event,
+                    document_id=document.document_id,
+                    job_id=job.job_id,
+                    scheduler_turn_number=scheduler.turn_number,
+                    scheduler_remaining_work_units=sched_doc.remaining_work,
+                    scheduler_document_state=sched_doc.state.value,
+                    page_number=page_number,
+                )
+
+    async def _finish_heavy_document(
+        self, context: HeavyDocumentContext, *, cancelled: bool = False
+    ) -> None:
+        """Publish the summary for a drained document and release its job."""
+
+        document_id = context.document.document_id
+        self._heavy_contexts.pop(document_id, None)
+        scheduler = self._scheduler
+        if cancelled:
+            context.document.scheduler_document_state = "cancelled"
+            await self._release_heavy_job(context, job_status=JobStatus.CANCELLED)
+            return
+
+        job_status = JobStatus.COMPLETED
+        if self._visual is not None:
+            try:
+                summary = await self._visual.finalize_visual_summary(
+                    canonical_pages=context.canonical_pages,
+                    native_summary=context.native_summary,  # type: ignore[arg-type]
+                    selection=context.selection,
+                    on_progress=context.on_progress,
+                )
+            except VisualOcrError as exc:
+                await context.handle_error(exc)
+                job_status = JobStatus.FAILED
+            else:
+                await context.finalize(summary)
+
+        if scheduler is not None and job_status is JobStatus.COMPLETED:
+            sched_doc = scheduler.get_document(document_id)
+            if sched_doc is not None and sched_doc.state not in (
+                SchedulingDocumentState.CANCELLED,
+                SchedulingDocumentState.FAILED,
+                SchedulingDocumentState.COMPLETED,
+            ):
+                with contextlib.suppress(InvalidTransitionError):
+                    scheduler.complete_document(document_id)
+            context.document.scheduler_document_state = "completed"
+            context.document.scheduler_remaining_work_units = 0
+            await _safe_publish(
+                context.session.broker,
+                ProgressEventType.SCHEDULER_DOCUMENT_TERMINAL,
+                document_id=document_id,
+                job_id=context.job.job_id,
+                scheduler_document_state="completed",
+                scheduler_reason="all_work_complete",
+                scheduler_remaining_work_units=0,
+                fair_scheduling_enabled=True,
+            )
+        await self._release_heavy_job(context, job_status=job_status)
+
+    async def _release_heavy_job(
+        self, context: HeavyDocumentContext, *, job_status: JobStatus
+    ) -> None:
+        job = context.job
+        session = context.session
+        job.status = job_status
+        job.finished_at = datetime.now(UTC)
+        event = {
+            JobStatus.COMPLETED: ProgressEventType.JOB_COMPLETED,
+            JobStatus.CANCELLED: ProgressEventType.JOB_CANCELLED,
+            JobStatus.FAILED: ProgressEventType.JOB_FAILED,
+        }.get(job_status)
+        if event is not None:
+            await _safe_publish(
+                session.broker,
+                event,
+                document_id=context.document.document_id,
+                job_id=job.job_id,
+                job_status=job_status,
+            )
+        recompute_session_status(session)
 
     async def _run_job(self, job: ProcessingJob) -> None:
         session = self._registry.peek(job.session_id)
@@ -709,6 +999,12 @@ class ProcessingCoordinator:
                             fair_scheduling_enabled=True,
                         )
                 else:
+                    if document.document_id in self._heavy_contexts:
+                        # Heavy pages were admitted to the scheduler and the heavy
+                        # consumer owns completion; release this worker for the
+                        # next cheap job instead of blocking on OCR.
+                        self._heavy_wake.set()
+                        return
                     if self._scheduler is not None:
                         sched_doc = self._scheduler.get_document(document.document_id)
                         if sched_doc is not None and sched_doc.state.value not in (
@@ -951,6 +1247,11 @@ class ProcessingCoordinator:
         )
         fair_enabled = bool(getattr(visual_settings, "fair_ocr_scheduling_enabled", False))
         document.fair_scheduling_enabled = fair_enabled
+        # With the heavy consumer running, scheduler turns and work-unit terminals
+        # belong to it; this job only routes, admits, and releases.
+        consumer_owned = (
+            fair_enabled and self._scheduler is not None and self._heavy_task is not None
+        )
         if fair_enabled and self._scheduler is not None:
             document.scheduler_document_state = "running"
         document.document_pages_total = page_count
@@ -1460,8 +1761,11 @@ class ProcessingCoordinator:
                             scheduler_document_state=sched_doc.state.value,
                             scheduler_queue_position=1,
                         )
-                        # Claim a document-level turn while process_document owns OCR.
-                        claimed = self._scheduler.next_work_unit()
+                        # Without a heavy consumer, OCR runs document-scoped here,
+                        # so claim the turn now; otherwise the consumer claims it.
+                        claimed = (
+                            None if consumer_owned else self._scheduler.next_work_unit()
+                        )
                         if claimed is not None and claimed[0].document_id == document.document_id:
                             document.scheduler_document_state = claimed[0].state.value
                             document.scheduler_turn_number = claimed[0].turn_number
@@ -1829,7 +2133,12 @@ class ProcessingCoordinator:
                     publish_event = ProgressEventType.DOCUMENT_VISUAL_PAGE_NO_TEXT
                 else:
                     publish_event = ProgressEventType.DOCUMENT_VISUAL_PAGE_OCR_COMPLETED
-                if fair_enabled and self._scheduler is not None and page_number is not None:
+                if (
+                    fair_enabled
+                    and not consumer_owned
+                    and self._scheduler is not None
+                    and page_number is not None
+                ):
                     sched_doc_state = self._scheduler.get_document(document.document_id)
                     if sched_doc_state is not None:
                         state_before = sched_doc_state.state
@@ -1921,7 +2230,12 @@ class ProcessingCoordinator:
                 publish_event = ProgressEventType.DOCUMENT_VISUAL_PAGE_FAILED
                 if reason:
                     reasons = [str(reason)]
-                if fair_enabled and self._scheduler is not None and page_number is not None:
+                if (
+                    fair_enabled
+                    and not consumer_owned
+                    and self._scheduler is not None
+                    and page_number is not None
+                ):
                     sched_doc_state = self._scheduler.get_document(document.document_id)
                     if sched_doc_state is not None:
                         retryable = timed_out or str(reason or "") in {
@@ -1995,21 +2309,8 @@ class ProcessingCoordinator:
                 await _publish_visual(publish_event, page_number=page_number, reasons=reasons)
 
         canonical_pdf = self._file_store.canonical_path(session.session_id, document.document_id)
-        try:
-            summary = await self._visual.process_document(
-                session_id=session.session_id,
-                document_id=document.document_id,
-                job_id=job.job_id,
-                canonical_pdf=canonical_pdf,
-                canonical_pages=document.canonical_pages,
-                native_summary=native_summary,  # type: ignore[arg-type]
-                native_pages=native_pages,
-                cancel_token=job.cancellation,
-                on_progress=on_visual_progress,
-            )
-        except JobCancelledError:
-            raise
-        except VisualOcrError as exc:
+
+        async def _handle_visual_error(exc: VisualOcrError) -> None:
             had_native = bool(document.native_result_available)
             document.status = (
                 DocumentStatus.VISUAL_PROCESSING_PARTIAL
@@ -2112,141 +2413,239 @@ class ProcessingCoordinator:
                     scheduler_remaining_work_units=0,
                     fair_scheduling_enabled=True,
                 )
+
+        async def _finalize_document(summary: VisualDocumentSummary) -> None:
+            await _reconcile_native_authority(summary)
+            await _publish_document_complete(summary)
+
+        async def _reconcile_native_authority(summary: VisualDocumentSummary) -> None:
+            # Persist visibility downgrades onto published native results so public
+            # APIs (including summary.page_decisions used by smoke) never keep
+            # suppressed native authority after Phase 4.
+            await on_visual_progress({"type": "visual_authority_reconciliation.started"})
+            downgraded_any = False
+            for page in native_pages.values():
+                phase4_visibility = (
+                    page.trust.visual_agreement_status.value == "evaluated_phase_4_visibility"
+                )
+                visibility_reason = (
+                    "native_text_not_visually_present" in page.trust.reason_codes
+                    or "native_text_visibility_uncertain" in page.trust.reason_codes
+                )
+                if (
+                    phase4_visibility
+                    and page.trust.visual_processing_required
+                    and not page.trust.native_result_available
+                    and (page.decision is NativePageDecision.REJECTED or visibility_reason)
+                ):
+                    self._native.republish_page(session.session_id, document.document_id, page)
+                    downgraded_any = True
+
+            if downgraded_any or summary.native_pages_downgraded > 0:
+                document.native_result_available = False
+                document.visual_processing_required = True
+                existing_summary = self._native.load_summary(
+                    session.session_id, document.document_id
+                )
+                if existing_summary is not None:
+                    by_number = {
+                        entry.page_number: entry for entry in existing_summary.page_decisions
+                    }
+                    for page_number, page in native_pages.items():
+                        by_number[page_number] = page.trust
+                    decisions = [by_number[n] for n in sorted(by_number)]
+                    accepted = sum(
+                        1 for d in decisions if d.decision is NativePageDecision.ACCEPTED
+                    )
+                    rejected = sum(
+                        1 for d in decisions if d.decision is NativePageDecision.REJECTED
+                    )
+                    absent = sum(1 for d in decisions if d.decision is NativePageDecision.ABSENT)
+                    errored = sum(1 for d in decisions if d.decision is NativePageDecision.ERROR)
+                    suppressed = sum(
+                        1
+                        for d in decisions
+                        if d.decision is NativePageDecision.SUPPRESSED_BY_DOCUMENT_ESCALATION
+                    )
+                    updated = existing_summary.model_copy(
+                        update={
+                            "document_source_policy": summary.document_source_policy
+                            or existing_summary.document_source_policy,
+                            "native_result_available": False,
+                            "visual_processing_required": True,
+                            "page_decisions": decisions,
+                            "pages_accepted": accepted,
+                            "pages_rejected": rejected,
+                            "pages_absent": absent,
+                            "pages_errored": errored,
+                            "pages_suppressed": suppressed,
+                        }
+                    )
+                    self._native.republish_summary(
+                        session.session_id, document.document_id, updated
+                    )
+            await on_visual_progress({"type": "visual_authority_reconciliation.completed"})
+
+        async def _publish_document_complete(summary: VisualDocumentSummary) -> None:
+            from backend.app.contracts.visual import VisualProcessingStatus
+
+            if summary.visual_processing_status is VisualProcessingStatus.VISUAL_PROCESSING_PARTIAL:
+                document.status = DocumentStatus.VISUAL_PROCESSING_PARTIAL
+                complete_event = ProgressEventType.DOCUMENT_VISUAL_PROCESSING_PARTIAL
+            elif (
+                summary.visual_processing_status is VisualProcessingStatus.VISUAL_PROCESSING_FAILED
+            ):
+                document.status = DocumentStatus.VISUAL_PROCESSING_FAILED
+                complete_event = ProgressEventType.DOCUMENT_VISUAL_PROCESSING_FAILED
+                failed_pages = [p for p in summary.page_summaries if p.error_code]
+                if failed_pages:
+                    first = failed_pages[0]
+                    document.failure_code = first.error_code
+                    document.failure_page_number = first.page_number
+                    document.failure_stage = (
+                        "paddle_ocr_pipeline"
+                        if first.error_code == "ocr_page_timeout"
+                        else _VISUAL_STAGE
+                    )
+                    document.failure_message = (
+                        "OCR page timed out"
+                        if first.error_code == "ocr_page_timeout"
+                        else "Printed visual OCR failed."
+                    )
+                    document.user_status_message = "Visual OCR could not complete."
+                    document.current_operation = document.failure_stage
+                document.attempt_number = snapshot.attempt_number
+                document.max_attempts = snapshot.max_attempts
+            else:
+                document.status = DocumentStatus.VISUAL_PROCESSING_COMPLETE
+                complete_event = ProgressEventType.DOCUMENT_VISUAL_PROCESSING_COMPLETED
+
+            snapshot.set_visual_complete()
+            snapshot.complete_open_operation(OperationStatus.COMPLETED)
+            document.progress_percent = _MAX_PROGRESS_PERCENT
+            document.visual_processing_performed = True
+            document.visual_result_available = summary.visual_result_available
+            document.visual_processing_required = summary.pages_selected > 0
+            if summary.document_source_policy is not None:
+                document.document_source_policy = summary.document_source_policy
+            document.user_status_message = summary.user_status_message or _PHASE4_COMPLETE_MESSAGE
+            document.pages_completed = summary.pages_completed
+            document.pages_total = summary.pages_selected or summary.page_count
+            document.major_phase = MajorPhase.VISUAL_OCR.value
+            document.major_phase_percent = 100.0
+            document.operation_status = OperationStatus.COMPLETED.value
+            document.current_operation = "visual_processing_complete"
+            _apply_snapshot()
+
+            await _safe_publish(
+                session.broker,
+                ProgressEventType.DOCUMENT_VISUAL_GROUPING_COMPLETED,
+                document_id=document.document_id,
+                job_id=job.job_id,
+                percent=_VISUAL_GROUP_PROGRESS,
+                overall_percent=snapshot.overall_percent,
+                major_phase=snapshot.major_phase.value,
+                major_phase_percent=snapshot.major_phase_percent,
+                operation=snapshot.operation,
+                operation_status=snapshot.operation_status.value,
+            )
+            await _safe_publish(
+                session.broker,
+                complete_event,
+                document_id=document.document_id,
+                job_id=job.job_id,
+                percent=_MAX_PROGRESS_PERCENT,
+                overall_percent=OVERALL_CAP,
+                major_phase=MajorPhase.VISUAL_OCR.value,
+                major_phase_percent=100.0,
+                document_status=document.status,
+                pages_completed=document.pages_completed,
+                pages_total=document.pages_total,
+                operation="visual_processing_complete",
+                operation_status=OperationStatus.COMPLETED.value,
+                message=document.user_status_message,
+            )
+
+        if not consumer_owned:
+            try:
+                whole_summary = await self._visual.process_document(
+                    session_id=session.session_id,
+                    document_id=document.document_id,
+                    job_id=job.job_id,
+                    canonical_pdf=canonical_pdf,
+                    canonical_pages=document.canonical_pages,
+                    native_summary=native_summary,  # type: ignore[arg-type]
+                    native_pages=native_pages,
+                    cancel_token=job.cancellation,
+                    on_progress=on_visual_progress,
+                )
+            except JobCancelledError:
+                raise
+            except VisualOcrError as exc:
+                await _handle_visual_error(exc)
+                return
+            await _finalize_document(whole_summary)
             return
 
-        # Persist visibility downgrades onto published native results so public
-        # APIs (including summary.page_decisions used by smoke) never keep
-        # suppressed native authority after Phase 4.
-        await on_visual_progress({"type": "visual_authority_reconciliation.started"})
-        downgraded_any = False
-        for page in native_pages.values():
-            phase4_visibility = (
-                page.trust.visual_agreement_status.value == "evaluated_phase_4_visibility"
+        try:
+            selection = await self._visual.route_and_select_heavy_pages(
+                session_id=session.session_id,
+                document_id=document.document_id,
+                job_id=job.job_id,
+                canonical_pdf=canonical_pdf,
+                canonical_pages=document.canonical_pages,
+                native_pages=native_pages,
+                cancel_token=job.cancellation,
+                on_progress=on_visual_progress,
             )
-            visibility_reason = (
-                "native_text_not_visually_present" in page.trust.reason_codes
-                or "native_text_visibility_uncertain" in page.trust.reason_codes
+        except JobCancelledError:
+            raise
+        except VisualOcrError as exc:
+            await _handle_visual_error(exc)
+            return
+
+        scheduler = self._scheduler
+        sched_doc = scheduler.get_document(document.document_id) if scheduler else None
+        if selection.selected_page_numbers and sched_doc is not None and sched_doc.remaining_work:
+            if sched_doc.checkpoint is not None:
+                sched_doc.checkpoint.summary_pending = True
+                sched_doc.checkpoint.reconciliation_pending = True
+            self._heavy_contexts[document.document_id] = HeavyDocumentContext(
+                session=session,
+                job=job,
+                document=document,
+                selection=selection,
+                canonical_pdf=canonical_pdf,
+                canonical_pages=list(document.canonical_pages),
+                native_summary=native_summary,
+                on_progress=on_visual_progress,
+                finalize=_finalize_document,
+                handle_error=_handle_visual_error,
             )
-            if (
-                phase4_visibility
-                and page.trust.visual_processing_required
-                and not page.trust.native_result_available
-                and (page.decision is NativePageDecision.REJECTED or visibility_reason)
-            ):
-                self._native.republish_page(session.session_id, document.document_id, page)
-                downgraded_any = True
+            log_stage(
+                component="visual",
+                operation="heavy_pages_deferred",
+                document_id=document.document_id,
+                job_id=job.job_id,
+                pages_selected=len(selection.selected_page_numbers),
+            )
+            self._heavy_wake.set()
+            return
 
-        if downgraded_any or summary.native_pages_downgraded > 0:
-            document.native_result_available = False
-            document.visual_processing_required = True
-            existing_summary = self._native.load_summary(session.session_id, document.document_id)
-            if existing_summary is not None:
-                by_number = {entry.page_number: entry for entry in existing_summary.page_decisions}
-                for page_number, page in native_pages.items():
-                    by_number[page_number] = page.trust
-                decisions = [by_number[n] for n in sorted(by_number)]
-                accepted = sum(1 for d in decisions if d.decision is NativePageDecision.ACCEPTED)
-                rejected = sum(1 for d in decisions if d.decision is NativePageDecision.REJECTED)
-                absent = sum(1 for d in decisions if d.decision is NativePageDecision.ABSENT)
-                errored = sum(1 for d in decisions if d.decision is NativePageDecision.ERROR)
-                suppressed = sum(
-                    1
-                    for d in decisions
-                    if d.decision is NativePageDecision.SUPPRESSED_BY_DOCUMENT_ESCALATION
-                )
-                updated = existing_summary.model_copy(
-                    update={
-                        "document_source_policy": summary.document_source_policy
-                        or existing_summary.document_source_policy,
-                        "native_result_available": False,
-                        "visual_processing_required": True,
-                        "page_decisions": decisions,
-                        "pages_accepted": accepted,
-                        "pages_rejected": rejected,
-                        "pages_absent": absent,
-                        "pages_errored": errored,
-                        "pages_suppressed": suppressed,
-                    }
-                )
-                self._native.republish_summary(session.session_id, document.document_id, updated)
-        await on_visual_progress({"type": "visual_authority_reconciliation.completed"})
-
-        from backend.app.contracts.visual import VisualProcessingStatus
-
-        if summary.visual_processing_status is VisualProcessingStatus.VISUAL_PROCESSING_PARTIAL:
-            document.status = DocumentStatus.VISUAL_PROCESSING_PARTIAL
-            complete_event = ProgressEventType.DOCUMENT_VISUAL_PROCESSING_PARTIAL
-        elif summary.visual_processing_status is VisualProcessingStatus.VISUAL_PROCESSING_FAILED:
-            document.status = DocumentStatus.VISUAL_PROCESSING_FAILED
-            complete_event = ProgressEventType.DOCUMENT_VISUAL_PROCESSING_FAILED
-            failed_pages = [p for p in summary.page_summaries if p.error_code]
-            if failed_pages:
-                first = failed_pages[0]
-                document.failure_code = first.error_code
-                document.failure_page_number = first.page_number
-                document.failure_stage = (
-                    "paddle_ocr_pipeline"
-                    if first.error_code == "ocr_page_timeout"
-                    else _VISUAL_STAGE
-                )
-                document.failure_message = (
-                    "OCR page timed out"
-                    if first.error_code == "ocr_page_timeout"
-                    else "Printed visual OCR failed."
-                )
-                document.user_status_message = "Visual OCR could not complete."
-                document.current_operation = document.failure_stage
-            document.attempt_number = snapshot.attempt_number
-            document.max_attempts = snapshot.max_attempts
-        else:
-            document.status = DocumentStatus.VISUAL_PROCESSING_COMPLETE
-            complete_event = ProgressEventType.DOCUMENT_VISUAL_PROCESSING_COMPLETED
-
-        snapshot.set_visual_complete()
-        snapshot.complete_open_operation(OperationStatus.COMPLETED)
-        document.progress_percent = _MAX_PROGRESS_PERCENT
-        document.visual_processing_performed = True
-        document.visual_result_available = summary.visual_result_available
-        document.visual_processing_required = summary.pages_selected > 0
-        if summary.document_source_policy is not None:
-            document.document_source_policy = summary.document_source_policy
-        document.user_status_message = summary.user_status_message or _PHASE4_COMPLETE_MESSAGE
-        document.pages_completed = summary.pages_completed
-        document.pages_total = summary.pages_selected or summary.page_count
-        document.major_phase = MajorPhase.VISUAL_OCR.value
-        document.major_phase_percent = 100.0
-        document.operation_status = OperationStatus.COMPLETED.value
-        document.current_operation = "visual_processing_complete"
-        _apply_snapshot()
-
-        await _safe_publish(
-            session.broker,
-            ProgressEventType.DOCUMENT_VISUAL_GROUPING_COMPLETED,
-            document_id=document.document_id,
-            job_id=job.job_id,
-            percent=_VISUAL_GROUP_PROGRESS,
-            overall_percent=snapshot.overall_percent,
-            major_phase=snapshot.major_phase.value,
-            major_phase_percent=snapshot.major_phase_percent,
-            operation=snapshot.operation,
-            operation_status=snapshot.operation_status.value,
-        )
-        await _safe_publish(
-            session.broker,
-            complete_event,
-            document_id=document.document_id,
-            job_id=job.job_id,
-            percent=_MAX_PROGRESS_PERCENT,
-            overall_percent=OVERALL_CAP,
-            major_phase=MajorPhase.VISUAL_OCR.value,
-            major_phase_percent=100.0,
-            document_status=document.status,
-            pages_completed=document.pages_completed,
-            pages_total=document.pages_total,
-            operation="visual_processing_complete",
-            operation_status=OperationStatus.COMPLETED.value,
-            message=document.user_status_message,
-        )
+        # Nothing heavy to schedule: finish this document in the cheap path.
+        try:
+            summary = await self._visual.finalize_visual_summary(
+                canonical_pages=document.canonical_pages,
+                native_summary=native_summary,  # type: ignore[arg-type]
+                selection=selection,
+                on_progress=on_visual_progress,
+            )
+        except JobCancelledError:
+            raise
+        except VisualOcrError as exc:
+            await _handle_visual_error(exc)
+            return
+        await _finalize_document(summary)
 
     async def _finalize_native_failed(
         self,

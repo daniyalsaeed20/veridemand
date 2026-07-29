@@ -124,6 +124,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     if settings.ocr_enabled and os.environ.get("VERIDEMAND_SKIP_OCR_WORKER") != "1":
         ocr_start_task = asyncio.create_task(_start_ocr_background(), name="ocr-worker-start")
     coordinator.start()
+    coordinator.start_heavy_consumer()
     cleanup_worker.start()
 
     app.state.file_store = file_store
@@ -153,6 +154,15 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
             with contextlib.suppress(asyncio.CancelledError):
                 await ocr_start_task
         await cleanup_worker.stop()
+        await coordinator.stop_heavy_consumer()
+        logging.getLogger("veridemand").info(
+            "scheduler_shutdown_complete",
+            extra={
+                "component": "lifespan",
+                "operation": "scheduler_shutdown",
+                **scheduler.snapshot(),
+            },
+        )
         scheduler.close()
         await coordinator.stop()
         await ocr_worker_manager.stop()
