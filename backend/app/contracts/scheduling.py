@@ -130,11 +130,14 @@ class PriorityChangeRequest(ApiModel):
 
 class PriorityChangeResponse(ApiModel):
     document_id: DocumentId
-    old_priority_class: PriorityClass
-    new_priority_class: PriorityClass
-    old_effective_priority: int
-    new_effective_priority: int
-    effective_next_turn: int = Field(ge=0)
+    action: str
+    success: bool
+    message: str
+    old_priority_class: PriorityClass | None = None
+    new_priority_class: PriorityClass | None = None
+    old_effective_priority: int | None = None
+    new_effective_priority: int | None = None
+    effective_next_turn: int | None = Field(default=None, ge=0)
 
 
 class WorkloadEstimate(ApiModel):

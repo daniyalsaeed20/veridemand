@@ -65,6 +65,11 @@ class QueueInfo(ApiModel):
         default=None, description="Document currently being admitted, if any."
     )
     active_job_id: JobId | None = Field(default=None, description="Active admission job, if any.")
+    scheduler_enabled: bool = Field(default=False)
+    scheduler_active_document_id: DocumentId | None = Field(default=None)
+    scheduler_ready_count: int = Field(default=0, ge=0)
+    scheduler_checkpointed_count: int = Field(default=0, ge=0)
+    scheduler_turn_number: int = Field(default=0, ge=0)
 
 
 class SessionSnapshot(ApiModel):

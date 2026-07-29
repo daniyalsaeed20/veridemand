@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter
 
-from backend.app.api.v1.dependencies import RegistryDep, SettingsDep
+from backend.app.api.v1.dependencies import RegistryDep, SchedulerDep, SettingsDep
 from backend.app.contracts.errors import ApiErrorEnvelope, ErrorCode
 from backend.app.contracts.jobs import JobListResponse, JobSummary
 from backend.app.observability.errors import ApiException
@@ -29,9 +29,10 @@ async def list_jobs(
     session_id: str,
     registry: RegistryDep,
     settings: SettingsDep,
+    scheduler: SchedulerDep,
 ) -> JobListResponse:
     session = await registry.get(session_id)
-    snapshot = build_session_snapshot(session, settings)
+    snapshot = build_session_snapshot(session, settings, scheduler=scheduler)
     return JobListResponse(jobs=snapshot.jobs)
 
 
@@ -46,9 +47,10 @@ async def get_job(
     job_id: str,
     registry: RegistryDep,
     settings: SettingsDep,
+    scheduler: SchedulerDep,
 ) -> JobSummary:
     session = await registry.get(session_id)
-    snapshot = build_session_snapshot(session, settings)
+    snapshot = build_session_snapshot(session, settings, scheduler=scheduler)
     for job in snapshot.jobs:
         if job.job_id == job_id:
             return job

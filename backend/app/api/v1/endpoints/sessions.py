@@ -8,7 +8,12 @@ from typing import Any
 from fastapi import APIRouter, Request, Response, status
 from sse_starlette.sse import EventSourceResponse
 
-from backend.app.api.v1.dependencies import CoordinatorDep, RegistryDep, SettingsDep
+from backend.app.api.v1.dependencies import (
+    CoordinatorDep,
+    RegistryDep,
+    SchedulerDep,
+    SettingsDep,
+)
 from backend.app.contracts.errors import ApiErrorEnvelope, ErrorCode
 from backend.app.contracts.processing import ProcessRequest, ProcessResponse
 from backend.app.contracts.sessions import SessionSnapshot
@@ -39,9 +44,10 @@ _SESSION_NOT_FOUND_RESPONSES: dict[int | str, dict[str, Any]] = {
 async def create_session(
     registry: RegistryDep,
     settings: SettingsDep,
+    scheduler: SchedulerDep,
 ) -> SessionSnapshot:
     session = await registry.create()
-    return build_session_snapshot(session, settings)
+    return build_session_snapshot(session, settings, scheduler=scheduler)
 
 
 @router.get(
@@ -54,13 +60,14 @@ async def get_session(
     session_id: str,
     registry: RegistryDep,
     settings: SettingsDep,
+    scheduler: SchedulerDep,
 ) -> SessionSnapshot:
     # Reading a snapshot is not user activity: the frontend polls it on every
     # server-sent event (including the expiry warning), so touching here would
     # continually reset the inactivity TTL and a watched session could never
     # expire. Only user-initiated mutations extend the deadline.
     session = await registry.get(session_id, touch=False)
-    return build_session_snapshot(session, settings)
+    return build_session_snapshot(session, settings, scheduler=scheduler)
 
 
 @router.delete(
@@ -90,6 +97,7 @@ async def process_documents(
     registry: RegistryDep,
     coordinator: CoordinatorDep,
     settings: SettingsDep,
+    scheduler: SchedulerDep,
     request: Request,
 ) -> ProcessResponse:
     session = await registry.get(session_id)
@@ -106,7 +114,7 @@ async def process_documents(
     return ProcessResponse(
         queued=queued,
         ignored=ignored,
-        session=build_session_snapshot(session, settings),
+        session=build_session_snapshot(session, settings, scheduler=scheduler),
     )
 
 

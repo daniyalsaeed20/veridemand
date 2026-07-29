@@ -18,6 +18,7 @@ from backend.app.contracts.sessions import (
     SessionSnapshot,
     SessionStatus,
 )
+from backend.app.processing.fair_scheduler import FairDocumentScheduler
 from backend.app.sessions.models import RuntimeSession
 from backend.app.settings.config import Settings
 from backend.app.uploads.formats import SUPPORTED_EXTENSIONS
@@ -68,7 +69,11 @@ def build_session_limits(settings: Settings) -> SessionLimits:
     )
 
 
-def build_session_snapshot(session: RuntimeSession, settings: Settings) -> SessionSnapshot:
+def build_session_snapshot(
+    session: RuntimeSession,
+    settings: Settings,
+    scheduler: FairDocumentScheduler | None = None,
+) -> SessionSnapshot:
     now_monotonic = time.monotonic()
 
     queue_positions = {
@@ -88,12 +93,24 @@ def build_session_snapshot(session: RuntimeSession, settings: Settings) -> Sessi
 
     running = [job for job in session.jobs.values() if job.status is JobStatus.RUNNING]
     active = running[0] if running else None
-    queue = QueueInfo(
-        pending=sum(1 for job in session.jobs.values() if job.status is JobStatus.QUEUED),
-        running=len(running),
-        active_document_id=active.document_id if active else None,
-        active_job_id=active.job_id if active else None,
-    )
+    queue_kwargs: dict[str, object] = {
+        "pending": sum(1 for job in session.jobs.values() if job.status is JobStatus.QUEUED),
+        "running": len(running),
+        "active_document_id": active.document_id if active else None,
+        "active_job_id": active.job_id if active else None,
+    }
+    if scheduler is not None:
+        snap = scheduler.snapshot()
+        queue_kwargs.update(
+            {
+                "scheduler_enabled": snap["scheduler_enabled"],
+                "scheduler_active_document_id": snap.get("active_document_id"),
+                "scheduler_ready_count": snap.get("ready_document_count", 0),
+                "scheduler_checkpointed_count": snap.get("checkpointed_document_count", 0),
+                "scheduler_turn_number": snap.get("turn_number", 0),
+            }
+        )
+    queue = QueueInfo(**queue_kwargs)
 
     return SessionSnapshot(
         session_id=session.session_id,

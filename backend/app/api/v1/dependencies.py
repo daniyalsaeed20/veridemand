@@ -11,6 +11,7 @@ from typing import Annotated
 from fastapi import Depends, Request
 
 from backend.app.processing.coordinator import ProcessingCoordinator
+from backend.app.processing.fair_scheduler import FairDocumentScheduler
 from backend.app.sessions.registry import SessionRegistry
 from backend.app.settings.config import Settings
 from backend.app.storage.file_store import FileStore
@@ -32,6 +33,11 @@ def get_coordinator(request: Request) -> ProcessingCoordinator:
     return coordinator
 
 
+def get_scheduler(request: Request) -> FairDocumentScheduler:
+    scheduler: FairDocumentScheduler = request.app.state.scheduler
+    return scheduler
+
+
 def get_upload_service(request: Request) -> UploadService:
     service: UploadService = request.app.state.upload_service
     return service
@@ -46,5 +52,6 @@ def get_file_store(request: Request) -> FileStore:
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 RegistryDep = Annotated[SessionRegistry, Depends(get_registry)]
 CoordinatorDep = Annotated[ProcessingCoordinator, Depends(get_coordinator)]
+SchedulerDep = Annotated[FairDocumentScheduler, Depends(get_scheduler)]
 UploadServiceDep = Annotated[UploadService, Depends(get_upload_service)]
 FileStoreDep = Annotated[FileStore, Depends(get_file_store)]
