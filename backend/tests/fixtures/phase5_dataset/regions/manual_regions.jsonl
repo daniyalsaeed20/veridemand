@@ -1,0 +1,5 @@
+{"bbox": {"x": 0.05, "y": 0.05, "width": 0.4, "height": 0.15}, "candidate_source": "manual_region"}
+{"bbox": {"x": 0.55, "y": 0.05, "width": 0.35, "height": 0.2}, "candidate_source": "heuristic_region"}
+{"bbox": {"x": 0.05, "y": 0.5, "width": 0.2, "height": 0.2}, "candidate_source": "noise_region"}
+{"bbox": {"x": 0.55, "y": 0.5, "width": 0.25, "height": 0.2}, "candidate_source": "synthetic_negative"}
+{"bbox": {"x": 0.05, "y": 0.05, "width": 0.4, "height": 0.15}, "candidate_source": "manual_region"}

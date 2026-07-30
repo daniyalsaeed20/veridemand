@@ -1,0 +1,46 @@
+{
+  "page_number": 1,
+  "status": "completed",
+  "source_mode": "visual_ocr",
+  "blocks": [
+    {
+      "id": "b1",
+      "page_number": 1,
+      "sequence_index": 0,
+      "line_ids": [
+        "l1"
+      ],
+      "polygon": {
+        "points": [
+          {
+            "x": 0.05,
+            "y": 0.05
+          },
+          {
+            "x": 0.45,
+            "y": 0.05
+          },
+          {
+            "x": 0.45,
+            "y": 0.2
+          },
+          {
+            "x": 0.05,
+            "y": 0.2
+          }
+        ]
+      },
+      "bbox": {
+        "x": 0.05,
+        "y": 0.05,
+        "width": 0.4,
+        "height": 0.15
+      },
+      "block_type": "text_unknown",
+      "reading_order_index": 0,
+      "reading_order_status": "provisional_phase_4"
+    }
+  ],
+  "lines": [],
+  "words": []
+}

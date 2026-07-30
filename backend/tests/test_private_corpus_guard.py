@@ -24,10 +24,18 @@ def test_allows_keep_and_readme_only_under_private() -> None:
         "fixtures/private/README.example.md",
         "fixtures/private/visual-ocr-manifest.local.json.example",
         "fixtures/private/phase4-final-batch.local.json.example",
+        "fixtures/private/phase5/README.example.md",
         "fixtures/synthetic/uploads/valid.png",
         "docs/example/README.md",
     ]
     assert violations(tracked) == []
+
+
+def test_rejects_phase5_private_crops() -> None:
+    violations = _load_violations()
+    problems = violations(["fixtures/private/phase5/crops/crop_x.png"])
+    assert len(problems) == 1
+    assert "fixtures/private/" in problems[0]
 
 
 def test_rejects_tracked_document_under_docs_example() -> None:
