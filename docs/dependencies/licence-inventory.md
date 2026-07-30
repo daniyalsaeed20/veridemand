@@ -19,6 +19,16 @@ runtime (not a Python/Node package).
 | psutil | 6.x–7.x | BSD-3-Clause | Optional `ocr` group — worker RSS monitoring |
 | opencv-contrib-python (transitive) | via paddleocr | Apache-2.0 | Not imported by VeriDemand app code |
 
+## Phase 5 direct dependency additions (Task 2)
+
+| Package | Version | Licence | Notes |
+|---|---|---|---|
+| onnxruntime | 1.28.0 | MIT | CPU inference for handwriting style classifier |
+| onnx | 1.22.0 | Apache-2.0 | `model-dev` group only — checker / fixture generation |
+
+Confirmed: no `openai`, `onnxruntime-gpu`, OpenCV app imports, or local HTR
+engines were added in Task 2.
+
 Confirmed: no handwriting/HTR classifiers, no ONNX Runtime vision packages, and
 no OpenAI / vision-LLM client libraries were added in Phase 4.
 

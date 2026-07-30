@@ -69,7 +69,18 @@ Notes from the consolidation run (opaque; no document text):
   scheduler fields until generated OpenAPI covers the same shape without a bridge.
 - `FAIR_OCR_PAGE_CHUNK_SIZE` remains a documented deprecated migrator (not silent).
 
+## Phase 5 Task 2 additions
+
+| Scan | Command | Date | Result summary | Disposition |
+|------|---------|------|----------------|-------------|
+| uv lock | `uv lock --check` | 2026-07-31 | Lock includes onnxruntime 1.28.0 + onnx 1.22.0 (model-dev) | Accept |
+| Boundary | `scripts/check_dependency_boundary.py` | 2026-07-31 | onnxruntime/onnx allowlisted narrowly; openai/cv2/HTR still forbidden | Accept |
+
+ONNX Runtime performs **local** CPU inference only. No Phase 5 provider network
+call. No compliance claim.
+
 ## Related
 
 - [phase-4-security-review.md](../security/phase-4-security-review.md)
+- [phase-5-security-review.md](../security/phase-5-security-review.md)
 - [licence-inventory.md](licence-inventory.md)

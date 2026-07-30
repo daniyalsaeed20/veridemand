@@ -25,6 +25,19 @@ vision-LLM clients, databases, or demand-letter packages.
 | pdfplumber | 0.11.9 | Native character/word extraction and geometry (no rendering) | 3 | https://github.com/jsvine/pdfplumber | MIT |
 | pypdfium2 | 5.12.1 | Canonical page rendering for visibility probes and printed OCR | 4 | https://github.com/pypdfium2-team/pypdfium2 | Apache-2.0 / BSD-3-Clause |
 | numpy | 2.x | Visibility-probe image math (no OpenCV in app code) | 4 | https://numpy.org/ | BSD-3-Clause |
+| onnxruntime | 1.28.0 | CPU ONNX inference for Phase 5 handwriting style classifier | 5 | https://onnxruntime.ai/ | MIT |
+
+### Phase 5 model-dev group (`[dependency-groups].model-dev`)
+
+Installed via `uv sync --group model-dev`. Used for ONNX structural checks and
+test-fixture generation. Not required for Phase 4 OCR. Not a training stack.
+
+| Package | Version | Purpose | Phase | Source | Licence |
+|---|---|---|---|---|---|
+| onnx | 1.22.0 | Model checker + fixture graph authoring | 5 | https://github.com/onnx/onnx | Apache-2.0 |
+
+Phase 5 does **not** add `openai`, `torch`, `torchvision`, `scikit-learn`, or
+`onnxruntime-gpu` in Task 2.
 
 ### Phase 4 OCR optional group (`[dependency-groups].ocr`)
 
