@@ -25,6 +25,7 @@ _ALLOWED_PRIVATE = frozenset(
         "fixtures/private/throughput-corpus.local.json.example",
         "fixtures/private/phase45-routing.local.json.example",
         "fixtures/private/phase4-final-batch.local.json.example",
+        "fixtures/private/phase5/README.example.md",
     }
 )
 

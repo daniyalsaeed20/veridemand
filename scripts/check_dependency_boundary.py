@@ -130,8 +130,11 @@ def main() -> int:
     skip_self = ROOT / "scripts" / "check_dependency_boundary.py"
     numpy_ok_prefixes = (
         "backend/app/extraction/handwriting_router/",
+        "backend/app/datasets/phase5/",
         "scripts/generate_handwriting_classifier_fixture.py",
         "scripts/verify_handwriting_classifier.py",
+        "scripts/phase5/",
+        "scripts/phase5_dataset_cli.py",
     )
     for root in scan_roots:
         if not root.is_dir():
