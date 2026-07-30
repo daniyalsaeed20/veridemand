@@ -1,7 +1,7 @@
 # Phase 5 implementation report
 
-**Status:** Phase 5 in progress — Task 2 foundation complete, routing not
-integrated
+**Status:** Phase 5 in progress — Task 3A dataset tooling complete; human
+labelling required; routing not integrated
 
 ## Completed
 
@@ -20,9 +20,18 @@ Evidence-based design freeze in `docs/phases/phase-5-preflight-audit.md`.
 - **Not** wired into Phase 4 OCR worker or repair recognition paths
 - **No** production ONNX model committed
 
+### Task 3A — Private crop dataset and labelling workflow
+
+- Schemas/tooling under `backend/app/datasets/phase5/` (no production OCR imports)
+- Private root `fixtures/private/phase5/` + privacy guard allowlist for README only
+- Crop export / manual import / verify CLIs; loopback labeler; resolve; group-aware split
+- ADR 0051; dataset + labelling ops docs; readiness aggregate with truthful zeros
+- Status: **DATASET TOOLING READY — HUMAN LABELLING REQUIRED**
+- **No** training, ONNX export, or live classifier wiring
+
 ## Not done (later tasks)
 
-- Human-labelled crops / training / ONNX export (Task 3)
+- Human labelling of private crops + training / ONNX export (Task 3B+)
 - Detect-first Paddle split + live routing integration (Task 4)
 - Threshold calibration / held-out evaluation / approved recall gate (Task 5)
 - Release tag (Task 6)
