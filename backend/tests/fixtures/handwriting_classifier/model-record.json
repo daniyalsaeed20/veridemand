@@ -1,0 +1,57 @@
+{
+  "schema_version": "phase5-handwriting-classifier-v1",
+  "model_family": "handwriting_style_cnn",
+  "model_version": "test-fixture-logits-v1",
+  "release_status": "test_fixture",
+  "training_code_version": "task2-fixture-generator",
+  "onnx_opset": 13,
+  "onnx_ir_version": 8,
+  "input_tensor_name": "input",
+  "input_dtype": "float32",
+  "input_shape": [
+    null,
+    3,
+    32,
+    32
+  ],
+  "dynamic_batch": true,
+  "colour_mode": "rgb",
+  "channel_order": "nchw",
+  "target_width": 32,
+  "target_height": 32,
+  "resize_policy": "letterbox",
+  "aspect_ratio_policy": "preserve",
+  "padding_policy": "constant",
+  "padding_value": 0.0,
+  "interpolation": "bilinear",
+  "normalisation_mean": [
+    0.5,
+    0.5,
+    0.5
+  ],
+  "normalisation_std": [
+    0.5,
+    0.5,
+    0.5
+  ],
+  "output_tensor_name": "logits",
+  "output_dtype": "float32",
+  "output_semantics": "logits",
+  "class_order": [
+    "printed",
+    "handwritten",
+    "non_text"
+  ],
+  "threshold_set_version": "provisional-unspecified",
+  "training_manifest_sha256": null,
+  "validation_manifest_sha256": null,
+  "held_out_manifest_sha256": null,
+  "model_sha256": "43d7d625b5421518585f0236e814d14301b02a5f5e7169d7d7274ade8f4d528f",
+  "pretrained_weight_provenance": "synthetic-identity-fixture",
+  "model_provenance": "scripts/generate_handwriting_classifier_fixture.py",
+  "licence": "Proprietary-test-fixture",
+  "created_at": "2026-07-30T20:51:38.679656+00:00",
+  "supported_onnxruntime_version": ">=1.19,<2",
+  "expected_execution_provider": "CPUExecutionProvider",
+  "notes": "Deterministic Task 2 unit-test fixture. Not for production."
+}

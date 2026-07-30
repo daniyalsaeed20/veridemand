@@ -68,9 +68,54 @@ def test_readiness_reports_future_dependencies_as_not_configured(client: TestCli
     # Default test settings disable OCR, so paddle remains optional/not configured.
     assert by_name["paddle_ocr"].required is False
     assert by_name["paddle_ocr"].status == "not_configured"
-    future = {c.name: c for c in model.checks if not c.required}
-    for name in ("handwriting_classifier", "openai_vision"):
-        assert future[name].status == "not_configured"
+    # Phase 5 router disabled by default.
+    assert by_name["handwriting_classifier"].required is False
+    assert by_name["handwriting_classifier"].status == "not_configured"
+    assert by_name["openai_vision"].required is False
+    assert by_name["openai_vision"].status == "not_configured"
+
+
+def test_handwriting_optional_broken_still_ready(tmp_path: Path) -> None:
+    settings = Settings(
+        temp_root=tmp_path / "temp",
+        ocr_enabled=False,
+        handwriting_router_enabled=True,
+        handwriting_classifier_required=False,
+        handwriting_classifier_path=tmp_path / "missing-classifier",
+    )
+    with TestClient(create_app(settings)) as client:
+        live = client.get("/health/live")
+        ready = client.get("/health/ready")
+    assert live.status_code == 200
+    assert ready.status_code == 200
+    model = ReadinessResponse.model_validate(ready.json())
+    hw = next(c for c in model.checks if c.name == "handwriting_classifier")
+    assert hw.required is False
+    assert hw.status == "fail"
+    assert "temp" not in (hw.message or "").lower() or "missing" in (hw.message or "").lower()
+    # Absolute Windows/Unix paths must not appear.
+    assert ":\\Users\\" not in (hw.message or "")
+    assert "/home/" not in (hw.message or "")
+
+
+def test_handwriting_required_broken_not_ready(tmp_path: Path) -> None:
+    settings = Settings(
+        temp_root=tmp_path / "temp",
+        ocr_enabled=False,
+        handwriting_router_enabled=True,
+        handwriting_classifier_required=True,
+        handwriting_classifier_path=tmp_path / "missing-classifier",
+    )
+    with TestClient(create_app(settings)) as client:
+        live = client.get("/health/live")
+        ready = client.get("/health/ready")
+    assert live.status_code == 200
+    assert ready.status_code == 503
+    body = ready.json()
+    assert body["status"] == "not_ready"
+    hw = next(c for c in body["checks"] if c["name"] == "handwriting_classifier")
+    assert hw["required"] is True
+    assert hw["status"] == "fail"
 
 
 def test_readiness_503_when_temp_not_writable(tmp_path: Path) -> None:
