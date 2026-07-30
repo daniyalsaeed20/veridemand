@@ -274,9 +274,80 @@ export const zFinalRouteHistogram = z.object({
 /**
  * HandwritingAssessment
  *
- * Handwriting is not assessed until Phase 5.
+ * Legacy Phase 4 placeholder until Task 4 fills lifecycle/outcome evidence.
+ *
+ * Kept for compatibility with existing stamp sites and generated clients.
+ * Do not use this enum for new classification semantics.
  */
 export const zHandwritingAssessment = z.enum(['pending_phase_5']);
+
+/**
+ * HandwritingClassificationLifecycle
+ *
+ * Whether handwriting classification was performed for a region or page.
+ */
+export const zHandwritingClassificationLifecycle = z.enum([
+    'not_applicable',
+    'not_run',
+    'classified',
+    'unavailable',
+    'failed'
+]);
+
+/**
+ * HandwritingClassificationOutcome
+ *
+ * Public Phase 5 routing outcome (``uncertain`` is runtime abstention).
+ */
+export const zHandwritingClassificationOutcome = z.enum([
+    'printed',
+    'handwritten',
+    'uncertain',
+    'non_text'
+]);
+
+/**
+ * HandwritingDecisionReason
+ *
+ * Constrained decision codes for classification / safe abstention.
+ */
+export const zHandwritingDecisionReason = z.enum([
+    'printed_threshold_met',
+    'handwriting_threshold_met',
+    'non_text_threshold_met',
+    'low_top_probability',
+    'low_class_margin',
+    'threshold_conflict',
+    'model_unavailable',
+    'model_verification_failed',
+    'invalid_input',
+    'invalid_output',
+    'inference_failed',
+    'router_disabled',
+    'classification_not_applicable'
+]);
+
+/**
+ * HandwritingInferenceSource
+ *
+ * Whether the outcome came from model inference or safety abstention.
+ */
+export const zHandwritingInferenceSource = z.enum(['model_inference', 'safety_abstention']);
+
+/**
+ * HandwritingClassificationEvidence
+ *
+ * Privacy-safe handwriting classification evidence (no paths, crops, or text).
+ */
+export const zHandwritingClassificationEvidence = z.object({
+    decision_reason: zHandwritingDecisionReason.nullish(),
+    inference_source: zHandwritingInferenceSource.nullish(),
+    lifecycle: zHandwritingClassificationLifecycle,
+    model_version: z.string().nullish(),
+    outcome: zHandwritingClassificationOutcome.nullish(),
+    region_id: z.string().nullish(),
+    threshold_set_version: z.string().nullish()
+});
 
 /**
  * IgnoredDocument
@@ -1281,6 +1352,7 @@ export const zPrintedOcrLine = z.object({
     detection_score: z.number().gte(0).lte(1),
     geometry: zGeometry.nullish(),
     handwriting_assessment: zHandwritingAssessment.optional().default('pending_phase_5'),
+    handwriting_classification: zHandwritingClassificationEvidence.nullish(),
     id: z.string(),
     normalised_text: z.string().min(1),
     ocr_pass: zOcrPassKind.nullish(),
@@ -1927,6 +1999,7 @@ export const zPrintedOcrWord = z.object({
     geometry_precision: z.string().optional().default('detector'),
     geometry_source: zWordGeometrySource,
     handwriting_assessment: zHandwritingAssessment.optional().default('pending_phase_5'),
+    handwriting_classification: zHandwritingClassificationEvidence.nullish(),
     id: z.string(),
     line_id: z.string(),
     normalised_text: z.string().min(1),
@@ -1972,6 +2045,7 @@ export const zVisualPageResult = z.object({
     glyph_materiality: z.string().nullish(),
     grouping_duration_seconds: z.number().gte(0).nullish(),
     handwriting_assessment: zHandwritingAssessment.optional().default('pending_phase_5'),
+    handwriting_classification: zHandwritingClassificationEvidence.nullish(),
     line_count: z.int().gte(0).optional().default(0),
     lines: z.array(zPrintedOcrLine).optional(),
     low_confidence_line_count: z.int().gte(0).optional().default(0),

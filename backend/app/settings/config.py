@@ -127,9 +127,15 @@ class Settings(BaseSettings):
     # Trust and routing thresholds (Phase 3+).
     native_trust_threshold: float = Field(default=0.75, ge=0.0, le=1.0)
     document_visual_authority_failure_ratio: float = Field(default=0.30, ge=0.0, le=1.0)
+    # Phase 5 classifier thresholds (provisional defaults — not calibrated).
     printed_threshold: float = Field(default=0.85, ge=0.0, le=1.0)
     handwriting_threshold: float = Field(default=0.70, ge=0.0, le=1.0)
-    uncertain_to_llm: bool = True
+    non_text_threshold: float = Field(default=0.80, ge=0.0, le=1.0)
+    minimum_class_margin: float = Field(default=0.10, ge=0.0, le=1.0)
+    # Phase 5 reserves uncertain regions for a future vision provider (no LLM call).
+    uncertain_reserved_for_vision: bool = True
+    # Deprecated alias retained for env migration; prefer uncertain_reserved_for_vision.
+    uncertain_to_llm: bool | None = Field(default=None, exclude=True)
 
     # Native extraction worker (Phase 3).
     native_extraction_timeout_seconds: float = Field(default=600.0, gt=0)
@@ -291,8 +297,11 @@ class Settings(BaseSettings):
     ocr_fast_pass_min_average_confidence: float = Field(default=0.55, ge=0.0, le=1.0)
     ocr_fast_pass_min_coverage: float = Field(default=0.02, ge=0.0, le=1.0)
 
-    # Handwriting classifier (Phase 5 — path reserved only).
-    handwriting_classifier_path: Path = Path("./models/handwriting_classifier/model.onnx")
+    # Handwriting classifier (Phase 5 foundation — disabled by default).
+    handwriting_router_enabled: bool = False
+    handwriting_classifier_required: bool = False
+    handwriting_classifier_path: Path = Path("./models/handwriting_classifier")
+    handwriting_classifier_batch_size: int = Field(default=16, ge=1, le=256)
 
     # Vision provider (future). The key is never exposed in repr/logs/responses.
     openai_api_key: SecretStr = SecretStr("")
@@ -306,6 +315,40 @@ class Settings(BaseSettings):
     # Logging.
     log_level: str = "INFO"
     log_document_text: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_uncertain_to_llm(cls, data: Any) -> Any:
+        """Map deprecated UNCERTAIN_TO_LLM → uncertain_reserved_for_vision."""
+
+        values: dict[str, Any] = dict(data) if isinstance(data, dict) else {}
+        old_from_data = values.pop("uncertain_to_llm", None)
+        if old_from_data is None:
+            old_from_data = values.pop("UNCERTAIN_TO_LLM", None)
+        old_from_env = os.environ.get("UNCERTAIN_TO_LLM")
+        old_value = old_from_data if old_from_data is not None else old_from_env
+
+        has_new = (
+            "uncertain_reserved_for_vision" in values
+            or "UNCERTAIN_RESERVED_FOR_VISION" in values
+            or os.environ.get("UNCERTAIN_RESERVED_FOR_VISION") is not None
+        )
+        if old_value is not None:
+            _logger.warning(
+                "UNCERTAIN_TO_LLM is deprecated; use UNCERTAIN_RESERVED_FOR_VISION. "
+                "Phase 5 does not call an LLM."
+            )
+            if not has_new:
+                if isinstance(old_value, str):
+                    values["uncertain_reserved_for_vision"] = old_value.strip().lower() in {
+                        "1",
+                        "true",
+                        "yes",
+                        "on",
+                    }
+                else:
+                    values["uncertain_reserved_for_vision"] = bool(old_value)
+        return values
 
     @model_validator(mode="before")
     @classmethod
@@ -357,6 +400,14 @@ class Settings(BaseSettings):
         if level not in _VALID_LOG_LEVELS:
             raise ValueError(f"LOG_LEVEL must be one of {sorted(_VALID_LOG_LEVELS)}.")
         return level
+
+    @model_validator(mode="after")
+    def _validate_handwriting_router_settings(self) -> Settings:
+        if self.handwriting_classifier_required and not self.handwriting_router_enabled:
+            raise ValueError(
+                "HANDWRITING_CLASSIFIER_REQUIRED=true requires HANDWRITING_ROUTER_ENABLED=true."
+            )
+        return self
 
     @model_validator(mode="after")
     def _resolve_ocr_model_root(self) -> Settings:

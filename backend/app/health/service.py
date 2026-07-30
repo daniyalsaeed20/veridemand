@@ -1,8 +1,10 @@
-"""Health service: evaluates Phase 0-4 readiness checks.
+"""Health service: evaluates Phase 0-5 readiness checks.
 
 Phase 4 promotes PaddleOCR to a required check when OCR_ENABLED is true, and
-always requires pypdfium2 for page rendering. Handwriting and OpenAI remain
-optional ``not_configured`` checks.
+always requires pypdfium2 for page rendering. Phase 5 handwriting classifier
+readiness follows ``handwriting_router_enabled`` /
+``handwriting_classifier_required``. OpenAI remains an optional
+``not_configured`` stub (Phase 6).
 """
 
 from __future__ import annotations
@@ -19,10 +21,7 @@ _PROBE_FILENAME = ".readiness_probe"
 _SESSION_PROBE_DIRNAME = ".workspace_probe"
 _CANONICAL_PROBE_DIRNAME = ".canonical_probe"
 
-_FUTURE_OPTIONAL_CHECKS: tuple[str, ...] = (
-    "handwriting_classifier",
-    "openai_vision",
-)
+_FUTURE_OPTIONAL_CHECKS: tuple[str, ...] = ("openai_vision",)
 
 
 class _Runnable(Protocol):
@@ -391,6 +390,54 @@ class HealthService:
             for name in _FUTURE_OPTIONAL_CHECKS
         ]
 
+    def _check_handwriting_classifier(self) -> DependencyCheck:
+        """Report handwriting classifier readiness without leaking filesystem paths."""
+
+        if not self._settings.handwriting_router_enabled:
+            return DependencyCheck(
+                name="handwriting_classifier",
+                status=CheckState.NOT_CONFIGURED,
+                required=False,
+                message="Handwriting router disabled.",
+            )
+
+        required = bool(self._settings.handwriting_classifier_required)
+        # Lazy import keeps optional tooling boundaries clear for health.
+        from backend.app.extraction.handwriting_router.service import (
+            HandwritingClassifierService,
+        )
+        from backend.app.extraction.handwriting_router.verifier import (
+            VerificationFailureCode,
+        )
+
+        service = HandwritingClassifierService(self._settings)
+        result = service.verify_package(allow_test_fixture=False)
+        if result.ready:
+            version = result.model_version or "unknown"
+            thr = result.threshold_set_version or "unknown"
+            status_label = (
+                result.package_status.value if result.package_status is not None else "unknown"
+            )
+            return DependencyCheck(
+                name="handwriting_classifier",
+                status=CheckState.PASS,
+                required=required,
+                message=(
+                    f"Classifier ready (model={version}, thresholds={thr}, "
+                    f"status={status_label}, provider={result.runtime_provider})."
+                ),
+            )
+
+        code = result.failure_code or VerificationFailureCode.PACKAGE_DIR_MISSING
+        # Map failure codes to short non-sensitive messages (no absolute paths).
+        detail = result.message
+        return DependencyCheck(
+            name="handwriting_classifier",
+            status=CheckState.FAIL,
+            required=required,
+            message=f"Classifier not ready ({code.value}): {detail}",
+        )
+
     def _check_pypdfium2(self) -> DependencyCheck:
         if self._cached_pypdfium2 is not None:
             return self._cached_pypdfium2
@@ -566,6 +613,7 @@ class HealthService:
             self._check_native_policy(),
             self._check_native_worker(),
             self._check_paddle_ocr(),
+            self._check_handwriting_classifier(),
         ]
         checks.extend(self._future_checks())
         return checks

@@ -22,6 +22,7 @@ dependencies = [
   "pdfplumber>=0.11.9",
   "pypdfium2==5.12.1",
   "numpy>=2.0,<3.0",
+  "onnxruntime>=1.19,<2.0",
 ]
 
 [dependency-groups]
@@ -38,6 +39,9 @@ ocr = [
   "pypdfium2==5.12.1",
   "numpy>=2.0,<3.0",
   "psutil>=6.0,<8.0",
+]
+model-dev = [
+  "onnx>=1.16,<2.0",
 ]
 
 [build-system]
@@ -84,7 +88,7 @@ disallow_untyped_defs = false
 # Third-party upload-validation libraries without type stubs (used only for
 # structural validation). Their imports are treated as untyped.
 [[tool.mypy.overrides]]
-module = ["defusedxml.*", "olefile", "olefile.*", "oletools.*", "reportlab.*", "pdfplumber.*", "pdfminer.*", "pypdfium2.*", "paddleocr.*", "paddle.*", "numpy.*", "psutil.*", "PIL.*"]
+module = ["defusedxml.*", "olefile", "olefile.*", "oletools.*", "reportlab.*", "pdfplumber.*", "pdfminer.*", "pypdfium2.*", "paddleocr.*", "paddle.*", "numpy.*", "psutil.*", "PIL.*", "onnxruntime", "onnxruntime.*", "onnx", "onnx.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

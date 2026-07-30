@@ -1,7 +1,10 @@
-"""Printed OCR line/word contracts (Phase 4).
+"""Printed OCR line/word contracts (Phase 4 + Phase 5 classification evidence).
 
 OCR text is NFC-normalised only. No spelling correction, translation, or LLM.
-Handwriting assessment remains ``pending_phase_5``. Reading order is provisional.
+Phase 4 stamp sites still set ``handwriting_assessment = pending_phase_5`` until
+Task 4 wires live classification. Phase 5 adds separate lifecycle / outcome /
+decision-reason evidence fields (not a single overloaded enum).
+Reading order is provisional.
 """
 
 from __future__ import annotations
@@ -31,9 +34,75 @@ class OcrSourceMode(StrEnum):
 
 
 class HandwritingAssessment(StrEnum):
-    """Handwriting is not assessed until Phase 5."""
+    """Legacy Phase 4 placeholder until Task 4 fills lifecycle/outcome evidence.
+
+    Kept for compatibility with existing stamp sites and generated clients.
+    Do not use this enum for new classification semantics.
+    """
 
     PENDING_PHASE_5 = "pending_phase_5"
+
+
+class HandwritingClassificationLifecycle(StrEnum):
+    """Whether handwriting classification was performed for a region or page."""
+
+    NOT_APPLICABLE = "not_applicable"
+    NOT_RUN = "not_run"
+    CLASSIFIED = "classified"
+    UNAVAILABLE = "unavailable"
+    FAILED = "failed"
+
+
+class HandwritingClassificationOutcome(StrEnum):
+    """Public Phase 5 routing outcome (``uncertain`` is runtime abstention)."""
+
+    PRINTED = "printed"
+    HANDWRITTEN = "handwritten"
+    UNCERTAIN = "uncertain"
+    NON_TEXT = "non_text"
+
+
+class HandwritingDecisionReason(StrEnum):
+    """Constrained decision codes for classification / safe abstention."""
+
+    PRINTED_THRESHOLD_MET = "printed_threshold_met"
+    HANDWRITING_THRESHOLD_MET = "handwriting_threshold_met"
+    NON_TEXT_THRESHOLD_MET = "non_text_threshold_met"
+    LOW_TOP_PROBABILITY = "low_top_probability"
+    LOW_CLASS_MARGIN = "low_class_margin"
+    THRESHOLD_CONFLICT = "threshold_conflict"
+    MODEL_UNAVAILABLE = "model_unavailable"
+    MODEL_VERIFICATION_FAILED = "model_verification_failed"
+    INVALID_INPUT = "invalid_input"
+    INVALID_OUTPUT = "invalid_output"
+    INFERENCE_FAILED = "inference_failed"
+    ROUTER_DISABLED = "router_disabled"
+    CLASSIFICATION_NOT_APPLICABLE = "classification_not_applicable"
+
+
+class HandwritingInferenceSource(StrEnum):
+    """Whether the outcome came from model inference or safety abstention."""
+
+    MODEL_INFERENCE = "model_inference"
+    SAFETY_ABSTENTION = "safety_abstention"
+
+
+class HandwritingClassificationEvidence(ApiModel):
+    """Privacy-safe handwriting classification evidence (no paths, crops, or text)."""
+
+    lifecycle: HandwritingClassificationLifecycle
+    outcome: HandwritingClassificationOutcome | None = Field(
+        default=None,
+        description="Null when lifecycle is not_applicable or not_run.",
+    )
+    decision_reason: HandwritingDecisionReason | None = None
+    inference_source: HandwritingInferenceSource | None = None
+    model_version: str | None = None
+    threshold_set_version: str | None = None
+    region_id: str | None = Field(
+        default=None,
+        description="Existing detector-owned region id when applicable.",
+    )
 
 
 class OcrRecognitionStatus(StrEnum):
@@ -168,6 +237,13 @@ class PrintedOcrLine(ApiModel):
     recognition_method: OcrRecognitionMethod = OcrRecognitionMethod.PADDLEOCR_PRINTED
     source_mode: OcrSourceMode = OcrSourceMode.VISUAL_AUTHORITY
     handwriting_assessment: HandwritingAssessment = HandwritingAssessment.PENDING_PHASE_5
+    handwriting_classification: HandwritingClassificationEvidence | None = Field(
+        default=None,
+        description=(
+            "Phase 5 lifecycle/outcome evidence. Optional until Task 4 wires live "
+            "classification; Phase 4 stamp sites leave this unset."
+        ),
+    )
     ocr_pass: OcrPassKind | None = Field(
         default=None,
         description="Detector-side pass that produced this line (primary or fallback).",
@@ -206,6 +282,13 @@ class PrintedOcrWord(ApiModel):
     recognition_method: OcrRecognitionMethod = OcrRecognitionMethod.PADDLEOCR_PRINTED
     recognition_status: OcrRecognitionStatus
     handwriting_assessment: HandwritingAssessment = HandwritingAssessment.PENDING_PHASE_5
+    handwriting_classification: HandwritingClassificationEvidence | None = Field(
+        default=None,
+        description=(
+            "Phase 5 lifecycle/outcome evidence. Optional until Task 4 wires live "
+            "classification; Phase 4 stamp sites leave this unset."
+        ),
+    )
     source_mode: OcrSourceMode = OcrSourceMode.VISUAL_AUTHORITY
     ocr_pass: OcrPassKind | None = Field(
         default=None,

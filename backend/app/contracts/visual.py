@@ -18,6 +18,7 @@ from backend.app.contracts.identifiers import DocumentId
 from backend.app.contracts.native import DocumentSourcePolicy, SourceMode
 from backend.app.contracts.ocr import (
     HandwritingAssessment,
+    HandwritingClassificationEvidence,
     OcrPassComparison,
     OcrPassKind,
     OcrQualityStatus,
@@ -288,6 +289,13 @@ class VisualPageResult(ApiModel):
     visual_processing_attempted: bool = False
     no_text_reason_code: str | None = None
     handwriting_assessment: HandwritingAssessment = HandwritingAssessment.PENDING_PHASE_5
+    handwriting_classification: HandwritingClassificationEvidence | None = Field(
+        default=None,
+        description=(
+            "Phase 5 page-level classification evidence. Optional until Task 4; "
+            "Phase 4 stamp sites leave this unset."
+        ),
+    )
     warnings: list[VisualWarning] = Field(default_factory=list)
     quarantined_glyph_count: int = Field(default=0, ge=0)
     quarantined_region_count: int = Field(default=0, ge=0)

@@ -2490,11 +2490,142 @@
         "type": "object"
       },
       "HandwritingAssessment": {
-        "description": "Handwriting is not assessed until Phase 5.",
+        "description": "Legacy Phase 4 placeholder until Task 4 fills lifecycle/outcome evidence.\n\nKept for compatibility with existing stamp sites and generated clients.\nDo not use this enum for new classification semantics.",
         "enum": [
           "pending_phase_5"
         ],
         "title": "HandwritingAssessment",
+        "type": "string"
+      },
+      "HandwritingClassificationEvidence": {
+        "additionalProperties": false,
+        "description": "Privacy-safe handwriting classification evidence (no paths, crops, or text).",
+        "properties": {
+          "decision_reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HandwritingDecisionReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inference_source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HandwritingInferenceSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lifecycle": {
+            "$ref": "#/components/schemas/HandwritingClassificationLifecycle"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HandwritingClassificationOutcome"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when lifecycle is not_applicable or not_run."
+          },
+          "region_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Existing detector-owned region id when applicable.",
+            "title": "Region Id"
+          },
+          "threshold_set_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threshold Set Version"
+          }
+        },
+        "required": [
+          "lifecycle"
+        ],
+        "title": "HandwritingClassificationEvidence",
+        "type": "object"
+      },
+      "HandwritingClassificationLifecycle": {
+        "description": "Whether handwriting classification was performed for a region or page.",
+        "enum": [
+          "not_applicable",
+          "not_run",
+          "classified",
+          "unavailable",
+          "failed"
+        ],
+        "title": "HandwritingClassificationLifecycle",
+        "type": "string"
+      },
+      "HandwritingClassificationOutcome": {
+        "description": "Public Phase 5 routing outcome (``uncertain`` is runtime abstention).",
+        "enum": [
+          "printed",
+          "handwritten",
+          "uncertain",
+          "non_text"
+        ],
+        "title": "HandwritingClassificationOutcome",
+        "type": "string"
+      },
+      "HandwritingDecisionReason": {
+        "description": "Constrained decision codes for classification / safe abstention.",
+        "enum": [
+          "printed_threshold_met",
+          "handwriting_threshold_met",
+          "non_text_threshold_met",
+          "low_top_probability",
+          "low_class_margin",
+          "threshold_conflict",
+          "model_unavailable",
+          "model_verification_failed",
+          "invalid_input",
+          "invalid_output",
+          "inference_failed",
+          "router_disabled",
+          "classification_not_applicable"
+        ],
+        "title": "HandwritingDecisionReason",
+        "type": "string"
+      },
+      "HandwritingInferenceSource": {
+        "description": "Whether the outcome came from model inference or safety abstention.",
+        "enum": [
+          "model_inference",
+          "safety_abstention"
+        ],
+        "title": "HandwritingInferenceSource",
         "type": "string"
       },
       "IgnoredDocument": {
@@ -4455,6 +4586,17 @@
             "$ref": "#/components/schemas/HandwritingAssessment",
             "default": "pending_phase_5"
           },
+          "handwriting_classification": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HandwritingClassificationEvidence"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 5 lifecycle/outcome evidence. Optional until Task 4 wires live classification; Phase 4 stamp sites leave this unset."
+          },
           "id": {
             "description": "Deterministic id, e.g. ocrline_p0001_000001.",
             "title": "Id",
@@ -4851,6 +4993,17 @@
           "handwriting_assessment": {
             "$ref": "#/components/schemas/HandwritingAssessment",
             "default": "pending_phase_5"
+          },
+          "handwriting_classification": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HandwritingClassificationEvidence"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 5 lifecycle/outcome evidence. Optional until Task 4 wires live classification; Phase 4 stamp sites leave this unset."
           },
           "id": {
             "description": "Deterministic id, e.g. ocrword_p0001_000001.",
@@ -8066,6 +8219,17 @@
           "handwriting_assessment": {
             "$ref": "#/components/schemas/HandwritingAssessment",
             "default": "pending_phase_5"
+          },
+          "handwriting_classification": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HandwritingClassificationEvidence"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 5 page-level classification evidence. Optional until Task 4; Phase 4 stamp sites leave this unset."
           },
           "line_count": {
             "default": 0,

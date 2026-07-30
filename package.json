@@ -33,6 +33,8 @@
     "smoke:corpus:phase4": "uv run python scripts/run_smoke_corpus.py --mode page-by-page --phase4-subset",
     "models:ocr:bootstrap": "uv run --group ocr python scripts/bootstrap_ocr_models.py",
     "models:ocr:verify": "uv run --group ocr python scripts/verify_ocr_runtime.py",
+    "models:handwriting:fixture": "uv run --group model-dev python scripts/generate_handwriting_classifier_fixture.py",
+    "models:handwriting:verify": "uv run python scripts/verify_handwriting_classifier.py",
     "test:ocr": "uv run --group ocr pytest backend/tests -k ocr",
     "test:ocr:integration": "uv run --group ocr pytest backend/tests/test_ocr_integration.py -v",
     "evaluate:ocr": "uv run --group ocr python scripts/evaluate_printed_ocr.py",

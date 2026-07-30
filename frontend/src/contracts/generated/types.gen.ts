@@ -1291,9 +1291,69 @@ export type HttpValidationError = {
 /**
  * HandwritingAssessment
  *
- * Handwriting is not assessed until Phase 5.
+ * Legacy Phase 4 placeholder until Task 4 fills lifecycle/outcome evidence.
+ *
+ * Kept for compatibility with existing stamp sites and generated clients.
+ * Do not use this enum for new classification semantics.
  */
 export type HandwritingAssessment = 'pending_phase_5';
+
+/**
+ * HandwritingClassificationEvidence
+ *
+ * Privacy-safe handwriting classification evidence (no paths, crops, or text).
+ */
+export type HandwritingClassificationEvidence = {
+    decision_reason?: HandwritingDecisionReason | null;
+    inference_source?: HandwritingInferenceSource | null;
+    lifecycle: HandwritingClassificationLifecycle;
+    /**
+     * Model Version
+     */
+    model_version?: string | null;
+    /**
+     * Null when lifecycle is not_applicable or not_run.
+     */
+    outcome?: HandwritingClassificationOutcome | null;
+    /**
+     * Region Id
+     *
+     * Existing detector-owned region id when applicable.
+     */
+    region_id?: string | null;
+    /**
+     * Threshold Set Version
+     */
+    threshold_set_version?: string | null;
+};
+
+/**
+ * HandwritingClassificationLifecycle
+ *
+ * Whether handwriting classification was performed for a region or page.
+ */
+export type HandwritingClassificationLifecycle = 'not_applicable' | 'not_run' | 'classified' | 'unavailable' | 'failed';
+
+/**
+ * HandwritingClassificationOutcome
+ *
+ * Public Phase 5 routing outcome (``uncertain`` is runtime abstention).
+ */
+export type HandwritingClassificationOutcome = 'printed' | 'handwritten' | 'uncertain' | 'non_text';
+
+/**
+ * HandwritingDecisionReason
+ *
+ * Constrained decision codes for classification / safe abstention.
+ */
+export type HandwritingDecisionReason = 'printed_threshold_met' | 'handwriting_threshold_met' | 'non_text_threshold_met' | 'low_top_probability' | 'low_class_margin' | 'threshold_conflict' | 'model_unavailable' | 'model_verification_failed' | 'invalid_input' | 'invalid_output' | 'inference_failed' | 'router_disabled' | 'classification_not_applicable';
+
+/**
+ * HandwritingInferenceSource
+ *
+ * Whether the outcome came from model inference or safety abstention.
+ */
+export type HandwritingInferenceSource = 'model_inference' | 'safety_abstention';
 
 /**
  * IgnoredDocument
@@ -2597,6 +2657,10 @@ export type PrintedOcrLine = {
     geometry?: Geometry | null;
     handwriting_assessment?: HandwritingAssessment;
     /**
+     * Phase 5 lifecycle/outcome evidence. Optional until Task 4 wires live classification; Phase 4 stamp sites leave this unset.
+     */
+    handwriting_classification?: HandwritingClassificationEvidence | null;
+    /**
      * Id
      *
      * Deterministic id, e.g. ocrline_p0001_000001.
@@ -2824,6 +2888,10 @@ export type PrintedOcrWord = {
     geometry_precision?: string;
     geometry_source: WordGeometrySource;
     handwriting_assessment?: HandwritingAssessment;
+    /**
+     * Phase 5 lifecycle/outcome evidence. Optional until Task 4 wires live classification; Phase 4 stamp sites leave this unset.
+     */
+    handwriting_classification?: HandwritingClassificationEvidence | null;
     /**
      * Id
      *
@@ -4388,6 +4456,10 @@ export type VisualPageResult = {
      */
     grouping_duration_seconds?: number | null;
     handwriting_assessment?: HandwritingAssessment;
+    /**
+     * Phase 5 page-level classification evidence. Optional until Task 4; Phase 4 stamp sites leave this unset.
+     */
+    handwriting_classification?: HandwritingClassificationEvidence | null;
     /**
      * Line Count
      */
