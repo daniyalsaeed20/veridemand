@@ -10,9 +10,32 @@ CROP_PADDING_VERSION: Final = "phase5-crop-pad-v1"
 REVIEW_POLICY_VERSION: Final = "phase5-review-policy-v1"
 SPLIT_ALGORITHM_VERSION: Final = "phase5-group-split-v1"
 DUPLICATE_POLICY_VERSION: Final = "phase5-duplicate-policy-v1"
+QUEUE_ALGORITHM_VERSION: Final = "phase5-primary-queue-v1"
+REVIEW_QUEUE_VERSION: Final = "phase5-primary-review-queue-v1"
 
 # Fixed padding: 8% of the longer side of the source region bbox (normalised).
 CROP_PADDING_RATIO: Final = 0.08
+
+SourceFamily = Literal[
+    "medical_form",
+    "police_form",
+    "billing_ledger",
+    "fax_record",
+    "insurance_letter",
+    "image_document",
+    "other",
+]
+SOURCE_FAMILIES: Final[frozenset[str]] = frozenset(
+    {
+        "medical_form",
+        "police_form",
+        "billing_ledger",
+        "fax_record",
+        "insurance_letter",
+        "image_document",
+        "other",
+    }
+)
 
 # Average-hash size for perceptual duplicate warnings (stdlib Pillow + NumPy).
 PERCEPTUAL_HASH_SIZE: Final = 8
@@ -74,6 +97,7 @@ PRIVATE_SUBDIRS: Final[tuple[str, ...]] = (
     "backups",
 )
 MANIFEST_FILES: Final[tuple[str, ...]] = (
+    "document-manifest.jsonl",
     "source-manifest.jsonl",
     "crop-manifest.jsonl",
     "review-events.jsonl",
@@ -81,4 +105,5 @@ MANIFEST_FILES: Final[tuple[str, ...]] = (
     "exclusions.jsonl",
     "split-manifest.jsonl",
     "duplicate-families.jsonl",
+    "primary-review-queue.jsonl",
 )

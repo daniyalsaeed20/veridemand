@@ -17,8 +17,11 @@ from backend.app.datasets.phase5.constants import (
     CROP_PADDING_VERSION,
     HUMAN_LABELS,
     LABEL_SCHEMA_VERSION,
+    QUEUE_ALGORITHM_VERSION,
     REVIEW_POLICY_VERSION,
+    REVIEW_QUEUE_VERSION,
     SCHEMA_VERSION,
+    SOURCE_FAMILIES,
     SPLIT_ALGORITHM_VERSION,
 )
 
@@ -44,6 +47,45 @@ ResolutionStatus = Literal[
     "invalidated_hash_mismatch",
 ]
 SplitName = Literal["train", "val", "test", "held_out"]
+SourceFamily = Literal[
+    "medical_form",
+    "police_form",
+    "billing_ledger",
+    "fax_record",
+    "insurance_letter",
+    "image_document",
+    "other",
+]
+
+
+class DocumentRecord(ApiModel):
+    """Private document registration (opaque IDs; paths stay gitignored)."""
+
+    schema_version: Literal["phase5-dataset-schema-v1"] = SCHEMA_VERSION
+    document_id: Annotated[str, Field(min_length=8, max_length=64)]
+    source_group_id: Annotated[str, Field(min_length=8, max_length=64)]
+    source_family: SourceFamily = "other"
+    document_sha256: Annotated[str, Field(min_length=64, max_length=64)]
+    page_count: Annotated[int, Field(ge=0)]
+    # Opaque batch-manifest key (not a filesystem path).
+    opaque_label: Annotated[str, Field(min_length=1, max_length=128)]
+    # Relative path under fixtures/private/ (private manifests only).
+    source_relpath: Annotated[str, Field(min_length=1, max_length=512)]
+    created_at: datetime
+
+    @field_validator("source_family")
+    @classmethod
+    def _family_ok(cls, value: str) -> str:
+        if value not in SOURCE_FAMILIES:
+            raise ValueError(f"Unknown source_family: {value}")
+        return value
+
+    @field_validator("document_sha256")
+    @classmethod
+    def _hex_sha(cls, value: str) -> str:
+        if len(value) != 64 or any(c not in "0123456789abcdef" for c in value.lower()):
+            raise ValueError("document_sha256 must be 64 lowercase hex characters")
+        return value.lower()
 
 
 class SourceRecord(ApiModel):
@@ -56,8 +98,11 @@ class SourceRecord(ApiModel):
     page_index: Annotated[int, Field(ge=0)]
     page_width_px: Annotated[int, Field(gt=0)] | None = None
     page_height_px: Annotated[int, Field(gt=0)] | None = None
-    # Relative path under private root only (never absolute case paths in reports).
+    # Relative path under private phase5 root only (never absolute case paths in reports).
     page_relpath: Annotated[str, Field(min_length=1, max_length=512)] | None = None
+    source_family: SourceFamily | None = None
+    document_sha256: Annotated[str, Field(min_length=64, max_length=64)] | None = None
+    page_count: Annotated[int, Field(ge=0)] | None = None
     created_at: datetime
 
 
@@ -188,3 +233,27 @@ class SplitManifest(ApiModel):
     created_at: datetime
     assignments: list[SplitAssignment] = Field(default_factory=list)
     content_sha256: Annotated[str, Field(min_length=64, max_length=64)] | None = None
+
+
+class ReviewQueueEntry(ApiModel):
+    """One crop in a blinded primary-review queue (no source metadata for UI)."""
+
+    crop_id: Annotated[str, Field(min_length=8, max_length=64)]
+    crop_sha256: Annotated[str, Field(min_length=64, max_length=64)]
+    queue_index: Annotated[int, Field(ge=0)]
+
+
+class ReviewQueueManifest(ApiModel):
+    """Deterministic blinded primary-review queue (gitignored)."""
+
+    schema_version: Literal["phase5-dataset-schema-v1"] = SCHEMA_VERSION
+    queue_version: Literal["phase5-primary-review-queue-v1"] = REVIEW_QUEUE_VERSION
+    queue_algorithm_version: Literal["phase5-primary-queue-v1"] = QUEUE_ALGORITHM_VERSION
+    seed: Annotated[int, Field(ge=0)]
+    role: Literal["primary"] = "primary"
+    created_at: datetime
+    entries: list[ReviewQueueEntry] = Field(default_factory=list)
+    content_sha256: Annotated[str, Field(min_length=64, max_length=64)]
+    crop_manifest_sha256: Annotated[str, Field(min_length=64, max_length=64)] | None = None
+    source_group_count: Annotated[int, Field(ge=0)] = 0
+    candidate_source_counts: dict[str, int] = Field(default_factory=dict)

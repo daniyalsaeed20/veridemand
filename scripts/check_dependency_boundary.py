@@ -64,6 +64,7 @@ PHASE4_ALLOWED_PREFIXES = (
     "scripts/accept_phase43_multipage_progress.py",
     "scripts/generate_phase43_ocr_fixtures.py",
     "scripts/diagnose_phase43_render_dims.py",
+    "scripts/phase5/populate_private_evidence.py",
 )
 
 # Phase-4 packages may appear in the ocr dependency group, and pypdfium2 may be

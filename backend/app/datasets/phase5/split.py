@@ -54,16 +54,28 @@ def build_duplicate_families(
         )
 
     warnings: list[str] = []
-    # Pairwise perceptual warnings (O(n^2) ok for private tooling sizes).
-    for i, a in enumerate(crops):
-        for b in crops[i + 1 :]:
-            if a.sha256 == b.sha256:
-                continue
-            dist = hamming_hex(a.perceptual_hash, b.perceptual_hash)
-            if dist <= PERCEPTUAL_HAMMING_WARN_THRESHOLD:
-                warnings.append(
-                    f"perceptual near-duplicate warning: {a.crop_id} ~ {b.crop_id} (hamming={dist})"
-                )
+    # Bucket by perceptual-hash prefix so near-dup checks stay tractable at scale.
+    by_phash: dict[str, list[CropRecord]] = defaultdict(list)
+    for crop in crops:
+        by_phash[crop.perceptual_hash[:8]].append(crop)
+    warn_cap = 1000
+    for bucket in by_phash.values():
+        if len(warnings) >= warn_cap:
+            break
+        for i, a in enumerate(bucket):
+            if len(warnings) >= warn_cap:
+                break
+            for b in bucket[i + 1 :]:
+                if a.sha256 == b.sha256:
+                    continue
+                dist = hamming_hex(a.perceptual_hash, b.perceptual_hash)
+                if dist <= PERCEPTUAL_HAMMING_WARN_THRESHOLD:
+                    warnings.append(
+                        f"perceptual near-duplicate warning: {a.crop_id} ~ {b.crop_id} "
+                        f"(hamming={dist})"
+                    )
+                    if len(warnings) >= warn_cap:
+                        break
 
     # Stamp family ids onto crop records for callers / rewrite.
     for i, crop in enumerate(crops):

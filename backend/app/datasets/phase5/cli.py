@@ -7,13 +7,17 @@ import json
 import sys
 from pathlib import Path
 
+from backend.app.datasets.phase5.backup import backup_manifests
 from backend.app.datasets.phase5.export import (
     export_from_phase4_json,
     import_manual_regions,
     init_private_dataset,
     verify_crops,
 )
-from backend.app.datasets.phase5.paths import default_private_root
+from backend.app.datasets.phase5.export_batch import export_all_populated_pages
+from backend.app.datasets.phase5.paths import REPO_ROOT, default_private_root
+from backend.app.datasets.phase5.queue import build_primary_review_queue
+from backend.app.datasets.phase5.register import register_from_batch_manifest
 from backend.app.datasets.phase5.report import (
     build_readiness,
     render_committed_aggregate_markdown,
@@ -25,6 +29,7 @@ from backend.app.datasets.phase5.split import (
     run_split,
     write_duplicates_and_update_crops,
 )
+from backend.app.datasets.phase5.worklist import write_manual_region_worklist
 
 
 def _root(args: argparse.Namespace) -> Path:
@@ -32,8 +37,28 @@ def _root(args: argparse.Namespace) -> Path:
 
 
 def cmd_init(args: argparse.Namespace) -> int:
-    path = init_private_dataset(_root(args))
-    print(f"Initialized private Phase 5 dataset layout at {path}")
+    init_private_dataset(_root(args))
+    print("Initialized private Phase 5 dataset layout")
+    return 0
+
+
+def cmd_register_sources(args: argparse.Namespace) -> int:
+    batch = Path(args.batch_manifest)
+    fixtures = (
+        Path(args.fixtures_private) if args.fixtures_private else REPO_ROOT / "fixtures" / "private"
+    )
+    _docs, stats = register_from_batch_manifest(
+        private_root=_root(args),
+        batch_manifest=batch,
+        fixtures_private=fixtures,
+    )
+    print(json.dumps({"command": "register-sources", **stats}, indent=2))
+    return 0
+
+
+def cmd_backup(args: argparse.Namespace) -> int:
+    dest = backup_manifests(_root(args))
+    print(json.dumps({"command": "backup", "ok": True, "backup_name": dest.name}, indent=2))
     return 0
 
 
@@ -46,8 +71,14 @@ def cmd_export(args: argparse.Namespace) -> int:
         document_id=args.document_id,
         page_id=args.page_id,
     )
-    print(f"Exported {len(created)} new crop(s)")
+    print(json.dumps({"command": "export", "crops_created": len(created)}, indent=2))
     return 0
+
+
+def cmd_export_all(args: argparse.Namespace) -> int:
+    stats = export_all_populated_pages(_root(args))
+    print(json.dumps({"command": "export-all", **stats}, indent=2))
+    return 0 if stats.get("failures", 0) == 0 else 1
 
 
 def cmd_import_manual(args: argparse.Namespace) -> int:
@@ -60,32 +91,49 @@ def cmd_import_manual(args: argparse.Namespace) -> int:
         page_id=args.page_id,
         page_index=args.page_index,
     )
-    print(f"Imported {len(created)} new crop(s)")
+    print(json.dumps({"command": "import-manual", "crops_created": len(created)}, indent=2))
     return 0
 
 
 def cmd_verify_crops(args: argparse.Namespace) -> int:
     problems = verify_crops(_root(args))
     if problems:
-        for p in problems:
-            print(p, file=sys.stderr)
+        print(json.dumps({"command": "verify-crops", "ok": False, "problems": len(problems)}))
         return 1
-    print("Crop manifest verification OK")
+    print(json.dumps({"command": "verify-crops", "ok": True}))
     return 0
 
 
 def cmd_resolve(args: argparse.Namespace) -> int:
     resolved = resolve_dataset(_root(args))
     eligible = sum(1 for r in resolved if r.training_eligible)
-    print(f"Resolved {len(resolved)} crop(s); training_eligible={eligible}")
+    print(
+        json.dumps(
+            {
+                "command": "resolve",
+                "resolved": len(resolved),
+                "training_eligible": eligible,
+            },
+            indent=2,
+        )
+    )
     return 0
 
 
 def cmd_duplicates(args: argparse.Namespace) -> int:
     families, warnings = write_duplicates_and_update_crops(_root(args))
-    print(f"Wrote {len(families)} duplicate famil(ies)")
-    for w in warnings:
-        print(f"WARN: {w}")
+    multi = sum(1 for f in families if len(f.crop_ids) > 1)
+    print(
+        json.dumps(
+            {
+                "command": "duplicates",
+                "families": len(families),
+                "exact_multi_member_families": multi,
+                "perceptual_warnings": len(warnings),
+            },
+            indent=2,
+        )
+    )
     return 0
 
 
@@ -94,8 +142,15 @@ def cmd_split(args: argparse.Namespace) -> int:
     resolve_dataset(_root(args))
     manifest = run_split(_root(args), seed=args.seed)
     print(
-        f"Split seed={manifest.seed} assignments={len(manifest.assignments)} "
-        f"sha256={manifest.content_sha256}"
+        json.dumps(
+            {
+                "command": "split",
+                "seed": manifest.seed,
+                "assignments": len(manifest.assignments),
+                "sha256": manifest.content_sha256,
+            },
+            indent=2,
+        )
     )
     return 0
 
@@ -107,17 +162,38 @@ def cmd_freeze_heldout(args: argparse.Namespace) -> int:
         return 2
     manifest = freeze_heldout(_root(args), crop_ids=ids)
     held = sum(1 for a in manifest.assignments if a.split == "held_out")
-    print(f"Held-out freeze complete; held_out={held}")
+    print(json.dumps({"command": "freeze-heldout", "held_out": held}, indent=2))
     return 0
 
 
 def cmd_verify_dataset(args: argparse.Namespace) -> int:
     problems = verify_crops(_root(args))
     if problems:
-        for p in problems:
-            print(p, file=sys.stderr)
+        print(json.dumps({"command": "verify", "ok": False, "problems": len(problems)}))
         return 1
-    print("Dataset verify OK")
+    print(json.dumps({"command": "verify", "ok": True}))
+    return 0
+
+
+def cmd_queue(args: argparse.Namespace) -> int:
+    write_duplicates_and_update_crops(_root(args))
+    manifest = build_primary_review_queue(_root(args), seed=args.seed)
+    _path, manual_n = write_manual_region_worklist(_root(args))
+    print(
+        json.dumps(
+            {
+                "command": "queue",
+                "queue_version": manifest.queue_version,
+                "seed": manifest.seed,
+                "sha256": manifest.content_sha256,
+                "crop_count": len(manifest.entries),
+                "source_group_count": manifest.source_group_count,
+                "candidate_source_counts": manifest.candidate_source_counts,
+                "manual_region_worklist_pages": manual_n,
+            },
+            indent=2,
+        )
+    )
     return 0
 
 
@@ -125,19 +201,24 @@ def cmd_report(args: argparse.Namespace) -> int:
     root = _root(args)
     private_path = write_private_report(root)
     report = build_readiness(root)
-    print(
-        json.dumps(
-            {k: report[k] for k in ("status_line", "crop_count", "training_eligible_count")},
-            indent=2,
-        )
+    safe_keys = (
+        "status_line",
+        "crop_count",
+        "unreviewed_count",
+        "queue_crop_count",
+        "queue_sha256",
+        "document_count",
+        "training_eligible_count",
+        "training_authorised",
     )
-    print(f"Private report: {private_path}")
+    print(json.dumps({k: report[k] for k in safe_keys}, indent=2))
+    print(f"Private report written ({private_path.name})")
     if args.write_aggregate:
         md = render_committed_aggregate_markdown(report)
         out = Path(args.write_aggregate)
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(md, encoding="utf-8")
-        print(f"Wrote aggregate: {out}")
+        print(f"Wrote aggregate: {out.as_posix()}")
     return 0
 
 
@@ -153,6 +234,17 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("init", help="Create private directory layout")
     p.set_defaults(func=cmd_init)
 
+    p = sub.add_parser("register-sources", help="Register PDFs from batch manifest")
+    p.add_argument(
+        "--batch-manifest",
+        default=str(REPO_ROOT / "fixtures" / "private" / "phase4-final-batch.local.json"),
+    )
+    p.add_argument("--fixtures-private", default=None)
+    p.set_defaults(func=cmd_register_sources)
+
+    p = sub.add_parser("backup", help="Backup private manifests")
+    p.set_defaults(func=cmd_backup)
+
     p = sub.add_parser("export", help="Export crops from Phase 4 page-result JSON")
     p.add_argument("--page-result", required=True)
     p.add_argument("--page-image", required=True)
@@ -160,6 +252,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--document-id", default=None)
     p.add_argument("--page-id", default=None)
     p.set_defaults(func=cmd_export)
+
+    p = sub.add_parser("export-all", help="Export crops for all populated private pages")
+    p.set_defaults(func=cmd_export_all)
 
     p = sub.add_parser("import-manual", help="Import manual region JSONL")
     p.add_argument("--regions", required=True)
@@ -178,6 +273,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("duplicates", help="Build duplicate families")
     p.set_defaults(func=cmd_duplicates)
+
+    p = sub.add_parser("queue", help="Build blinded primary-review queue")
+    p.add_argument("--seed", type=int, default=42)
+    p.set_defaults(func=cmd_queue)
 
     p = sub.add_parser("split", help="Group-aware train/val/test split")
     p.add_argument("--seed", type=int, default=42)
