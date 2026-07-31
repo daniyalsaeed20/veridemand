@@ -3,8 +3,8 @@
 ## Purpose
 
 Private region-crop dataset for Phase 5 handwriting **style** classification
-labels. This is tooling only in Task 3A — no training, no OCR wiring, no ONNX
-export.
+labels. Task 3A delivered tooling; Task 3B populates the private crop corpus and
+primary-review queue. No training, no ONNX export, no live OCR wiring.
 
 ## Doctrine
 
@@ -42,12 +42,17 @@ Padding policy: `phase5-crop-pad-v1` (8% of max side, clamp to page, recorded).
 
 | Script | Role |
 |--------|------|
+| `pnpm phase5:crops:register` | Register PDFs from local batch manifest |
+| `pnpm phase5:crops:populate-evidence` | Offline render + geometry (OCR group) |
 | `pnpm phase5:crops:export -- --page-result … --page-image …` | Export from Phase 4 JSON |
+| `pnpm phase5:crops:export-all` | Export all populated private pages |
 | `pnpm phase5:crops:import-manual -- --regions … --page-image …` | Manual JSONL import |
 | `pnpm phase5:crops:verify` | Hash/geometry consistency |
+| `pnpm phase5:labels:queue` | Build blinded primary-review queue |
 | `pnpm phase5:labels:serve` | Loopback blind labeler |
 | `pnpm phase5:labels:resolve` | Derive resolved labels |
-| `pnpm phase5:dataset:split -- --seed 42` | Group-aware split |
+| `pnpm phase5:dataset:backup` | Timestamped private manifest backup |
+| `pnpm phase5:dataset:split -- --seed 42` | Group-aware split (after labels) |
 | `pnpm phase5:dataset:freeze-heldout -- --crop-ids …` | Explicit held-out freeze |
 | `pnpm phase5:dataset:report` | Private + aggregate readiness |
 
@@ -65,4 +70,6 @@ or vendor any public corpora. Any public import must:
 
 Committed aggregate: [`docs/evaluation/phase-5-dataset-readiness.md`](../evaluation/phase-5-dataset-readiness.md).
 
-Status target after Task 3A tooling: **DATASET TOOLING READY — HUMAN LABELLING REQUIRED**.
+Status target after Task 3B population: **DATASET TOOLING READY — PRIMARY HUMAN REVIEW PENDING**.
+
+No classifier training is authorised until human labels and splits exist.
