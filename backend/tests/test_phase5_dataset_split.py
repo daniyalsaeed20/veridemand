@@ -179,5 +179,5 @@ def test_report_status_line(tmp_path: Path) -> None:
     root = tmp_path / "phase5"
     init_private_dataset(root)
     report = build_readiness(root)
-    assert "PRIMARY HUMAN REVIEW PENDING" in str(report["status_line"])
+    assert "COVERAGE AND ANNOTATION PILOT REQUIRED" in str(report["status_line"])
     assert report["crop_count"] == 0

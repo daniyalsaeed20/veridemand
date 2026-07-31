@@ -125,7 +125,7 @@ def test_report_status_primary_pending_and_redacted(tmp_path: Path) -> None:
     root = tmp_path / "phase5"
     init_private_dataset(root)
     report = build_readiness(root)
-    assert "PRIMARY HUMAN REVIEW PENDING" in report["status_line"]
+    assert "COVERAGE AND ANNOTATION PILOT REQUIRED" in report["status_line"]
     assert report["training_authorised"] is False
     md = render_committed_aggregate_markdown(report)
     assert "fixtures/private" not in md
