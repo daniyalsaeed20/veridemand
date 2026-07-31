@@ -1,55 +1,88 @@
 # Phase 5 labelling operations
 
-## Private primary-review workflow (Task 3B)
+## Default workflow (Task 3C) — annotation pilot first
 
-After crop export and queue generation (gitignored under `fixtures/private/phase5/`):
+Do **not** start full-corpus labelling until the pilot is reviewed and approved
+(ADR 0052).
 
-1. Verify crop integrity:
-
-```bash
-pnpm phase5:crops:verify
-```
-
-2. Confirm the primary queue exists (opaque aggregates only):
-
-```bash
-pnpm phase5:labels:queue -- --seed 42
-```
-
-3. Backup manifests before labelling:
+### 0. Backup private manifests
 
 ```bash
 pnpm phase5:dataset:backup
 ```
 
-4. Start the loopback labeler:
+### 1. Page-level coverage review (separate from script labels)
 
 ```bash
-pnpm phase5:labels:serve
+pnpm phase5:coverage:build
+pnpm phase5:coverage:verify
+pnpm phase5:coverage:serve
 ```
 
-5. Open the primary-review URL with an opaque reviewer ID:
+Open `http://127.0.0.1:8766/?reviewer=rev_<coverage_opaque_id>`.
+
+Coverage outcomes are **not** script labels. Manual-region status remains
+`not yet human-verified` until humans finish coverage review.
+
+### 2. Primary pilot (600 crops)
+
+```bash
+pnpm phase5:labels:serve -- --queue pilot-primary --reviewer rev_<opaque_id>
+```
+
+URL shape:
 
 ```text
-http://127.0.0.1:8765/?role=primary&reviewer=rev_<your_opaque_id>
+http://127.0.0.1:8765/?role=primary&queue=pilot-primary&reviewer=rev_<opaque_id>
 ```
 
-Also available: `role=secondary`, `role=adjudicator`.
+### 3. Secondary pilot (different reviewer)
 
-The server binds **loopback only**. It is not part of the production API or
-frontend bundle. Do not expose it on LAN/WAN.
+```bash
+pnpm phase5:labels:serve -- --queue pilot-secondary --reviewer rev_<different_opaque_id>
+```
 
-### Blind review rules
+The same `reviewer_id` **must not** serve both pilot primary and secondary roles.
+
+### 4. Agreement / conflicts (after both reviews exist)
+
+```bash
+pnpm phase5:labels:pilot-report
+pnpm phase5:labels:adjudication
+pnpm phase5:labels:resolve
+pnpm phase5:dataset:report
+```
+
+### 5. Stop before full-corpus review
+
+The full primary queue (~45k canonical crops) remains preserved and marked:
+
+```text
+full primary queue — not authorised for review until pilot approval
+```
+
+Serving it requires an explicit flag:
+
+```bash
+pnpm phase5:labels:serve -- --queue full-primary --authorise-full-queue --reviewer rev_<opaque_id>
+```
+
+Do not authorise training, splits, or held-out freeze from the pilot alone.
+
+## Blind review rules
 
 - UI shows the crop image and opaque `crop_id` only.
-- No OCR text, confidence, filenames, case names, or source paths.
-- Secondary reviewers do not see the primary label (except adjudicators on conflicts).
-- Events are append-only JSONL with the crop SHA-256.
+- No OCR text, confidence, filenames, case names, source paths, candidate
+  provenance, or sampling reasons.
+- Secondary does not see primary labels/notes/progress.
+- Events are append-only JSONL with crop SHA-256.
 - No `localStorage` / browser persistence of private payloads.
-- Do not paste visible OCR text into notes.
-- Do not inspect OCR predictions or classifier scores while labelling.
+- Quality flags (`crop_too_tight`, `requires_page_context`, …) do **not**
+  auto-change the label.
+- `requires_page_context` records that the blind crop was insufficient and
+  routes to a separate context-review worklist — do not force a label.
 
-### Label definitions
+## Label definitions
 
 | Label | Meaning |
 |-------|---------|
@@ -76,33 +109,17 @@ frontend bundle. Do not expose it on LAN/WAN.
 | `X` | exclude |
 | `Z` | skip |
 
-### Progress, resume, backup, mistakes
-
-- Progress is saved as append-only `review-events.jsonl` under the private root.
-- Stop the labeler with Ctrl+C; resume later with the same serve command — the queue skips already labelled crops after `phase5:labels:queue` regeneration if needed.
-- Back up before and after sessions: `pnpm phase5:dataset:backup`.
-- Mistakes: append a corrected label / exclude event (append-only; do not edit history by hand).
-- After a session: `pnpm phase5:labels:resolve` then `pnpm phase5:dataset:report`.
-
-### Review-progress report
+## Full-corpus queue (not default)
 
 ```bash
-pnpm phase5:dataset:report
+pnpm phase5:labels:queue -- --seed 42
 ```
 
-## Resolve
+Rebuilds the full primary queue only. It is **not** the default human task.
 
-```bash
-pnpm phase5:labels:resolve
-```
+## Related docs
 
-Resolution statuses: `unreviewed`, `single_review`, `agreed`, `conflict`,
-`adjudicated`, `excluded`, `invalidated_hash_mismatch`.
-
-Training-eligible only when status is `agreed` or `adjudicated` and the label is
-one of `printed` / `handwritten` / `non_text`.
-
-## Privacy
-
-Never commit files under `fixtures/private/phase5/` except the allowlisted
-`README.example.md`. Run `pnpm check:private` before push.
+- `docs/evaluation/phase-5-annotation-pilot.md`
+- `docs/evaluation/phase-5-source-group-adequacy.md`
+- `docs/evaluation/phase-5-dataset-readiness.md`
+- ADR 0051, ADR 0052

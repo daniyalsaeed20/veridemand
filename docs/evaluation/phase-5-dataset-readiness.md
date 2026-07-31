@@ -1,8 +1,8 @@
 # Phase 5 dataset readiness
 
-**Status:** DATASET TOOLING READY — PRIMARY HUMAN REVIEW PENDING
+**Status:** PRIVATE CORPUS POPULATED — COVERAGE AND ANNOTATION PILOT REQUIRED
 
-Generated (UTC): `2026-07-31T00:54:56.379665+00:00`
+Generated (UTC): `2026-07-31T06:45:38.674612+00:00`
 
 ## Aggregate counts (opaque)
 
@@ -19,7 +19,12 @@ Generated (UTC): `2026-07-31T00:54:56.379665+00:00`
 - Queue version: `phase5-primary-review-queue-v1`
 - Queue seed: `42`
 - Queue SHA-256: `096424d0edfc49dddd07fe8dbba6fafc1e14bbe9a4860230caa0d16eebea84df`
+- Full queue authorised for review: **False**
+- Pilot crop count: **600**
+- Pilot version: `phase5-annotation-pilot-v1`
+- Pilot SHA-256: `b35d89c2022eadfbccf058b86a9cbea64efea1f6e13ebb64033fedb412a225e5`
 - Manual-region worklist pages: **0**
+- Manual-region requirement: **not_yet_human_verified**
 - Split manifest present: **False**
 - Held-out frozen: **False**
 - Classifier training authorised: **False**
@@ -47,7 +52,10 @@ Generated (UTC): `2026-07-31T00:54:56.379665+00:00`
 - Signatures are labelled `handwritten`.
 - `uncertain` is excluded from initial 3-class training.
 - No classifier training is authorised yet.
+- Default human review uses `pilot-primary` until the annotation pilot is approved.
+- Full primary queue is preserved but not authorised until pilot approval.
+- Manual-region requirement: not yet human-verified.
 - Splits are not generated until labels exist.
 - Private crops, paths, and transcripts are never committed.
 
-See `docs/datasets/phase-5-handwriting-dataset.md` and ADR 0051.
+See `docs/datasets/phase-5-handwriting-dataset.md`, `docs/evaluation/phase-5-annotation-pilot.md`, and ADR 0052.
