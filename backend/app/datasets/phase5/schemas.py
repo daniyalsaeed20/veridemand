@@ -8,13 +8,15 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 
 from backend.app.contracts.base import ApiModel
 from backend.app.contracts.geometry import NormalisedBoundingBox, NormalisedPolygon
 from backend.app.datasets.phase5.constants import (
     CANDIDATE_SOURCES,
+    COVERAGE_ACTIONS,
     COVERAGE_EVENT_VERSION,
+    COVERAGE_ISSUE_FLAGS,
     COVERAGE_OUTCOMES,
     COVERAGE_QUEUE_VERSION,
     CROP_PADDING_VERSION,
@@ -335,16 +337,55 @@ class CoverageEvent(ApiModel):
     opaque_page_reference: Annotated[str, Field(min_length=8, max_length=64)]
     opaque_document_reference: Annotated[str, Field(min_length=8, max_length=64)]
     reviewer_id: Annotated[str, Field(min_length=1, max_length=64)]
-    outcome: str
+    action: Literal["resolve", "reopen"] = "resolve"
+    outcome: str | None = None
+    page_render_hash: Annotated[str, Field(min_length=64, max_length=64)]
+    overlay_hash: Annotated[str, Field(min_length=64, max_length=64)]
+    supersedes_event_id: Annotated[str, Field(min_length=8, max_length=64)] | None = None
+    issue_flags: list[str] = Field(default_factory=list)
     note: Annotated[str, Field(max_length=256)] | None = None
     created_at: datetime
 
+    @field_validator("action")
+    @classmethod
+    def _action_ok(cls, value: str) -> str:
+        if value not in COVERAGE_ACTIONS:
+            raise ValueError(f"Unknown coverage action: {value}")
+        return value
+
     @field_validator("outcome")
     @classmethod
-    def _outcome_ok(cls, value: str) -> str:
+    def _outcome_ok(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        if value in HUMAN_LABELS:
+            raise ValueError("script labels are not valid coverage outcomes")
         if value not in COVERAGE_OUTCOMES:
             raise ValueError(f"Unknown coverage outcome: {value}")
         return value
+
+    @field_validator("issue_flags")
+    @classmethod
+    def _flags_ok(cls, value: list[str]) -> list[str]:
+        for flag in value:
+            if flag not in COVERAGE_ISSUE_FLAGS:
+                raise ValueError(f"Unknown coverage issue flag: {flag}")
+        return value
+
+    @field_validator("page_render_hash", "overlay_hash")
+    @classmethod
+    def _hash_ok(cls, value: str) -> str:
+        if len(value) != 64 or any(c not in "0123456789abcdef" for c in value):
+            raise ValueError("hash must be 64 lowercase hex characters")
+        return value
+
+    @model_validator(mode="after")
+    def _resolve_requires_outcome(self) -> CoverageEvent:
+        if self.action == "resolve" and self.outcome is None:
+            raise ValueError("resolve action requires an outcome")
+        if self.action == "reopen" and self.outcome is not None:
+            raise ValueError("reopen action must not include an outcome")
+        return self
 
 
 class CoverageQueueEntry(ApiModel):

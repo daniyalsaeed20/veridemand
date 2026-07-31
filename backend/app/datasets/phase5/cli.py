@@ -9,7 +9,15 @@ from pathlib import Path
 
 from backend.app.datasets.phase5.backup import backup_manifests
 from backend.app.datasets.phase5.block_coverage import audit_block_coverage
-from backend.app.datasets.phase5.coverage import build_coverage_review, verify_coverage_artefacts
+from backend.app.datasets.phase5.coverage import (
+    build_coverage_aggregate,
+    build_coverage_review,
+    refresh_coverage_summary,
+    render_coverage_aggregate_markdown,
+    verify_coverage_artefacts,
+    verify_coverage_events,
+    write_coverage_correction_worklist,
+)
 from backend.app.datasets.phase5.export import (
     export_from_phase4_json,
     import_manual_regions,
@@ -253,9 +261,22 @@ def cmd_coverage_build(args: argparse.Namespace) -> int:
 
 
 def cmd_coverage_verify(args: argparse.Namespace) -> int:
-    problems = verify_coverage_artefacts(_root(args))
+    root = _root(args)
+    if getattr(args, "events", False):
+        problems = verify_coverage_events(root)
+    else:
+        problems = verify_coverage_artefacts(root)
     if problems:
-        print(json.dumps({"command": "coverage-verify", "ok": False, "problems": len(problems)}))
+        print(
+            json.dumps(
+                {
+                    "command": "coverage-verify",
+                    "ok": False,
+                    "problems": len(problems),
+                    "detail": problems[:20],
+                }
+            )
+        )
         return 1
     print(json.dumps({"command": "coverage-verify", "ok": True}))
     return 0
@@ -263,30 +284,56 @@ def cmd_coverage_verify(args: argparse.Namespace) -> int:
 
 def cmd_coverage_report(args: argparse.Namespace) -> int:
     root = _root(args)
-    summary_path = root / "reports" / "coverage-summary.json"
-    if not summary_path.is_file():
-        print("Run coverage-build first", file=sys.stderr)
-        return 1
-    summary = json.loads(summary_path.read_text(encoding="utf-8"))
-    safe = {
-        k: v
-        for k, v in summary.items()
-        if k
-        in {
-            "queue_version",
-            "page_count",
-            "overlays_written",
-            "content_sha256",
-            "manual_region_status",
-            "pages_with_low_crop_count",
-            "pages_with_high_crop_density",
-            "pages_with_block_gaps",
-            "human_coverage_events",
-            "note",
-            "block_coverage",
-        }
+    write_coverage_correction_worklist(root)
+    summary = refresh_coverage_summary(root)
+    aggregate = build_coverage_aggregate(root)
+    safe_keys = {
+        "report_version",
+        "coverage_event_version",
+        "overlay_version",
+        "queue_version",
+        "page_count",
+        "overlays_written",
+        "content_sha256",
+        "manual_region_status",
+        "pages_with_low_crop_count",
+        "pages_with_high_crop_density",
+        "pages_with_block_gaps",
+        "human_coverage_events",
+        "pages_reviewed",
+        "pages_remaining",
+        "reviewer_count",
+        "coverage_appears_complete",
+        "missing_region",
+        "crop_too_tight",
+        "crop_too_broad",
+        "duplicate_only",
+        "page_requires_manual_review",
+        "page_not_reviewable",
+        "reopened_page_count",
+        "stale_event_count",
+        "manual_region_worklist_count",
+        "source_group_aggregate",
+        "broad_family_aggregate",
+        "privacy_notes",
+        "review_completion_status",
+        "required_next_action",
+        "note",
+        "block_coverage",
     }
+    safe = {k: v for k, v in {**summary, **aggregate}.items() if k in safe_keys}
+    if args.write_aggregate:
+        Path(args.write_aggregate).write_text(
+            render_coverage_aggregate_markdown(aggregate), encoding="utf-8"
+        )
+        print(f"Wrote aggregate: {Path(args.write_aggregate).as_posix()}")
     print(json.dumps({"command": "coverage-report", **safe}, indent=2, default=str))
+    return 0
+
+
+def cmd_coverage_worklist(args: argparse.Namespace) -> int:
+    _path, count = write_coverage_correction_worklist(_root(args))
+    print(json.dumps({"command": "coverage-worklist", "count": count}))
     return 0
 
 
@@ -447,10 +494,26 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_coverage_build)
 
     p = sub.add_parser("coverage-verify", help="Verify coverage overlays")
+    p.add_argument(
+        "--events",
+        action="store_true",
+        help="Also verify human coverage events / current resolutions",
+    )
     p.set_defaults(func=cmd_coverage_verify)
 
     p = sub.add_parser("coverage-report", help="Print aggregate coverage summary")
+    p.add_argument(
+        "--write-aggregate",
+        default=None,
+        help="Optional path for committed aggregate markdown",
+    )
     p.set_defaults(func=cmd_coverage_report)
+
+    p = sub.add_parser(
+        "coverage-worklist",
+        help="Write private correction worklist from coverage outcomes",
+    )
+    p.set_defaults(func=cmd_coverage_worklist)
 
     p = sub.add_parser("pilot-build", help="Build 600-crop dual-review pilot")
     p.add_argument("--target-size", type=int, default=600)

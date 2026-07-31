@@ -52,6 +52,7 @@
     "phase5:coverage:serve": "uv run python scripts/phase5/coverage_server.py",
     "phase5:coverage:verify": "uv run python scripts/phase5_dataset_cli.py coverage-verify",
     "phase5:coverage:report": "uv run python scripts/phase5_dataset_cli.py coverage-report",
+    "phase5:coverage:worklist": "uv run python scripts/phase5_dataset_cli.py coverage-worklist",
     "phase5:dataset:backup": "uv run python scripts/phase5_dataset_cli.py backup",
     "phase5:dataset:dedupe-sources": "uv run python scripts/phase5_dataset_cli.py dedupe-sources",
     "phase5:dataset:provenance": "uv run python scripts/phase5_dataset_cli.py provenance-audit --write-aggregate docs/evaluation/phase-5-provenance-audit.md",

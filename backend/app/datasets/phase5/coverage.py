@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
@@ -12,7 +13,15 @@ from typing import Any
 from PIL import Image, ImageDraw
 
 from backend.app.datasets.phase5.block_coverage import audit_block_coverage
-from backend.app.datasets.phase5.constants import COVERAGE_QUEUE_VERSION
+from backend.app.datasets.phase5.constants import (
+    COVERAGE_CORRECTION_OUTCOMES,
+    COVERAGE_EVENT_VERSION,
+    COVERAGE_OUTCOMES,
+    COVERAGE_QUEUE_VERSION,
+    COVERAGE_REPORT_VERSION,
+    COVERAGE_WORKLIST_VERSION,
+    HUMAN_LABELS,
+)
 from backend.app.datasets.phase5.hashes import sha256_file
 from backend.app.datasets.phase5.jsonl_io import read_jsonl, write_jsonl_atomic
 from backend.app.datasets.phase5.paths import (
@@ -23,11 +32,17 @@ from backend.app.datasets.phase5.paths import (
 )
 from backend.app.datasets.phase5.schemas import (
     BlockCoverageRecord,
+    CoverageEvent,
     CoverageQueueEntry,
     CoverageQueueManifest,
     CropRecord,
     DocumentRecord,
     SourceRecord,
+)
+
+_PRIVATE_PATH_HINT = re.compile(
+    r"(fixtures[/\\]private|/private/|\\private\\|:[/\\].*\.(pdf|png|jpg|jpeg|tif|tiff)\b)",
+    re.IGNORECASE,
 )
 
 
@@ -37,6 +52,16 @@ def coverage_dir(private_root: Path) -> Path:
 
 def _now() -> datetime:
     return datetime.now(UTC)
+
+
+def page_artefact_hashes(private_root: Path, page_id: str) -> tuple[str | None, str | None]:
+    """Return (page_render_hash, overlay_hash) for a page, or Nones if missing."""
+
+    page_png = pages_dir(private_root) / f"{page_id}.png"
+    overlay = coverage_dir(private_root) / f"{page_id}.overlay.png"
+    page_hash = sha256_file(page_png) if page_png.is_file() else None
+    overlay_hash = sha256_file(overlay) if overlay.is_file() else None
+    return page_hash, overlay_hash
 
 
 def _draw_box(
@@ -63,7 +88,7 @@ def build_page_overlay(
     out_path: Path,
     skipped_block_bboxes: list[dict[str, Any]],
     max_crop_boxes: int = 800,
-) -> None:
+) -> dict[str, str]:
     """Write overlay PNG: page + crop boxes + skipped-block outlines. No OCR text."""
 
     with Image.open(page_image_path) as img:
@@ -90,6 +115,8 @@ def build_page_overlay(
         _draw_box(draw, bbox, width_px=w, height_px=h, outline=(220, 80, 0), width=1)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     canvas.save(out_path, format="PNG", optimize=True)
+    page_render_hash = sha256_file(page_image_path)
+    overlay_hash = sha256_file(out_path)
     # Side-car stats (opaque refs only).
     meta = {
         "opaque_page_reference": page_result_path.name.replace(".result.json", ""),
@@ -97,11 +124,14 @@ def build_page_overlay(
         "overlay_boxes_drawn": len(drawn),
         "skipped_block_outline_count": len(skipped_block_bboxes),
         "overlay_relpath": out_path.name,
+        "page_render_hash": page_render_hash,
+        "overlay_hash": overlay_hash,
         "note": "Coverage artefact only; not a script label.",
     }
     out_path.with_suffix(".meta.json").write_text(
         json.dumps(meta, indent=2) + "\n", encoding="utf-8"
     )
+    return {"page_render_hash": page_render_hash, "overlay_hash": overlay_hash}
 
 
 def _priority_for_page(
@@ -194,7 +224,6 @@ def build_coverage_review(private_root: Path) -> dict[str, Any]:
             continue
         data = json.loads(result_path.read_text(encoding="utf-8"))
         blocks = [b for b in (data.get("blocks") or []) if isinstance(b, dict)]
-        # Only outline skipped blocks that need human review (gaps).
         gap_indices = {
             r.block_index
             for r in block_rows
@@ -260,13 +289,14 @@ def build_coverage_review(private_root: Path) -> dict[str, Any]:
         manual_region_status="not_yet_human_verified",
     )
     write_jsonl_atomic(manifest_path(private_root, "coverage-queue.jsonl"), [manifest])
-    # Ensure coverage-events file exists empty (do not fabricate events).
     events_path = manifest_path(private_root, "coverage-events.jsonl")
     if not events_path.exists():
         events_path.write_text("", encoding="utf-8")
 
+    live = build_coverage_aggregate(private_root)
     summary = {
         "queue_version": COVERAGE_QUEUE_VERSION,
+        "coverage_event_version": COVERAGE_EVENT_VERSION,
         "page_count": len(entries),
         "overlays_written": overlays,
         "content_sha256": content_sha,
@@ -279,7 +309,9 @@ def build_coverage_review(private_root: Path) -> dict[str, Any]:
             1 for e in entries if "high_crop_density" in e.priority_reasons
         ),
         "pages_with_block_gaps": sum(1 for e in entries if e.skipped_block_gap_count > 0),
-        "human_coverage_events": 0,
+        "human_coverage_events": live.get("human_coverage_events", 0),
+        "pages_reviewed": live.get("pages_reviewed", 0),
+        "pages_remaining": live.get("pages_remaining", len(entries)),
         "note": "All pages require human coverage verification before manual-region conclusions.",
     }
     reports_dir(private_root).mkdir(parents=True, exist_ok=True)
@@ -295,14 +327,409 @@ def verify_coverage_artefacts(private_root: Path) -> list[str]:
     if not queues:
         return ["coverage queue missing"]
     queue = queues[-1]
+    seen_pages: set[str] = set()
     cov = coverage_dir(private_root)
     for entry in queue.entries:
-        overlay = cov / f"{entry.opaque_page_reference}.overlay.png"
+        page_id = entry.opaque_page_reference
+        if page_id in seen_pages:
+            problems.append(f"duplicate queue entry for page slot {entry.queue_index}")
+        seen_pages.add(page_id)
+        overlay = cov / f"{page_id}.overlay.png"
+        page_png = pages_dir(private_root) / f"{page_id}.png"
         if not overlay.is_file():
             problems.append(f"missing overlay for page slot {entry.queue_index}")
             continue
+        if not page_png.is_file():
+            problems.append(f"missing page render for page slot {entry.queue_index}")
+            continue
         try:
             sha256_file(overlay)
+            sha256_file(page_png)
         except OSError:
-            problems.append(f"unreadable overlay at queue index {entry.queue_index}")
+            problems.append(f"unreadable overlay or page at queue index {entry.queue_index}")
+        meta_path = overlay.with_suffix(".meta.json")
+        if meta_path.is_file():
+            try:
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                problems.append(f"corrupt overlay meta at queue index {entry.queue_index}")
+                continue
+            rel = str(meta.get("overlay_relpath") or "")
+            if "/" in rel or "\\" in rel or ".." in rel:
+                problems.append(f"unsafe overlay_relpath at queue index {entry.queue_index}")
+            for key in meta:
+                key_l = str(key).lower()
+                if any(tok in key_l for tok in ("ocr", "prediction", "filename", "transcript")):
+                    problems.append(
+                        f"forbidden metadata key {key} at queue index {entry.queue_index}"
+                    )
+    if queue.page_count != len(queue.entries):
+        problems.append("queue page_count does not match entries")
     return problems
+
+
+def load_coverage_events(private_root: Path) -> list[CoverageEvent]:
+    return read_jsonl(manifest_path(private_root, "coverage-events.jsonl"), CoverageEvent)
+
+
+def current_coverage_state(
+    private_root: Path,
+    *,
+    events: list[CoverageEvent] | None = None,
+) -> dict[str, Any]:
+    """Derive current per-page coverage resolutions from append-only events."""
+
+    queues = read_jsonl(manifest_path(private_root, "coverage-queue.jsonl"), CoverageQueueManifest)
+    if not queues:
+        return {
+            "queue": None,
+            "current": {},
+            "stale_pages": [],
+            "reopened_pages": set(),
+            "unresolved_pages": [],
+            "events": [],
+        }
+    queue = queues[-1]
+    events = events if events is not None else load_coverage_events(private_root)
+    by_id = {e.coverage_event_id: e for e in events}
+    current: dict[str, CoverageEvent] = {}
+    reopened_pages: set[str] = set()
+    for event in events:
+        if event.supersedes_event_id and event.supersedes_event_id not in by_id:
+            pass
+        if event.action == "reopen":
+            current.pop(event.opaque_page_reference, None)
+            reopened_pages.add(event.opaque_page_reference)
+            continue
+        current[event.opaque_page_reference] = event
+
+    stale_pages: list[str] = []
+    valid_current: dict[str, CoverageEvent] = {}
+    for page, event in current.items():
+        page_hash, overlay_hash = page_artefact_hashes(private_root, page)
+        if page_hash is None or overlay_hash is None:
+            stale_pages.append(page)
+            continue
+        if event.page_render_hash != page_hash or event.overlay_hash != overlay_hash:
+            stale_pages.append(page)
+            continue
+        valid_current[page] = event
+
+    unresolved = [
+        e.opaque_page_reference
+        for e in queue.entries
+        if e.opaque_page_reference not in valid_current
+    ]
+    return {
+        "queue": queue,
+        "current": valid_current,
+        "stale_pages": stale_pages,
+        "reopened_pages": reopened_pages,
+        "unresolved_pages": unresolved,
+        "events": events,
+    }
+
+
+def coverage_progress(private_root: Path) -> dict[str, Any]:
+    state = current_coverage_state(private_root)
+    queue: CoverageQueueManifest | None = state["queue"]
+    current: dict[str, CoverageEvent] = state["current"]
+    total = queue.page_count if queue else 0
+    outcome_counts = Counter(e.outcome for e in current.values() if e.outcome)
+    issue_count = sum(1 for e in current.values() if e.outcome in COVERAGE_CORRECTION_OUTCOMES)
+    return {
+        "page_count": total,
+        "completed": len(current),
+        "remaining": max(0, total - len(current)),
+        "reopened_page_count": len(state["reopened_pages"]),
+        "stale_event_count": len(state["stale_pages"]),
+        "issue_count": issue_count,
+        "outcome_counts": dict(outcome_counts),
+        "current_position": len(current) + 1 if (total - len(current)) > 0 else total,
+    }
+
+
+def verify_coverage_events(private_root: Path) -> list[str]:
+    """Validate append-only coverage events and current resolutions."""
+
+    problems: list[str] = []
+    problems.extend(verify_coverage_artefacts(private_root))
+    state = current_coverage_state(private_root)
+    queue: CoverageQueueManifest | None = state["queue"]
+    if queue is None:
+        return problems or ["coverage queue missing"]
+    events: list[CoverageEvent] = state["events"]
+    by_id = {e.coverage_event_id: e for e in events}
+    page_ids = {e.opaque_page_reference for e in queue.entries}
+
+    for event in events:
+        if event.opaque_page_reference not in page_ids:
+            problems.append("coverage event references unknown page")
+        if event.supersedes_event_id and event.supersedes_event_id not in by_id:
+            problems.append("coverage event supersedes unknown event id")
+        if event.outcome is not None and event.outcome in HUMAN_LABELS:
+            problems.append("coverage event contains script label")
+        if event.note:
+            if _PRIVATE_PATH_HINT.search(event.note):
+                problems.append("coverage event note appears to contain a private path")
+            if re.search(r"[A-Za-z]{4,}\s+[A-Za-z]{4,}", event.note):
+                problems.append("coverage event note may contain visible document text")
+
+    current: dict[str, CoverageEvent] = state["current"]
+    for page, event in current.items():
+        page_hash, overlay_hash = page_artefact_hashes(private_root, page)
+        if page_hash != event.page_render_hash or overlay_hash != event.overlay_hash:
+            problems.append("current coverage resolution has stale hashes")
+        if not event.reviewer_id:
+            problems.append("coverage event missing reviewer_id")
+        if event.created_at.tzinfo is None:
+            problems.append("coverage event timestamp missing timezone")
+
+    for _page in state["stale_pages"]:
+        problems.append("stale coverage resolution for page (hash mismatch)")
+
+    return problems
+
+
+def write_coverage_correction_worklist(private_root: Path) -> tuple[Path, int]:
+    """Write private worklist from current human coverage issue outcomes."""
+
+    state = current_coverage_state(private_root)
+    current: dict[str, CoverageEvent] = state["current"]
+    rows: list[dict[str, object]] = []
+    for page, event in sorted(current.items()):
+        flags = [f for f in event.issue_flags if f in COVERAGE_CORRECTION_OUTCOMES]
+        if event.outcome not in COVERAGE_CORRECTION_OUTCOMES and not flags:
+            continue
+        rows.append(
+            {
+                "worklist_version": COVERAGE_WORKLIST_VERSION,
+                "opaque_page_reference": page,
+                "opaque_document_reference": event.opaque_document_reference,
+                "coverage_outcome": event.outcome,
+                "issue_flags": list(event.issue_flags),
+                "page_render_hash": event.page_render_hash,
+                "overlay_hash": event.overlay_hash,
+                "reviewer_id": event.reviewer_id,
+                "reviewed_at": event.created_at.isoformat(),
+                "coverage_event_id": event.coverage_event_id,
+            }
+        )
+    out = reports_dir(private_root) / "coverage-correction-worklist.jsonl"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(
+        "".join(json.dumps(row) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+    return out, len(rows)
+
+
+def build_coverage_aggregate(private_root: Path) -> dict[str, Any]:
+    """Privacy-safe live aggregate from overlays + human coverage events."""
+
+    state = current_coverage_state(private_root)
+    queue: CoverageQueueManifest | None = state["queue"]
+    current: dict[str, CoverageEvent] = state["current"]
+    events: list[CoverageEvent] = state["events"]
+    total = queue.page_count if queue else 0
+    outcome_counts = {o: 0 for o in sorted(COVERAGE_OUTCOMES)}
+    for event in current.values():
+        if event.outcome:
+            outcome_counts[event.outcome] = outcome_counts.get(event.outcome, 0) + 1
+
+    reviewers = {e.reviewer_id for e in events if e.reviewer_id}
+    worklist_path = reports_dir(private_root) / "coverage-correction-worklist.jsonl"
+    worklist_count = 0
+    if worklist_path.is_file():
+        worklist_count = sum(
+            1 for line in worklist_path.read_text(encoding="utf-8").splitlines() if line.strip()
+        )
+
+    sources = {
+        s.page_id: s
+        for s in read_jsonl(manifest_path(private_root, "source-manifest.jsonl"), SourceRecord)
+    }
+    documents = {
+        d.document_id: d
+        for d in read_jsonl(manifest_path(private_root, "document-manifest.jsonl"), DocumentRecord)
+    }
+    group_totals: Counter[str] = Counter()
+    group_complete: Counter[str] = Counter()
+    family_totals: Counter[str] = Counter()
+    family_complete: Counter[str] = Counter()
+    if queue:
+        for entry in queue.entries:
+            src = sources.get(entry.opaque_page_reference)
+            group = src.source_group_id if src else "unknown"
+            group_totals[group] += 1
+            doc = documents.get(entry.opaque_document_reference)
+            family = (
+                (src.source_family if src and src.source_family else None)
+                or (doc.source_family if doc else None)
+                or "other"
+            )
+            family_totals[str(family)] += 1
+            cur = current.get(entry.opaque_page_reference)
+            if cur and cur.outcome == "coverage_appears_complete":
+                group_complete[group] += 1
+                family_complete[str(family)] += 1
+
+    source_group_aggregate = {
+        "source_group_count": len(group_totals),
+        "pages_with_complete_coverage": sum(group_complete.values()),
+        "pages_reviewed": len(current),
+    }
+    family_aggregate = []
+    suppressed_pages = 0
+    suppressed_complete = 0
+    for fam, count in sorted(family_totals.items()):
+        if count < 3:
+            suppressed_pages += count
+            suppressed_complete += family_complete.get(fam, 0)
+        else:
+            family_aggregate.append(
+                {
+                    "family": fam,
+                    "pages": count,
+                    "complete": family_complete.get(fam, 0),
+                }
+            )
+    if suppressed_pages:
+        family_aggregate.append(
+            {
+                "family": "(suppressed)",
+                "pages": suppressed_pages,
+                "complete": suppressed_complete,
+            }
+        )
+
+    remaining = max(0, total - len(current))
+    if remaining > 0:
+        status = "PAGE COVERAGE REVIEW INCOMPLETE"
+        next_action = "Complete human coverage review for remaining pages."
+    elif (
+        any(e.outcome in COVERAGE_CORRECTION_OUTCOMES for e in current.values())
+        or state["stale_pages"]
+    ):
+        status = "COVERAGE CORRECTION REQUIRED BEFORE ANNOTATION PILOT"
+        next_action = (
+            "Correct manual regions / regenerate affected crops "
+            "before opening the annotation pilot."
+        )
+    else:
+        status = "PAGE COVERAGE ACCEPTED FOR ANNOTATION PILOT"
+        next_action = (
+            "Separate task may begin the primary 600-crop annotation pilot; do not start it here."
+        )
+
+    return {
+        "report_version": COVERAGE_REPORT_VERSION,
+        "coverage_event_version": COVERAGE_EVENT_VERSION,
+        "overlay_version": COVERAGE_QUEUE_VERSION,
+        "reviewer_count": len(reviewers),
+        "pages_reviewed": len(current),
+        "pages_remaining": remaining,
+        "page_count": total,
+        "human_coverage_events": len(events),
+        "outcome_counts": outcome_counts,
+        "coverage_appears_complete": outcome_counts.get("coverage_appears_complete", 0),
+        "missing_region": outcome_counts.get("missing_region", 0),
+        "crop_too_tight": outcome_counts.get("crop_too_tight", 0),
+        "crop_too_broad": outcome_counts.get("crop_too_broad", 0),
+        "duplicate_only": outcome_counts.get("duplicate_only", 0),
+        "page_requires_manual_review": outcome_counts.get("page_requires_manual_review", 0),
+        "page_not_reviewable": outcome_counts.get("page_not_reviewable", 0),
+        "reopened_page_count": len(state["reopened_pages"]),
+        "stale_event_count": len(state["stale_pages"]),
+        "manual_region_worklist_count": worklist_count,
+        "source_group_aggregate": source_group_aggregate,
+        "broad_family_aggregate": family_aggregate,
+        "privacy_notes": [
+            "Committed reports use opaque aggregate counts only.",
+            "No page IDs, crop IDs, filenames, paths, reviewer IDs, or visible text.",
+            "Small broad-family buckets may be suppressed.",
+        ],
+        "review_completion_status": status,
+        "required_next_action": next_action,
+        "content_sha256": queue.content_sha256 if queue else None,
+    }
+
+
+def render_coverage_aggregate_markdown(report: dict[str, Any]) -> str:
+    """Privacy-safe aggregate markdown for docs/evaluation/phase-5-coverage-review.md."""
+
+    lines = [
+        "# Phase 5 page coverage review",
+        "",
+        f"**Status:** {report.get('review_completion_status')}",
+        "",
+        f"- Coverage-review schema/version: `{report.get('coverage_event_version')}`",
+        f"- Overlay / queue version: `{report.get('overlay_version')}`",
+        f"- Report version: `{report.get('report_version')}`",
+        f"- Reviewer count: **{report.get('reviewer_count', 0)}**",
+        f"- Pages reviewed: **{report.get('pages_reviewed', 0)}**",
+        f"- Pages remaining: **{report.get('pages_remaining', 0)}**",
+        f"- `coverage_appears_complete`: **{report.get('coverage_appears_complete', 0)}**",
+        f"- `missing_region`: **{report.get('missing_region', 0)}**",
+        f"- `crop_too_tight`: **{report.get('crop_too_tight', 0)}**",
+        f"- `crop_too_broad`: **{report.get('crop_too_broad', 0)}**",
+        f"- `duplicate_only`: **{report.get('duplicate_only', 0)}**",
+        f"- `page_requires_manual_review`: **{report.get('page_requires_manual_review', 0)}**",
+        f"- `page_not_reviewable`: **{report.get('page_not_reviewable', 0)}**",
+        f"- Reopened-page count: **{report.get('reopened_page_count', 0)}**",
+        f"- Stale-event count: **{report.get('stale_event_count', 0)}**",
+        f"- Manual-region worklist count: **{report.get('manual_region_worklist_count', 0)}**",
+        "",
+        "### Source-group aggregate coverage",
+        "",
+    ]
+    sga = report.get("source_group_aggregate") or {}
+    lines.extend(
+        [
+            f"- Source groups: **{sga.get('source_group_count', 0)}**",
+            f"- Pages reviewed: **{sga.get('pages_reviewed', 0)}**",
+            f"- Pages marked coverage complete: **{sga.get('pages_with_complete_coverage', 0)}**",
+            "",
+            "### Broad-family aggregate coverage",
+            "",
+        ]
+    )
+    for row in report.get("broad_family_aggregate") or []:
+        lines.append(
+            f"- `{row.get('family')}`: pages **{row.get('pages', 0)}**, "
+            f"complete **{row.get('complete', 0)}**"
+        )
+    lines.extend(["", "### Privacy suppression notes", ""])
+    for note in report.get("privacy_notes") or []:
+        lines.append(f"- {note}")
+    lines.extend(
+        [
+            "",
+            "### Review completion status",
+            "",
+            f"{report.get('review_completion_status')}",
+            "",
+            "### Required next action",
+            "",
+            f"{report.get('required_next_action')}",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def refresh_coverage_summary(private_root: Path) -> dict[str, Any]:
+    """Recompute and persist private coverage-summary.json from live events."""
+
+    aggregate = build_coverage_aggregate(private_root)
+    summary_path = reports_dir(private_root) / "coverage-summary.json"
+    existing: dict[str, Any] = {}
+    if summary_path.is_file():
+        try:
+            existing = json.loads(summary_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            existing = {}
+    merged = {**existing, **aggregate}
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    summary_path.write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
+    return merged

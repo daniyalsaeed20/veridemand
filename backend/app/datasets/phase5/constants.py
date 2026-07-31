@@ -18,6 +18,8 @@ BLOCK_COVERAGE_VERSION: Final = "phase5-block-coverage-v1"
 BLOCK_COVERAGE_GAP_THRESHOLD: Final = 0.90
 COVERAGE_QUEUE_VERSION: Final = "phase5-coverage-queue-v1"
 COVERAGE_EVENT_VERSION: Final = "phase5-coverage-event-v1"
+COVERAGE_WORKLIST_VERSION: Final = "phase5-coverage-worklist-v1"
+COVERAGE_REPORT_VERSION: Final = "phase5-coverage-review-report-v1"
 PILOT_VERSION: Final = "phase5-annotation-pilot-v1"
 PILOT_SAMPLING_VERSION: Final = "phase5-annotation-pilot-sampling-v1"
 PILOT_PRIMARY_QUEUE_VERSION: Final = "phase5-pilot-primary-v1"
@@ -124,6 +126,28 @@ COVERAGE_OUTCOMES: Final[frozenset[str]] = frozenset(
         "page_not_reviewable",
     }
 )
+COVERAGE_CORRECTION_OUTCOMES: Final[frozenset[str]] = frozenset(
+    {
+        "missing_region",
+        "crop_too_tight",
+        "crop_too_broad",
+        "page_requires_manual_review",
+        "page_not_reviewable",
+    }
+)
+COVERAGE_ISSUE_FLAGS: Final[frozenset[str]] = frozenset(
+    {
+        "missing_region",
+        "crop_too_tight",
+        "crop_too_broad",
+        "page_requires_manual_review",
+        "page_not_reviewable",
+        "duplicate_only",
+        "note_requires_sanitisation",
+    }
+)
+CoverageAction = Literal["resolve", "reopen"]
+COVERAGE_ACTIONS: Final[frozenset[str]] = frozenset({"resolve", "reopen"})
 
 CropQualityFlag = Literal[
     "crop_too_tight",

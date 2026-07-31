@@ -14,15 +14,27 @@ pnpm phase5:dataset:backup
 ### 1. Page-level coverage review (separate from script labels)
 
 ```bash
+pnpm phase5:dataset:backup
 pnpm phase5:coverage:build
 pnpm phase5:coverage:verify
-pnpm phase5:coverage:serve
+pnpm phase5:coverage:serve -- --reviewer cov_reviewer_01
 ```
 
-Open `http://127.0.0.1:8766/?reviewer=rev_<coverage_opaque_id>`.
+Open `http://127.0.0.1:8766/?reviewer=cov_reviewer_01` (opaque coverage
+reviewer id; not a personal name).
 
-Coverage outcomes are **not** script labels. Manual-region status remains
-`not yet human-verified` until humans finish coverage review.
+Coverage outcomes are **not** script labels. After human completion:
+
+```bash
+pnpm phase5:dataset:backup
+pnpm phase5:coverage:verify -- --events
+pnpm phase5:coverage:worklist
+pnpm phase5:coverage:report -- --write-aggregate docs/evaluation/phase-5-coverage-review.md
+```
+
+Manual-region status remains `not yet human-verified` until humans finish
+coverage review. Do not open crop labelling until coverage is accepted or
+corrections are complete.
 
 ### 2. Primary pilot (600 crops)
 
