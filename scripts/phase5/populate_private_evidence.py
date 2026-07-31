@@ -66,11 +66,12 @@ def populate_document(
     try:
         page_count = len(doc)
         limit = page_count if max_pages is None else min(page_count, max_pages)
-        existing_pages = {
+        existing_by_page_id = {
             s.page_id: s
             for s in read_jsonl(manifest_path(private_root, "source-manifest.jsonl"), SourceRecord)
             if s.document_id == document.document_id
         }
+        existing_by_index = {s.page_index: s for s in existing_by_page_id.values()}
         limits = RenderLimits(
             target_dpi=200.0,
             min_effective_dpi=120.0,
@@ -81,7 +82,7 @@ def populate_document(
         for page_index in range(limit):
             page_number = page_index + 1
             # Reuse page_id if already registered for this index.
-            prior = next((s for s in existing_pages.values() if s.page_index == page_index), None)
+            prior = existing_by_index.get(page_index)
             page_id = prior.page_id if prior is not None else new_page_id()
             page = doc[page_index]
             width_pt, height_pt = page.get_size()
@@ -171,25 +172,27 @@ def populate_document(
             }
             strip_and_write_result(private_root / result_rel, result)
 
-            if prior is None:
+            # Never append a second SourceRecord for an existing page_id or page_index.
+            if prior is None and page_id not in existing_by_page_id:
+                record = SourceRecord(
+                    source_group_id=document.source_group_id,
+                    document_id=document.document_id,
+                    page_id=page_id,
+                    page_index=page_index,
+                    page_width_px=w_px,
+                    page_height_px=h_px,
+                    page_relpath=png_rel.replace("\\", "/"),
+                    source_family=document.source_family,
+                    document_sha256=document.document_sha256,
+                    page_count=document.page_count,
+                    created_at=datetime.now(UTC),
+                )
                 append_jsonl(
                     manifest_path(private_root, "source-manifest.jsonl"),
-                    [
-                        SourceRecord(
-                            source_group_id=document.source_group_id,
-                            document_id=document.document_id,
-                            page_id=page_id,
-                            page_index=page_index,
-                            page_width_px=w_px,
-                            page_height_px=h_px,
-                            page_relpath=png_rel.replace("\\", "/"),
-                            source_family=document.source_family,
-                            document_sha256=document.document_sha256,
-                            page_count=document.page_count,
-                            created_at=datetime.now(UTC),
-                        )
-                    ],
+                    [record],
                 )
+                existing_by_page_id[page_id] = record
+                existing_by_index[page_index] = record
             stats["pages"] += 1
             if lines_out or words_out:
                 stats["pages_with_geometry"] += 1
