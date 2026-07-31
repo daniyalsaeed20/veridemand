@@ -14,9 +14,17 @@ from backend.app.contracts.base import ApiModel
 from backend.app.contracts.geometry import NormalisedBoundingBox, NormalisedPolygon
 from backend.app.datasets.phase5.constants import (
     CANDIDATE_SOURCES,
+    COVERAGE_EVENT_VERSION,
+    COVERAGE_OUTCOMES,
+    COVERAGE_QUEUE_VERSION,
     CROP_PADDING_VERSION,
+    CROP_QUALITY_FLAGS,
     HUMAN_LABELS,
     LABEL_SCHEMA_VERSION,
+    PILOT_PRIMARY_QUEUE_VERSION,
+    PILOT_SAMPLING_VERSION,
+    PILOT_SECONDARY_QUEUE_VERSION,
+    PILOT_VERSION,
     QUEUE_ALGORITHM_VERSION,
     REVIEW_POLICY_VERSION,
     REVIEW_QUEUE_VERSION,
@@ -169,6 +177,8 @@ class ReviewEvent(ApiModel):
     action: ReviewAction
     label: HumanLabel | None = None
     note: Annotated[str, Field(max_length=256)] | None = None
+    quality_flags: list[str] = Field(default_factory=list)
+    queue_name: Annotated[str, Field(max_length=64)] | None = None
     created_at: datetime
 
     @field_validator("label")
@@ -176,6 +186,14 @@ class ReviewEvent(ApiModel):
     def _label_ok(cls, value: str | None) -> str | None:
         if value is not None and value not in HUMAN_LABELS:
             raise ValueError(f"Unknown label: {value}")
+        return value
+
+    @field_validator("quality_flags")
+    @classmethod
+    def _flags_ok(cls, value: list[str]) -> list[str]:
+        for flag in value:
+            if flag not in CROP_QUALITY_FLAGS:
+                raise ValueError(f"Unknown quality flag: {flag}")
         return value
 
 
@@ -244,16 +262,124 @@ class ReviewQueueEntry(ApiModel):
 
 
 class ReviewQueueManifest(ApiModel):
-    """Deterministic blinded primary-review queue (gitignored)."""
+    """Deterministic blinded review queue (gitignored)."""
 
     schema_version: Literal["phase5-dataset-schema-v1"] = SCHEMA_VERSION
-    queue_version: Literal["phase5-primary-review-queue-v1"] = REVIEW_QUEUE_VERSION
-    queue_algorithm_version: Literal["phase5-primary-queue-v1"] = QUEUE_ALGORITHM_VERSION
+    queue_version: str = REVIEW_QUEUE_VERSION
+    queue_algorithm_version: str = QUEUE_ALGORITHM_VERSION
     seed: Annotated[int, Field(ge=0)]
-    role: Literal["primary"] = "primary"
+    role: Literal["primary", "secondary", "adjudicator"] = "primary"
+    queue_name: Literal["pilot-primary", "pilot-secondary", "full-primary", "adjudication"] = (
+        "full-primary"
+    )
+    authorised_for_review: bool = False
+    authorisation_note: Annotated[str, Field(max_length=256)] | None = None
     created_at: datetime
     entries: list[ReviewQueueEntry] = Field(default_factory=list)
     content_sha256: Annotated[str, Field(min_length=64, max_length=64)]
     crop_manifest_sha256: Annotated[str, Field(min_length=64, max_length=64)] | None = None
     source_group_count: Annotated[int, Field(ge=0)] = 0
     candidate_source_counts: dict[str, int] = Field(default_factory=dict)
+
+
+class PilotCropRecord(ApiModel):
+    """One crop selected into the annotation pilot (private; no labels)."""
+
+    schema_version: Literal["phase5-dataset-schema-v1"] = SCHEMA_VERSION
+    pilot_version: Literal["phase5-annotation-pilot-v1"] = PILOT_VERSION
+    sampling_policy_version: Literal["phase5-annotation-pilot-sampling-v1"] = PILOT_SAMPLING_VERSION
+    pilot_crop_id: Annotated[str, Field(min_length=8, max_length=64)]
+    canonical_crop_id: Annotated[str, Field(min_length=8, max_length=64)]
+    crop_sha256: Annotated[str, Field(min_length=64, max_length=64)]
+    source_group_id: Annotated[str, Field(min_length=8, max_length=64)]
+    opaque_page_reference: Annotated[str, Field(min_length=8, max_length=64)]
+    selection_stratum: Annotated[str, Field(min_length=1, max_length=128)]
+    sampling_reason: Annotated[str, Field(min_length=1, max_length=256)]
+    queue_seed: Annotated[int, Field(ge=0)]
+    primary_position: Annotated[int, Field(ge=0)]
+    secondary_position: Annotated[int, Field(ge=0)]
+    created_at: datetime
+    input_manifest_hashes: dict[str, str] = Field(default_factory=dict)
+    pilot_manifest_sha256: Annotated[str, Field(min_length=64, max_length=64)] | None = None
+
+
+class PilotManifest(ApiModel):
+    """Aggregate pilot selection record (private)."""
+
+    schema_version: Literal["phase5-dataset-schema-v1"] = SCHEMA_VERSION
+    pilot_version: Literal["phase5-annotation-pilot-v1"] = PILOT_VERSION
+    sampling_policy_version: Literal["phase5-annotation-pilot-sampling-v1"] = PILOT_SAMPLING_VERSION
+    created_at: datetime
+    target_size: Annotated[int, Field(ge=1)]
+    crop_count: Annotated[int, Field(ge=0)]
+    pages_represented: Annotated[int, Field(ge=0)]
+    source_groups_represented: Annotated[int, Field(ge=0)]
+    primary_seed: Annotated[int, Field(ge=0)]
+    secondary_seed: Annotated[int, Field(ge=0)]
+    primary_queue_version: Literal["phase5-pilot-primary-v1"] = PILOT_PRIMARY_QUEUE_VERSION
+    secondary_queue_version: Literal["phase5-pilot-secondary-v1"] = PILOT_SECONDARY_QUEUE_VERSION
+    content_sha256: Annotated[str, Field(min_length=64, max_length=64)]
+    input_manifest_hashes: dict[str, str] = Field(default_factory=dict)
+    stratum_counts: dict[str, int] = Field(default_factory=dict)
+    per_page_min: Annotated[int, Field(ge=0)] = 0
+    per_page_max: Annotated[int, Field(ge=0)] = 0
+    entries: list[PilotCropRecord] = Field(default_factory=list)
+
+
+class CoverageEvent(ApiModel):
+    """Append-only page coverage-review decision (not a script label)."""
+
+    schema_version: Literal["phase5-dataset-schema-v1"] = SCHEMA_VERSION
+    coverage_event_version: Literal["phase5-coverage-event-v1"] = COVERAGE_EVENT_VERSION
+    coverage_event_id: Annotated[str, Field(min_length=8, max_length=64)]
+    opaque_page_reference: Annotated[str, Field(min_length=8, max_length=64)]
+    opaque_document_reference: Annotated[str, Field(min_length=8, max_length=64)]
+    reviewer_id: Annotated[str, Field(min_length=1, max_length=64)]
+    outcome: str
+    note: Annotated[str, Field(max_length=256)] | None = None
+    created_at: datetime
+
+    @field_validator("outcome")
+    @classmethod
+    def _outcome_ok(cls, value: str) -> str:
+        if value not in COVERAGE_OUTCOMES:
+            raise ValueError(f"Unknown coverage outcome: {value}")
+        return value
+
+
+class CoverageQueueEntry(ApiModel):
+    """One page in the coverage-review queue."""
+
+    opaque_page_reference: Annotated[str, Field(min_length=8, max_length=64)]
+    opaque_document_reference: Annotated[str, Field(min_length=8, max_length=64)]
+    queue_index: Annotated[int, Field(ge=0)]
+    priority_score: Annotated[int, Field(ge=0)] = 0
+    priority_reasons: list[str] = Field(default_factory=list)
+    crop_count: Annotated[int, Field(ge=0)] = 0
+    skipped_block_gap_count: Annotated[int, Field(ge=0)] = 0
+
+
+class CoverageQueueManifest(ApiModel):
+    """Deterministic coverage-review queue for all pages (gitignored)."""
+
+    schema_version: Literal["phase5-dataset-schema-v1"] = SCHEMA_VERSION
+    queue_version: Literal["phase5-coverage-queue-v1"] = COVERAGE_QUEUE_VERSION
+    created_at: datetime
+    page_count: Annotated[int, Field(ge=0)]
+    content_sha256: Annotated[str, Field(min_length=64, max_length=64)]
+    entries: list[CoverageQueueEntry] = Field(default_factory=list)
+    manual_region_status: Literal["not_yet_human_verified"] = "not_yet_human_verified"
+
+
+class BlockCoverageRecord(ApiModel):
+    """Aggregate-safe block→line coverage audit row (opaque refs only)."""
+
+    schema_version: Literal["phase5-dataset-schema-v1"] = SCHEMA_VERSION
+    opaque_page_reference: Annotated[str, Field(min_length=8, max_length=64)]
+    opaque_document_reference: Annotated[str, Field(min_length=8, max_length=64)]
+    block_index: Annotated[int, Field(ge=0)]
+    child_line_count: Annotated[int, Field(ge=0)]
+    child_crop_exists: bool
+    union_coverage_ratio: Annotated[float, Field(ge=0.0, le=1.0)]
+    coverage_gap: bool
+    requires_human_coverage_review: bool

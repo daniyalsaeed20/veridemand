@@ -8,6 +8,8 @@ import sys
 from pathlib import Path
 
 from backend.app.datasets.phase5.backup import backup_manifests
+from backend.app.datasets.phase5.block_coverage import audit_block_coverage
+from backend.app.datasets.phase5.coverage import build_coverage_review, verify_coverage_artefacts
 from backend.app.datasets.phase5.export import (
     export_from_phase4_json,
     import_manual_regions,
@@ -16,6 +18,16 @@ from backend.app.datasets.phase5.export import (
 )
 from backend.app.datasets.phase5.export_batch import export_all_populated_pages
 from backend.app.datasets.phase5.paths import REPO_ROOT, default_private_root
+from backend.app.datasets.phase5.pilot import (
+    build_adjudication_queue,
+    build_annotation_pilot,
+    render_pilot_aggregate_markdown,
+)
+from backend.app.datasets.phase5.pilot_report import build_pilot_agreement_report
+from backend.app.datasets.phase5.provenance_audit import (
+    audit_candidate_provenance,
+    render_provenance_aggregate_markdown,
+)
 from backend.app.datasets.phase5.queue import build_primary_review_queue
 from backend.app.datasets.phase5.register import register_from_batch_manifest
 from backend.app.datasets.phase5.report import (
@@ -24,6 +36,7 @@ from backend.app.datasets.phase5.report import (
     write_private_report,
 )
 from backend.app.datasets.phase5.resolve import resolve_dataset
+from backend.app.datasets.phase5.source_manifest_dedupe import dedupe_source_manifest
 from backend.app.datasets.phase5.split import (
     freeze_heldout,
     run_split,
@@ -190,6 +203,145 @@ def cmd_queue(args: argparse.Namespace) -> int:
                 "source_group_count": manifest.source_group_count,
                 "candidate_source_counts": manifest.candidate_source_counts,
                 "manual_region_worklist_pages": manual_n,
+                "authorised_for_review": manifest.authorised_for_review,
+                "authorisation_note": manifest.authorisation_note,
+            },
+            indent=2,
+        )
+    )
+    return 0
+
+
+def cmd_dedupe_sources(args: argparse.Namespace) -> int:
+    meta = dedupe_source_manifest(_root(args), backup=not args.no_backup)
+    print(json.dumps({"command": "dedupe-sources", **meta}, indent=2))
+    return 0
+
+
+def cmd_provenance_audit(args: argparse.Namespace) -> int:
+    report = audit_candidate_provenance(_root(args))
+    print(
+        json.dumps(
+            {
+                "command": "provenance-audit",
+                "verdict": report.get("verdict"),
+                "summary": report.get("summary"),
+                "categories": [
+                    {
+                        "candidate_source": c["candidate_source"],
+                        "candidate_record_count": c["candidate_record_count"],
+                        "canonical_crop_count": c["canonical_crop_count"],
+                        "status": c["status"],
+                    }
+                    for c in report.get("categories") or []
+                ],
+            },
+            indent=2,
+        )
+    )
+    if args.write_aggregate:
+        Path(args.write_aggregate).write_text(
+            render_provenance_aggregate_markdown(report), encoding="utf-8"
+        )
+    return 0
+
+
+def cmd_coverage_build(args: argparse.Namespace) -> int:
+    summary = build_coverage_review(_root(args))
+    print(json.dumps({"command": "coverage-build", **summary}, indent=2, default=str))
+    return 0
+
+
+def cmd_coverage_verify(args: argparse.Namespace) -> int:
+    problems = verify_coverage_artefacts(_root(args))
+    if problems:
+        print(json.dumps({"command": "coverage-verify", "ok": False, "problems": len(problems)}))
+        return 1
+    print(json.dumps({"command": "coverage-verify", "ok": True}))
+    return 0
+
+
+def cmd_coverage_report(args: argparse.Namespace) -> int:
+    root = _root(args)
+    summary_path = root / "reports" / "coverage-summary.json"
+    if not summary_path.is_file():
+        print("Run coverage-build first", file=sys.stderr)
+        return 1
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    safe = {
+        k: v
+        for k, v in summary.items()
+        if k
+        in {
+            "queue_version",
+            "page_count",
+            "overlays_written",
+            "content_sha256",
+            "manual_region_status",
+            "pages_with_low_crop_count",
+            "pages_with_high_crop_density",
+            "pages_with_block_gaps",
+            "human_coverage_events",
+            "note",
+            "block_coverage",
+        }
+    }
+    print(json.dumps({"command": "coverage-report", **safe}, indent=2, default=str))
+    return 0
+
+
+def cmd_block_coverage(args: argparse.Namespace) -> int:
+    summary = audit_block_coverage(_root(args))
+    print(json.dumps({"command": "block-coverage", **summary}, indent=2))
+    return 0
+
+
+def cmd_pilot_build(args: argparse.Namespace) -> int:
+    write_duplicates_and_update_crops(_root(args))
+    manifest = build_annotation_pilot(
+        _root(args),
+        target_size=args.target_size,
+        primary_seed=args.primary_seed,
+        secondary_seed=args.secondary_seed,
+    )
+    summary_path = _root(args) / "reports" / "pilot-summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    print(
+        json.dumps(
+            {
+                "command": "pilot-build",
+                "crop_count": manifest.crop_count,
+                "pages_represented": manifest.pages_represented,
+                "source_groups_represented": manifest.source_groups_represented,
+                "content_sha256": manifest.content_sha256,
+                "membership_equal": summary.get("membership_equal"),
+                "ordering_different": summary.get("ordering_different"),
+            },
+            indent=2,
+        )
+    )
+    if args.write_aggregate:
+        Path(args.write_aggregate).write_text(
+            render_pilot_aggregate_markdown(summary), encoding="utf-8"
+        )
+    return 0
+
+
+def cmd_pilot_report(args: argparse.Namespace) -> int:
+    report = build_pilot_agreement_report(_root(args))
+    print(json.dumps({"command": "pilot-report", **report}, indent=2))
+    return 0
+
+
+def cmd_adjudication_queue(args: argparse.Namespace) -> int:
+    manifest = build_adjudication_queue(_root(args))
+    print(
+        json.dumps(
+            {
+                "command": "adjudication-queue",
+                "conflicts": len(manifest.entries),
+                "authorised_for_review": manifest.authorised_for_review,
+                "sha256": manifest.content_sha256,
             },
             indent=2,
         )
@@ -210,8 +362,10 @@ def cmd_report(args: argparse.Namespace) -> int:
         "document_count",
         "training_eligible_count",
         "training_authorised",
+        "pilot_crop_count",
+        "manual_region_status",
     )
-    print(json.dumps({k: report[k] for k in safe_keys}, indent=2))
+    print(json.dumps({k: report.get(k) for k in safe_keys}, indent=2))
     print(f"Private report written ({private_path.name})")
     if args.write_aggregate:
         md = render_committed_aggregate_markdown(report)
@@ -274,9 +428,42 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("duplicates", help="Build duplicate families")
     p.set_defaults(func=cmd_duplicates)
 
-    p = sub.add_parser("queue", help="Build blinded primary-review queue")
+    p = sub.add_parser("queue", help="Build blinded primary-review queue (full corpus)")
     p.add_argument("--seed", type=int, default=42)
     p.set_defaults(func=cmd_queue)
+
+    p = sub.add_parser("dedupe-sources", help="Dedupe source-manifest by page_id")
+    p.add_argument("--no-backup", action="store_true")
+    p.set_defaults(func=cmd_dedupe_sources)
+
+    p = sub.add_parser("provenance-audit", help="Audit candidate-source provenance")
+    p.add_argument("--write-aggregate", default=None)
+    p.set_defaults(func=cmd_provenance_audit)
+
+    p = sub.add_parser("block-coverage", help="Audit skipped block vs line coverage")
+    p.set_defaults(func=cmd_block_coverage)
+
+    p = sub.add_parser("coverage-build", help="Build page overlays + coverage queue")
+    p.set_defaults(func=cmd_coverage_build)
+
+    p = sub.add_parser("coverage-verify", help="Verify coverage overlays")
+    p.set_defaults(func=cmd_coverage_verify)
+
+    p = sub.add_parser("coverage-report", help="Print aggregate coverage summary")
+    p.set_defaults(func=cmd_coverage_report)
+
+    p = sub.add_parser("pilot-build", help="Build 600-crop dual-review pilot")
+    p.add_argument("--target-size", type=int, default=600)
+    p.add_argument("--primary-seed", type=int, default=3101)
+    p.add_argument("--secondary-seed", type=int, default=3102)
+    p.add_argument("--write-aggregate", default=None)
+    p.set_defaults(func=cmd_pilot_build)
+
+    p = sub.add_parser("pilot-report", help="Pilot agreement report (after human reviews)")
+    p.set_defaults(func=cmd_pilot_report)
+
+    p = sub.add_parser("adjudication-queue", help="Build adjudication queue from conflicts")
+    p.set_defaults(func=cmd_adjudication_queue)
 
     p = sub.add_parser("split", help="Group-aware train/val/test split")
     p.add_argument("--seed", type=int, default=42)

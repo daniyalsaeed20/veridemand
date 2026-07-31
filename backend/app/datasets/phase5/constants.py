@@ -12,6 +12,24 @@ SPLIT_ALGORITHM_VERSION: Final = "phase5-group-split-v1"
 DUPLICATE_POLICY_VERSION: Final = "phase5-duplicate-policy-v1"
 QUEUE_ALGORITHM_VERSION: Final = "phase5-primary-queue-v1"
 REVIEW_QUEUE_VERSION: Final = "phase5-primary-review-queue-v1"
+PROVENANCE_AUDIT_VERSION: Final = "phase5-provenance-audit-v1"
+SOURCE_MANIFEST_DEDUPE_VERSION: Final = "phase5-source-manifest-dedupe-v1"
+BLOCK_COVERAGE_VERSION: Final = "phase5-block-coverage-v1"
+BLOCK_COVERAGE_GAP_THRESHOLD: Final = 0.90
+COVERAGE_QUEUE_VERSION: Final = "phase5-coverage-queue-v1"
+COVERAGE_EVENT_VERSION: Final = "phase5-coverage-event-v1"
+PILOT_VERSION: Final = "phase5-annotation-pilot-v1"
+PILOT_SAMPLING_VERSION: Final = "phase5-annotation-pilot-sampling-v1"
+PILOT_PRIMARY_QUEUE_VERSION: Final = "phase5-pilot-primary-v1"
+PILOT_SECONDARY_QUEUE_VERSION: Final = "phase5-pilot-secondary-v1"
+PILOT_PRIMARY_SEED: Final = 3101
+PILOT_SECONDARY_SEED: Final = 3102
+PILOT_TARGET_SIZE: Final = 600
+PILOT_SOFT_CAP_PER_PAGE: Final = 5
+PILOT_HARD_CAP_PER_PAGE: Final = 10
+FULL_QUEUE_AUTHORISATION_NOTE: Final = (
+    "full primary queue — not authorised for review until pilot approval"
+)
 
 # Fixed padding: 8% of the longer side of the source region bbox (normalised).
 CROP_PADDING_RATIO: Final = 0.08
@@ -86,6 +104,57 @@ ResolutionStatus = Literal[
 ]
 SplitName = Literal["train", "val", "test", "held_out"]
 
+CoverageOutcome = Literal[
+    "coverage_appears_complete",
+    "missing_region",
+    "crop_too_tight",
+    "crop_too_broad",
+    "duplicate_only",
+    "page_requires_manual_review",
+    "page_not_reviewable",
+]
+COVERAGE_OUTCOMES: Final[frozenset[str]] = frozenset(
+    {
+        "coverage_appears_complete",
+        "missing_region",
+        "crop_too_tight",
+        "crop_too_broad",
+        "duplicate_only",
+        "page_requires_manual_review",
+        "page_not_reviewable",
+    }
+)
+
+CropQualityFlag = Literal[
+    "crop_too_tight",
+    "crop_too_broad",
+    "blurred",
+    "low_resolution",
+    "mixed_content",
+    "partial_characters",
+    "rotation_problem",
+    "possible_duplicate",
+    "requires_page_context",
+]
+CROP_QUALITY_FLAGS: Final[frozenset[str]] = frozenset(
+    {
+        "crop_too_tight",
+        "crop_too_broad",
+        "blurred",
+        "low_resolution",
+        "mixed_content",
+        "partial_characters",
+        "rotation_problem",
+        "possible_duplicate",
+        "requires_page_context",
+    }
+)
+
+QueueName = Literal["pilot-primary", "pilot-secondary", "full-primary", "adjudication"]
+QUEUE_NAMES: Final[frozenset[str]] = frozenset(
+    {"pilot-primary", "pilot-secondary", "full-primary", "adjudication"}
+)
+
 PRIVATE_PHASE5_REL: Final = "fixtures/private/phase5"
 PRIVATE_SUBDIRS: Final[tuple[str, ...]] = (
     "sources",
@@ -95,6 +164,7 @@ PRIVATE_SUBDIRS: Final[tuple[str, ...]] = (
     "reports",
     "locks",
     "backups",
+    "coverage",
 )
 MANIFEST_FILES: Final[tuple[str, ...]] = (
     "document-manifest.jsonl",
@@ -106,4 +176,13 @@ MANIFEST_FILES: Final[tuple[str, ...]] = (
     "split-manifest.jsonl",
     "duplicate-families.jsonl",
     "primary-review-queue.jsonl",
+    "pilot-manifest.jsonl",
+    "pilot-primary-queue.jsonl",
+    "pilot-secondary-queue.jsonl",
+    "adjudication-queue.jsonl",
+    "coverage-queue.jsonl",
+    "coverage-events.jsonl",
+    "block-coverage-audit.jsonl",
+    "provenance-audit.json",
+    "context-review-worklist.jsonl",
 )

@@ -39,3 +39,11 @@ def new_exclusion_id() -> str:
 
 def new_duplicate_family_id() -> str:
     return f"dupfam_{_token()}"
+
+
+def new_pilot_crop_id() -> str:
+    return f"pilot_{_token()}"
+
+
+def new_coverage_event_id() -> str:
+    return f"cov_{_token()}"

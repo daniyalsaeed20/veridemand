@@ -14,6 +14,7 @@ from backend.app.datasets.phase5.paths import manifest_path, reports_dir
 from backend.app.datasets.phase5.schemas import (
     CropRecord,
     DocumentRecord,
+    PilotManifest,
     ResolvedLabelRecord,
     ReviewEvent,
     ReviewQueueManifest,
@@ -45,6 +46,8 @@ def build_readiness(private_root: Path) -> dict[str, Any]:
     queues = read_jsonl(
         manifest_path(private_root, "primary-review-queue.jsonl"), ReviewQueueManifest
     )
+    pilots = read_jsonl(manifest_path(private_root, "pilot-manifest.jsonl"), PilotManifest)
+    pilot = pilots[-1] if pilots else None
 
     status_counts = Counter(r.status for r in resolved)
     label_counts = Counter(r.label for r in resolved if r.label)
@@ -63,9 +66,13 @@ def build_readiness(private_root: Path) -> dict[str, Any]:
     if not resolved:
         unreviewed = len(crops)
 
+    status_line = "PRIVATE CORPUS POPULATED — COVERAGE AND ANNOTATION PILOT REQUIRED"
+    if pilot and pilot.crop_count > 0:
+        status_line = "PRIVATE CORPUS POPULATED — COVERAGE AND ANNOTATION PILOT REQUIRED"
+
     return {
         "generated_at": datetime.now(UTC).isoformat(),
-        "status_line": "DATASET TOOLING READY — PRIMARY HUMAN REVIEW PENDING",
+        "status_line": status_line,
         "schema_version": SCHEMA_VERSION,
         "crop_padding_version": CROP_PADDING_VERSION,
         "document_count": len(documents),
@@ -88,11 +95,20 @@ def build_readiness(private_root: Path) -> dict[str, Any]:
         "queue_seed": queue.seed if queue else None,
         "queue_sha256": queue.content_sha256 if queue else None,
         "queue_crop_count": len(queue.entries) if queue else 0,
+        "queue_authorised_for_review": bool(queue.authorised_for_review) if queue else False,
         "manual_region_worklist_pages": manual_pages,
+        "manual_region_status": "not_yet_human_verified",
+        "pilot_present": pilot is not None,
+        "pilot_crop_count": pilot.crop_count if pilot else 0,
+        "pilot_version": pilot.pilot_version if pilot else None,
+        "pilot_sha256": pilot.content_sha256 if pilot else None,
         "training_authorised": False,
         "notes": [
             "Human labels are required; OCR/heuristic predictions are never ground truth.",
             "No classifier training is authorised yet.",
+            "Default labelling uses pilot-primary / pilot-secondary until pilot approval.",
+            "Full primary queue is preserved but not authorised for review until pilot approval.",
+            "Manual-region requirement: not yet human-verified.",
             "Committed aggregate reports must use opaque counts only (no paths/text).",
         ],
     }
@@ -137,7 +153,15 @@ def render_committed_aggregate_markdown(report: dict[str, Any]) -> str:
         f"- Queue version: `{report.get('queue_version')}`",
         f"- Queue seed: `{report.get('queue_seed')}`",
         f"- Queue SHA-256: `{report.get('queue_sha256')}`",
+        f"- Queue authorised: **{report.get('queue_authorised_for_review', False)}**",
+        f"- Pilot crop count: **{report.get('pilot_crop_count', 0)}**",
+        f"- Pilot version: `{report.get('pilot_version')}`",
+        f"- Pilot SHA-256: `{report.get('pilot_sha256')}`",
         f"- Manual-region worklist pages: **{report.get('manual_region_worklist_pages', 0)}**",
+        (
+            f"- Manual-region requirement: "
+            f"**{report.get('manual_region_status', 'not_yet_human_verified')}**"
+        ),
         f"- Split manifest present: **{report.get('split_manifest_present', False)}**",
         f"- Held-out frozen: **{report.get('held_out_frozen', False)}**",
         f"- Classifier training authorised: **{report.get('training_authorised', False)}**",
@@ -177,10 +201,14 @@ def render_committed_aggregate_markdown(report: dict[str, Any]) -> str:
             "- Signatures are labelled `handwritten`.",
             "- `uncertain` is excluded from initial 3-class training.",
             "- No classifier training is authorised yet.",
+            "- Default human review uses `pilot-primary` until the annotation pilot is approved.",
+            "- Full primary queue is preserved but not authorised until pilot approval.",
+            "- Manual-region requirement: not yet human-verified.",
             "- Splits are not generated until labels exist.",
             "- Private crops, paths, and transcripts are never committed.",
             "",
-            "See `docs/datasets/phase-5-handwriting-dataset.md` and ADR 0051.",
+            "See `docs/datasets/phase-5-handwriting-dataset.md`, "
+            "`docs/evaluation/phase-5-annotation-pilot.md`, and ADR 0052.",
             "",
         ]
     )

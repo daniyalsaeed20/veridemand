@@ -8,7 +8,11 @@ from collections import Counter, defaultdict, deque
 from datetime import UTC, datetime
 from pathlib import Path
 
-from backend.app.datasets.phase5.constants import QUEUE_ALGORITHM_VERSION, REVIEW_QUEUE_VERSION
+from backend.app.datasets.phase5.constants import (
+    FULL_QUEUE_AUTHORISATION_NOTE,
+    QUEUE_ALGORITHM_VERSION,
+    REVIEW_QUEUE_VERSION,
+)
 from backend.app.datasets.phase5.hashes import sha256_file
 from backend.app.datasets.phase5.jsonl_io import read_jsonl, write_jsonl_atomic
 from backend.app.datasets.phase5.paths import ensure_layout, manifest_path
@@ -133,6 +137,10 @@ def build_primary_review_queue(
         queue_version=REVIEW_QUEUE_VERSION,
         queue_algorithm_version=QUEUE_ALGORITHM_VERSION,
         seed=seed,
+        role="primary",
+        queue_name="full-primary",
+        authorised_for_review=False,
+        authorisation_note=FULL_QUEUE_AUTHORISATION_NOTE,
         created_at=_now(),
         entries=entries,
         content_sha256=content_sha,
