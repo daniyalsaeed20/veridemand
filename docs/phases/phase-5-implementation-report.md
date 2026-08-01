@@ -1,7 +1,8 @@
 # Phase 5 implementation report
 
-**Status:** Phase 5 in progress — Task 3C pilot and coverage gate prepared; no
-private labels or model training completed.
+**Status:** Phase 5 in progress — Task 3D human page-coverage review completed;
+coverage correction required before annotation pilot. No script labels or model
+training completed.
 
 ## Completed
 
@@ -48,9 +49,18 @@ Evidence-based design freeze in `docs/phases/phase-5-preflight-audit.md`.
 - Status: **PILOT REVIEW QUEUES READY — HUMAN PILOT REQUIRED**
 - **No** private human labels created by tooling; **no** training; **no** OCR routing changes
 
+### Task 3D — Human page-coverage review
+
+- Human review of all 215 page overlays via loopback coverage UI
+- Aggregate report: `docs/evaluation/phase-5-coverage-review.md`
+- Decision: **COVERAGE CORRECTION REQUIRED BEFORE ANNOTATION PILOT**
+- Private correction worklist generated from human outcomes (gitignored)
+- **No** crop script labels; **no** pilot labelling opened; **no** training
+
 ## Not done (later tasks)
 
-- Human coverage review + primary/secondary pilot labelling (human operators)
+- Coverage corrections / affected crop regeneration (before pilot)
+- Primary/secondary pilot labelling (human operators)
 - Training / ONNX export
 - Detect-first Paddle split + live routing integration (Task 4)
 - Threshold calibration / held-out evaluation / approved recall gate (Task 5)
