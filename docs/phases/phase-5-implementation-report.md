@@ -1,8 +1,10 @@
 # Phase 5 implementation report
 
-**Status:** Phase 5 in progress — Task 3D human page-coverage review completed;
-coverage correction required before annotation pilot. No script labels or model
-training completed.
+**Status:** Phase 5 in progress — recovery audit complete at `d946945`.
+Classifier foundation exists but is unwired; annotation/coverage tooling is
+parked for prototype path. No production model; no live handwriting routing.
+
+See `docs/phases/phase-5-recovery-audit.md` for ChatGPT handoff and Tasks A–E.
 
 ## Completed
 
@@ -57,13 +59,13 @@ Evidence-based design freeze in `docs/phases/phase-5-preflight-audit.md`.
 - Private correction worklist generated from human outcomes (gitignored)
 - **No** crop script labels; **no** pilot labelling opened; **no** training
 
-## Not done (later tasks)
+## Not done (later tasks — recovery path Tasks A–E)
 
-- Coverage corrections / affected crop regeneration (before pilot)
-- Primary/secondary pilot labelling (human operators)
-- Training / ONNX export
-- Detect-first Paddle split + live routing integration (Task 4)
-- Threshold calibration / held-out evaluation / approved recall gate (Task 5)
-- Release tag (Task 6)
+- **A** Practical labelled sample (prototype; dual review / full coverage parked)
+- **B** Train / evaluate / export lightweight ONNX classifier
+- **C** Split Paddle detection from recognition and integrate classification
+- **D** Prove routing invariants and corpus evaluation
+- **E** Consolidate Phase 5 evidence and tag
+- Release held-out freeze remains an explicit later decision (six-group adequacy)
 
 Phase 5 is **not** passed.
