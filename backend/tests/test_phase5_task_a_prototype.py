@@ -27,7 +27,9 @@ from backend.app.datasets.phase5.resolve import resolve_events_for_crop
 from backend.app.datasets.phase5.schemas import (
     CropRecord,
     DocumentRecord,
+    HumanLabel,
     ReviewEvent,
+    SourceFamily,
     SourceRecord,
 )
 from backend.app.datasets.phase5.split import write_duplicates_and_update_crops
@@ -79,7 +81,7 @@ def _seed_dataset(root: Path, *, pages: int = 6, groups: int = 6) -> None:
     for g in range(groups):
         doc_id = f"doc_proto{g:011d}"
         group_id = f"srcgrp_proto{g:09d}"
-        family = (
+        family: SourceFamily = (
             "medical_form",
             "police_form",
             "billing_ledger",
@@ -91,7 +93,7 @@ def _seed_dataset(root: Path, *, pages: int = 6, groups: int = 6) -> None:
             DocumentRecord(
                 document_id=doc_id,
                 source_group_id=group_id,
-                source_family=family,  # type: ignore[arg-type]
+                source_family=family,
                 document_sha256=f"{g + 1:064x}",
                 page_count=pages,
                 opaque_label=f"synth_{g}",
@@ -111,7 +113,7 @@ def _seed_dataset(root: Path, *, pages: int = 6, groups: int = 6) -> None:
                     page_width_px=200,
                     page_height_px=200,
                     page_relpath=f"pages/{page_id}.png",
-                    source_family=family,  # type: ignore[arg-type]
+                    source_family=family,
                     document_sha256=f"{g + 1:064x}",
                     page_count=pages,
                     created_at=now,
@@ -329,7 +331,7 @@ def test_prototype_aggregate_privacy(tmp_path: Path) -> None:
     }
     events: list[ReviewEvent] = []
     # Ensure all three model classes plus uncertain appear regardless of queue size.
-    forced = ["printed", "handwritten", "non_text", "uncertain"]
+    forced: list[HumanLabel] = ["printed", "handwritten", "non_text", "uncertain"]
     for i, entry in enumerate(queue.entries):
         crop = crops[entry.crop_id]
         label = forced[i] if i < len(forced) else "printed"
@@ -341,7 +343,7 @@ def test_prototype_aggregate_privacy(tmp_path: Path) -> None:
                 reviewer_id="proto_reviewer_01",
                 role="primary",
                 action="label",
-                label=label,  # type: ignore[arg-type]
+                label=label,
                 queue_name="prototype-primary",
                 created_at=now,
             )
