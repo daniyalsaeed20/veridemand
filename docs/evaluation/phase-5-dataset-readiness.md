@@ -1,6 +1,6 @@
 # Phase 5 dataset readiness
 
-**Status:** PRIVATE CORPUS POPULATED — COVERAGE AND ANNOTATION PILOT REQUIRED
+**Status:** PRIVATE CORPUS POPULATED — PROTOTYPE LABELLING PATH OPEN (ADR 0053)
 
 Generated (UTC): `2026-07-31T06:45:38.674612+00:00`
 
@@ -51,11 +51,16 @@ Generated (UTC): `2026-07-31T06:45:38.674612+00:00`
 - Labels are human-only (`printed` / `handwritten` / `uncertain` / `non_text`).
 - Signatures are labelled `handwritten`.
 - `uncertain` is excluded from initial 3-class training.
-- No classifier training is authorised yet.
-- Default human review uses `pilot-primary` until the annotation pilot is approved.
-- Full primary queue is preserved but not authorised until pilot approval.
-- Manual-region requirement: not yet human-verified.
-- Splits are not generated until labels exist.
+- Release dual-agree `training_eligible` remains dual-review gated; prototype
+  single-pass labels use separate `prototype_model_eligible` (ADR 0053).
+- Default Task A human review uses `prototype-primary`.
+- Dual pilot and full primary queue remain available but parked for hardening.
+- Outstanding coverage corrections (10 pages) are parked; excluded from the
+  prototype queue sample.
+- Manual-region requirement: not yet human-verified (release hardening).
+- Splits / held-out freeze are not generated for the prototype path alone.
 - Private crops, paths, and transcripts are never committed.
 
-See `docs/datasets/phase-5-handwriting-dataset.md`, `docs/evaluation/phase-5-annotation-pilot.md`, and ADR 0052.
+See `docs/datasets/phase-5-handwriting-dataset.md`,
+`docs/evaluation/phase-5-annotation-pilot.md`,
+`docs/operations/phase-5-labelling.md`, ADR 0052, and ADR 0053.

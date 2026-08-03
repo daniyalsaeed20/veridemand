@@ -1,6 +1,6 @@
 # Phase 5 page coverage review
 
-**Status:** COVERAGE CORRECTION REQUIRED BEFORE ANNOTATION PILOT
+**Status:** COVERAGE CORRECTION PARKED — PROTOTYPE LABELLING MAY PROCEED (ADR 0053)
 
 - Coverage-review schema/version: `phase5-coverage-event-v1`
 - Overlay / queue version: `phase5-coverage-queue-v1`
@@ -40,8 +40,13 @@
 
 ### Review completion status
 
-COVERAGE CORRECTION REQUIRED BEFORE ANNOTATION PILOT
+COVERAGE CORRECTION PARKED — PROTOTYPE LABELLING MAY PROCEED (ADR 0053)
 
-### Required next action
+Ten correction-worklist entries remain known corpus gaps. They are excluded from
+the Task A prototype queue but do **not** block single-pass prototype labelling
+or first classifier development. Full correction remains release hardening.
 
-Correct manual regions / regenerate affected crops before opening the annotation pilot.
+### Required next action (release hardening)
+
+Correct manual regions / regenerate affected crops before claiming release-grade
+corpus completeness. Not required before prototype model development.

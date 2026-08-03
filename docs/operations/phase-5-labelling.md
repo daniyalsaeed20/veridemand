@@ -1,9 +1,15 @@
 # Phase 5 labelling operations
 
-## Default workflow (Task 3C) — annotation pilot first
+## Default workflow (Task A) — prototype single-pass sample
 
-Do **not** start full-corpus labelling until the pilot is reviewed and approved
-(ADR 0052).
+Phase 5 classifies writing style for routing only. Prototype labels train a
+local style classifier so handwritten/uncertain regions can later bypass Paddle
+recognition (`reserved_for_vision` / `pending_phase_6`). Phase 5 does **not**
+transcribe handwriting or call a vision provider.
+
+See ADR 0053. Dual pilot review, full coverage correction, and the ~45k primary
+queue remain available as **parked release-hardening** tools (ADR 0052) — they
+are not mandatory before the first prototype classifier.
 
 ### 0. Backup private manifests
 
@@ -11,7 +17,44 @@ Do **not** start full-corpus labelling until the pilot is reviewed and approved
 pnpm phase5:dataset:backup
 ```
 
-### 1. Page-level coverage review (separate from script labels)
+### 1. Build the prototype queue (once)
+
+```bash
+pnpm phase5:labels:prototype-queue -- --queue-version phase5-prototype-primary-v1
+```
+
+Target: ~300 crops from the existing 600-crop pilot, seed 4101, excluding crops
+on pages with active coverage-correction outcomes. Does not rebuild the full
+corpus or authorise `full-primary`.
+
+### 2. Single-pass prototype review (~300 crops)
+
+```bash
+pnpm phase5:labels:serve -- --queue prototype-primary --reviewer proto_reviewer_01
+```
+
+URL shape:
+
+```text
+http://127.0.0.1:8765/?role=primary&queue=prototype-primary&reviewer=proto_reviewer_01
+```
+
+One human reviewer. Ambiguous crops may be `uncertain`; unusable crops use
+exclude. No second review is required for the prototype path.
+
+After completion:
+
+```bash
+pnpm phase5:dataset:backup
+pnpm phase5:labels:resolve
+pnpm phase5:labels:prototype-report -- --write-aggregate docs/evaluation/phase-5-prototype-labels.md
+```
+
+## Parked — dual annotation pilot (release hardening)
+
+Do **not** treat dual review as a blocker for prototype model development.
+
+### Page-level coverage review (separate from script labels)
 
 ```bash
 pnpm phase5:dataset:backup
@@ -20,43 +63,18 @@ pnpm phase5:coverage:verify
 pnpm phase5:coverage:serve -- --reviewer cov_reviewer_01
 ```
 
-Open `http://127.0.0.1:8766/?reviewer=cov_reviewer_01` (opaque coverage
-reviewer id; not a personal name).
+Open `http://127.0.0.1:8766/?reviewer=cov_reviewer_01`. Coverage outcomes are
+**not** script labels. Outstanding correction worklist entries are parked for
+later corpus hardening (ADR 0053).
 
-Coverage outcomes are **not** script labels. After human completion:
-
-```bash
-pnpm phase5:dataset:backup
-pnpm phase5:coverage:verify -- --events
-pnpm phase5:coverage:worklist
-pnpm phase5:coverage:report -- --write-aggregate docs/evaluation/phase-5-coverage-review.md
-```
-
-Manual-region status remains `not yet human-verified` until humans finish
-coverage review. Do not open crop labelling until coverage is accepted or
-corrections are complete.
-
-### 2. Primary pilot (600 crops)
+### Primary / secondary pilot (600 crops)
 
 ```bash
 pnpm phase5:labels:serve -- --queue pilot-primary --reviewer rev_<opaque_id>
-```
-
-URL shape:
-
-```text
-http://127.0.0.1:8765/?role=primary&queue=pilot-primary&reviewer=rev_<opaque_id>
-```
-
-### 3. Secondary pilot (different reviewer)
-
-```bash
 pnpm phase5:labels:serve -- --queue pilot-secondary --reviewer rev_<different_opaque_id>
 ```
 
 The same `reviewer_id` **must not** serve both pilot primary and secondary roles.
-
-### 4. Agreement / conflicts (after both reviews exist)
 
 ```bash
 pnpm phase5:labels:pilot-report
@@ -65,7 +83,7 @@ pnpm phase5:labels:resolve
 pnpm phase5:dataset:report
 ```
 
-### 5. Stop before full-corpus review
+## Full-corpus queue (parked)
 
 The full primary queue (~45k canonical crops) remains preserved and marked:
 
@@ -79,14 +97,17 @@ Serving it requires an explicit flag:
 pnpm phase5:labels:serve -- --queue full-primary --authorise-full-queue --reviewer rev_<opaque_id>
 ```
 
-Do not authorise training, splits, or held-out freeze from the pilot alone.
+```bash
+pnpm phase5:labels:queue -- --seed 42
+```
+
+Rebuilds the full primary queue only. It is **not** the default human task.
 
 ## Blind review rules
 
 - UI shows the crop image and opaque `crop_id` only.
 - No OCR text, confidence, filenames, case names, source paths, candidate
-  provenance, or sampling reasons.
-- Secondary does not see primary labels/notes/progress.
+  provenance, sampling reasons, or model predictions.
 - Events are append-only JSONL with crop SHA-256.
 - No `localStorage` / browser persistence of private payloads.
 - Quality flags (`crop_too_tight`, `requires_page_context`, …) do **not**
@@ -100,14 +121,42 @@ Do not authorise training, splits, or held-out freeze from the pilot alone.
 |-------|---------|
 | printed | Machine-printed text style |
 | handwritten | Handwriting style (including signatures) |
-| uncertain | Ambiguous / vision-reserved; not training-eligible |
+| uncertain | Ambiguous / vision-reserved; not initial three-class training-eligible |
 | non_text | Borders, noise, logos, non-text marks |
 
-### Signature and uncertain policy
+### Printed
 
-- Signatures → `handwritten` (keyboard `S`).
-- Use `uncertain` only when style cannot be decided.
-- Use `X` (exclude) for corrupt/unusable crops — not as a substitute for `uncertain`.
+Select `printed` for mechanically rendered text, typed/computer-generated text,
+printed form labels, clearly machine-generated digits, and machine-rendered
+stamps.
+
+### Handwritten
+
+Select `handwritten` for cursive, hand-printed letters, handwritten digits,
+initials, **signatures**, handwritten corrections, and handwritten form entries.
+Signatures must be `handwritten` so they never enter local printed recognition.
+
+### Uncertain
+
+Select `uncertain` when printed and handwritten content cannot be separated, the
+crop is too ambiguous, severe blur/damage prevents a reliable decision,
+handwriting overlaps printed content, or page context would be required. Do not
+force an uncertain crop into a model class.
+
+### Non-text
+
+Select `non_text` for empty boxes, rules/borders, check marks without
+characters, icons, texture, image fragments, detector false positives, and
+decorative marks without readable writing.
+
+### Exclude
+
+Use exclusion—not `uncertain`—when the crop file is broken, empty, geometry is
+clearly wrong, the crop is so tight or broad that it is unusable, or the source
+image failed to load.
+
+Do not transcribe visible content. Do not type names, numbers, addresses, or
+visible document text into notes.
 
 ### Keyboard
 
@@ -121,17 +170,10 @@ Do not authorise training, splits, or held-out freeze from the pilot alone.
 | `X` | exclude |
 | `Z` | skip |
 
-## Full-corpus queue (not default)
-
-```bash
-pnpm phase5:labels:queue -- --seed 42
-```
-
-Rebuilds the full primary queue only. It is **not** the default human task.
-
 ## Related docs
 
+- `docs/evaluation/phase-5-prototype-labels.md`
 - `docs/evaluation/phase-5-annotation-pilot.md`
 - `docs/evaluation/phase-5-source-group-adequacy.md`
 - `docs/evaluation/phase-5-dataset-readiness.md`
-- ADR 0051, ADR 0052
+- ADR 0051, ADR 0052, ADR 0053

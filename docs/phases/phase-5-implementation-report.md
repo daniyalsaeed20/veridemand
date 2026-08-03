@@ -55,13 +55,21 @@ Evidence-based design freeze in `docs/phases/phase-5-preflight-audit.md`.
 
 - Human review of all 215 page overlays via loopback coverage UI
 - Aggregate report: `docs/evaluation/phase-5-coverage-review.md`
-- Decision: **COVERAGE CORRECTION REQUIRED BEFORE ANNOTATION PILOT**
+- Decision updated by ADR 0053: **COVERAGE CORRECTION PARKED** for prototype path
+  (10 worklist entries remain; excluded from prototype queue sample)
 - Private correction worklist generated from human outcomes (gitignored)
-- **No** crop script labels; **no** pilot labelling opened; **no** training
+- **No** crop script labels from Task 3D; **no** training
 
-## Not done (later tasks — recovery path Tasks A–E)
+### Task A — Prototype label sample (in progress)
 
-- **A** Practical labelled sample (prototype; dual review / full coverage parked)
+- ADR 0053: single-pass ~300-crop prototype path; dual review / 45k / coverage
+  correction parked as release hardening
+- Queue: `phase5-prototype-primary-v1` (seed 4101) from existing 600-crop pilot
+- Default serve: `prototype-primary` with opaque `proto_reviewer_*` / `rev_*`
+- **No** training; **no** OCR routing changes; **no** vision-provider calls
+
+## Not done (later tasks — recovery path Tasks B–E)
+
 - **B** Train / evaluate / export lightweight ONNX classifier
 - **C** Split Paddle detection from recognition and integrate classification
 - **D** Prove routing invariants and corpus evaluation

@@ -3,9 +3,12 @@
 ## Purpose
 
 Private region-crop dataset for Phase 5 handwriting **style** classification
-labels. Tasks 3A–3B delivered tooling and private corpus population. Task 3C
-adds coverage audit and a 600-crop blinded annotation pilot before full review.
-No training, no ONNX export, no live OCR wiring.
+labels used later for routing (printed→Paddle; handwritten/uncertain→
+`reserved_for_vision` / `pending_phase_6`; non_text→suppress). Tasks 3A–3D
+delivered tooling, corpus, dual pilot queues, and coverage audit. Task A adds a
+~300-crop single-pass prototype queue (ADR 0053). Dual review and full coverage
+correction remain parked release-hardening tools. No training, no ONNX export,
+no live OCR wiring, no vision-provider calls in this dataset work.
 
 ## Doctrine
 
@@ -56,20 +59,25 @@ regions are empty in the current private evidence. See the provenance audit.
 | `pnpm phase5:dataset:block-coverage` | Skipped-block vs line coverage |
 | `pnpm phase5:coverage:build` | Page overlays + coverage queue |
 | `pnpm phase5:coverage:serve` | Loopback coverage reviewer |
-| `pnpm phase5:labels:pilot` | Build 600-crop dual pilot queues |
-| `pnpm phase5:labels:serve -- --queue pilot-primary --reviewer rev_<id>` | Default human task |
-| `pnpm phase5:labels:serve -- --queue pilot-secondary --reviewer rev_<other>` | Blind secondary |
-| `pnpm phase5:labels:queue` | Rebuild full primary queue (not default) |
+| `pnpm phase5:labels:prototype-queue` | Build ~300-crop prototype queue from pilot |
+| `pnpm phase5:labels:serve -- --queue prototype-primary --reviewer proto_reviewer_01` | Default Task A human path |
+| `pnpm phase5:labels:prototype-report` | Aggregate prototype label report |
+| `pnpm phase5:labels:pilot` | Build 600-crop dual pilot queues (parked) |
+| `pnpm phase5:labels:serve -- --queue pilot-primary --reviewer rev_<id>` | Dual-pilot primary (parked) |
+| `pnpm phase5:labels:serve -- --queue pilot-secondary --reviewer rev_<other>` | Blind secondary (parked) |
+| `pnpm phase5:labels:queue` | Rebuild full primary queue (parked) |
 | `pnpm phase5:dataset:report` | Private + aggregate readiness |
 
 ## Readiness
 
 Committed aggregate: [`docs/evaluation/phase-5-dataset-readiness.md`](../evaluation/phase-5-dataset-readiness.md).
 
-Status after Task 3C: **PRIVATE CORPUS POPULATED — COVERAGE AND ANNOTATION PILOT REQUIRED**.
+Status: **PRIVATE CORPUS POPULATED — PROTOTYPE LABELLING PATH OPEN** (ADR 0053).
 
-Pilot: [`docs/evaluation/phase-5-annotation-pilot.md`](../evaluation/phase-5-annotation-pilot.md).
+Prototype labels: [`docs/evaluation/phase-5-prototype-labels.md`](../evaluation/phase-5-prototype-labels.md)
+(after human review).
 
-Source-group adequacy: [`docs/evaluation/phase-5-source-group-adequacy.md`](../evaluation/phase-5-source-group-adequacy.md).
+Pilot (parked dual-review): [`docs/evaluation/phase-5-annotation-pilot.md`](../evaluation/phase-5-annotation-pilot.md).
 
-No classifier training is authorised until human labels and an adequacy decision exist.
+Source-group adequacy: [`docs/evaluation/phase-5-source-group-adequacy.md`](../evaluation/phase-5-source-group-adequacy.md)
+— insufficient for **release** held-out freeze; does not block prototype training.

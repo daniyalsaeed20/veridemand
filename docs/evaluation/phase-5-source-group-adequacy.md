@@ -2,6 +2,10 @@
 
 **Conclusion:** `SOURCE-GROUP COVERAGE INSUFFICIENT FOR RELEASE EVALUATION`
 
+Six groups do **not** block prototype training or integration (ADR 0053). They
+do block a strong **release** generalisation / held-out freeze claim until
+adequacy improves or an explicit later decision records provisional acceptance.
+
 Generated for Task 3C (aggregate / opaque only). No private identifiers.
 
 ## Current coverage
@@ -61,4 +65,4 @@ Do not auto-collect private documents. Prefer additional **independent** groups:
 No hard release count is prescribed here; size follows later evidence-based
 decision after pilot review and additional acquisition.
 
-See ADR 0052 and `docs/evaluation/phase-5-annotation-pilot.md`.
+See ADR 0052, ADR 0053, and `docs/evaluation/phase-5-annotation-pilot.md`.

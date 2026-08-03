@@ -1,7 +1,7 @@
 # Phase 5 handwriting router (architecture)
 
 **Status:** Phase 5 in progress — Task 2 foundation complete, routing not
-integrated into live OCR.
+integrated into live OCR. Task A opens the prototype labelling path (ADR 0053).
 
 ## Scope
 
@@ -11,6 +11,19 @@ Local ONNX image classifier for writing-style routing:
 - Public outcomes: those three plus derived `uncertain`
 - Coordinates remain detector-owned (`[0,1]`, top-left)
 - No local HTR, OpenAI, OpenCV, or geometry invention
+
+### Routing doctrine
+
+```text
+printed     → Paddle printed-text recognition
+handwritten → no Paddle; preserve detector ID/geometry; reserved_for_vision / pending_phase_6
+uncertain   → no Paddle; preserve detector ID/geometry; reserved_for_vision / pending_phase_6
+non_text    → no Paddle; suppress from text recognition
+```
+
+“Route to vision” means **reservation only** — not a vision-provider request in
+Phase 5. Critical invariant (later Tasks C–D): no handwritten or uncertain
+region may ever be passed to Paddle recognition.
 
 ## Task 2 components
 

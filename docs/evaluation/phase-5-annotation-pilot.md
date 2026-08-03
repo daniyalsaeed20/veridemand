@@ -1,6 +1,9 @@
 # Phase 5 annotation pilot
 
-**Status:** PILOT REVIEW QUEUES READY — HUMAN PILOT REQUIRED
+**Status:** DUAL PILOT QUEUES READY — PARKED FOR RELEASE HARDENING (ADR 0053)
+
+Default Task A human path is the single-pass prototype queue
+(`phase5-prototype-primary-v1`); see `docs/operations/phase-5-labelling.md`.
 
 - Pilot version: `phase5-annotation-pilot-v1`
 - Sampling policy: `phase5-annotation-pilot-sampling-v1`
@@ -25,10 +28,11 @@
 
 ## Policy
 
-- Default human review uses `pilot-primary` / `pilot-secondary` only.
-- Full primary queue remains preserved but unauthorised until pilot approval.
+- Dual `pilot-primary` / `pilot-secondary` review remains available for release
+  hardening but is **not** required before prototype model development (ADR 0053).
+- Full primary queue remains preserved but unauthorised until explicit approval.
 - Candidate provenance and sampling reasons are never shown to reviewers.
-- No training, splits, or held-out freeze are authorised by this pilot.
+- No training, splits, or held-out freeze are authorised by this dual pilot alone.
 - Source-group adequacy: see `docs/evaluation/phase-5-source-group-adequacy.md`.
 - Operator steps: `docs/operations/phase-5-labelling.md`.
-- ADR 0052.
+- ADR 0052 (dual pilot / coverage gate); ADR 0053 (prototype path).
