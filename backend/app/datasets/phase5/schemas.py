@@ -208,6 +208,8 @@ class ResolvedLabelRecord(ApiModel):
     status: ResolutionStatus
     label: HumanLabel | None = None
     training_eligible: bool = False
+    # Single-pass prototype path (ADR 0053); release training_eligible stays dual-review.
+    prototype_model_eligible: bool = False
     primary_label: HumanLabel | None = None
     secondary_label: HumanLabel | None = None
     adjudicator_label: HumanLabel | None = None
@@ -271,9 +273,13 @@ class ReviewQueueManifest(ApiModel):
     queue_algorithm_version: str = QUEUE_ALGORITHM_VERSION
     seed: Annotated[int, Field(ge=0)]
     role: Literal["primary", "secondary", "adjudicator"] = "primary"
-    queue_name: Literal["pilot-primary", "pilot-secondary", "full-primary", "adjudication"] = (
-        "full-primary"
-    )
+    queue_name: Literal[
+        "pilot-primary",
+        "pilot-secondary",
+        "full-primary",
+        "adjudication",
+        "prototype-primary",
+    ] = "full-primary"
     authorised_for_review: bool = False
     authorisation_note: Annotated[str, Field(max_length=256)] | None = None
     created_at: datetime
@@ -282,6 +288,12 @@ class ReviewQueueManifest(ApiModel):
     crop_manifest_sha256: Annotated[str, Field(min_length=64, max_length=64)] | None = None
     source_group_count: Annotated[int, Field(ge=0)] = 0
     candidate_source_counts: dict[str, int] = Field(default_factory=dict)
+    # Prototype-queue integrity fields (optional; private manifests only).
+    input_pilot_version: Annotated[str, Field(max_length=64)] | None = None
+    input_manifest_hashes: dict[str, str] = Field(default_factory=dict)
+    excluded_active_coverage_page_count: Annotated[int, Field(ge=0)] | None = None
+    source_family_counts: dict[str, int] = Field(default_factory=dict)
+    ocr_confidence_sampling: Annotated[str, Field(max_length=128)] | None = None
 
 
 class PilotCropRecord(ApiModel):

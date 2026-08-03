@@ -42,6 +42,7 @@ def resolve_events_for_crop(
             status="excluded",
             label=None,
             training_eligible=False,
+            prototype_model_eligible=False,
             source_group_id=crop.source_group_id,
             duplicate_family_id=crop.duplicate_family_id,
             resolved_at=_now(),
@@ -54,6 +55,7 @@ def resolve_events_for_crop(
             status="invalidated_hash_mismatch",
             label=None,
             training_eligible=False,
+            prototype_model_eligible=False,
             source_group_id=crop.source_group_id,
             duplicate_family_id=crop.duplicate_family_id,
             resolved_at=_now(),
@@ -68,6 +70,7 @@ def resolve_events_for_crop(
                 status="excluded",
                 label=None,
                 training_eligible=False,
+                prototype_model_eligible=False,
                 source_group_id=crop.source_group_id,
                 duplicate_family_id=crop.duplicate_family_id,
                 resolved_at=_now(),
@@ -108,10 +111,17 @@ def resolve_events_for_crop(
         res_status = "unreviewed"
 
     # Signatures are labelled as handwritten by policy (labeler maps S→handwritten).
+    # Release training remains dual-agree/adjudicate only (ADR 0052).
     training_eligible = (
         final is not None
         and final in MODEL_TRAINING_LABELS
         and res_status in {"agreed", "adjudicated"}
+    )
+    # Prototype single-pass eligibility (ADR 0053); uncertain never eligible.
+    prototype_model_eligible = (
+        final is not None
+        and final in MODEL_TRAINING_LABELS
+        and res_status in {"single_review", "agreed", "adjudicated"}
     )
 
     return ResolvedLabelRecord(
@@ -120,6 +130,7 @@ def resolve_events_for_crop(
         status=cast(ResolutionStatus, res_status),
         label=final,
         training_eligible=training_eligible,
+        prototype_model_eligible=prototype_model_eligible,
         primary_label=primary,
         secondary_label=secondary,
         adjudicator_label=adjudicator,

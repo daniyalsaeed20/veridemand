@@ -29,6 +29,11 @@ PILOT_SECONDARY_SEED: Final = 3102
 PILOT_TARGET_SIZE: Final = 600
 PILOT_SOFT_CAP_PER_PAGE: Final = 5
 PILOT_HARD_CAP_PER_PAGE: Final = 10
+PROTOTYPE_PRIMARY_QUEUE_VERSION: Final = "phase5-prototype-primary-v1"
+PROTOTYPE_SAMPLING_VERSION: Final = "phase5-prototype-sampling-v1"
+PROTOTYPE_PRIMARY_SEED: Final = 4101
+PROTOTYPE_TARGET_SIZE: Final = 300
+PROTOTYPE_SOFT_CAP_PER_DOCUMENT: Final = 80
 FULL_QUEUE_AUTHORISATION_NOTE: Final = (
     "full primary queue — not authorised for review until pilot approval"
 )
@@ -174,9 +179,21 @@ CROP_QUALITY_FLAGS: Final[frozenset[str]] = frozenset(
     }
 )
 
-QueueName = Literal["pilot-primary", "pilot-secondary", "full-primary", "adjudication"]
+QueueName = Literal[
+    "pilot-primary",
+    "pilot-secondary",
+    "full-primary",
+    "adjudication",
+    "prototype-primary",
+]
 QUEUE_NAMES: Final[frozenset[str]] = frozenset(
-    {"pilot-primary", "pilot-secondary", "full-primary", "adjudication"}
+    {
+        "pilot-primary",
+        "pilot-secondary",
+        "full-primary",
+        "adjudication",
+        "prototype-primary",
+    }
 )
 
 PRIVATE_PHASE5_REL: Final = "fixtures/private/phase5"
@@ -203,6 +220,7 @@ MANIFEST_FILES: Final[tuple[str, ...]] = (
     "pilot-manifest.jsonl",
     "pilot-primary-queue.jsonl",
     "pilot-secondary-queue.jsonl",
+    "prototype-primary-queue.jsonl",
     "adjudication-queue.jsonl",
     "coverage-queue.jsonl",
     "coverage-events.jsonl",

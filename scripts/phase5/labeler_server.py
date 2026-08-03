@@ -151,6 +151,7 @@ QUEUE_FILES = {
     "pilot-secondary": "pilot-secondary-queue.jsonl",
     "full-primary": "primary-review-queue.jsonl",
     "adjudication": "adjudication-queue.jsonl",
+    "prototype-primary": "prototype-primary-queue.jsonl",
 }
 
 ROLE_FOR_QUEUE = {
@@ -158,7 +159,17 @@ ROLE_FOR_QUEUE = {
     "pilot-secondary": "secondary",
     "full-primary": "primary",
     "adjudication": "adjudicator",
+    "prototype-primary": "primary",
 }
+
+
+def _reviewer_id_ok(queue_name: str, reviewer_id: str) -> bool:
+    if not reviewer_id:
+        return False
+    if reviewer_id.startswith("rev_"):
+        return True
+    # Prototype path accepts opaque proto_reviewer_* (ADR 0053 / Task A).
+    return queue_name == "prototype-primary" and reviewer_id.startswith("proto_reviewer_")
 
 
 def _ensure_repo_path() -> None:
@@ -231,7 +242,9 @@ def make_handler(
         def _validate_access(
             self, *, queue_name: str, role: str, reviewer_id: str
         ) -> tuple[ReviewQueueManifest | None, str | None]:
-            if not reviewer_id or not reviewer_id.startswith("rev_"):
+            if not _reviewer_id_ok(queue_name, reviewer_id):
+                if queue_name == "prototype-primary":
+                    return None, "reviewer_id must be opaque rev_<id> or proto_reviewer_<id>"
                 return None, "reviewer_id must be opaque rev_<id>"
             if expected_reviewer and reviewer_id != expected_reviewer:
                 return None, "reviewer_id does not match server --reviewer"
@@ -474,12 +487,15 @@ def main(argv: list[str] | None = None) -> int:
         "--queue",
         required=True,
         choices=sorted(QUEUE_FILES.keys()),
-        help="Required queue name (pilot-primary|pilot-secondary|full-primary|adjudication)",
+        help=(
+            "Required queue name "
+            "(prototype-primary|pilot-primary|pilot-secondary|full-primary|adjudication)"
+        ),
     )
     parser.add_argument(
         "--reviewer",
         required=True,
-        help="Opaque reviewer id (rev_<id>); required",
+        help="Opaque reviewer id (rev_<id> or proto_reviewer_<id> for prototype-primary)",
     )
     parser.add_argument(
         "--authorise-full-queue",
@@ -490,8 +506,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.host not in {"127.0.0.1", "localhost", "::1"}:
         print("Refusing non-loopback bind", file=sys.stderr)
         return 2
-    if not str(args.reviewer).startswith("rev_"):
-        print("reviewer must start with rev_", file=sys.stderr)
+    if not _reviewer_id_ok(str(args.queue), str(args.reviewer)):
+        print(
+            "reviewer must start with rev_ (or proto_reviewer_ for prototype-primary)",
+            file=sys.stderr,
+        )
         return 2
     if args.queue == "full-primary" and not args.authorise_full_queue:
         print("full-primary requires --authorise-full-queue", file=sys.stderr)

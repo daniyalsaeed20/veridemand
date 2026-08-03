@@ -32,6 +32,11 @@ from backend.app.datasets.phase5.pilot import (
     render_pilot_aggregate_markdown,
 )
 from backend.app.datasets.phase5.pilot_report import build_pilot_agreement_report
+from backend.app.datasets.phase5.prototype import (
+    build_prototype_label_aggregate,
+    build_prototype_primary_queue,
+    render_prototype_labels_markdown,
+)
 from backend.app.datasets.phase5.provenance_audit import (
     audit_candidate_provenance,
     render_provenance_aggregate_markdown,
@@ -396,6 +401,69 @@ def cmd_adjudication_queue(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_prototype_queue(args: argparse.Namespace) -> int:
+    manifest = build_prototype_primary_queue(
+        _root(args),
+        queue_version=args.queue_version,
+        seed=args.seed,
+        target_size=args.target_size,
+    )
+    print(
+        json.dumps(
+            {
+                "command": "prototype-queue",
+                "queue_version": manifest.queue_version,
+                "queue_name": manifest.queue_name,
+                "seed": manifest.seed,
+                "crop_count": len(manifest.entries),
+                "source_group_count": manifest.source_group_count,
+                "excluded_active_coverage_page_count": (
+                    manifest.excluded_active_coverage_page_count
+                ),
+                "content_sha256": manifest.content_sha256,
+                "authorised_for_review": manifest.authorised_for_review,
+                "ocr_confidence_sampling": manifest.ocr_confidence_sampling,
+            },
+            indent=2,
+        )
+    )
+    return 0
+
+
+def cmd_prototype_report(args: argparse.Namespace) -> int:
+    report = build_prototype_label_aggregate(_root(args))
+    safe = {
+        k: report[k]
+        for k in (
+            "queue_version",
+            "seed",
+            "target_size",
+            "actual_size",
+            "source_group_count",
+            "excluded_active_coverage_page_count",
+            "total",
+            "reviewed",
+            "remaining",
+            "printed",
+            "handwritten",
+            "uncertain",
+            "non_text",
+            "excluded",
+            "skipped",
+            "prototype_model_eligible_count",
+            "readiness",
+        )
+        if k in report
+    }
+    print(json.dumps({"command": "prototype-report", **safe}, indent=2))
+    if args.write_aggregate:
+        out = Path(args.write_aggregate)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(render_prototype_labels_markdown(report), encoding="utf-8")
+        print(f"Wrote aggregate: {out.as_posix()}")
+    return 0
+
+
 def cmd_report(args: argparse.Namespace) -> int:
     root = _root(args)
     private_path = write_private_report(root)
@@ -527,6 +595,26 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("adjudication-queue", help="Build adjudication queue from conflicts")
     p.set_defaults(func=cmd_adjudication_queue)
+
+    p = sub.add_parser(
+        "prototype-queue",
+        help="Build ~300-crop prototype queue from existing pilot (ADR 0053)",
+    )
+    p.add_argument(
+        "--queue-version",
+        required=True,
+        help="Must be phase5-prototype-primary-v1 (explicit; prevents full-queue accidents)",
+    )
+    p.add_argument("--seed", type=int, default=4101)
+    p.add_argument("--target-size", type=int, default=300)
+    p.set_defaults(func=cmd_prototype_queue)
+
+    p = sub.add_parser(
+        "prototype-report",
+        help="Aggregate prototype label counts (after human review)",
+    )
+    p.add_argument("--write-aggregate", default=None)
+    p.set_defaults(func=cmd_prototype_report)
 
     p = sub.add_parser("split", help="Group-aware train/val/test split")
     p.add_argument("--seed", type=int, default=42)

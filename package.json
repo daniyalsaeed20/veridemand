@@ -45,6 +45,8 @@
     "phase5:labels:serve": "uv run python scripts/phase5/labeler_server.py",
     "phase5:labels:resolve": "uv run python scripts/phase5_dataset_cli.py resolve",
     "phase5:labels:queue": "uv run python scripts/phase5_dataset_cli.py queue",
+    "phase5:labels:prototype-queue": "uv run python scripts/phase5_dataset_cli.py prototype-queue",
+    "phase5:labels:prototype-report": "uv run python scripts/phase5_dataset_cli.py prototype-report",
     "phase5:labels:pilot": "uv run python scripts/phase5_dataset_cli.py pilot-build --write-aggregate docs/evaluation/phase-5-annotation-pilot.md",
     "phase5:labels:pilot-report": "uv run python scripts/phase5_dataset_cli.py pilot-report",
     "phase5:labels:adjudication": "uv run python scripts/phase5_dataset_cli.py adjudication-queue",
