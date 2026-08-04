@@ -1,13 +1,27 @@
-# Phase 5 security review (Tasks 2–3C)
+# Phase 5 security review (Tasks 2–B)
 
-Engineering controls for the handwriting classifier foundation and private crop
-dataset tooling. This document does **not** claim regulatory compliance.
+Engineering controls for the handwriting classifier foundation, private crop
+dataset tooling, and Task B model-development. This document does **not** claim
+regulatory compliance.
 
 ## Local inference (Task 2)
 
 - ONNX Runtime CPU only (`CPUExecutionProvider` requested explicitly)
 - No Phase 5 network calls; no OpenAI client
 - No automatic model download at startup
+
+## Task B model development
+
+- Torch / Torchvision / onnxscript remain in the `model-dev` group only
+- Forbidden from `backend/app` imports via dependency-boundary check
+- Private training manifests, checkpoints, and OOF prediction dumps stay under
+  gitignored `fixtures/private/phase5/model-dev/` and
+  `model_development/.artifacts/`
+- Committed evaluation reports use aggregates only (no crop/page/reviewer IDs,
+  paths, text, or montages)
+- No public handwriting dataset download in Task B
+- No production_candidate ONNX package committed (safety gate failed;
+  supplementation required)
 
 ## Privacy
 
@@ -29,9 +43,11 @@ dataset tooling. This document does **not** claim regulatory compliance.
 
 - Model SHA-256 recorded in `model-record.json` and verified before readiness
 - Strict manifest schema (`extra=forbid`)
-- Dependency boundary allowlists `onnxruntime` / `onnx` / OCR populate script
+- Dependency boundary allowlists `onnxruntime` / `onnx` / OCR populate script;
+  forbids `torch` / `torchvision` in production application code
 - Tasks 3A–3C add **no** new production dependencies (Pillow/NumPy/stdlib; OCR
   group only for offline populate)
+- Task B adds torch/torchvision/onnxscript to **`model-dev` only**
 - `test_fixture` packages cannot satisfy required production readiness
 
 ## Resource bounds

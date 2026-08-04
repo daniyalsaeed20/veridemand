@@ -1,7 +1,8 @@
 # Phase 5 handwriting router (architecture)
 
-**Status:** Phase 5 in progress — Task 2 foundation complete, routing not
-integrated into live OCR. Task A opens the prototype labelling path (ADR 0053).
+**Status:** Phase 5 in progress — Task B project-only classifier requires
+additional training data before runtime integration. Router remains disabled;
+not wired into live OCR.
 
 ## Scope
 
@@ -24,6 +25,18 @@ non_text    → no Paddle; suppress from text recognition
 “Route to vision” means **reservation only** — not a vision-provider request in
 Phase 5. Critical invariant (later Tasks C–D): no handwritten or uncertain
 region may ever be passed to Paddle recognition.
+
+## Task B training tooling
+
+| Piece | Path |
+|-------|------|
+| Model-dev package | `model_development/handwriting_classifier/` |
+| Train/export CLI | `scripts/phase5/train_handwriting_classifier.py` |
+| Runtime package dir | `models/handwriting_classifier/` (no production_candidate yet) |
+| Evaluation | `docs/evaluation/phase-5-classifier-*.md` |
+
+Training uses Torch/Torchvision only under `model-dev`. Production backend must
+not import them (dependency-boundary check).
 
 ## Task 2 components
 

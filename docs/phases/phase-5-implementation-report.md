@@ -1,8 +1,6 @@
 # Phase 5 implementation report
 
-**Status:** Phase 5 in progress — recovery audit complete at `d946945`.
-Classifier foundation exists but is unwired; annotation/coverage tooling is
-parked for prototype path. No production model; no live handwriting routing.
+**Status:** Phase 5 in progress — project-only classifier requires additional training data before runtime integration.
 
 See `docs/phases/phase-5-recovery-audit.md` for ChatGPT handoff and Tasks A–E.
 
@@ -81,9 +79,21 @@ Evidence-based design freeze in `docs/phases/phase-5-preflight-audit.md`.
   prototype training)
 - **No** training; **no** OCR routing changes; **no** vision-provider calls
 
-## Not done (later tasks — recovery path Tasks B–E)
+### Task B — Prototype ONNX classifier train/evaluate/export
 
-- **B** Train / evaluate / export lightweight ONNX classifier
+- `model-dev` stack: torch 2.6.0, torchvision 0.21.0, onnxscript (dev-only)
+- Isolated tooling: `model_development/handwriting_classifier/`
+- Project-only fit set: printed 221, handwritten 55, non_text 23; uncertain 54 challenge-only
+- LOSGO OOF diagnostics across 6 source groups; ≤3 training configurations
+- Prototype safety gate **not** met (handwritten→printed leak; safe-bypass <100%)
+- Decision: **PROTOTYPE MODEL NEEDS SUPPLEMENTATION**
+- Evidence: `docs/evaluation/phase-5-classifier-prototype.md` (+ FP/FN, performance)
+- ADRs 0054–0058
+- **No** production_candidate package; **no** OCR wiring; router remains disabled
+
+## Not done (later tasks — recovery path Tasks C–E)
+
+- **B′** Bounded supplementation (separate prompt) if authorised after Task B
 - **C** Split Paddle detection from recognition and integrate classification
 - **D** Prove routing invariants and corpus evaluation
 - **E** Consolidate Phase 5 evidence and tag
