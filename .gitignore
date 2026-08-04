@@ -42,6 +42,13 @@ data/sessions/
 .models/
 .paddleocr/
 
+# Phase 5 model-development artefacts (checkpoints, private manifests, caches)
+model_development/.artifacts/
+model_development/**/__pycache__/
+*.pt
+*.pth
+!backend/tests/fixtures/**/*.pt
+
 # Smoke corpus generator work files (single-page rebuilds; not corpus SoT)
 fixtures/synthetic/smoke/_veridemand_fixture_work/
 

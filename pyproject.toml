@@ -42,6 +42,10 @@ ocr = [
 ]
 model-dev = [
   "onnx>=1.16,<2.0",
+  # Phase 5 Task B: training/export only — never imported by production backend.
+  "torch==2.6.0",
+  "torchvision==0.21.0",
+  "onnxscript>=0.1.0,<1.0",
 ]
 
 [build-system]
@@ -59,8 +63,8 @@ pythonpath = ["."]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["backend", "scripts"]
-extend-exclude = ["frontend", ".venv", "docs"]
+src = ["backend", "scripts", "model_development"]
+extend-exclude = ["frontend", ".venv", "docs", "model_development/.artifacts"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "ASYNC", "SIM", "RUF"]
@@ -92,9 +96,18 @@ disallow_untyped_defs = false
 # Third-party upload-validation libraries without type stubs (used only for
 # structural validation). Their imports are treated as untyped.
 [[tool.mypy.overrides]]
-module = ["defusedxml.*", "olefile", "olefile.*", "oletools.*", "reportlab.*", "pdfplumber.*", "pdfminer.*", "pypdfium2.*", "paddleocr.*", "paddle.*", "numpy.*", "psutil.*", "PIL.*", "onnxruntime", "onnxruntime.*", "onnx", "onnx.*"]
+module = ["defusedxml.*", "olefile", "olefile.*", "oletools.*", "reportlab.*", "pdfplumber.*", "pdfminer.*", "pypdfium2.*", "paddleocr.*", "paddle.*", "numpy.*", "psutil.*", "PIL.*", "onnxruntime", "onnxruntime.*", "onnx", "onnx.*", "torch", "torch.*", "torchvision", "torchvision.*", "onnxscript", "onnxscript.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["scripts.generate_veridemand_regression_pdf"]
 ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["model_development.*"]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["scripts.phase5.train_handwriting_classifier"]
+ignore_missing_imports = true
+disallow_untyped_defs = false

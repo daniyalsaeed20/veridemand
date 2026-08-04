@@ -25,8 +25,8 @@ STEPS: list[tuple[str, str]] = [
     ("Private-corpus tracking guard", f"{PYTHON} scripts/check_no_private_corpus.py"),
     ("Dependency-boundary guard", f"{PYTHON} scripts/check_dependency_boundary.py"),
     ("Contract generation and drift check", f"{PYTHON} scripts/check_contracts.py"),
-    ("Backend format check", "uv run ruff format --check backend scripts"),
-    ("Backend lint", "uv run ruff check backend scripts"),
+    ("Backend format check", "uv run ruff format --check backend scripts model_development"),
+    ("Backend lint", "uv run ruff check backend scripts model_development"),
     ("Backend type check", "uv run mypy backend scripts"),
     (
         "LibreOffice availability",

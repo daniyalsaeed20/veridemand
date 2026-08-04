@@ -31,12 +31,15 @@ FORBIDDEN_IMPORTS = (
     "trocr",
     "kraken",
     "pylaia",
+    "torch",
+    "torchvision",
 )
 
 # onnxruntime may be imported only here.
 ONNXRUNTIME_ALLOWED_PREFIXES = (
     "backend/app/extraction/handwriting_router/",
     "scripts/verify_handwriting_classifier.py",
+    "backend/tests/",
 )
 
 # onnx (structural tooling) may be imported only here — not general app services.
@@ -45,6 +48,12 @@ ONNX_TOOLING_ALLOWED_PREFIXES = (
     "scripts/verify_handwriting_classifier.py",
     "scripts/generate_handwriting_classifier_fixture.py",
     "backend/tests/",
+)
+
+# torch/torchvision — model-dev training tests/CLIs only; never production app.
+TORCH_ALLOWED_PREFIXES = (
+    "backend/tests/",
+    "scripts/phase5/train_handwriting_classifier.py",
 )
 
 # Phase-4 OCR stack is allowed only in these path prefixes (posix-style).
@@ -113,6 +122,8 @@ def _import_allowed(path: Path, package: str) -> bool:
         return _is_under(path, ONNXRUNTIME_ALLOWED_PREFIXES)
     if package == "onnx":
         return _is_under(path, ONNX_TOOLING_ALLOWED_PREFIXES)
+    if package in {"torch", "torchvision"}:
+        return _is_under(path, TORCH_ALLOWED_PREFIXES)
     # openai, cv2, HTR — never allowed in app/scripts (tests may mention names
     # only as strings; this guard scans import statements).
     return False

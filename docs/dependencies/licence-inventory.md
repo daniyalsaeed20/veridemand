@@ -19,15 +19,19 @@ runtime (not a Python/Node package).
 | psutil | 6.x–7.x | BSD-3-Clause | Optional `ocr` group — worker RSS monitoring |
 | opencv-contrib-python (transitive) | via paddleocr | Apache-2.0 | Not imported by VeriDemand app code |
 
-## Phase 5 direct dependency additions (Task 2)
+## Phase 5 direct dependency additions (Task 2 + Task B)
 
 | Package | Version | Licence | Notes |
 |---|---|---|---|
 | onnxruntime | 1.28.0 | MIT | CPU inference for handwriting style classifier |
 | onnx | 1.22.0 | Apache-2.0 | `model-dev` group only — checker / fixture generation |
+| torch | 2.6.0 | BSD-3-Clause | `model-dev` only — classifier training/export; forbidden in production app |
+| torchvision | 0.21.0 | BSD-3-Clause | `model-dev` only — MobileNetV3-Small + pretrained weights |
+| onnxscript | resolved via lock | Apache-2.0 | `model-dev` only — PyTorch ONNX export helper |
 
 Confirmed: no `openai`, `onnxruntime-gpu`, OpenCV app imports, or local HTR
-engines were added in Task 2.
+engines were added in Task 2 / Task B. Torch/Torchvision remain outside the
+production backend import boundary.
 
 Confirmed: no handwriting/HTR classifiers, no ONNX Runtime vision packages, and
 no OpenAI / vision-LLM client libraries were added in Phase 4.

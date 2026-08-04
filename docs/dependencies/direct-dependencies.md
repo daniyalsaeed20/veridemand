@@ -29,15 +29,22 @@ vision-LLM clients, databases, or demand-letter packages.
 
 ### Phase 5 model-dev group (`[dependency-groups].model-dev`)
 
-Installed via `uv sync --group model-dev`. Used for ONNX structural checks and
-test-fixture generation. Not required for Phase 4 OCR. Not a training stack.
+Installed via `uv sync --group model-dev`. Used for ONNX structural checks,
+test-fixture generation, and Phase 5 Task B classifier training/export.
+Not required for Phase 4 OCR or production backend inference.
 
 | Package | Version | Purpose | Phase | Source | Licence |
 |---|---|---|---|---|---|
 | onnx | 1.22.0 | Model checker + fixture graph authoring | 5 | https://github.com/onnx/onnx | Apache-2.0 |
+| torch | 2.6.0 | MobileNetV3-Small transfer learning + ONNX export | 5 Task B | https://pytorch.org | BSD-3-Clause |
+| torchvision | 0.21.0 | Pretrained MobileNetV3-Small weights + transforms | 5 Task B | https://github.com/pytorch/vision | BSD-3-Clause |
+| onnxscript | lock-resolved | Stable Torch ONNX exporter support | 5 Task B | https://github.com/microsoft/onnxscript | Apache-2.0 |
 
-Phase 5 does **not** add `openai`, `torch`, `torchvision`, `scikit-learn`, or
-`onnxruntime-gpu` in Task 2.
+Production runtime continues to use `onnxruntime` + Pillow + NumPy only.
+`torch` / `torchvision` are forbidden from `backend/app` imports via the
+dependency-boundary check. Do not move them into core dependencies.
+
+Phase 5 does **not** add `openai`, `scikit-learn`, or `onnxruntime-gpu`.
 
 ### Phase 4 OCR optional group (`[dependency-groups].ocr`)
 
