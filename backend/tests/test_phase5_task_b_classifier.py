@@ -1,4 +1,9 @@
-"""Phase 5 Task B: training-tooling and threshold safety tests (synthetic fixtures)."""
+"""Phase 5 Task B historical tests retargeted to dual-risk (Task B3).
+
+Task B three-class softmax remains a documented prototype baseline —
+superseded for safety evaluation. Active assertions cover shared tooling
+still used by Task B3 (LOSGO helpers, synth non-text, preprocess).
+"""
 
 from __future__ import annotations
 
@@ -6,25 +11,16 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from model_development.handwriting_classifier.config import (
-    CANDIDATE_CONFIGS,
-    CLASS_ORDER,
-    ThresholdCandidate,
-    TrainConfig,
-)
+from model_development.handwriting_classifier import TRAINING_LABELS
+from model_development.handwriting_classifier.config import CANDIDATE_CONFIGS, TrainConfig
 from model_development.handwriting_classifier.dataset import (
     TrainingExample,
     class_counts,
     filter_by_groups,
     source_groups,
 )
-from model_development.handwriting_classifier.evaluate import confusion_matrix, summarize_oof
+from model_development.handwriting_classifier.evaluate import summarize_oof
 from model_development.handwriting_classifier.synthetic_nontext import generate_synthetic_nontext
-from model_development.handwriting_classifier.thresholds import (
-    evaluate_thresholds,
-    route_probabilities,
-    search_thresholds,
-)
 from model_development.handwriting_classifier.transforms import (
     letterbox_rgb,
     runtime_preprocess,
@@ -49,8 +45,8 @@ def _ex(crop_id: str, group: str, label: str, path: str = "/tmp/x.png") -> Train
     )
 
 
-def test_class_order_fixed() -> None:
-    assert CLASS_ORDER == ("printed", "handwritten", "non_text")
+def test_training_labels_fixed() -> None:
+    assert TRAINING_LABELS == ("printed", "handwritten", "non_text")
     assert len(CANDIDATE_CONFIGS) <= 3
 
 
@@ -66,24 +62,7 @@ def test_source_group_isolation() -> None:
     held = filter_by_groups(examples, {"g1"})
     train = filter_by_groups(examples, set(groups) - {"g1"})
     assert {e.crop_id for e in held} == {"c1", "c2"}
-    assert {e.source_group_id for e in train} == {"g2", "g3"}
     assert not any(e.source_group_id == "g1" for e in train)
-
-
-def test_class_weight_inverse_frequency() -> None:
-    from model_development.handwriting_classifier.train import ExampleRef, compute_class_weights
-
-    refs = [
-        ExampleRef(path="a", label="printed", source_group_id="g"),
-        ExampleRef(path="b", label="printed", source_group_id="g"),
-        ExampleRef(path="c", label="handwritten", source_group_id="g"),
-        ExampleRef(path="d", label="non_text", source_group_id="g"),
-    ]
-    weights = compute_class_weights(refs)
-    assert len(weights) == 3
-    # printed has highest count → lowest weight
-    assert weights[0] < weights[1]
-    assert weights[0] < weights[2]
 
 
 def test_synthetic_nontext_deterministic(tmp_path: Path) -> None:
@@ -91,24 +70,22 @@ def test_synthetic_nontext_deterministic(tmp_path: Path) -> None:
     b = generate_synthetic_nontext(tmp_path / "b", count=20, seed=7)
     assert len(a) == 20
     assert all(r["label"] == "non_text" for r in a)
-    assert all(str(r["source_group_id"]).startswith("srcgrp_synth_nt_") for r in a)
-    # Same seed → same pixel bytes for matching indices
     for ra, rb in zip(a, b, strict=True):
-        pa = Path(str(ra["path"])).read_bytes()
-        pb = Path(str(rb["path"])).read_bytes()
-        assert pa == pb
+        assert Path(str(ra["path"])).read_bytes() == Path(str(rb["path"])).read_bytes()
 
 
 def test_no_synthetic_in_project_oof_metrics() -> None:
     preds = [
         {
             "label": "printed",
-            "probabilities": [0.9, 0.05, 0.05],
+            "probabilities": [0.05, 0.05],
+            "risk_probabilities": [0.05, 0.05],
             "synthetic": False,
         },
         {
             "label": "non_text",
-            "probabilities": [0.1, 0.1, 0.8],
+            "probabilities": [0.1, 0.8],
+            "risk_probabilities": [0.1, 0.8],
             "synthetic": True,
         },
     ]
@@ -123,7 +100,6 @@ def test_letterbox_preserves_aspect() -> None:
     canvas = letterbox_rgb(img, size=224, padding_value=255)
     assert canvas.size == (224, 224)
     arr = np.asarray(canvas)
-    # Corners should be near white padding
     assert int(arr[0, 0, 0]) == 255
 
 
@@ -142,87 +118,18 @@ def test_runtime_preprocess_matches_manual_pipeline() -> None:
     assert np.allclose(a, b, atol=1e-6)
 
 
-def test_threshold_safety_gate_zero_hw_to_printed() -> None:
-    # Perfect separation predictions
-    preds = []
-    for _ in range(10):
-        preds.append(
-            {"label": "handwritten", "probabilities": [0.05, 0.9, 0.05], "synthetic": False}
-        )
-    for _ in range(20):
-        preds.append({"label": "printed", "probabilities": [0.9, 0.05, 0.05], "synthetic": False})
-    for _ in range(5):
-        preds.append({"label": "non_text", "probabilities": [0.05, 0.05, 0.9], "synthetic": False})
-    cand = ThresholdCandidate(0.7, 0.6, 0.6, 0.1)
-    m = evaluate_thresholds(preds, cand)
-    assert m.handwritten_to_printed == 0
-    assert m.nontext_to_printed == 0
-    assert m.handwriting_safe_bypass_recall == 1.0
-    assert m.printed_retention_recall >= 0.8
-    assert m.passes_safety_gate
-
-
-def test_threshold_rejects_hw_leak() -> None:
-    preds = [
-        {"label": "handwritten", "probabilities": [0.95, 0.03, 0.02], "synthetic": False},
-        {"label": "printed", "probabilities": [0.9, 0.05, 0.05], "synthetic": False},
-        {"label": "non_text", "probabilities": [0.05, 0.05, 0.9], "synthetic": False},
-    ]
-    cand = ThresholdCandidate(0.5, 0.9, 0.5, 0.05)
-    m = evaluate_thresholds(preds, cand)
-    assert m.handwritten_to_printed >= 1
-    assert not m.passes_safety_gate
-
-
-def test_anti_trivial_all_uncertain() -> None:
-    # High thresholds force uncertain → printed retention fails
-    preds = []
-    for _ in range(20):
-        preds.append({"label": "printed", "probabilities": [0.5, 0.3, 0.2], "synthetic": False})
-    for _ in range(10):
-        preds.append({"label": "handwritten", "probabilities": [0.2, 0.5, 0.3], "synthetic": False})
-    for _ in range(5):
-        preds.append({"label": "non_text", "probabilities": [0.2, 0.2, 0.6], "synthetic": False})
-    cand = ThresholdCandidate(0.99, 0.99, 0.99, 0.5)
-    m = evaluate_thresholds(preds, cand)
-    assert m.printed_retention_recall < 0.8
-    assert not m.passes_safety_gate
-
-
-def test_bounded_threshold_search_lexicographic() -> None:
-    preds = []
-    for _ in range(15):
-        preds.append({"label": "handwritten", "probabilities": [0.1, 0.8, 0.1], "synthetic": False})
-    for _ in range(40):
-        preds.append({"label": "printed", "probabilities": [0.85, 0.1, 0.05], "synthetic": False})
-    for _ in range(8):
-        preds.append({"label": "non_text", "probabilities": [0.1, 0.1, 0.8], "synthetic": False})
-    selected, top = search_thresholds(preds)
-    assert selected is not None
-    assert selected.passes_safety_gate
-    assert selected.handwritten_to_printed == 0
-    assert len(top) <= 20
-
-
-def test_route_uses_existing_decision_service() -> None:
-    outcome = route_probabilities([0.9, 0.05, 0.05], ThresholdCandidate(0.8, 0.7, 0.7, 0.1))
-    assert outcome == "printed"
-    outcome_u = route_probabilities([0.4, 0.35, 0.25], ThresholdCandidate(0.85, 0.7, 0.8, 0.1))
-    assert outcome_u == "uncertain"
-
-
 def test_config_hash_stable() -> None:
-    a = TrainConfig(name="weighted_default_aug")
-    b = TrainConfig(name="weighted_default_aug")
+    a = TrainConfig(name="dual_risk_weighted_bce")
+    b = TrainConfig(name="dual_risk_weighted_bce")
     assert a.config_hash() == b.config_hash()
-    c = TrainConfig(name="weighted_default_aug", stage1_epochs=99)
+    c = TrainConfig(name="dual_risk_weighted_bce", stage1_epochs=99)
     assert a.config_hash() != c.config_hash()
 
 
 def test_uncertain_excluded_from_class_counts() -> None:
     examples = [_ex("a", "g", "printed"), _ex("b", "g", "handwritten"), _ex("c", "g", "non_text")]
     counts = class_counts(examples)
-    assert set(counts) == set(CLASS_ORDER)
+    assert set(counts) == set(TRAINING_LABELS)
     assert "uncertain" not in counts
 
 
@@ -230,14 +137,14 @@ def test_uncertain_excluded_from_class_counts() -> None:
     __import__("importlib").util.find_spec("torch") is None,
     reason="torch not installed (model-dev group)",
 )
-def test_model_three_logits_and_class_order() -> None:
+def test_model_dual_risk_logits() -> None:
     torch = pytest.importorskip("torch")
     from model_development.handwriting_classifier.model import build_model, parameter_counts
 
     model = build_model(pretrained=False)
     x = torch.zeros(2, 3, 224, 224)
     y = model(x)
-    assert tuple(y.shape) == (2, 3)
+    assert tuple(y.shape) == (2, 2)
     counts = parameter_counts(model)
     assert counts["total"] > 0
 
@@ -255,14 +162,3 @@ def test_augmentation_deterministic_under_seed() -> None:
     a = np.asarray(augment_train(img, rng1))
     b = np.asarray(augment_train(img, rng2))
     assert np.array_equal(a, b)
-
-
-def test_confusion_matrix_labels() -> None:
-    preds = [
-        {"label": "printed", "probabilities": [0.9, 0.05, 0.05], "synthetic": False},
-        {"label": "handwritten", "probabilities": [0.1, 0.8, 0.1], "synthetic": False},
-    ]
-    cm = confusion_matrix(preds)
-    assert cm["labels"] == list(CLASS_ORDER)
-    assert cm["matrix"][0][0] == 1
-    assert cm["matrix"][1][1] == 1

@@ -33,10 +33,14 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_candidate_configs_are_asap_mixtures() -> None:
+def test_candidate_configs_are_dual_risk_asap_mixtures() -> None:
     names = {c.name for c in CANDIDATE_CONFIGS}
-    assert names == {"asap_light", "asap_medium", "asap_medium_project_weighted"}
-    assert all(c.public_asap_variant in ("light", "medium") for c in CANDIDATE_CONFIGS)
+    assert names == {
+        "dual_risk_weighted_bce",
+        "dual_risk_asymmetric_bce",
+        "dual_risk_focal",
+    }
+    assert all(c.public_asap_variant == "medium" for c in CANDIDATE_CONFIGS)
     assert len(CANDIDATE_CONFIGS) <= 3
 
 
@@ -117,21 +121,33 @@ def test_slice_gates_fail_on_cursive_printed() -> None:
     preds = [
         {
             "label": "handwritten",
-            "probabilities": [0.95, 0.03, 0.02],
+            "probabilities": [0.05, 0.05],
+            "risk_probabilities": [0.05, 0.05],
             "synthetic": False,
             "source_category": "cursive",
         },
         {
             "label": "handwritten",
-            "probabilities": [0.02, 0.95, 0.03],
+            "probabilities": [0.95, 0.05],
+            "risk_probabilities": [0.95, 0.05],
             "synthetic": False,
             "source_category": "signature",
         },
-        {"label": "printed", "probabilities": [0.9, 0.05, 0.05], "synthetic": False},
-        {"label": "non_text", "probabilities": [0.05, 0.05, 0.9], "synthetic": False},
+        {
+            "label": "printed",
+            "probabilities": [0.05, 0.05],
+            "risk_probabilities": [0.05, 0.05],
+            "synthetic": False,
+        },
+        {
+            "label": "non_text",
+            "probabilities": [0.05, 0.95],
+            "risk_probabilities": [0.05, 0.95],
+            "synthetic": False,
+        },
     ]
-    # Low printed threshold would route cursive to printed
-    m = evaluate_thresholds(preds, ThresholdCandidate(0.5, 0.5, 0.5, 0.05))
+    # Low HW accept / high safe-low would not apply; cursive with both risks low → printed
+    m = evaluate_thresholds(preds, ThresholdCandidate(0.70, 0.20, 0.70, 0.20))
     assert m.handwritten_to_printed >= 1
     assert m.passes_slice_gates is False
     assert m.passes_safety_gate is False
@@ -141,20 +157,32 @@ def test_slice_gates_fail_on_signature_non_text() -> None:
     preds = [
         {
             "label": "handwritten",
-            "probabilities": [0.05, 0.1, 0.85],
+            "probabilities": [0.05, 0.95],
+            "risk_probabilities": [0.05, 0.95],
             "synthetic": False,
             "source_category": "signature",
         },
         {
             "label": "handwritten",
-            "probabilities": [0.05, 0.9, 0.05],
+            "probabilities": [0.95, 0.05],
+            "risk_probabilities": [0.95, 0.05],
             "synthetic": False,
             "source_category": "cursive",
         },
-        {"label": "printed", "probabilities": [0.9, 0.05, 0.05], "synthetic": False},
-        {"label": "non_text", "probabilities": [0.05, 0.05, 0.9], "synthetic": False},
+        {
+            "label": "printed",
+            "probabilities": [0.05, 0.05],
+            "risk_probabilities": [0.05, 0.05],
+            "synthetic": False,
+        },
+        {
+            "label": "non_text",
+            "probabilities": [0.05, 0.95],
+            "risk_probabilities": [0.05, 0.95],
+            "synthetic": False,
+        },
     ]
-    m = evaluate_thresholds(preds, ThresholdCandidate(0.7, 0.55, 0.55, 0.05))
+    m = evaluate_thresholds(preds, ThresholdCandidate(0.70, 0.20, 0.70, 0.20))
     assert m.slice_gates["signature_routed_non_text"] == 1
     assert m.passes_slice_gates is False
 
@@ -163,22 +191,34 @@ def test_public_flag_excluded_from_safety_eval() -> None:
     preds = [
         {
             "label": "handwritten",
-            "probabilities": [0.95, 0.03, 0.02],
+            "probabilities": [0.05, 0.05],
+            "risk_probabilities": [0.05, 0.05],
             "synthetic": False,
             "public": True,
             "source_category": "cursive",
         },
         {
             "label": "handwritten",
-            "probabilities": [0.05, 0.9, 0.05],
+            "probabilities": [0.95, 0.05],
+            "risk_probabilities": [0.95, 0.05],
             "synthetic": False,
             "public": False,
             "source_category": "cursive",
         },
-        {"label": "printed", "probabilities": [0.9, 0.05, 0.05], "synthetic": False},
-        {"label": "non_text", "probabilities": [0.05, 0.05, 0.9], "synthetic": False},
+        {
+            "label": "printed",
+            "probabilities": [0.05, 0.05],
+            "risk_probabilities": [0.05, 0.05],
+            "synthetic": False,
+        },
+        {
+            "label": "non_text",
+            "probabilities": [0.05, 0.95],
+            "risk_probabilities": [0.05, 0.95],
+            "synthetic": False,
+        },
     ]
-    m = evaluate_thresholds(preds, ThresholdCandidate(0.7, 0.6, 0.6, 0.1))
+    m = evaluate_thresholds(preds, ThresholdCandidate(0.70, 0.20, 0.70, 0.20))
     assert m.handwritten_to_printed == 0
     assert m.passes_slice_gates
     assert m.passes_safety_gate
