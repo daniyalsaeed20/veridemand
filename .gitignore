@@ -44,6 +44,7 @@ data/sessions/
 
 # Phase 5 model-development artefacts (checkpoints, private manifests, caches)
 model_development/.artifacts/
+model_development/.data/
 model_development/**/__pycache__/
 *.pt
 *.pth
