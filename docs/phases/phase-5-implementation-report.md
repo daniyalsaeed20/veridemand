@@ -1,6 +1,6 @@
 # Phase 5 implementation report
 
-**Status:** Phase 5 in progress — supplemented classifier remains below the routing safety gate.
+**Status:** Phase 5 in progress — safety-first model remains below project routing gates.
 
 See `docs/phases/phase-5-recovery-audit.md` for ChatGPT handoff and Tasks A–E.
 
@@ -104,6 +104,25 @@ Evidence-based design freeze in `docs/phases/phase-5-preflight-audit.md`.
   with 100% safe-bypass)
 - Evidence: `docs/evaluation/phase-5-classifier-prototype.md` (+ FP/FN, performance)
 - **No** production_candidate package; **no** OCR wiring; router remains disabled
+
+### Task B3 — Safety-first dual-risk classifier
+
+- Replaced forced three-class softmax with shared MobileNetV3-Small + two
+  independent risk logits (`handwriting_risk`, `non_text_risk`)
+- Targets: printed→[0,0], handwritten→[1,0], non_text→[0,1]; uncertain challenge-only
+- Losses (≤3): weighted BCE, asymmetric HW-FN×3.0, binary focal
+- ASAP medium (350) + synthetic non-text (300) training-only; project LOSGO gates
+- Safety-first decision policy: printed only when both risks safely low;
+  material handwriting never discarded as non_text; conflicts → uncertain
+- Package schema v2: `risk_logits` `[batch,2]`, `independent_binary_risk_logits`
+- ADRs 0063–0067; ADRs 0047 / 0054 / 0058 marked superseded for production-candidate evaluation
+- Three-class baseline retained as **prototype baseline — superseded for safety evaluation**
+- Decision: see `model_development/.artifacts/task_b3_decision.json`
+  → **`SAFETY-FIRST MODEL STILL NOT SAFE`**
+  (focal clears HW leaks only with printed retention ≈19%; weighted/asymmetric
+  still leak HW→printed/non_text)
+- **No** production_candidate package; **no** OCR wiring; router remains disabled; **no** Phase 6/7
+
 ## Not done (later tasks — recovery path Tasks C–E)
 
 - **C** Split Paddle detection from recognition and integrate classification

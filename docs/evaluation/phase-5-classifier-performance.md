@@ -1,39 +1,33 @@
-# Phase 5 classifier performance (Task B2)
+# Phase 5 classifier performance
 
 ## Scope
 
-CPU-oriented notes from Task B2 ASAP-supplemented model-development runs.
-**No GPU runtime claims.** No production package was published (safety gate
-failed).
+CPU-oriented notes from Task B / B2 / B3 model-development runs.
+**No GPU runtime claims.**
 
 ## Training device
 
 - Locked dependency wheels: `torch==2.6.0+cpu`, `torchvision==0.21.0+cpu`
-- Host has a GTX 1060, but CPU wheels were used for cross-platform lock
-  reproducibility
-- 4 logical CPUs
 
-## Training throughput (approximate)
+## Task B2 baseline (three-class)
 
-- ASAP prepare: ~3 minutes download+extract+subset (98.4 MB archive; 350 crops)
-- LOSGO: 3 configurations × 6 folds; wall clock ≈ **38 minutes** for full
-  Task B2 train-export search on this host (includes threshold grid search)
-- Public handwriting adds 150–350 train-only images per fold; synthetic
-  non-text remains 300
+- LOSGO: 3 configurations × 6 folds; wall clock ≈ **38 minutes**
+- No production package published
 
-## Package / inference
+## Task B3 dual-risk
 
-Not applicable for a committed `production_candidate` package.
+LOSGO wall clock on this host (CPU):
 
-When an ONNX package is later produced, benchmark via
-`HandwritingClassifierService` + `CPUExecutionProvider` and record:
+| Config | Elapsed (s) |
+|--------|------------:|
+| dual_risk_weighted_bce | ≈ 912 |
+| dual_risk_asymmetric_bce | ≈ 871 |
+| dual_risk_focal | ≈ 831 |
+| **Total train-export** | ≈ **2630** (~44 min) |
 
-- model / package size
-- session creation time
-- first inference latency
-- warm single-crop latency
-- warm batch latency / throughput
-- peak memory where practical
+No `production_candidate` package was published (safety gate failed), so
+production ORT load / warm-inference package benchmarks were not recorded for
+B3. Unit-test dual-risk fixture continues to exercise CPU ORT session paths.
 
 ## Privacy
 

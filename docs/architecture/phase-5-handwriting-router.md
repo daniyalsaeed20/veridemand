@@ -1,16 +1,20 @@
 # Phase 5 handwriting router (architecture)
 
-**Status:** Phase 5 in progress — ASAP-supplemented classifier remains below
-the routing safety gate. Router remains disabled; not wired into live OCR.
+**Status:** Phase 5 in progress — safety-first model remains below project
+routing gates. Router remains disabled; not wired into live OCR.
 
 ## Scope
 
 Local ONNX image classifier for writing-style routing:
 
-- Model classes: `printed`, `handwritten`, `non_text`
-- Public outcomes: those three plus derived `uncertain`
+- Model outputs: independent `handwriting_risk` and `non_text_risk` logits
+- Public outcomes: `printed`, `handwritten`, `uncertain`, `non_text`
+  (derived by safety-first abstention; printed is guarded, not a model class)
 - Coordinates remain detector-owned (`[0,1]`, top-left)
 - No local HTR, OpenAI, OpenCV, or geometry invention
+
+Task B / B2 three-class softmax remains a
+**prototype baseline — superseded for safety evaluation**.
 
 ### Routing doctrine
 
@@ -21,18 +25,18 @@ uncertain   → no Paddle; preserve detector ID/geometry; reserved_for_vision / 
 non_text    → no Paddle; suppress from text recognition
 ```
 
-“Route to vision” means **reservation only** — not a vision-provider request in
-Phase 5. Critical invariant (later Tasks C–D): no handwritten or uncertain
-region may ever be passed to Paddle recognition.
+Critical invariant (later Tasks C–D): no handwritten or uncertain region may
+ever be passed to Paddle recognition.
 
-## Task B training tooling
+## Task B3 training tooling
 
 | Piece | Path |
 |-------|------|
 | Model-dev package | `model_development/handwriting_classifier/` |
 | Train/export CLI | `scripts/phase5/train_handwriting_classifier.py` |
-| Runtime package dir | `models/handwriting_classifier/` (no production_candidate yet) |
+| Runtime package dir | `models/handwriting_classifier/` |
 | Evaluation | `docs/evaluation/phase-5-classifier-*.md` |
+| ADRs | 0063–0067 (dual-risk); 0059–0062 (ASAP / slices) |
 
 Training uses Torch/Torchvision only under `model-dev`. Production backend must
 not import them (dependency-boundary check).
@@ -42,17 +46,17 @@ not import them (dependency-boundary check).
 | Piece | Path |
 |-------|------|
 | Contracts | `backend/app/contracts/ocr.py` lifecycle/outcome/reason/evidence |
-| Settings | `handwriting_router_enabled` (default false), thresholds, path |
+| Settings | `handwriting_router_enabled` (default false), dual-risk thresholds, path |
 | Service | `backend/app/extraction/handwriting_router/` |
 | Verifier | `verify_classifier_package` + `scripts/verify_handwriting_classifier.py` |
 | Health | `HealthService._check_handwriting_classifier` |
 
 Phase 4 stamp sites still set `handwriting_assessment=pending_phase_5`. New
-evidence fields are optional until Task 4.
+evidence fields are optional until integration.
 
 ## Explicit non-wiring
 
-Task 2 does **not** call the classifier from:
+Does **not** call the classifier from:
 
 - `visual/worker.py` / `process_page`
 - `routing/repair_methods.py`

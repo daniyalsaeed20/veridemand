@@ -4,6 +4,11 @@
 
 Accepted (Phase 5 Task B)
 
+**Superseded for production-candidate evaluation** by Task B3
+(`mobilenet_v3_small_dual_risk_v1`, ADR 0063). The MobileNetV3-Small backbone,
+ImageNet transfer schedule, and letterbox preprocess remain; the three-class
+head is replaced by independent dual-risk logits.
+
 ## Context
 
 Phase 5 needs a lightweight local writing-style classifier that outputs three

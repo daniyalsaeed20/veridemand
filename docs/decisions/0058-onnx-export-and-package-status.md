@@ -4,6 +4,11 @@
 
 Accepted (Phase 5 Task B)
 
+**Superseded for production-candidate evaluation** by Task B3 dual-risk export
+(`risk_logits` `[batch, 2]`, `independent_binary_risk_logits`, schema v2).
+The package layout and verifier pattern remain; output contract and labels
+schema change under ADR 0063–0064.
+
 ## Context
 
 Production inference uses ONNX Runtime CPU only. Training uses PyTorch. The

@@ -1,51 +1,45 @@
-# Phase 5 classifier FP/FN categories (Task B2)
+# Phase 5 classifier FP/FN categories
 
 Privacy-safe aggregate categories from source-group-isolated out-of-fold
 predictions. **No crop IDs, paths, text, or screenshots.** Public ASAP samples
 are excluded from these counts.
 
-## Decision context
+## Task B2 three-class baseline (superseded for safety evaluation)
 
-`SUPPLEMENTED MODEL STILL NOT SAFE FOR INTEGRATION` — Task B2 ASAP
-supplementation improved argmax handwriting recall but did not clear aggregate
-plus cursive/signature slice gates. Best reported config for quality:
-`asap_medium` (macro F1); best safe-bypass among top candidates:
-`asap_medium_project_weighted`.
+Decision: `SUPPLEMENTED MODEL STILL NOT SAFE FOR INTEGRATION`
 
-## Routing / confusion categories (aggregate, asap_medium argmax)
-
-| Category | Count |
-|----------|------:|
+| Category (asap_medium argmax) | Count |
+|-------------------------------|------:|
 | handwritten predicted printed | 12 |
 | handwritten predicted non_text | 7 |
 | printed predicted handwritten | 8 |
 | printed predicted non_text | 12 |
 | non_text predicted printed | 6 |
 
-Under best threshold candidates, handwritten→printed fell as low as **1–2** but
-never reached **0** while holding printed retention ≥80% and 100% safe-bypass.
+Slice failures included signature → non_text on best candidates.
 
-## Handwriting subtype / slice outcomes
+## Task B3 dual-risk (safety-first)
 
-| Slice gate | Result |
-|------------|--------|
-| cursive → printed = 0 | achievable on medium configs |
-| signature → printed = 0 | achievable on project-weighted |
-| cursive → non_text = 0 | still fails on some candidates |
-| signature → non_text = 0 | **fails** (signatures discarded as non_text) |
+Decision: `SAFETY-FIRST MODEL STILL NOT SAFE`
 
-Failing slices recorded in decision payload:
-`cursive_printed`, `cursive_non_text`, `signature_printed`, `signature_non_text`
-(union across configs; project-weighted still fails on signature→non_text).
+Best threshold candidates (project OOF):
 
-## Geometry / quality categories
+| Config | HW→printed | HW→non_text | NT→printed | Notes |
+|--------|----------:|------------:|-----------:|-------|
+| weighted_bce | 20 | 2 | 1 | leaks + slice fails |
+| asymmetric_bce | 13 | 1 | 3 | better HW recall; still leaks |
+| focal | 0 | 0 | 0 | safety counts clear; printed retention 0.19 |
 
-| Category | Observation |
-|----------|-------------|
-| small crops | some misroutes among low-area crops |
-| broad crops | some misroutes among high aspect-ratio line crops |
+Failing slice keys recorded across configs:
+`cursive_printed`, `signature_printed`, `signature_non_text`,
+`handwritten_to_printed`, `handwritten_to_nontext`.
+
+Focal achieves zero cursive/signature unsafe routes only under near-universal
+abstention (not a valid production candidate).
+
+Uncertain challenge routing was not final-fitted (gates failed before package
+export). Challenge crops remain unused for training.
 
 ## Privacy
 
-No private identifiers in this document. ASAP transcription text is not used
-and not reported.
+Aggregates only. No private IDs, paths, visible text, or image montages.

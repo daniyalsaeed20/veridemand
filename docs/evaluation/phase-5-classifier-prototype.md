@@ -1,14 +1,21 @@
 # Phase 5 classifier prototype evaluation
 
-**Status:** `SUPPLEMENTED MODEL STILL NOT SAFE FOR INTEGRATION`
+**Status:** `SAFETY-FIRST MODEL STILL NOT SAFE`
 
 **Diagnostics kind:** source-group-isolated out-of-fold prototype diagnostics  
 (not final release held-out metrics)
 
-Task B project-only training failed the safety gate
-(`PROTOTYPE MODEL NEEDS SUPPLEMENTATION`). Task B2 added Handwritten ASAP
-(CC BY 4.0) as training-only supplementation. Project LOSGO remains the gate.
-No `production_candidate` ONNX package was published.
+## Three-class forced softmax baseline versus dual-risk safety-first router
+
+| Era | Objective | Decision |
+|-----|-----------|----------|
+| Task B | Project-only 3-class softmax | `PROTOTYPE MODEL NEEDS SUPPLEMENTATION` |
+| Task B2 | ASAP-supplemented 3-class softmax | `SUPPLEMENTED MODEL STILL NOT SAFE FOR INTEGRATION` |
+| Task B3 | Shared-backbone dual-risk + abstention | `SAFETY-FIRST MODEL STILL NOT SAFE` |
+
+The Task B / B2 three-class design remains
+**prototype baseline — superseded for safety evaluation** (not a coding failure).
+Prior `asap_*` OOF artefacts are preserved.
 
 ## Project label aggregates (unchanged)
 
@@ -20,93 +27,48 @@ No `production_candidate` ONNX package was published.
 | uncertain | 54 | challenge / abstention only |
 | excluded | 2 | omitted |
 
-- Project source groups: **6**
-- Handwriting source groups: **3**
-- Synthetic non-text (training only): **300** per configuration
-- Public ASAP handwriting (training only): **150** (`asap_light`) or **350** (medium)
-- Uncertain / excluded never forced into three-class fitting
-- ASAP samples never enter project OOF metrics
+- Project source groups: **6**; handwriting source groups: **3**
+- Synthetic non-text (train only): **300**
+- ASAP medium handwriting (train only): **350** (verified cache reused)
 
-## Architecture
+## Task B3 architecture
 
-- MobileNetV3-Small + ImageNet `MobileNet_V3_Small_Weights.DEFAULT`
-- Head: 3 logits in order `printed`, `handwritten`, `non_text`
-- Torch 2.6.0 / Torchvision 0.21.0 (`model-dev` only)
-- Device: CPU (locked CPU wheels)
+- MobileNetV3-Small + ImageNet weights; head `Linear(..., 2)`
+- Outputs: `risk_logits` `[batch, 2]` → independent sigmoid
+- Public outcomes via safety-first policy (ADR 0066); printed is guarded (ADR 0065)
+- Threshold set version: `phase5-task-b3-dual-risk-v1`
 
-## Public supplement (Task B2)
+## Loss configurations and best threshold candidates
 
-- Dataset: Handwritten ASAP Short Answer Scoring (Zenodo 8088866)
-- Licence: CC BY 4.0 (verified via Zenodo API)
-- Archive MD5: `d365ea3ca8afc19d4758a22daa2e1ea2`
-- Local SHA-256: `7881cd037f442585d9f9584258fa512ac68d1d9eaf7ce059d0c18c4d6278c917`
-- Access date: 2026-08-04
-- Subset: `phase5-asap-subset-v1` (350 QC-passed; light=150); transform `phase5-asap-crop-v1`
-- Prompt groups: 2
-- Transcription labels discarded; class label is only `handwritten`
-- NIST SD19 / EMNIST: **not used**
+| Config | HW→printed | HW→non_text | NT→printed | Safe-bypass | Printed retention | Slices | Gate |
+|--------|----------:|------------:|-----------:|------------:|------------------:|:------:|:----:|
+| dual_risk_weighted_bce | 20 | 2 | 1 | 0.60 | 0.73 | fail | fail |
+| dual_risk_asymmetric_bce | 13 | 1 | 3 | 0.75 | 0.61 | fail | fail |
+| dual_risk_focal | **0** | **0** | **0** | **1.00** | **0.19** | pass | fail |
 
-## Task B2 configurations (≤3)
+Focal clears handwriting and non-text safety counts and slice gates only by
+abstaining heavily (overall uncertain ≈ 0.83), so printed retention stays far
+below the 80% anti-trivial floor. Weighted / asymmetric keep more printed
+coverage but still leak handwriting into printed or non_text.
 
-1. `asap_light` — 150 ASAP + project; class-weighted CE
-2. `asap_medium` — 350 ASAP + project; class-weighted CE
-3. `asap_medium_project_weighted` — 350 ASAP + project HW sample multiplier 4
+### Risk-head diagnostics (0.5 threshold on sigmoid; project OOF)
 
-## Aggregate OOF metrics (best macro F1: asap_medium)
+| Config | HW risk F1 | HW recall | NT risk F1 |
+|--------|-----------:|----------:|-----------:|
+| weighted_bce | 0.13 | 0.07 | 0.62 |
+| asymmetric_bce | 0.44 | 0.33 | 0.47 |
+| focal | 0.07 | 0.04 | 0.64 |
 
-Argmax confusion (rows=true, cols=pred; order printed/handwritten/non_text):
+## Model status
 
-|  | printed | handwritten | non_text |
-|--|--------:|------------:|---------:|
-| printed | 201 | 8 | 12 |
-| handwritten | 12 | 36 | 7 |
-| non_text | 6 | 0 | 17 |
+- No `production_candidate` ONNX package published
+- Router remains `HANDWRITING_ROUTER_ENABLED=false`
+- Not wired into live OCR
 
-- Macro F1 ≈ **0.74** (improved vs Task B ≈0.62)
-- Handwriting class recall (pre-abstention) ≈ **0.66** (was ≈0.42)
-- Best threshold candidates still fail aggregate and/or slice gates
+## Limitations
 
-### Best threshold candidates (lexicographic; none pass)
-
-| Config | HW→printed | NT→printed | Safe-bypass | Printed retention | Slice gates |
-|--------|----------:|----------:|------------:|------------------:|:-----------:|
-| asap_light | 9 | 1 | 0.78 | 0.70 | fail |
-| asap_medium | 2 | 2 | 0.93 | 0.61 | fail |
-| asap_medium_project_weighted | 1 | 1 | 0.95 | 0.68 | fail |
-
-Threshold set version: `phase5-task-b2-asap-v1`
-
-## Cursive / signature slices (project seeds)
-
-On best `asap_medium_project_weighted` candidate thresholds:
-
-| Slice | support | printed | handwritten | uncertain | non_text |
-|-------|--------:|--------:|------------:|----------:|---------:|
-| digits | 10 | 0 | 6 | 4 | 0 |
-| hand_printed | 10 | 1 | 6 | 3 | 0 |
-| cursive | 22 | 0 | 12 | 10 | 0 |
-| signature | 11 | 0 | 6 | 3 | 2 |
-| longer_note | 2 | 0 | 1 | 1 | 0 |
-
-Required: cursive/signature → printed = 0 **and** → non_text = 0.  
-Signatures still route to **non_text** (2) under the best candidate → slice gate fail.
-Cursive improves vs Task B but aggregate HW→printed and printed retention cannot
-be satisfied together at 100% safe-bypass with ≥80% printed retention.
-
-## Recommendation (smallest next technical adjustment)
-
-Do **not** weaken gates. Prefer: (1) targeted project signature / cursive seed
-expansion or acquisition-matched synthetics for those slices, then (2) modest
-loss/sampler emphasis on signature crops — before architecture changes or
-another public corpus.
-
-## Package
-
-- **No** `production_candidate` under `models/handwriting_classifier/`
-- Router remains disabled; OCR not integrated
-
-## Attribution
-
-Gold, Christian; Zesch, Torsten (2020). Handwritten ASAP Short Answer Scoring
-(Version 1.0) [Data set]. Zenodo. https://doi.org/10.5281/zenodo.8088866
-Licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
+- Dual-risk objective aligns better with asymmetric costs, but project support
+  (55 HW / 23 NT / 6 groups) is still insufficient to jointly hit zero HW leaks
+  and ≥80% printed retention
+- ASAP short-answer domain ≠ project signatures/cursive
+- Do not weaken gates; do not auto-add data or change architecture in B3

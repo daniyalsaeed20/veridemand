@@ -4,6 +4,12 @@
 
 Accepted (Phase 5 Task 2)
 
+**Superseded for production-candidate evaluation** by Task B3 dual-risk ADRs
+0063–0067. Retained as the prototype baseline that established public
+`uncertain` as runtime abstention (never a fourth ONNX class). The Task B / B2
+three-class softmax model remains documented as
+**prototype baseline — superseded for safety evaluation**.
+
 ## Context
 
 Phase 5 must expose public routing outcomes `printed`, `handwritten`,
