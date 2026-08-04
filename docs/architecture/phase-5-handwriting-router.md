@@ -1,8 +1,7 @@
 # Phase 5 handwriting router (architecture)
 
-**Status:** Phase 5 in progress — Task B project-only classifier requires
-additional training data before runtime integration. Router remains disabled;
-not wired into live OCR.
+**Status:** Phase 5 in progress — ASAP-supplemented classifier remains below
+the routing safety gate. Router remains disabled; not wired into live OCR.
 
 ## Scope
 

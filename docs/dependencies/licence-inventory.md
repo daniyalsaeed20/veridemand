@@ -28,10 +28,12 @@ runtime (not a Python/Node package).
 | torch | 2.6.0 | BSD-3-Clause | `model-dev` only — classifier training/export; forbidden in production app |
 | torchvision | 0.21.0 | BSD-3-Clause | `model-dev` only — MobileNetV3-Small + pretrained weights |
 | onnxscript | resolved via lock | Apache-2.0 | `model-dev` only — PyTorch ONNX export helper |
+| Handwritten ASAP Short Answer Scoring | 1.0 | CC BY 4.0 | Model-dev training data only (Zenodo 8088866); not redistributed in Git |
 
 Confirmed: no `openai`, `onnxruntime-gpu`, OpenCV app imports, or local HTR
-engines were added in Task 2 / Task B. Torch/Torchvision remain outside the
-production backend import boundary.
+engines were added in Task 2 / Task B / Task B2. Torch/Torchvision remain outside the
+production backend import boundary. NIST SD19 / EMNIST were evaluated and
+**not** adopted.
 
 Confirmed: no handwriting/HTR classifiers, no ONNX Runtime vision packages, and
 no OpenAI / vision-LLM client libraries were added in Phase 4.

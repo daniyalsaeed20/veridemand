@@ -1,6 +1,6 @@
 # Phase 5 implementation report
 
-**Status:** Phase 5 in progress — project-only classifier requires additional training data before runtime integration.
+**Status:** Phase 5 in progress — supplemented classifier remains below the routing safety gate.
 
 See `docs/phases/phase-5-recovery-audit.md` for ChatGPT handoff and Tasks A–E.
 
@@ -91,9 +91,21 @@ Evidence-based design freeze in `docs/phases/phase-5-preflight-audit.md`.
 - ADRs 0054–0058
 - **No** production_candidate package; **no** OCR wiring; router remains disabled
 
+### Task B2 — Handwritten ASAP supplementation
+
+- NIST SD19 abandoned (unclear proprietary/derived-model terms)
+- Handwritten ASAP (Zenodo 8088866, CC BY 4.0) via `pnpm phase5:model-data:asap:prepare`
+- Public training-only; project LOSGO remains the safety gate
+- ≤3 mixture configs: `asap_light`, `asap_medium`, `asap_medium_project_weighted`
+- Cursive/signature slice gates (ADR 0062) in addition to Task B aggregate gates
+- ADRs 0059–0062
+- Decision: **SUPPLEMENTED MODEL STILL NOT SAFE FOR INTEGRATION**
+  (HW→printed and signature→non_text remain; printed retention cannot clear
+  with 100% safe-bypass)
+- Evidence: `docs/evaluation/phase-5-classifier-prototype.md` (+ FP/FN, performance)
+- **No** production_candidate package; **no** OCR wiring; router remains disabled
 ## Not done (later tasks — recovery path Tasks C–E)
 
-- **B′** Bounded supplementation (separate prompt) if authorised after Task B
 - **C** Split Paddle detection from recognition and integrate classification
 - **D** Prove routing invariants and corpus evaluation
 - **E** Consolidate Phase 5 evidence and tag

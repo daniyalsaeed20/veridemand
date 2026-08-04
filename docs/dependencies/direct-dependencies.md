@@ -40,6 +40,17 @@ Not required for Phase 4 OCR or production backend inference.
 | torchvision | 0.21.0 | Pretrained MobileNetV3-Small weights + transforms | 5 Task B | https://github.com/pytorch/vision | BSD-3-Clause |
 | onnxscript | lock-resolved | Stable Torch ONNX exporter support | 5 Task B | https://github.com/microsoft/onnxscript | Apache-2.0 |
 
+## Phase 5 model-development training data (not a runtime dependency)
+
+| Dataset | Version | Purpose | Phase | Source | Licence |
+|---|---|---|---|---|---|
+| Handwritten ASAP Short Answer Scoring | 1.0 | Bounded public handwriting crops for Task B2 classifier training only | 5 Task B2 | https://doi.org/10.5281/zenodo.8088866 | CC BY 4.0 |
+
+Downloaded only via explicit `pnpm phase5:model-data:asap:prepare` into gitignored
+`model_development/.data/handwritten_asap/`. Never used at application startup.
+Transcription labels are discarded; images are labelled `handwritten` only.
+NIST SD19 / EMNIST are **not** used.
+
 Production runtime continues to use `onnxruntime` + Pillow + NumPy only.
 `torch` / `torchvision` are forbidden from `backend/app` imports via the
 dependency-boundary check. Do not move them into core dependencies.

@@ -1,9 +1,10 @@
-# Phase 5 classifier performance (prototype)
+# Phase 5 classifier performance (Task B2)
 
 ## Scope
 
-CPU-oriented notes from Task B model-development runs. **No GPU runtime claims.**
-No production package was published (safety gate failed).
+CPU-oriented notes from Task B2 ASAP-supplemented model-development runs.
+**No GPU runtime claims.** No production package was published (safety gate
+failed).
 
 ## Training device
 
@@ -14,9 +15,11 @@ No production package was published (safety gate failed).
 
 ## Training throughput (approximate)
 
-- ~1 minute per LOSGO fold (stage1=3 + stage2=5 epochs, batch 16, ~300 synthetic
-  non-text + project fold train set)
-- 3 configurations × 6 folds ≈ 18 fold trainings completed on CPU
+- ASAP prepare: ~3 minutes download+extract+subset (98.4 MB archive; 350 crops)
+- LOSGO: 3 configurations × 6 folds; wall clock ≈ **38 minutes** for full
+  Task B2 train-export search on this host (includes threshold grid search)
+- Public handwriting adds 150–350 train-only images per fold; synthetic
+  non-text remains 300
 
 ## Package / inference
 

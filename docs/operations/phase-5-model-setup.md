@@ -29,8 +29,14 @@ uv run python scripts/verify_handwriting_classifier.py
 uv run python scripts/verify_handwriting_classifier.py --path <dir> --allow-test-fixture
 pnpm models:handwriting:fixture   # regenerates unit-test fixture only
 pnpm models:handwriting:manifest  # build private training manifest (model-dev)
+pnpm phase5:model-data:asap:prepare  # download/verify Handwritten ASAP (model-dev)
 pnpm models:handwriting:train     # LOSGO + threshold search + export (model-dev)
 ```
+
+Handwritten ASAP (Zenodo 8088866, CC BY 4.0) is downloaded only by the explicit
+prepare command into gitignored `model_development/.data/handwritten_asap/`.
+It is never fetched at backend startup or during normal application tests.
+NIST SD19 / EMNIST are not used.
 
 ### Model-development dependencies
 
@@ -51,9 +57,9 @@ conflict with the Task B Torch CPU wheel (`shm.dll` load errors). Use
 `uv sync --group model-dev` for training/tests, then
 `uv sync --group ocr --group dev` before Phase 4 OCR regression.
 
-Task B did **not** publish a `production_candidate` package (prototype safety
-gate failed). Keep `HANDWRITING_ROUTER_ENABLED=false`.
-
+Keep `HANDWRITING_ROUTER_ENABLED=false` until a later integration task.
+Task B2 may write a `production_candidate` package only when project OOF safety
+and cursive/signature slice gates pass; the router stays disabled.
 ## Readiness
 
 | Mode | `/health/live` | `/health/ready` |

@@ -1,8 +1,8 @@
-# Phase 5 security review (Tasks 2–B)
+# Phase 5 security review (Tasks 2–B2)
 
 Engineering controls for the handwriting classifier foundation, private crop
-dataset tooling, and Task B model-development. This document does **not** claim
-regulatory compliance.
+dataset tooling, Task B model-development, and Task B2 ASAP supplementation.
+This document does **not** claim regulatory compliance.
 
 ## Local inference (Task 2)
 
@@ -10,18 +10,23 @@ regulatory compliance.
 - No Phase 5 network calls; no OpenAI client
 - No automatic model download at startup
 
-## Task B model development
+## Task B / B2 model development
 
 - Torch / Torchvision / onnxscript remain in the `model-dev` group only
 - Forbidden from `backend/app` imports via dependency-boundary check
 - Private training manifests, checkpoints, and OOF prediction dumps stay under
   gitignored `fixtures/private/phase5/model-dev/` and
   `model_development/.artifacts/`
+- Public ASAP archives, extracts, and prepared crops stay under gitignored
+  `model_development/.data/handwritten_asap/`
 - Committed evaluation reports use aggregates only (no crop/page/reviewer IDs,
   paths, text, or montages)
-- No public handwriting dataset download in Task B
-- No production_candidate ONNX package committed (safety gate failed;
-  supplementation required)
+- Task B: no public handwriting dataset download
+- Task B2: Handwritten ASAP (Zenodo 8088866, CC BY 4.0) via explicit
+  `pnpm phase5:model-data:asap:prepare` only; MD5 + local SHA-256 verified;
+  NIST SD19 / EMNIST forbidden
+- Derived ONNX package may be committed only if safety + slice gates pass;
+  router remains disabled; no OCR integration in B2
 
 ## Privacy
 
@@ -38,6 +43,8 @@ regulatory compliance.
 - Committed readiness / pilot / provenance reports use opaque aggregates only
 - Candidate provenance and sampling reasons are never shown to crop reviewers
 - Task 3C creates **no** fabricated private human labels or coverage events
+- ASAP transcription / ASAP IDs are discarded; public subset manifests never
+  reference private crop IDs
 
 ## Supply chain
 
@@ -48,6 +55,9 @@ regulatory compliance.
 - Tasks 3A–3C add **no** new production dependencies (Pillow/NumPy/stdlib; OCR
   group only for offline populate)
 - Task B adds torch/torchvision/onnxscript to **`model-dev` only**
+- Task B2 adds no new Python packages; ASAP is model-dev training data under
+  CC BY 4.0 with attribution in package provenance
+- Zip extraction rejects path traversal
 - `test_fixture` packages cannot satisfy required production readiness
 
 ## Resource bounds
@@ -59,7 +69,8 @@ regulatory compliance.
 
 ## Explicit exclusions
 
-No OpenCV app imports, no local HTR engines, no vision-LLM code in Tasks 2–3C.
-No training stack (torch/sklearn) and no Label Studio / Streamlit.
-No fabricated human labels; no private split freeze; no held-out freeze while
-source-group coverage is insufficient (ADR 0052).
+No OpenCV app imports, no local HTR engines, no vision-LLM code in Tasks 2–B2.
+No training stack (torch/sklearn) in production FastAPI and no Label Studio /
+Streamlit. No fabricated human labels; no private split freeze; no held-out
+freeze while source-group coverage is insufficient (ADR 0052).
+No NIST SD19 / EMNIST.
