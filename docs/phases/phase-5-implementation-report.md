@@ -60,12 +60,25 @@ Evidence-based design freeze in `docs/phases/phase-5-preflight-audit.md`.
 - Private correction worklist generated from human outcomes (gitignored)
 - **No** crop script labels from Task 3D; **no** training
 
-### Task A — Prototype label sample (in progress)
+### Task A — Prototype label sample (completed labelling)
 
 - ADR 0053: single-pass ~300-crop prototype path; dual review / 45k / coverage
   correction parked as release hardening
 - Queue: `phase5-prototype-primary-v1` (seed 4101) from existing 600-crop pilot
-- Default serve: `prototype-primary` with opaque `proto_reviewer_*` / `rev_*`
+- Labels: printed 221, handwritten **0**, uncertain 54, non_text 23, excluded 2
+- Status: **PROTOTYPE LABEL SAMPLE NEEDS EXPANSION** (missing handwritten class)
+- **No** training; **no** OCR routing changes; **no** vision-provider calls
+
+### Task A2 — Targeted handwriting seed collection (completed)
+
+- Loopback seed UI + targeted page queue (uncertain pages, coverage worklist,
+  police_form, form heuristics)
+- Human-confirmed `human_confirmed_handwriting_seed` records; prior prototype
+  review events were not mutated
+- Aggregate readiness: `docs/evaluation/phase-5-handwriting-seed-readiness.md`
+- Status: **PROJECT HANDWRITING SEED READY** (55 canonical seeds; external
+  supplement still recommended; below ~100 target but enough to attempt
+  prototype training)
 - **No** training; **no** OCR routing changes; **no** vision-provider calls
 
 ## Not done (later tasks — recovery path Tasks B–E)

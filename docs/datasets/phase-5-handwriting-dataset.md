@@ -62,6 +62,11 @@ regions are empty in the current private evidence. See the provenance audit.
 | `pnpm phase5:labels:prototype-queue` | Build ~300-crop prototype queue from pilot |
 | `pnpm phase5:labels:serve -- --queue prototype-primary --reviewer proto_reviewer_01` | Default Task A human path |
 | `pnpm phase5:labels:prototype-report` | Aggregate prototype label report |
+| `pnpm phase5:handwriting-seeds:queue` | Build targeted handwriting-seed page queue (Task A2) |
+| `pnpm phase5:handwriting-seeds:serve -- --reviewer handwriting_reviewer_01` | Loopback handwriting seed collector |
+| `pnpm phase5:handwriting-seeds:verify` | Verify seed events / crop hashes / geometry |
+| `pnpm phase5:handwriting-seeds:resolve` | Exact-dedupe seeds; perceptual warnings |
+| `pnpm phase5:handwriting-seeds:report` | Aggregate handwriting seed readiness |
 | `pnpm phase5:labels:pilot` | Build 600-crop dual pilot queues (parked) |
 | `pnpm phase5:labels:serve -- --queue pilot-primary --reviewer rev_<id>` | Dual-pilot primary (parked) |
 | `pnpm phase5:labels:serve -- --queue pilot-secondary --reviewer rev_<other>` | Blind secondary (parked) |

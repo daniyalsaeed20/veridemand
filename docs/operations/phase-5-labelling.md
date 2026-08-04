@@ -1,6 +1,63 @@
 # Phase 5 labelling operations
 
-## Default workflow (Task A) — prototype single-pass sample
+## Task A2 — Targeted project handwriting seeds (current)
+
+Prototype labelling found **0** handwritten crops. Task A2 collects ~100
+human-confirmed handwritten regions from targeted private pages (not another
+random 300-crop queue).
+
+### 0. Backup
+
+```bash
+pnpm phase5:dataset:backup
+```
+
+### 1. Build the targeted page queue
+
+```bash
+pnpm phase5:handwriting-seeds:queue
+```
+
+Priority (metadata only; no model predictions): pages of prototype `uncertain`
+crops, coverage-worklist pages, `police_form` pages, then heuristic form / sparse
+pages. Billing-only pages are not auto-added.
+
+### 2. Human seed collection (loopback)
+
+```bash
+pnpm phase5:handwriting-seeds:serve -- --reviewer handwriting_reviewer_01
+```
+
+URL:
+
+```text
+http://127.0.0.1:8767/?reviewer=handwriting_reviewer_01
+```
+
+Rules:
+
+- Confirm only **clear** handwriting (cursive, hand-printed, digits, initials,
+  signatures, corrections, form entries, notes).
+- Draw a region, or select an existing clean crop, or draw a tighter subregion
+  from an uncertain mixed crop (original crop/label unchanged).
+- Do not transcribe. Do not record what the handwriting says.
+- Mark **no usable handwriting** or **defer** when appropriate.
+- No OCR text, confidence, predictions, filenames, or paths are shown.
+- No `localStorage` / IndexedDB / service worker.
+- Stop near ~100 valid regions or when candidates are exhausted.
+
+### 3. After human collection
+
+```bash
+pnpm phase5:dataset:backup
+pnpm phase5:handwriting-seeds:verify
+pnpm phase5:handwriting-seeds:resolve
+pnpm phase5:handwriting-seeds:report -- --write-aggregate docs/evaluation/phase-5-handwriting-seed-readiness.md
+```
+
+Do **not** train a model in Task A2.
+
+## Default workflow (Task A) — prototype single-pass sample (completed)
 
 Phase 5 classifies writing style for routing only. Prototype labels train a
 local style classifier so handwritten/uncertain regions can later bypass Paddle
@@ -173,6 +230,7 @@ visible document text into notes.
 ## Related docs
 
 - `docs/evaluation/phase-5-prototype-labels.md`
+- `docs/evaluation/phase-5-handwriting-seed-readiness.md`
 - `docs/evaluation/phase-5-annotation-pilot.md`
 - `docs/evaluation/phase-5-source-group-adequacy.md`
 - `docs/evaluation/phase-5-dataset-readiness.md`
