@@ -31,7 +31,6 @@ def test_torch_forbidden_in_backend_app() -> None:
 def test_fastapi_does_not_import_model_development() -> None:
     main = (ROOT / "backend" / "app" / "main.py").read_text(encoding="utf-8")
     assert "model_development" not in main
-    # Broader: no production module under backend/app imports training package
     offenders = []
     for path in (ROOT / "backend" / "app").rglob("*.py"):
         text = path.read_text(encoding="utf-8")
@@ -40,7 +39,9 @@ def test_fastapi_does_not_import_model_development() -> None:
     assert offenders == []
 
 
-def test_no_public_handwriting_downloader() -> None:
+def test_no_nist_emnist_or_unallowlisted_public_downloaders() -> None:
+    """Task B2 permits explicit Handwritten ASAP prepare; NIST/EMNIST remain forbidden."""
+
     train_pkg = ROOT / "model_development" / "handwriting_classifier"
     for path in train_pkg.rglob("*.py"):
         text = path.read_text(encoding="utf-8")
@@ -50,6 +51,7 @@ def test_no_public_handwriting_downloader() -> None:
         lower = text.lower()
         assert "emnist" not in lower
         assert "nist sd19" not in lower
+        assert "special database 19" not in lower
         assert "download.pytorch.org/datasets" not in lower
 
 
