@@ -1,9 +1,10 @@
 {
   "schema_version": "phase5-handwriting-metrics-v1",
   "metrics_kind": "synthetic_test",
-  "model_version": "test-fixture-logits-v1",
-  "notes": "No evaluation claims. Synthetic smoke only.",
+  "model_version": "test-fixture-dual-risk-v1",
+  "notes": "Synthetic dual-risk fixture metrics only.",
   "handwriting_safe_bypass_recall": null,
   "handwriting_to_paddle_leak_count": null,
+  "handwriting_to_nontext_count": null,
   "class_support": null
 }

@@ -1,4 +1,4 @@
-"""Deterministic training configuration for Phase 5 Task B2."""
+"""Deterministic training configuration for Phase 5 Task B3 dual-risk."""
 
 from __future__ import annotations
 
@@ -7,26 +7,30 @@ from dataclasses import asdict, dataclass, field
 from hashlib import sha256
 from typing import Any, Literal
 
-CLASS_ORDER: tuple[str, str, str] = ("printed", "handwritten", "non_text")
+from model_development.handwriting_classifier import RISK_ORDER, TRAINING_LABELS
+
+# Back-compat export for evaluate helpers.
+CLASS_ORDER = TRAINING_LABELS
+
 IMAGENET_MEAN: tuple[float, float, float] = (0.485, 0.456, 0.406)
 IMAGENET_STD: tuple[float, float, float] = (0.229, 0.224, 0.225)
 INPUT_SIZE = 224
 PADDING_VALUE = 255.0  # scanned-paper white
 ONNX_OPSET = 17
 ONNX_INPUT_NAME = "image"
-ONNX_OUTPUT_NAME = "logits"
+ONNX_OUTPUT_NAME = "risk_logits"
 PARITY_TOLERANCE = 1e-4
 SYNTHETIC_NONTEXT_COUNT = 400
 SYNTHETIC_SOURCE_GROUP_PREFIX = "srcgrp_synth_nt_"
 
-BalancingMethod = Literal["class_weighted", "balanced_sampler", "project_hw_weighted"]
+LossName = Literal["weighted_bce", "asymmetric_bce", "focal"]
 AugStrength = Literal["default", "stronger"]
 PublicAsapVariant = Literal["none", "light", "medium"]
 
 
 @dataclass(frozen=True)
 class TrainConfig:
-    """Explicit, hashable training configuration."""
+    """Explicit, hashable dual-risk training configuration."""
 
     name: str
     random_seed: int = 42
@@ -42,7 +46,13 @@ class TrainConfig:
     stage1_lr: float = 1e-3
     stage2_lr: float = 1e-4
     weight_decay: float = 1e-4
-    balancing: BalancingMethod = "class_weighted"
+    loss: LossName = "weighted_bce"
+    handwriting_fn_multiplier: float = 3.0
+    focal_alpha: float = 0.25
+    focal_gamma: float = 2.0
+    # A-priori hard-example emphasis on signature/cursive project seeds (not OOF-mined).
+    hard_example_emphasis: bool = False
+    hard_example_multiplier: float = 2.0
     aug_strength: AugStrength = "default"
     augmentation_version: str = "phase5-conservative-aug-v1"
     preprocessing_version: str = "phase5-letterbox-224-imagenet-v1"
@@ -50,8 +60,6 @@ class TrainConfig:
     synthetic_nontext_count: int = 300
     num_workers: int = 0
     public_asap_variant: PublicAsapVariant = "medium"
-    # Multiplier applied to project (non-ASAP) handwritten sample weights.
-    project_handwriting_sample_multiplier: float = 1.0
     notes: str = ""
 
     def to_dict(self) -> dict[str, Any]:
@@ -62,64 +70,85 @@ class TrainConfig:
         return sha256(payload.encode("utf-8")).hexdigest()
 
 
-# At most three materially different Task B2 configurations.
+# At most three materially different Task B3 configurations (loss variants).
 CANDIDATE_CONFIGS: tuple[TrainConfig, ...] = (
     TrainConfig(
-        name="asap_light",
-        balancing="class_weighted",
-        aug_strength="default",
-        public_asap_variant="light",
-        project_handwriting_sample_multiplier=1.0,
-        notes="~150 ASAP public HW + project labels; class-weighted CE.",
+        name="dual_risk_weighted_bce",
+        loss="weighted_bce",
+        public_asap_variant="medium",
+        hard_example_emphasis=False,
+        notes="Config A: fold-derived pos_weight BCE on both risk heads; ASAP medium.",
     ),
     TrainConfig(
-        name="asap_medium",
-        balancing="class_weighted",
-        aug_strength="default",
+        name="dual_risk_asymmetric_bce",
+        loss="asymmetric_bce",
+        handwriting_fn_multiplier=3.0,
         public_asap_variant="medium",
-        project_handwriting_sample_multiplier=1.0,
-        notes="All QC-passed ASAP public HW + project labels; class-weighted CE.",
-    ),
-    TrainConfig(
-        name="asap_medium_project_weighted",
-        balancing="project_hw_weighted",
-        aug_strength="default",
-        public_asap_variant="medium",
-        project_handwriting_sample_multiplier=4.0,
+        hard_example_emphasis=True,
+        hard_example_multiplier=2.0,
         notes=(
-            "All ASAP public HW with project-handwriting sampling multiplier=4 "
-            "(oversamples do not count as new human labels)."
+            "Config B: asymmetric HW FN multiplier=3.0 + a-priori signature/cursive "
+            "emphasis (not OOF-mined); ASAP medium."
         ),
+    ),
+    TrainConfig(
+        name="dual_risk_focal",
+        loss="focal",
+        focal_alpha=0.25,
+        focal_gamma=2.0,
+        public_asap_variant="medium",
+        hard_example_emphasis=False,
+        notes="Config C: binary focal loss alpha=0.25 gamma=2.0; ASAP medium.",
     ),
 )
 
 
-@dataclass
+@dataclass(frozen=True)
 class ThresholdCandidate:
-    printed: float
-    handwritten: float
-    non_text: float
-    minimum_class_margin: float
+    """Four dual-risk thresholds with ordering constraints enforced by the grid."""
+
+    handwriting_accept_threshold: float
+    handwriting_safe_low_threshold: float
+    non_text_accept_threshold: float
+    non_text_safe_low_threshold: float
 
     def as_tuple(self) -> tuple[float, float, float, float]:
-        return (self.printed, self.handwritten, self.non_text, self.minimum_class_margin)
+        return (
+            self.handwriting_accept_threshold,
+            self.handwriting_safe_low_threshold,
+            self.non_text_accept_threshold,
+            self.non_text_safe_low_threshold,
+        )
+
+    def is_ordered(self) -> bool:
+        return (
+            self.handwriting_safe_low_threshold < self.handwriting_accept_threshold
+            and self.non_text_safe_low_threshold < self.non_text_accept_threshold
+        )
 
 
 def default_threshold_grid() -> list[ThresholdCandidate]:
-    """Bounded deterministic threshold search grid."""
+    """Bounded deterministic dual-risk threshold search grid."""
 
-    printed = [0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95]
-    handwritten = [0.40, 0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80]
-    non_text = [0.40, 0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80]
-    margins = [0.05, 0.08, 0.10, 0.12, 0.15, 0.20]
+    hw_accept = [0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85]
+    hw_safe = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40]
+    nt_accept = [0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85]
+    nt_safe = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40]
     out: list[ThresholdCandidate] = []
-    for p in printed:
-        for h in handwritten:
-            for n in non_text:
-                for m in margins:
+    for ha in hw_accept:
+        for hs in hw_safe:
+            if not (hs < ha):
+                continue
+            for na in nt_accept:
+                for ns in nt_safe:
+                    if not (ns < na):
+                        continue
                     out.append(
                         ThresholdCandidate(
-                            printed=p, handwritten=h, non_text=n, minimum_class_margin=m
+                            handwriting_accept_threshold=ha,
+                            handwriting_safe_low_threshold=hs,
+                            non_text_accept_threshold=na,
+                            non_text_safe_low_threshold=ns,
                         )
                     )
     return out
@@ -138,5 +167,21 @@ class RuntimePreprocessSpec:
     padding_policy: str = "constant"
     padding_value: float = PADDING_VALUE
     interpolation: str = "bilinear"
-    normalisation_mean: list[float] = field(default_factory=lambda: list(IMAGENET_MEAN))
-    normalisation_std: list[float] = field(default_factory=lambda: list(IMAGENET_STD))
+    normalisation_mean: tuple[float, float, float] = field(default_factory=lambda: IMAGENET_MEAN)
+    normalisation_std: tuple[float, float, float] = field(default_factory=lambda: IMAGENET_STD)
+
+
+def risk_target_for_label(label: str) -> tuple[float, float]:
+    """Map human class to dual-risk training targets."""
+
+    if label == "printed":
+        return (0.0, 0.0)
+    if label == "handwritten":
+        return (1.0, 0.0)
+    if label == "non_text":
+        return (0.0, 1.0)
+    raise ValueError(f"Label {label!r} is not a dual-risk training target")
+
+
+def assert_risk_order() -> None:
+    assert RISK_ORDER == ("handwriting_risk", "non_text_risk")

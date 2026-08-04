@@ -1,14 +1,14 @@
-"""MobileNetV3-Small three-class writing-style classifier."""
+"""MobileNetV3-Small dual-risk writing-style classifier."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from model_development.handwriting_classifier.config import CLASS_ORDER
+from model_development.handwriting_classifier import RISK_ORDER
 
 
 def build_model(*, pretrained: bool = True) -> Any:
-    """Return MobileNetV3-Small with a 3-logit head in CLASS_ORDER."""
+    """Return MobileNetV3-Small with a 2-logit independent risk head."""
 
     import torch.nn as nn
     from torchvision.models import MobileNet_V3_Small_Weights, mobilenet_v3_small
@@ -16,7 +16,7 @@ def build_model(*, pretrained: bool = True) -> Any:
     weights = MobileNet_V3_Small_Weights.DEFAULT if pretrained else None
     model = mobilenet_v3_small(weights=weights)
     in_features = model.classifier[-1].in_features
-    model.classifier[-1] = nn.Linear(in_features, len(CLASS_ORDER))
+    model.classifier[-1] = nn.Linear(in_features, len(RISK_ORDER))
     return model
 
 
@@ -39,7 +39,6 @@ def unfreeze_final_blocks(model: Any, *, n_blocks: int = 3) -> None:
 
     for param in model.parameters():
         param.requires_grad = False
-    # features is Sequential of inverted residual blocks
     features = model.features
     for block in list(features.children())[-n_blocks:]:
         for param in block.parameters():
@@ -75,4 +74,6 @@ def weights_provenance() -> dict[str, str]:
         "url": url,
         "categories": str(meta.get("categories", "ImageNet")),
         "licence": "BSD-3-Clause (torchvision) / ImageNet pretrained weights per Torchvision",
+        "head": "dual_risk_linear_2",
+        "output_semantics": "independent_binary_risk_logits",
     }

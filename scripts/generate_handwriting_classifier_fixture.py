@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""Generate a tiny deterministic ONNX test fixture for the handwriting classifier.
+"""Generate a tiny deterministic dual-risk ONNX test fixture.
 
 Requires the ``model-dev`` dependency group (``onnx``). Produces a test_fixture
 package under ``backend/tests/fixtures/handwriting_classifier/`` — never a
 production model.
+
+Output semantics: independent_binary_risk_logits [handwriting_risk, non_text_risk].
+Bias prefers low risks → printed under default dual-risk thresholds.
 """
 
 from __future__ import annotations
@@ -18,31 +21,39 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "backend" / "tests" / "fixtures" / "handwriting_classifier"
 
 
-def _build_logits_model(path: Path, *, input_name: str, output_name: str, size: int) -> None:
+def _build_risk_logits_model(path: Path, *, input_name: str, output_name: str, size: int) -> None:
     import numpy as np
     import onnx
     from onnx import TensorProto, helper, numpy_helper
 
-    # y = x.mean(over spatial) @ W + b  → shape [N, 3]
-    # Implement as ReduceMean + MatMul + Add for a tiny graph.
+    # y = GlobalAvgPool(x) @ W + b  → shape [N, 2]
     n_in = helper.make_tensor_value_info(input_name, TensorProto.FLOAT, ["N", 3, size, size])
-    n_out = helper.make_tensor_value_info(output_name, TensorProto.FLOAT, ["N", 3])
+    n_out = helper.make_tensor_value_info(output_name, TensorProto.FLOAT, ["N", 2])
 
-    # Flatten spatial via GlobalAveragePool → [N,3,1,1] then Squeeze → [N,3]
     gap = helper.make_node("GlobalAveragePool", [input_name], ["gap"])
     squeeze = helper.make_node("Squeeze", ["gap", "axes"], ["pooled"])
     axes = numpy_helper.from_array(np.asarray([2, 3], dtype=np.int64), name="axes")
-    # Identity weight so pooled features pass through; bias steers class preference.
-    w = numpy_helper.from_array(np.eye(3, dtype=np.float32), name="W")
+    # Map 3 pooled channels → 2 risk logits; bias steers both risks low (printed-safe).
+    w = numpy_helper.from_array(
+        np.asarray(
+            [
+                [0.1, 0.0],
+                [0.0, 0.1],
+                [0.0, 0.0],
+            ],
+            dtype=np.float32,
+        ),
+        name="W",
+    )
     b = numpy_helper.from_array(
-        np.asarray([2.0, 0.0, 0.0], dtype=np.float32), name="B"
-    )  # prefers printed logits
+        np.asarray([-3.0, -3.0], dtype=np.float32), name="B"
+    )  # low risks → printed
     matmul = helper.make_node("MatMul", ["pooled", "W"], ["proj"])
     add = helper.make_node("Add", ["proj", "B"], [output_name])
 
     graph = helper.make_graph(
         [gap, squeeze, matmul, add],
-        "handwriting_logits_fixture",
+        "handwriting_dual_risk_fixture",
         [n_in],
         [n_out],
         [axes, w, b],
@@ -63,18 +74,22 @@ def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     model_path = OUT / "model.onnx"
     size = 32
-    _build_logits_model(model_path, input_name="input", output_name="logits", size=size)
+    _build_risk_logits_model(model_path, input_name="input", output_name="risk_logits", size=size)
     digest = hashlib.sha256(model_path.read_bytes()).hexdigest()
 
-    labels = ["printed", "handwritten", "non_text"]
+    labels = {
+        "output_semantics": "independent_binary_risk_logits",
+        "outputs": ["handwriting_risk", "non_text_risk"],
+        "public_outcomes": ["printed", "handwritten", "uncertain", "non_text"],
+    }
     (OUT / "labels.json").write_text(json.dumps(labels, indent=2) + "\n", encoding="utf-8")
 
     record = {
-        "schema_version": "phase5-handwriting-classifier-v1",
-        "model_family": "handwriting_style_cnn",
-        "model_version": "test-fixture-logits-v1",
+        "schema_version": "phase5-handwriting-classifier-v2",
+        "model_family": "handwriting_style_cnn_dual_risk",
+        "model_version": "test-fixture-dual-risk-v1",
         "release_status": "test_fixture",
-        "training_code_version": "task2-fixture-generator",
+        "training_code_version": "task-b3-fixture-generator",
         "onnx_opset": 13,
         "onnx_ir_version": 8,
         "input_tensor_name": "input",
@@ -92,42 +107,56 @@ def main() -> int:
         "interpolation": "bilinear",
         "normalisation_mean": [0.5, 0.5, 0.5],
         "normalisation_std": [0.5, 0.5, 0.5],
-        "output_tensor_name": "logits",
+        "output_tensor_name": "risk_logits",
         "output_dtype": "float32",
-        "output_semantics": "logits",
-        "class_order": labels,
-        "threshold_set_version": "provisional-unspecified",
+        "output_semantics": "independent_binary_risk_logits",
+        "class_order": ["handwriting_risk", "non_text_risk"],
+        "public_outcomes": ["printed", "handwritten", "uncertain", "non_text"],
+        "threshold_set_version": "test-fixture-dual-risk",
+        "handwriting_accept_threshold": 0.70,
+        "handwriting_safe_low_threshold": 0.20,
+        "non_text_accept_threshold": 0.70,
+        "non_text_safe_low_threshold": 0.20,
         "training_manifest_sha256": None,
         "validation_manifest_sha256": None,
         "held_out_manifest_sha256": None,
         "model_sha256": digest,
-        "pretrained_weight_provenance": "synthetic-identity-fixture",
+        "pretrained_weight_provenance": "synthetic-dual-risk-fixture",
         "model_provenance": "scripts/generate_handwriting_classifier_fixture.py",
         "licence": "Proprietary-test-fixture",
         "created_at": datetime.now(UTC).isoformat(),
         "supported_onnxruntime_version": ">=1.19,<2",
         "expected_execution_provider": "CPUExecutionProvider",
-        "notes": "Deterministic Task 2 unit-test fixture. Not for production.",
+        "notes": "Deterministic Task B3 dual-risk unit-test fixture. Not for production.",
     }
     (OUT / "model-record.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+
     metrics = {
         "schema_version": "phase5-handwriting-metrics-v1",
         "metrics_kind": "synthetic_test",
-        "model_version": "test-fixture-logits-v1",
-        "notes": "No evaluation claims. Synthetic smoke only.",
+        "model_version": "test-fixture-dual-risk-v1",
+        "notes": "Synthetic dual-risk fixture metrics only.",
         "handwriting_safe_bypass_recall": None,
         "handwriting_to_paddle_leak_count": None,
+        "handwriting_to_nontext_count": None,
         "class_support": None,
     }
     (OUT / "metrics.json").write_text(json.dumps(metrics, indent=2) + "\n", encoding="utf-8")
+
     (OUT / "README.md").write_text(
-        "# Handwriting classifier test fixture\n\n"
-        "Generated by `scripts/generate_handwriting_classifier_fixture.py`.\n"
-        f"model SHA-256: `{digest}`\n"
-        "Status: `test_fixture` — must not satisfy production-required readiness.\n",
+        "\n".join(
+            [
+                "# handwriting_classifier test fixture (dual-risk)",
+                "",
+                "Generated by `scripts/generate_handwriting_classifier_fixture.py`.",
+                "Status: `test_fixture` — never production_candidate.",
+                "Output: `risk_logits` [handwriting_risk, non_text_risk].",
+                "",
+            ]
+        ),
         encoding="utf-8",
     )
-    print(f"Wrote fixture package to {OUT.as_posix()}")
+    print(f"Wrote dual-risk fixture to {OUT}")
     print(f"model_sha256={digest}")
     return 0
 

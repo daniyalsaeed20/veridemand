@@ -1,4 +1,4 @@
-"""Write verified runtime model package under models/handwriting_classifier/."""
+"""Write verified dual-risk runtime model package under models/handwriting_classifier/."""
 
 from __future__ import annotations
 
@@ -8,18 +8,22 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
-from backend.app.extraction.handwriting_router.constants import EXPECTED_MODEL_LABELS
+from backend.app.extraction.handwriting_router.constants import (
+    EXPECTED_RISK_OUTPUTS,
+    PUBLIC_ROUTING_OUTCOMES,
+    SCHEMA_VERSION_V2,
+)
 from backend.app.extraction.handwriting_router.manifest import (
     ClassifierPackageStatus,
     HandwritingMetricsRecord,
     HandwritingModelRecord,
     MetricsKind,
+    OutputSemantics,
 )
 from backend.app.extraction.handwriting_router.verifier import verify_classifier_package
 
 from model_development.handwriting_classifier import THRESHOLD_SET_VERSION
 from model_development.handwriting_classifier.config import (
-    CLASS_ORDER,
     INPUT_SIZE,
     ONNX_INPUT_NAME,
     ONNX_OPSET,
@@ -60,16 +64,20 @@ def write_package(
     preprocess: RuntimePreprocessSpec | None = None,
     public_provenance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Create package files and run the production verifier."""
+    """Create dual-risk package files and run the production verifier."""
 
     package_dir.mkdir(parents=True, exist_ok=True)
     dest_onnx = package_dir / "model.onnx"
     dest_onnx.write_bytes(onnx_path.read_bytes())
     model_digest = file_sha256(dest_onnx)
 
-    labels_path = package_dir / "labels.json"
-    labels_path.write_text(
-        json.dumps(list(EXPECTED_MODEL_LABELS), indent=2) + "\n",
+    labels_payload = {
+        "output_semantics": OutputSemantics.INDEPENDENT_BINARY_RISK_LOGITS.value,
+        "outputs": list(EXPECTED_RISK_OUTPUTS),
+        "public_outcomes": list(PUBLIC_ROUTING_OUTCOMES),
+    }
+    (package_dir / "labels.json").write_text(
+        json.dumps(labels_payload, indent=2) + "\n",
         encoding="utf-8",
     )
 
@@ -90,8 +98,9 @@ def write_package(
     attribution = str(pub.get("attribution") or "")
     modification = str(pub.get("modification_notice") or "")
     model_provenance = (
-        "Phase 5 Task B2 MobileNetV3-Small with Handwritten ASAP (CC BY 4.0) "
-        "training supplementation; project source-group-isolated OOF diagnostics; "
+        "Phase 5 Task B3 MobileNetV3-Small dual-risk safety-first router with "
+        "Handwritten ASAP (CC BY 4.0) training supplementation; "
+        "project source-group-isolated OOF diagnostics; "
         f"DOI={pub.get('doi', '10.5281/zenodo.8088866')}; "
         f"subset={pub.get('subset_version', 'phase5-asap-subset-v1')}; "
         f"manifest_sha256={pub.get('subset_manifest_sha256', '')[:16]}… "
@@ -104,8 +113,8 @@ def write_package(
     )[:512]
 
     record = HandwritingModelRecord(
-        schema_version="phase5-handwriting-classifier-v1",
-        model_family="mobilenet_v3_small_writing_style",
+        schema_version=SCHEMA_VERSION_V2,
+        model_family="mobilenet_v3_small_dual_risk",
         model_version=model_version,
         release_status=release_status,
         training_code_version=training_code_version,
@@ -128,9 +137,14 @@ def write_package(
         normalisation_std=list(spec.normalisation_std),
         output_tensor_name=ONNX_OUTPUT_NAME,
         output_dtype="float32",
-        output_semantics="logits",  # type: ignore[arg-type]
-        class_order=list(CLASS_ORDER),
+        output_semantics=OutputSemantics.INDEPENDENT_BINARY_RISK_LOGITS,
+        class_order=list(EXPECTED_RISK_OUTPUTS),
+        public_outcomes=list(PUBLIC_ROUTING_OUTCOMES),
         threshold_set_version=THRESHOLD_SET_VERSION,
+        handwriting_accept_threshold=threshold_metrics.handwriting_accept_threshold,
+        handwriting_safe_low_threshold=threshold_metrics.handwriting_safe_low_threshold,
+        non_text_accept_threshold=threshold_metrics.non_text_accept_threshold,
+        non_text_safe_low_threshold=threshold_metrics.non_text_safe_low_threshold,
         training_manifest_sha256=training_manifest_sha256,
         validation_manifest_sha256=validation_manifest_sha256,
         held_out_manifest_sha256=held_out_manifest_sha256,
@@ -154,10 +168,12 @@ def write_package(
         model_version=model_version,
         notes=(
             "source-group-isolated out-of-fold prototype diagnostics; "
-            "final fitted model has no independent release held-out evaluation"
+            "final fitted model has no independent release held-out evaluation; "
+            "dual-risk safety-first decision policy"
         )[:1024],
         handwriting_safe_bypass_recall=threshold_metrics.handwriting_safe_bypass_recall,
         handwriting_to_paddle_leak_count=threshold_metrics.handwritten_to_printed,
+        handwriting_to_nontext_count=threshold_metrics.handwritten_to_nontext,
         class_support=oof_summary.get("class_support"),
     )
     (package_dir / "metrics.json").write_text(
@@ -168,15 +184,18 @@ def write_package(
     (package_dir / "README.md").write_text(
         "\n".join(
             [
-                "# handwriting_classifier (Phase 5 Task B2)",
+                "# handwriting_classifier (Phase 5 Task B3 dual-risk)",
                 "",
                 f"- model_version: `{model_version}`",
                 f"- release_status: `{release_status.value}`",
                 f"- threshold_set_version: `{THRESHOLD_SET_VERSION}`",
+                "- output_semantics: `independent_binary_risk_logits`",
+                "- outputs: `handwriting_risk`, `non_text_risk` (independent sigmoid)",
+                "- public outcomes derived by safety-first abstention policy",
                 "- Public training supplement: Handwritten ASAP (Zenodo 8088866, CC BY 4.0).",
                 "- Safety evaluation remains project-only LOSGO (ASAP is training-only).",
                 "- Router remains disabled by default (`HANDWRITING_ROUTER_ENABLED=false`).",
-                "- Not wired into live OCR in Task B2.",
+                "- Not wired into live OCR in Task B3.",
                 "",
                 "## Attribution",
                 "",

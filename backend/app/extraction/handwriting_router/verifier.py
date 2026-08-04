@@ -12,11 +12,15 @@ from typing import Any
 import numpy as np
 from backend.app.extraction.handwriting_router.constants import (
     CPU_EXECUTION_PROVIDER,
-    EXPECTED_MODEL_LABELS,
+    EXPECTED_RISK_OUTPUTS,
+    HISTORICAL_THREE_CLASS_LABELS,
     LABELS_JSON_NAME,
     METRICS_JSON_NAME,
     MODEL_ONNX_NAME,
     MODEL_RECORD_NAME,
+    PUBLIC_ROUTING_OUTCOMES,
+    SCHEMA_VERSION_V1,
+    SCHEMA_VERSION_V2,
 )
 from backend.app.extraction.handwriting_router.manifest import (
     ClassifierPackageStatus,
@@ -88,20 +92,56 @@ def _fail(
     )
 
 
-def _load_labels(path: Path) -> list[str] | PackageVerificationResult:
+def _load_labels(path: Path) -> dict[str, Any] | list[str] | PackageVerificationResult:
+    """Accept v1 string-array labels or v2 structured dual-risk labels."""
+
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return _fail(VerificationFailureCode.LABELS_INVALID, "labels.json could not be parsed.")
+
+    # v2 structured
+    if isinstance(raw, dict):
+        semantics = raw.get("output_semantics")
+        outputs = raw.get("outputs")
+        public = raw.get("public_outcomes")
+        if semantics != OutputSemantics.INDEPENDENT_BINARY_RISK_LOGITS.value:
+            return _fail(
+                VerificationFailureCode.LABELS_INVALID,
+                "v2 labels.json must declare independent_binary_risk_logits.",
+            )
+        if outputs != list(EXPECTED_RISK_OUTPUTS):
+            return _fail(
+                VerificationFailureCode.LABELS_INVALID,
+                "v2 labels.json outputs must be [handwriting_risk, non_text_risk].",
+            )
+        if public != list(PUBLIC_ROUTING_OUTCOMES):
+            return _fail(
+                VerificationFailureCode.LABELS_INVALID,
+                "v2 labels.json public_outcomes must match the four routing outcomes.",
+            )
+        if "uncertain" in (outputs or []):
+            return _fail(
+                VerificationFailureCode.LABELS_INVALID,
+                "uncertain must not appear as a model output class.",
+            )
+        return raw
+
+    # v1 historical array
     if not isinstance(raw, list) or not all(isinstance(x, str) for x in raw):
         return _fail(VerificationFailureCode.LABELS_INVALID, "labels.json must be a string array.")
-    if raw != list(EXPECTED_MODEL_LABELS):
+    if raw != list(HISTORICAL_THREE_CLASS_LABELS):
         return _fail(
             VerificationFailureCode.LABELS_INVALID,
-            "labels.json must exactly match [printed, handwritten, non_text].",
+            "labels.json must exactly match [printed, handwritten, non_text] for v1.",
         )
     if len(set(raw)) != len(raw):
         return _fail(VerificationFailureCode.LABELS_INVALID, "labels.json contains duplicates.")
+    if "uncertain" in raw:
+        return _fail(
+            VerificationFailureCode.LABELS_INVALID,
+            "uncertain must not appear as a model class.",
+        )
     return raw
 
 
@@ -161,6 +201,21 @@ def verify_classifier_package(
             f"model-record.json invalid: {type(exc).__name__}.",
         )
 
+    # Cross-check labels vs record schema.
+    if record.schema_version == SCHEMA_VERSION_V2:
+        if not isinstance(labels_result, dict):
+            return _fail(
+                VerificationFailureCode.LABELS_INVALID,
+                "v2 packages require structured labels.json.",
+                record=record,
+            )
+    elif record.schema_version == SCHEMA_VERSION_V1 and not isinstance(labels_result, list):
+        return _fail(
+            VerificationFailureCode.LABELS_INVALID,
+            "v1 packages require array labels.json.",
+            record=record,
+        )
+
     try:
         HandwritingMetricsRecord.model_validate_json(
             required[METRICS_JSON_NAME].read_text(encoding="utf-8")
@@ -195,7 +250,6 @@ def verify_classifier_package(
             model = onnx.load(str(required[MODEL_ONNX_NAME]))
             onnx.checker.check_model(model)
         except ImportError:
-            # Structural checker is optional when onnx is not installed.
             pass
         except Exception as exc:
             return _fail(
@@ -267,7 +321,6 @@ def verify_classifier_package(
             checksum_ok=True,
         )
 
-    # Synthetic NCHW/NHWC float32 input.
     if record.channel_order.value == "nchw":
         shape = (1, len(record.normalisation_mean), record.target_height, record.target_width)
     else:
@@ -290,10 +343,11 @@ def verify_classifier_package(
             checksum_ok=True,
         )
     out = np.asarray(raw_out[0], dtype=np.float64)
-    if out.ndim != 2 or out.shape[0] != 1 or out.shape[1] != 3:
+    expected_dim = record.expected_output_dim
+    if out.ndim != 2 or out.shape[0] != 1 or out.shape[1] != expected_dim:
         return _fail(
             VerificationFailureCode.OUTPUT_MISMATCH,
-            "Smoke output shape must be [1, 3].",
+            f"Smoke output shape must be [1, {expected_dim}].",
             record=record,
             checksum_ok=True,
         )

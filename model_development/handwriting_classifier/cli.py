@@ -1,4 +1,4 @@
-"""CLI entrypoints for Phase 5 Task B2 train / evaluate / export / ASAP prepare."""
+"""CLI entrypoints for Phase 5 Task B3 dual-risk train / evaluate / export / ASAP prepare."""
 
 from __future__ import annotations
 
@@ -75,6 +75,23 @@ def _load_public_for_config(cfg: TrainConfig, data_root: Path | None) -> list[Ex
         return []
     variant = "light" if cfg.public_asap_variant == "light" else "medium"
     return load_asap_handwriting_refs(data_root, variant=variant)
+
+
+def _candidate_sort_key(entry: dict[str, Any]) -> tuple[Any, ...]:
+    """Model selection order when multiple configs pass gates (Task §17)."""
+
+    thr = entry.get("selected_thresholds") or {}
+    return (
+        0 if entry.get("passes_safety_gate") else 1,
+        -(thr.get("printed_retention_recall") or 0.0),
+        -(thr.get("direct_handwritten_rate") or 0.0),
+        thr.get("handwriting_grey_zone_rate") or 1.0,
+        0,
+        -(thr.get("direct_nontext_rate") or 0.0),
+        {"weighted_bce": 0, "asymmetric_bce": 1, "focal": 2}.get(
+            entry.get("loss_name", "focal"), 3
+        ),
+    )
 
 
 def cmd_prepare_asap(args: argparse.Namespace) -> int:
@@ -157,7 +174,6 @@ def cmd_train_export(args: argparse.Namespace) -> int:
         if not configs:
             raise SystemExit(f"Unknown config {args.config}")
 
-    # Require prepared ASAP whenever any candidate needs it.
     needs_asap = any(c.public_asap_variant != "none" for c in configs)
     if needs_asap and not (asap_root / "prepared" / "subset-manifest.json").is_file():
         print(
@@ -168,10 +184,10 @@ def cmd_train_export(args: argparse.Namespace) -> int:
 
     public_prov = asap_provenance_summary(asap_root) if needs_asap else {}
     config_results: list[dict[str, Any]] = []
-    best_gate: dict[str, Any] | None = None
+    passing_candidates: list[dict[str, Any]] = []
 
     for cfg in configs:
-        print(f"=== LOSGO config={cfg.name} ===", flush=True)
+        print(f"=== LOSGO config={cfg.name} loss={cfg.loss} ===", flush=True)
         public_refs = _load_public_for_config(cfg, asap_root)
         t0 = time.perf_counter()
         result = run_losgo(
@@ -187,13 +203,15 @@ def cmd_train_export(args: argparse.Namespace) -> int:
         entry = {
             "config_name": cfg.name,
             "config_hash": cfg.config_hash(),
+            "loss_name": cfg.loss,
             "elapsed_sec": elapsed,
             "oof_summary": result["oof_summary"],
             "fold_reports": result["fold_reports"],
             "synthetic_nontext_count": result["synthetic_nontext_count"],
             "public_handwriting_count": result.get("public_handwriting_count", len(public_refs)),
             "public_asap_variant": cfg.public_asap_variant,
-            "project_handwriting_sample_multiplier": cfg.project_handwriting_sample_multiplier,
+            "handwriting_fn_multiplier": cfg.handwriting_fn_multiplier,
+            "hard_example_emphasis": cfg.hard_example_emphasis,
             "selected_thresholds": thresholds_to_dict(selected) if selected else None,
             "top_threshold_candidates": [thresholds_to_dict(m) for m in top[:5]],
             "passes_safety_gate": bool(selected and selected.passes_safety_gate),
@@ -207,15 +225,15 @@ def cmd_train_export(args: argparse.Namespace) -> int:
         )
         config_results.append(entry)
         if selected is not None and selected.passes_safety_gate:
-            candidate = {
-                "config": cfg,
-                "result": result,
-                "thresholds": selected,
-                "entry": entry,
-                "public_refs": public_refs,
-            }
-            if best_gate is None or selected.sort_key() < best_gate["thresholds"].sort_key():
-                best_gate = candidate
+            passing_candidates.append(
+                {
+                    "config": cfg,
+                    "result": result,
+                    "thresholds": selected,
+                    "entry": entry,
+                    "public_refs": public_refs,
+                }
+            )
 
     decision_payload: dict[str, Any] = {
         "label_aggregates": {
@@ -252,12 +270,13 @@ def cmd_train_export(args: argparse.Namespace) -> int:
             for e in config_results
         ],
         "threshold_set_version": THRESHOLD_SET_VERSION,
+        "architecture": "dual_risk_independent_binary_logits",
+        "three_class_baseline_status": ("prototype baseline — superseded for safety evaluation"),
     }
 
-    if best_gate is None:
-        decision_payload["decision"] = "SUPPLEMENTED MODEL STILL NOT SAFE FOR INTEGRATION"
+    if not passing_candidates:
+        decision_payload["decision"] = "SAFETY-FIRST MODEL STILL NOT SAFE"
         decision_payload["package_status"] = None
-        # Best effort slice failure summary from top candidates
         failing_slices: list[str] = []
         for e in config_results:
             tops = e.get("top_threshold_candidates") or []
@@ -271,10 +290,17 @@ def cmd_train_export(args: argparse.Namespace) -> int:
                     failing_slices.append("cursive_non_text")
                 if sg.get("signature_routed_non_text"):
                     failing_slices.append("signature_non_text")
+                if (tops[0] or {}).get("handwritten_to_printed"):
+                    failing_slices.append("handwritten_to_printed")
+                if (tops[0] or {}).get("handwritten_to_nontext"):
+                    failing_slices.append("handwritten_to_nontext")
         decision_payload["failing_slices"] = sorted(set(failing_slices))
-        write_json(artifacts / "task_b2_decision.json", decision_payload)
+        write_json(artifacts / "task_b3_decision.json", decision_payload)
         print(json.dumps({"decision": decision_payload["decision"]}, indent=2))
         return 3
+
+    passing_candidates.sort(key=lambda c: _candidate_sort_key(c["entry"]))
+    best_gate = passing_candidates[0]
 
     cfg = best_gate["config"]
     thr = best_gate["thresholds"]
@@ -284,7 +310,8 @@ def cmd_train_export(args: argparse.Namespace) -> int:
     for p in oof_preds:
         from model_development.handwriting_classifier.thresholds import route_probabilities
 
-        p["routed_outcome"] = route_probabilities(p["probabilities"], thr)
+        probs = p.get("risk_probabilities") or p["probabilities"]
+        p["routed_outcome"] = route_probabilities(probs, thr)
 
     print(f"=== Final fit config={cfg.name} ===")
     synth = generate_synthetic_nontext(
@@ -326,17 +353,17 @@ def cmd_train_export(args: argparse.Namespace) -> int:
             samples.append(Image.open(ex.crop_path_private).convert("RGB"))
 
     thr_cand = ThresholdCandidate(
-        printed=thr.printed,
-        handwritten=thr.handwritten,
-        non_text=thr.non_text,
-        minimum_class_margin=thr.minimum_class_margin,
+        handwriting_accept_threshold=thr.handwriting_accept_threshold,
+        handwriting_safe_low_threshold=thr.handwriting_safe_low_threshold,
+        non_text_accept_threshold=thr.non_text_accept_threshold,
+        non_text_safe_low_threshold=thr.non_text_safe_low_threshold,
     )
     parity = run_parity_suite(model, onnx_path, sample_images=samples, thresholds=thr_cand)
     if not parity["passed"]:
-        decision_payload["decision"] = "SUPPLEMENTED MODEL STILL NOT SAFE FOR INTEGRATION"
+        decision_payload["decision"] = "SAFETY-FIRST MODEL STILL NOT SAFE"
         decision_payload["parity"] = parity
         decision_payload["reason"] = "onnx_parity_failed"
-        write_json(artifacts / "task_b2_decision.json", decision_payload)
+        write_json(artifacts / "task_b3_decision.json", decision_payload)
         print("ONNX parity failed")
         return 4
 
@@ -344,7 +371,9 @@ def cmd_train_export(args: argparse.Namespace) -> int:
         {
             "fold_index": p.get("held_out_fold_index"),
             "label": p.get("label"),
-            "top_class": p.get("top_class"),
+            "p_hw": p.get("p_hw"),
+            "p_nt": p.get("p_nt"),
+            "routed_outcome": p.get("routed_outcome"),
         }
         for p in oof_preds
     ]
@@ -398,17 +427,17 @@ def cmd_train_export(args: argparse.Namespace) -> int:
         onnx.__version__,
         ort.__version__,
         (
-            "Phase 5 Task B2 ASAP-supplemented production_candidate. "
+            "Phase 5 Task B3 dual-risk safety-first production_candidate. "
             "Live OCR routing not integrated. "
             f"selected_config={cfg.name}."
         ),
         public_provenance=public_package_prov,
     )
     if not pkg["verification_ok"]:
-        decision_payload["decision"] = "SUPPLEMENTED MODEL STILL NOT SAFE FOR INTEGRATION"
+        decision_payload["decision"] = "SAFETY-FIRST MODEL STILL NOT SAFE"
         decision_payload["package"] = pkg
         decision_payload["reason"] = "package_verification_failed"
-        write_json(artifacts / "task_b2_decision.json", decision_payload)
+        write_json(artifacts / "task_b3_decision.json", decision_payload)
         return 5
 
     from backend.app.extraction.handwriting_router.service import HandwritingClassifierService
@@ -419,10 +448,10 @@ def cmd_train_export(args: argparse.Namespace) -> int:
         handwriting_router_enabled=True,
         handwriting_classifier_required=False,
         handwriting_classifier_path=package_dir,
-        printed_threshold=thr.printed,
-        handwriting_threshold=thr.handwritten,
-        non_text_threshold=thr.non_text,
-        minimum_class_margin=thr.minimum_class_margin,
+        handwriting_accept_threshold=thr.handwriting_accept_threshold,
+        handwriting_safe_low_threshold=thr.handwriting_safe_low_threshold,
+        non_text_accept_threshold=thr.non_text_accept_threshold,
+        non_text_safe_low_threshold=thr.non_text_safe_low_threshold,
     )
     svc = HandwritingClassifierService(settings)
     t_load0 = time.perf_counter()
@@ -449,7 +478,7 @@ def cmd_train_export(args: argparse.Namespace) -> int:
     model_size = (package_dir / "model.onnx").stat().st_size
     decision_payload.update(
         {
-            "decision": "SUPPLEMENTED ONNX ROUTER READY FOR INTEGRATION",
+            "decision": "SAFETY-FIRST ONNX ROUTER READY FOR INTEGRATION",
             "package_status": package_status.value,
             "selected_config": cfg.name,
             "selected_config_hash": cfg.config_hash(),
@@ -464,8 +493,8 @@ def cmd_train_export(args: argparse.Namespace) -> int:
                 "uncertain_challenge": summary["uncertain_challenge"],
                 "public_handwriting": len(public_refs),
                 "synthetic_nontext": len(synth),
-                "project_handwriting_sample_multiplier": cfg.project_handwriting_sample_multiplier,
                 "public_asap_variant": cfg.public_asap_variant,
+                "loss": cfg.loss,
             },
             "parity": parity,
             "package": pkg,
@@ -479,18 +508,18 @@ def cmd_train_export(args: argparse.Namespace) -> int:
             },
             "weights_provenance": prov,
             "final_parameter_counts": final["parameter_counts"],
-            "final_class_weights": final["class_weights"],
+            "final_pos_weight": final["pos_weight"],
             "device": final["device"],
         }
     )
-    write_json(artifacts / "task_b2_decision.json", decision_payload)
-    write_json(artifacts / "task_b2_public_summary.json", decision_payload)
+    write_json(artifacts / "task_b3_decision.json", decision_payload)
+    write_json(artifacts / "task_b3_public_summary.json", decision_payload)
     print(json.dumps({"decision": decision_payload["decision"], "package": pkg}, indent=2))
     return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="Phase 5 Task B2 classifier tooling")
+    p = argparse.ArgumentParser(description="Phase 5 Task B3 dual-risk classifier tooling")
     sub = p.add_subparsers(dest="command", required=True)
 
     a = sub.add_parser("prepare-asap", help="Download/verify Handwritten ASAP and build subset")

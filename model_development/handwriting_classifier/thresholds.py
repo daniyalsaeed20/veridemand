@@ -1,4 +1,4 @@
-"""Lexicographic prototype threshold search on OOF predictions."""
+"""Lexicographic dual-risk threshold search on project OOF predictions."""
 
 from __future__ import annotations
 
@@ -12,9 +12,8 @@ from backend.app.extraction.handwriting_router.routing import (
     decide_routing_outcome,
 )
 
-from model_development.handwriting_classifier import THRESHOLD_SET_VERSION
+from model_development.handwriting_classifier import THRESHOLD_SET_VERSION, TRAINING_LABELS
 from model_development.handwriting_classifier.config import (
-    CLASS_ORDER,
     ThresholdCandidate,
     default_threshold_grid,
 )
@@ -30,33 +29,42 @@ HANDWRITING_SLICES = (
 
 @dataclass(frozen=True)
 class ThresholdMetrics:
-    printed: float
-    handwritten: float
-    non_text: float
-    minimum_class_margin: float
+    handwriting_accept_threshold: float
+    handwriting_safe_low_threshold: float
+    non_text_accept_threshold: float
+    non_text_safe_low_threshold: float
     handwritten_to_printed: int
+    handwritten_to_nontext: int
     nontext_to_printed: int
     handwriting_safe_bypass_recall: float
     printed_retention_recall: float
-    unnecessary_uncertain_rate: float
-    handwriting_class_recall_pre_abstention: float
+    direct_handwritten_rate: float
+    direct_nontext_rate: float
     overall_uncertain_rate: float
+    handwriting_grey_zone_rate: float
+    cursive_unsafe: int
+    signature_unsafe: int
     passes_safety_gate: bool
     routed_counts: dict[str, int]
     slice_gates: dict[str, Any]
     passes_slice_gates: bool
 
     def sort_key(self) -> tuple[Any, ...]:
-        # Lexicographic: safety first (incl. slices), then quality.
+        """Lexicographic objective (Task B3 §14.1)."""
+
         return (
+            self.handwritten_to_printed,  # 1. = 0 preferred
+            self.handwritten_to_nontext,  # 2. = 0
+            self.cursive_unsafe,  # 3. = 0
+            self.signature_unsafe,  # 4. = 0
+            -self.handwriting_safe_bypass_recall,  # 5. = 100%
+            self.nontext_to_printed,  # 6. = 0
+            0 if self.printed_retention_recall >= 0.80 else 1,  # 7. gate
+            -self.printed_retention_recall,  # 7b. maximise retention
+            -self.direct_handwritten_rate,  # 8
+            -self.direct_nontext_rate,  # 9
+            self.overall_uncertain_rate,  # 10 minimise after safety
             0 if self.passes_safety_gate else 1,
-            0 if self.passes_slice_gates else 1,
-            self.handwritten_to_printed,
-            self.nontext_to_printed,
-            -self.handwriting_safe_bypass_recall,
-            -self.printed_retention_recall,
-            -self.handwriting_class_recall_pre_abstention,
-            self.unnecessary_uncertain_rate,
         )
 
 
@@ -66,10 +74,10 @@ def route_probabilities(
 ) -> str:
     if isinstance(thresholds, ThresholdCandidate):
         thr = RoutingThresholds(
-            printed=thresholds.printed,
-            handwritten=thresholds.handwritten,
-            non_text=thresholds.non_text,
-            minimum_class_margin=thresholds.minimum_class_margin,
+            handwriting_accept_threshold=thresholds.handwriting_accept_threshold,
+            handwriting_safe_low_threshold=thresholds.handwriting_safe_low_threshold,
+            non_text_accept_threshold=thresholds.non_text_accept_threshold,
+            non_text_safe_low_threshold=thresholds.non_text_safe_low_threshold,
         )
     else:
         thr = thresholds
@@ -99,9 +107,9 @@ def evaluate_handwriting_slices(
         if p.get("label") != "handwritten":
             continue
         tags = _category_tags(p.get("source_category"))
-        outcome = route_probabilities(p["probabilities"], candidate)
+        probs = p.get("risk_probabilities") or p.get("probabilities")
+        outcome = route_probabilities(probs, candidate)
         for name in HANDWRITING_SLICES:
-            # hand_printed may appear as hand_printed or hand-printed
             aliases = {name, name.replace("_", "-")}
             if name == "hand_printed":
                 aliases.add("handprinted")
@@ -122,6 +130,8 @@ def evaluate_handwriting_slices(
         "signature_routed_printed": sig_printed,
         "cursive_routed_non_text": cursive_non_text,
         "signature_routed_non_text": sig_non_text,
+        "cursive_unsafe": cursive_printed + cursive_non_text,
+        "signature_unsafe": sig_printed + sig_non_text,
         "passes_slice_gates": passes,
     }
 
@@ -132,9 +142,13 @@ def evaluate_thresholds(
 ) -> ThresholdMetrics:
     """Evaluate one threshold set on project OOF predictions (no synthetic/public)."""
 
+    if not candidate.is_ordered():
+        raise ValueError("Threshold candidate violates safe_low < accept ordering")
+
     project = [p for p in predictions if not p.get("synthetic") and not p.get("public")]
     hw = [p for p in project if p["label"] == "handwritten"]
     printed = [p for p in project if p["label"] == "printed"]
+    nt = [p for p in project if p["label"] == "non_text"]
 
     routed: dict[str, int] = {
         "printed": 0,
@@ -143,62 +157,87 @@ def evaluate_thresholds(
         "uncertain": 0,
     }
     hw_to_printed = 0
+    hw_to_nontext = 0
     nt_to_printed = 0
     hw_safe = 0
     printed_retained = 0
-    printed_uncertain = 0
-    hw_argmax_correct = 0
+    hw_grey = 0
 
     for p in project:
-        outcome = route_probabilities(p["probabilities"], candidate)
+        probs = p.get("risk_probabilities") or p.get("probabilities")
+        outcome = route_probabilities(probs, candidate)
         routed[outcome] = routed.get(outcome, 0) + 1
-        argmax = CLASS_ORDER[int(np.argmax(p["probabilities"]))]
+        p_hw = float(probs[0])
         if p["label"] == "handwritten":
-            if argmax == "handwritten":
-                hw_argmax_correct += 1
             if outcome == "printed":
                 hw_to_printed += 1
+            if outcome == "non_text":
+                hw_to_nontext += 1
             if outcome in ("handwritten", "uncertain"):
                 hw_safe += 1
+            if (
+                candidate.handwriting_safe_low_threshold
+                < p_hw
+                < candidate.handwriting_accept_threshold
+            ):
+                hw_grey += 1
         elif p["label"] == "non_text":
             if outcome == "printed":
                 nt_to_printed += 1
         elif p["label"] == "printed":
             if outcome == "printed":
                 printed_retained += 1
-            if outcome == "uncertain":
-                printed_uncertain += 1
 
     hw_n = max(len(hw), 1)
     pr_n = max(len(printed), 1)
     safe_bypass = hw_safe / hw_n if hw else 1.0
     printed_ret = printed_retained / pr_n if printed else 1.0
-    unnecessary = printed_uncertain / pr_n if printed else 0.0
     overall_unc = routed.get("uncertain", 0) / max(len(project), 1)
-    hw_recall_pre = hw_argmax_correct / hw_n if hw else 1.0
+    direct_hw = routed.get("handwritten", 0) / hw_n if hw else 0.0
+    direct_nt = (
+        sum(
+            1
+            for p in nt
+            if route_probabilities(p.get("risk_probabilities") or p["probabilities"], candidate)
+            == "non_text"
+        )
+        / max(len(nt), 1)
+        if nt
+        else 0.0
+    )
+    hw_grey_rate = hw_grey / hw_n if hw else 0.0
 
     slice_info = evaluate_handwriting_slices(project, candidate)
     passes_slices = bool(slice_info["passes_slice_gates"])
+    cursive_unsafe = int(slice_info["cursive_unsafe"])
+    signature_unsafe = int(slice_info["signature_unsafe"])
 
     passes = (
         hw_to_printed == 0
-        and nt_to_printed == 0
+        and hw_to_nontext == 0
         and abs(safe_bypass - 1.0) < 1e-12
+        and cursive_unsafe == 0
+        and signature_unsafe == 0
+        and nt_to_printed == 0
         and printed_ret >= 0.80
         and passes_slices
     )
     return ThresholdMetrics(
-        printed=candidate.printed,
-        handwritten=candidate.handwritten,
-        non_text=candidate.non_text,
-        minimum_class_margin=candidate.minimum_class_margin,
+        handwriting_accept_threshold=candidate.handwriting_accept_threshold,
+        handwriting_safe_low_threshold=candidate.handwriting_safe_low_threshold,
+        non_text_accept_threshold=candidate.non_text_accept_threshold,
+        non_text_safe_low_threshold=candidate.non_text_safe_low_threshold,
         handwritten_to_printed=hw_to_printed,
+        handwritten_to_nontext=hw_to_nontext,
         nontext_to_printed=nt_to_printed,
         handwriting_safe_bypass_recall=safe_bypass,
         printed_retention_recall=printed_ret,
-        unnecessary_uncertain_rate=unnecessary,
-        handwriting_class_recall_pre_abstention=hw_recall_pre,
+        direct_handwritten_rate=direct_hw,
+        direct_nontext_rate=direct_nt,
         overall_uncertain_rate=overall_unc,
+        handwriting_grey_zone_rate=hw_grey_rate,
+        cursive_unsafe=cursive_unsafe,
+        signature_unsafe=signature_unsafe,
         passes_safety_gate=passes,
         routed_counts=routed,
         slice_gates=slice_info,
@@ -210,13 +249,14 @@ def search_thresholds(
     predictions: Sequence[dict[str, Any]],
     grid: Sequence[ThresholdCandidate] | None = None,
 ) -> tuple[ThresholdMetrics | None, list[ThresholdMetrics]]:
-    """Deterministic bounded search; return best + Pareto-ish top candidates."""
+    """Deterministic bounded search; return best passing candidate + top scored."""
 
     candidates = list(grid) if grid is not None else default_threshold_grid()
-    scored = [evaluate_thresholds(predictions, c) for c in candidates]
+    scored = [evaluate_thresholds(predictions, c) for c in candidates if c.is_ordered()]
     scored.sort(key=lambda m: m.sort_key())
     passing = [m for m in scored if m.passes_safety_gate]
     selected = passing[0] if passing else None
+    # If none pass, still return best-by-sort for diagnostics (not selected).
     return selected, scored[:20]
 
 
@@ -225,21 +265,24 @@ def thresholds_to_dict(m: ThresholdMetrics | None) -> dict[str, Any] | None:
         return None
     return {
         "threshold_set_version": THRESHOLD_SET_VERSION,
-        "printed": m.printed,
-        "handwritten": m.handwritten,
-        "non_text": m.non_text,
-        "minimum_class_margin": m.minimum_class_margin,
+        "handwriting_accept_threshold": m.handwriting_accept_threshold,
+        "handwriting_safe_low_threshold": m.handwriting_safe_low_threshold,
+        "non_text_accept_threshold": m.non_text_accept_threshold,
+        "non_text_safe_low_threshold": m.non_text_safe_low_threshold,
         "handwritten_to_printed": m.handwritten_to_printed,
+        "handwritten_to_nontext": m.handwritten_to_nontext,
         "nontext_to_printed": m.nontext_to_printed,
         "handwriting_safe_bypass_recall": m.handwriting_safe_bypass_recall,
         "printed_retention_recall": m.printed_retention_recall,
-        "unnecessary_uncertain_rate": m.unnecessary_uncertain_rate,
-        "handwriting_class_recall_pre_abstention": m.handwriting_class_recall_pre_abstention,
+        "direct_handwritten_rate": m.direct_handwritten_rate,
+        "direct_nontext_rate": m.direct_nontext_rate,
         "overall_uncertain_rate": m.overall_uncertain_rate,
+        "handwriting_grey_zone_rate": m.handwriting_grey_zone_rate,
         "passes_safety_gate": m.passes_safety_gate,
         "passes_slice_gates": m.passes_slice_gates,
         "routed_counts": m.routed_counts,
         "slice_gates": m.slice_gates,
+        "training_labels": list(TRAINING_LABELS),
     }
 
 
@@ -250,15 +293,32 @@ def challenge_routing_report(
     cand: ThresholdCandidate
     if isinstance(thresholds, ThresholdMetrics):
         cand = ThresholdCandidate(
-            printed=thresholds.printed,
-            handwritten=thresholds.handwritten,
-            non_text=thresholds.non_text,
-            minimum_class_margin=thresholds.minimum_class_margin,
+            handwriting_accept_threshold=thresholds.handwriting_accept_threshold,
+            handwriting_safe_low_threshold=thresholds.handwriting_safe_low_threshold,
+            non_text_accept_threshold=thresholds.non_text_accept_threshold,
+            non_text_safe_low_threshold=thresholds.non_text_safe_low_threshold,
         )
     else:
         cand = thresholds
     counts = {"printed": 0, "handwritten": 0, "non_text": 0, "uncertain": 0}
     for p in predictions:
-        outcome = route_probabilities(p["probabilities"], cand)
+        probs = p.get("risk_probabilities") or p.get("probabilities")
+        outcome = route_probabilities(probs, cand)
         counts[outcome] = counts.get(outcome, 0) + 1
     return counts
+
+
+def to_routing_thresholds(m: ThresholdMetrics | ThresholdCandidate) -> RoutingThresholds:
+    if isinstance(m, ThresholdMetrics):
+        return RoutingThresholds(
+            handwriting_accept_threshold=m.handwriting_accept_threshold,
+            handwriting_safe_low_threshold=m.handwriting_safe_low_threshold,
+            non_text_accept_threshold=m.non_text_accept_threshold,
+            non_text_safe_low_threshold=m.non_text_safe_low_threshold,
+        )
+    return RoutingThresholds(
+        handwriting_accept_threshold=m.handwriting_accept_threshold,
+        handwriting_safe_low_threshold=m.handwriting_safe_low_threshold,
+        non_text_accept_threshold=m.non_text_accept_threshold,
+        non_text_safe_low_threshold=m.non_text_safe_low_threshold,
+    )

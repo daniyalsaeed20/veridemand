@@ -21,7 +21,7 @@ from backend.app.contracts.ocr import (
 )
 from backend.app.extraction.handwriting_router.constants import (
     CPU_EXECUTION_PROVIDER,
-    EXPECTED_MODEL_LABELS,
+    EXPECTED_RISK_OUTPUTS,
     MODEL_ONNX_NAME,
     PROBABILITY_SUM_TOLERANCE,
 )
@@ -84,19 +84,43 @@ def _stable_softmax(logits: np.ndarray) -> np.ndarray:
     return result
 
 
+def _stable_sigmoid(logits: np.ndarray) -> np.ndarray:
+    """Independent sigmoid per risk logit (no softmax)."""
+
+    # Numerically stable sigmoid.
+    out = np.empty_like(logits, dtype=np.float64)
+    pos = logits >= 0
+    out[pos] = 1.0 / (1.0 + np.exp(-logits[pos]))
+    exp_x = np.exp(logits[~pos])
+    out[~pos] = exp_x / (1.0 + exp_x)
+    return out
+
+
 def _interpret_output(raw: np.ndarray, semantics: OutputSemantics) -> np.ndarray | None:
-    """Return per-class probabilities shaped (N, 3) or None if invalid."""
+    """Return routing scores shaped (N, 2) for dual-risk or (N, 3) for historical.
+
+    Dual-risk: independent sigmoid probabilities.
+    Historical three-class: softmax / renormalised probabilities (fixture only).
+    """
 
     arr = np.asarray(raw, dtype=np.float64)
     if arr.ndim == 1:
         arr = arr.reshape(1, -1)
-    if arr.ndim != 2 or arr.shape[1] != 3:
+    if arr.ndim != 2:
         return None
     if not np.all(np.isfinite(arr)):
         return None
+
+    if semantics is OutputSemantics.INDEPENDENT_BINARY_RISK_LOGITS:
+        if arr.shape[1] != 2:
+            return None
+        return _stable_sigmoid(arr)
+
+    # Historical three-class path (test fixtures / baselines only).
+    if arr.shape[1] != 3:
+        return None
     if semantics is OutputSemantics.LOGITS:
         return _stable_softmax(arr)
-    # Probabilities
     if np.any(arr < -1e-9):
         return None
     sums = arr.sum(axis=1)
@@ -139,11 +163,26 @@ class HandwritingClassifierService:
         return package_directory_from_path(self._settings.handwriting_classifier_path)
 
     def thresholds(self) -> RoutingThresholds:
+        # Prefer calibrated thresholds from a verified dual-risk package when present.
+        if self._record is not None and self._record.is_dual_risk:
+            rec = self._record
+            if (
+                rec.handwriting_accept_threshold is not None
+                and rec.handwriting_safe_low_threshold is not None
+                and rec.non_text_accept_threshold is not None
+                and rec.non_text_safe_low_threshold is not None
+            ):
+                return RoutingThresholds(
+                    handwriting_accept_threshold=float(rec.handwriting_accept_threshold),
+                    handwriting_safe_low_threshold=float(rec.handwriting_safe_low_threshold),
+                    non_text_accept_threshold=float(rec.non_text_accept_threshold),
+                    non_text_safe_low_threshold=float(rec.non_text_safe_low_threshold),
+                )
         return RoutingThresholds(
-            printed=float(self._settings.printed_threshold),
-            handwritten=float(self._settings.handwriting_threshold),
-            non_text=float(self._settings.non_text_threshold),
-            minimum_class_margin=float(self._settings.minimum_class_margin),
+            handwriting_accept_threshold=float(self._settings.handwriting_accept_threshold),
+            handwriting_safe_low_threshold=float(self._settings.handwriting_safe_low_threshold),
+            non_text_accept_threshold=float(self._settings.non_text_accept_threshold),
+            non_text_safe_low_threshold=float(self._settings.non_text_safe_low_threshold),
         )
 
     def verify_package(
@@ -487,7 +526,7 @@ class HandwritingClassifierService:
             inference_source=HandwritingInferenceSource.SAFETY_ABSTENTION,
             model_version=verify.model_version,
             threshold_set_version=verify.threshold_set_version,
-            class_scores={label: float("nan") for label in EXPECTED_MODEL_LABELS},
+            class_scores={label: float("nan") for label in EXPECTED_RISK_OUTPUTS},
             top_class=None,
             top_score=None,
             second_score=None,

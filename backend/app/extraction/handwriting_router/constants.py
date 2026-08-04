@@ -2,7 +2,19 @@
 
 from __future__ import annotations
 
-EXPECTED_MODEL_LABELS: tuple[str, str, str] = ("printed", "handwritten", "non_text")
+# Dual-risk ONNX outputs (Task B3). Not public routing outcomes.
+EXPECTED_RISK_OUTPUTS: tuple[str, str] = ("handwriting_risk", "non_text_risk")
+PUBLIC_ROUTING_OUTCOMES: tuple[str, str, str, str] = (
+    "printed",
+    "handwritten",
+    "uncertain",
+    "non_text",
+)
+# Historical three-class package labels (Task 2 / B / B2 fixtures only).
+HISTORICAL_THREE_CLASS_LABELS: tuple[str, str, str] = ("printed", "handwritten", "non_text")
+# Primary production expectation is dual-risk; alias for older imports.
+EXPECTED_MODEL_LABELS: tuple[str, str] = EXPECTED_RISK_OUTPUTS
+
 MODEL_ONNX_NAME = "model.onnx"
 LABELS_JSON_NAME = "labels.json"
 MODEL_RECORD_NAME = "model-record.json"
@@ -10,3 +22,5 @@ METRICS_JSON_NAME = "metrics.json"
 CPU_EXECUTION_PROVIDER = "CPUExecutionProvider"
 PROBABILITY_SUM_TOLERANCE = 1e-3
 MAX_INPUT_PIXELS = 4_000_000
+SCHEMA_VERSION_V1 = "phase5-handwriting-classifier-v1"
+SCHEMA_VERSION_V2 = "phase5-handwriting-classifier-v2"

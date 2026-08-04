@@ -1,9 +1,9 @@
 {
-  "schema_version": "phase5-handwriting-classifier-v1",
-  "model_family": "handwriting_style_cnn",
-  "model_version": "test-fixture-logits-v1",
+  "schema_version": "phase5-handwriting-classifier-v2",
+  "model_family": "handwriting_style_cnn_dual_risk",
+  "model_version": "test-fixture-dual-risk-v1",
   "release_status": "test_fixture",
-  "training_code_version": "task2-fixture-generator",
+  "training_code_version": "task-b3-fixture-generator",
   "onnx_opset": 13,
   "onnx_ir_version": 8,
   "input_tensor_name": "input",
@@ -34,24 +34,33 @@
     0.5,
     0.5
   ],
-  "output_tensor_name": "logits",
+  "output_tensor_name": "risk_logits",
   "output_dtype": "float32",
-  "output_semantics": "logits",
+  "output_semantics": "independent_binary_risk_logits",
   "class_order": [
+    "handwriting_risk",
+    "non_text_risk"
+  ],
+  "public_outcomes": [
     "printed",
     "handwritten",
+    "uncertain",
     "non_text"
   ],
-  "threshold_set_version": "provisional-unspecified",
+  "threshold_set_version": "test-fixture-dual-risk",
+  "handwriting_accept_threshold": 0.7,
+  "handwriting_safe_low_threshold": 0.2,
+  "non_text_accept_threshold": 0.7,
+  "non_text_safe_low_threshold": 0.2,
   "training_manifest_sha256": null,
   "validation_manifest_sha256": null,
   "held_out_manifest_sha256": null,
-  "model_sha256": "43d7d625b5421518585f0236e814d14301b02a5f5e7169d7d7274ade8f4d528f",
-  "pretrained_weight_provenance": "synthetic-identity-fixture",
+  "model_sha256": "b6ff4c773a68e37fab8a0c70549b7bb0bbd1402bd4d71da6b3df98b55ae91364",
+  "pretrained_weight_provenance": "synthetic-dual-risk-fixture",
   "model_provenance": "scripts/generate_handwriting_classifier_fixture.py",
   "licence": "Proprietary-test-fixture",
-  "created_at": "2026-07-30T20:51:38.679656+00:00",
+  "created_at": "2026-08-04T20:13:49.286184+00:00",
   "supported_onnxruntime_version": ">=1.19,<2",
   "expected_execution_provider": "CPUExecutionProvider",
-  "notes": "Deterministic Task 2 unit-test fixture. Not for production."
+  "notes": "Deterministic Task B3 dual-risk unit-test fixture. Not for production."
 }

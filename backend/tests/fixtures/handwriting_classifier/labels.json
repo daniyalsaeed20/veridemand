@@ -1,5 +1,13 @@
-[
-  "printed",
-  "handwritten",
-  "non_text"
-]
+{
+  "output_semantics": "independent_binary_risk_logits",
+  "outputs": [
+    "handwriting_risk",
+    "non_text_risk"
+  ],
+  "public_outcomes": [
+    "printed",
+    "handwritten",
+    "uncertain",
+    "non_text"
+  ]
+}

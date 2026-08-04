@@ -1,4 +1,4 @@
-"""ONNX export and PyTorch↔ORT parity checks."""
+"""ONNX export and PyTorch↔ORT parity checks for dual-risk models."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from typing import Any
 
 import numpy as np
 
+from model_development.handwriting_classifier import RISK_ORDER
 from model_development.handwriting_classifier.config import (
-    CLASS_ORDER,
     INPUT_SIZE,
     ONNX_INPUT_NAME,
     ONNX_OPSET,
@@ -49,7 +49,6 @@ def check_onnx(path: Path) -> None:
 
     model = onnx.load(str(path))
     checker.check_model(model)
-    # Basic shape expectations
     inputs = model.graph.input
     outputs = model.graph.output
     assert len(inputs) == 1 and inputs[0].name == ONNX_INPUT_NAME
@@ -76,6 +75,10 @@ def ort_logits(session: Any, batch: np.ndarray) -> np.ndarray:
     return np.asarray(out, dtype=np.float64)
 
 
+def _sigmoid(x: np.ndarray) -> np.ndarray:
+    return 1.0 / (1.0 + np.exp(-x))
+
+
 def compare_parity(
     torch_out: np.ndarray,
     ort_out: np.ndarray,
@@ -85,27 +88,28 @@ def compare_parity(
 ) -> dict[str, Any]:
     abs_diff = np.max(np.abs(torch_out - ort_out))
     rel = np.max(np.abs(torch_out - ort_out) / np.maximum(np.abs(torch_out), 1e-8))
-    argmax_agree = bool(np.all(np.argmax(torch_out, axis=1) == np.argmax(ort_out, axis=1)))
+    # Risk-head agreement: same sign relative to 0.5 after sigmoid is enough for routing
+    # when thresholds are provided; also check max abs on probs.
+    torch_p = _sigmoid(torch_out)
+    ort_p = _sigmoid(ort_out)
+    prob_abs = np.max(np.abs(torch_p - ort_p))
     routed_agree = True
     if thresholds is not None:
         for i in range(torch_out.shape[0]):
-            # Convert logits → probs for routing
-            def _softmax(x: np.ndarray) -> np.ndarray:
-                e = np.exp(x - np.max(x))
-                return e / e.sum()
-
-            t_route = route_probabilities(_softmax(torch_out[i]), thresholds)
-            o_route = route_probabilities(_softmax(ort_out[i]), thresholds)
+            t_route = route_probabilities(torch_p[i], thresholds)
+            o_route = route_probabilities(ort_p[i], thresholds)
             if t_route != o_route:
                 routed_agree = False
                 break
     return {
         "max_abs_diff": float(abs_diff),
         "max_rel_diff": float(rel),
-        "argmax_agreement": argmax_agree,
+        "max_prob_abs_diff": float(prob_abs),
+        "sigmoid_prob_agreement": bool(prob_abs <= tol * 10 or prob_abs <= 1e-5),
         "routed_outcome_agreement": routed_agree,
         "within_tolerance": bool(abs_diff <= tol),
         "tolerance": tol,
+        "output_dim": int(torch_out.shape[1]) if torch_out.ndim == 2 else 0,
     }
 
 
@@ -125,7 +129,6 @@ def run_parity_suite(
     session = _ort_session(onnx_path)
 
     cases: list[tuple[str, np.ndarray]] = []
-    # Deterministic synthetic fixtures with varied shapes before preprocess
     rng = np.random.default_rng(0)
     for name, shape in (
         ("synth_square", (64, 64)),
@@ -143,18 +146,17 @@ def run_parity_suite(
 
     results = []
     all_ok = True
-    # batch size 1
     for name, tensor in cases:
         torch_out = pytorch_logits(model, tensor)
         ort_out = ort_logits(session, tensor)
+        assert torch_out.shape[1] == 2 and ort_out.shape[1] == 2
         cmp = compare_parity(torch_out, ort_out, thresholds=thresholds, tol=tol)
         cmp["case"] = name
         cmp["batch_size"] = 1
         results.append(cmp)
-        if not (cmp["argmax_agreement"] and cmp["routed_outcome_agreement"]):
+        if not (cmp["within_tolerance"] and cmp["routed_outcome_agreement"]):
             all_ok = False
 
-    # multi-item batch
     batch = np.concatenate([t for _, t in cases[:3]], axis=0)
     torch_out = pytorch_logits(model, batch)
     ort_out = ort_logits(session, batch)
@@ -162,7 +164,7 @@ def run_parity_suite(
     cmp["case"] = "batch3"
     cmp["batch_size"] = 3
     results.append(cmp)
-    if not (cmp["argmax_agreement"] and cmp["routed_outcome_agreement"]):
+    if not (cmp["within_tolerance"] and cmp["routed_outcome_agreement"]):
         all_ok = False
 
     max_abs = max(r["max_abs_diff"] for r in results)
@@ -173,5 +175,6 @@ def run_parity_suite(
         "opset": ONNX_OPSET,
         "input_name": ONNX_INPUT_NAME,
         "output_name": ONNX_OUTPUT_NAME,
-        "class_order": list(CLASS_ORDER),
+        "risk_order": list(RISK_ORDER),
+        "output_semantics": "independent_binary_risk_logits",
     }

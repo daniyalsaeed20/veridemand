@@ -76,7 +76,9 @@ def run_losgo(
                 "held_out_support": fold_support(preds),
                 "train_counts": result["train_counts"],
                 "public_train_count": len(public),
-                "class_weights": result["class_weights"],
+                "pos_weight": result["pos_weight"],
+                "hard_example_count": result.get("hard_example_count", 0),
+                "loss": result.get("loss"),
                 "parameter_counts": result["parameter_counts"],
                 "device": used_device,
             }
