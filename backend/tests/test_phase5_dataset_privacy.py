@@ -46,6 +46,8 @@ def test_labeler_not_mounted_in_fastapi() -> None:
     # Soft check: no datasets.phase5 labeler import in main
     main_src = (ROOT / "backend" / "app" / "main.py").read_text(encoding="utf-8")
     assert "labeler_server" not in main_src
+    assert "handwriting_seed_server" not in main_src
+    assert "coverage_server" not in main_src
     assert "datasets.phase5" not in main_src
 
 
