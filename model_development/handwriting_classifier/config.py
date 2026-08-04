@@ -1,4 +1,4 @@
-"""Deterministic training configuration for Phase 5 Task B."""
+"""Deterministic training configuration for Phase 5 Task B2."""
 
 from __future__ import annotations
 
@@ -19,8 +19,9 @@ PARITY_TOLERANCE = 1e-4
 SYNTHETIC_NONTEXT_COUNT = 400
 SYNTHETIC_SOURCE_GROUP_PREFIX = "srcgrp_synth_nt_"
 
-BalancingMethod = Literal["class_weighted", "balanced_sampler"]
+BalancingMethod = Literal["class_weighted", "balanced_sampler", "project_hw_weighted"]
 AugStrength = Literal["default", "stronger"]
+PublicAsapVariant = Literal["none", "light", "medium"]
 
 
 @dataclass(frozen=True)
@@ -48,6 +49,9 @@ class TrainConfig:
     checkpoint_rule: str = "fixed_epoch_budget_stage2_final"
     synthetic_nontext_count: int = 300
     num_workers: int = 0
+    public_asap_variant: PublicAsapVariant = "medium"
+    # Multiplier applied to project (non-ASAP) handwritten sample weights.
+    project_handwriting_sample_multiplier: float = 1.0
     notes: str = ""
 
     def to_dict(self) -> dict[str, Any]:
@@ -58,25 +62,34 @@ class TrainConfig:
         return sha256(payload.encode("utf-8")).hexdigest()
 
 
-# At most three materially different configurations (Task B limit).
+# At most three materially different Task B2 configurations.
 CANDIDATE_CONFIGS: tuple[TrainConfig, ...] = (
     TrainConfig(
-        name="weighted_default_aug",
+        name="asap_light",
         balancing="class_weighted",
         aug_strength="default",
-        notes="Class-weighted CE with default conservative augmentation.",
+        public_asap_variant="light",
+        project_handwriting_sample_multiplier=1.0,
+        notes="~150 ASAP public HW + project labels; class-weighted CE.",
     ),
     TrainConfig(
-        name="balanced_sampler_default_aug",
-        balancing="balanced_sampler",
-        aug_strength="default",
-        notes="Balanced sampler with default conservative augmentation.",
-    ),
-    TrainConfig(
-        name="weighted_stronger_aug",
+        name="asap_medium",
         balancing="class_weighted",
-        aug_strength="stronger",
-        notes="Class-weighted CE with slightly stronger conservative augmentation.",
+        aug_strength="default",
+        public_asap_variant="medium",
+        project_handwriting_sample_multiplier=1.0,
+        notes="All QC-passed ASAP public HW + project labels; class-weighted CE.",
+    ),
+    TrainConfig(
+        name="asap_medium_project_weighted",
+        balancing="project_hw_weighted",
+        aug_strength="default",
+        public_asap_variant="medium",
+        project_handwriting_sample_multiplier=4.0,
+        notes=(
+            "All ASAP public HW with project-handwriting sampling multiplier=4 "
+            "(oversamples do not count as new human labels)."
+        ),
     ),
 )
 

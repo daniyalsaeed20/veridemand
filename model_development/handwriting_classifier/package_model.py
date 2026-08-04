@@ -58,6 +58,7 @@ def write_package(
     onnxruntime_version: str,
     notes: str,
     preprocess: RuntimePreprocessSpec | None = None,
+    public_provenance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Create package files and run the production verifier."""
 
@@ -74,15 +75,33 @@ def write_package(
 
     spec = preprocess or RuntimePreprocessSpec()
     thr_note = thresholds_to_dict(threshold_metrics)
+    pub = public_provenance or {}
     notes_full = (
         f"{notes}\n"
         f"thresholds={json.dumps(thr_note, sort_keys=True)}; "
         f"training_config_hash={training_config_hash}; "
         f"label_aggregates={json.dumps(label_aggregates, sort_keys=True)}; "
         f"synthetic_nontext_count={synthetic_nontext_count}; "
+        f"public_handwriting_count={pub.get('public_sample_count', 0)}; "
         f"torch={torch_version}; torchvision={torchvision_version}; "
         f"onnx={onnx_version}; onnxruntime={onnxruntime_version}"
     )[:1024]
+
+    attribution = str(pub.get("attribution") or "")
+    modification = str(pub.get("modification_notice") or "")
+    model_provenance = (
+        "Phase 5 Task B2 MobileNetV3-Small with Handwritten ASAP (CC BY 4.0) "
+        "training supplementation; project source-group-isolated OOF diagnostics; "
+        f"DOI={pub.get('doi', '10.5281/zenodo.8088866')}; "
+        f"subset={pub.get('subset_version', 'phase5-asap-subset-v1')}; "
+        f"manifest_sha256={pub.get('subset_manifest_sha256', '')[:16]}… "
+        f"{attribution} {modification}"
+    )[:512]
+
+    licence = (
+        "Derived model artefact. Training images include Handwritten ASAP Short "
+        "Answer Scoring (CC BY 4.0). Architecture: BSD-3-Clause (torch/torchvision)."
+    )[:512]
 
     record = HandwritingModelRecord(
         schema_version="phase5-handwriting-classifier-v1",
@@ -117,11 +136,8 @@ def write_package(
         held_out_manifest_sha256=held_out_manifest_sha256,
         model_sha256=model_digest,
         pretrained_weight_provenance=pretrained_provenance[:512],
-        model_provenance=(
-            "Project-only Phase 5 Task B MobileNetV3-Small transfer learning; "
-            "source-group-isolated OOF diagnostics; no public handwriting datasets."
-        )[:512],
-        licence="BSD-3-Clause (torch/torchvision architecture); derived model artefact",
+        model_provenance=model_provenance,
+        licence=licence,
         created_at=datetime.now(UTC),
         supported_onnxruntime_version="1.28.0",
         expected_execution_provider="CPUExecutionProvider",
@@ -152,13 +168,23 @@ def write_package(
     (package_dir / "README.md").write_text(
         "\n".join(
             [
-                "# handwriting_classifier (Phase 5 Task B)",
+                "# handwriting_classifier (Phase 5 Task B2)",
                 "",
                 f"- model_version: `{model_version}`",
                 f"- release_status: `{release_status.value}`",
                 f"- threshold_set_version: `{THRESHOLD_SET_VERSION}`",
+                "- Public training supplement: Handwritten ASAP (Zenodo 8088866, CC BY 4.0).",
+                "- Safety evaluation remains project-only LOSGO (ASAP is training-only).",
                 "- Router remains disabled by default (`HANDWRITING_ROUTER_ENABLED=false`).",
-                "- Not wired into live OCR in Task B.",
+                "- Not wired into live OCR in Task B2.",
+                "",
+                "## Attribution",
+                "",
+                attribution or "(see model-record.json provenance)",
+                "",
+                "## Modification notice",
+                "",
+                modification or "(see model-record.json provenance)",
                 "",
                 "Verify:",
                 "",

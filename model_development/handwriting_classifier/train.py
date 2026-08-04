@@ -34,6 +34,9 @@ class ExampleRef:
     source_group_id: str
     synthetic: bool = False
     crop_id: str = ""
+    public: bool = False
+    # When True, this is a project (non-public) handwritten crop eligible for upweighting.
+    project_handwriting: bool = False
 
 
 def to_refs(
@@ -47,6 +50,8 @@ def to_refs(
             source_group_id=e.source_group_id,
             synthetic=False,
             crop_id=e.crop_id,
+            public=False,
+            project_handwriting=(e.label == "handwritten"),
         )
         for e in examples
     ]
@@ -59,6 +64,8 @@ def to_refs(
                     source_group_id=str(s["source_group_id"]),
                     synthetic=True,
                     crop_id=str(s["crop_id"]),
+                    public=False,
+                    project_handwriting=False,
                 )
             )
     return refs
@@ -177,6 +184,45 @@ def _make_loader(
             num_workers=config.num_workers,
         )
 
+    if config.balancing == "project_hw_weighted" and shuffle:
+        counts = class_counts(
+            [
+                TrainingExample(
+                    schema_version="",
+                    training_manifest_version="",
+                    crop_id=r.crop_id or str(i),
+                    crop_sha256="0" * 64,
+                    source_group_id=r.source_group_id,
+                    label=r.label,  # type: ignore[arg-type]
+                    label_source="prototype_primary_review",
+                    review_status="",
+                    crop_path_private=r.path,
+                    width=1,
+                    height=1,
+                )
+                for i, r in enumerate(refs)
+            ]
+        )
+        mult = float(config.project_handwriting_sample_multiplier)
+        sample_w = []
+        for r in refs:
+            base = 1.0 / max(counts.get(r.label, 1), 1)
+            if r.project_handwriting and r.label == "handwritten" and not r.public:
+                base *= mult
+            sample_w.append(base)
+        sampler = WeightedRandomSampler(
+            weights=sample_w,
+            num_samples=len(sample_w),
+            replacement=True,
+            generator=generator,
+        )
+        return DataLoader(
+            dataset,
+            batch_size=config.batch_size,
+            sampler=sampler,
+            num_workers=config.num_workers,
+        )
+
     return DataLoader(
         dataset,
         batch_size=config.batch_size,
@@ -207,8 +253,8 @@ def train_model(
     model.to(device)
 
     weights = compute_class_weights(train_refs)
-    # When using balanced sampler, use unweighted CE to avoid double compensation.
-    if config.balancing == "balanced_sampler":
+    # When using balanced / project-hw sampler, use unweighted CE to avoid double compensation.
+    if config.balancing in ("balanced_sampler", "project_hw_weighted"):
         criterion: nn.Module = nn.CrossEntropyLoss()
     else:
         criterion = nn.CrossEntropyLoss(
@@ -269,7 +315,12 @@ def train_model(
         "class_weights": weights,
         "parameter_counts": parameter_counts(model),
         "train_counts": {lab: sum(1 for r in train_refs if r.label == lab) for lab in CLASS_ORDER},
+        "project_handwriting_count": sum(
+            1 for r in train_refs if r.project_handwriting and not r.public
+        ),
+        "public_handwriting_count": sum(1 for r in train_refs if r.public),
         "effective_examples_per_epoch": len(train_refs),
+        "project_handwriting_sample_multiplier": config.project_handwriting_sample_multiplier,
     }
 
 

@@ -1,4 +1,4 @@
-"""CLI entrypoints for Phase 5 Task B train / evaluate / export."""
+"""CLI entrypoints for Phase 5 Task B2 train / evaluate / export / ASAP prepare."""
 
 from __future__ import annotations
 
@@ -31,6 +31,13 @@ from model_development.handwriting_classifier.evaluate import (
 from model_development.handwriting_classifier.export_onnx import export_onnx, run_parity_suite
 from model_development.handwriting_classifier.model import weights_provenance
 from model_development.handwriting_classifier.package_model import write_package
+from model_development.handwriting_classifier.public_data.download import LicenceBlockedError
+from model_development.handwriting_classifier.public_data.prepare import prepare_asap
+from model_development.handwriting_classifier.public_data.refs import (
+    asap_provenance_summary,
+    default_asap_data_root,
+    load_asap_handwriting_refs,
+)
 from model_development.handwriting_classifier.reports import oof_without_ids, write_json
 from model_development.handwriting_classifier.synthetic_nontext import generate_synthetic_nontext
 from model_development.handwriting_classifier.thresholds import (
@@ -61,6 +68,37 @@ def _repo_commit() -> str:
         ).strip()
     except Exception:
         return "unknown"
+
+
+def _load_public_for_config(cfg: TrainConfig, data_root: Path | None) -> list[ExampleRef]:
+    if cfg.public_asap_variant == "none":
+        return []
+    variant = "light" if cfg.public_asap_variant == "light" else "medium"
+    return load_asap_handwriting_refs(data_root, variant=variant)
+
+
+def cmd_prepare_asap(args: argparse.Namespace) -> int:
+    data_root = Path(args.data_root) if args.data_root else default_asap_data_root(REPO_ROOT)
+    try:
+        result = prepare_asap(
+            data_root,
+            verify_only=bool(args.verify_only),
+            force_download=bool(args.force_download),
+            seed=int(args.seed),
+        )
+    except LicenceBlockedError as exc:
+        print(
+            json.dumps(
+                {
+                    "decision": "PUBLIC HANDWRITING SUPPLEMENT BLOCKED BY LICENSING",
+                    "error": str(exc),
+                },
+                indent=2,
+            )
+        )
+        return 7
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
 
 
 def cmd_build_manifest(args: argparse.Namespace) -> int:
@@ -94,6 +132,9 @@ def cmd_train_export(args: argparse.Namespace) -> int:
     artifacts = Path(args.artifacts)
     artifacts.mkdir(parents=True, exist_ok=True)
     package_dir = Path(args.package_dir)
+    asap_root = (
+        Path(args.asap_data_root) if args.asap_data_root else default_asap_data_root(REPO_ROOT)
+    )
 
     fit, challenge, summary = build_training_manifest(private_root)
     ok, msg = aggregate_is_expected(summary)
@@ -116,11 +157,22 @@ def cmd_train_export(args: argparse.Namespace) -> int:
         if not configs:
             raise SystemExit(f"Unknown config {args.config}")
 
+    # Require prepared ASAP whenever any candidate needs it.
+    needs_asap = any(c.public_asap_variant != "none" for c in configs)
+    if needs_asap and not (asap_root / "prepared" / "subset-manifest.json").is_file():
+        print(
+            "ASAP prepared subset missing. Run: pnpm phase5:model-data:asap:prepare",
+            flush=True,
+        )
+        return 6
+
+    public_prov = asap_provenance_summary(asap_root) if needs_asap else {}
     config_results: list[dict[str, Any]] = []
     best_gate: dict[str, Any] | None = None
 
     for cfg in configs:
         print(f"=== LOSGO config={cfg.name} ===", flush=True)
+        public_refs = _load_public_for_config(cfg, asap_root)
         t0 = time.perf_counter()
         result = run_losgo(
             fit,
@@ -128,6 +180,7 @@ def cmd_train_export(args: argparse.Namespace) -> int:
             artifacts_dir=artifacts,
             challenge=challenge,
             device=args.device,
+            public_refs=public_refs,
         )
         selected, top = search_thresholds(result["oof_predictions"])
         elapsed = time.perf_counter() - t0
@@ -138,6 +191,9 @@ def cmd_train_export(args: argparse.Namespace) -> int:
             "oof_summary": result["oof_summary"],
             "fold_reports": result["fold_reports"],
             "synthetic_nontext_count": result["synthetic_nontext_count"],
+            "public_handwriting_count": result.get("public_handwriting_count", len(public_refs)),
+            "public_asap_variant": cfg.public_asap_variant,
+            "project_handwriting_sample_multiplier": cfg.project_handwriting_sample_multiplier,
             "selected_thresholds": thresholds_to_dict(selected) if selected else None,
             "top_threshold_candidates": [thresholds_to_dict(m) for m in top[:5]],
             "passes_safety_gate": bool(selected and selected.passes_safety_gate),
@@ -156,6 +212,7 @@ def cmd_train_export(args: argparse.Namespace) -> int:
                 "result": result,
                 "thresholds": selected,
                 "entry": entry,
+                "public_refs": public_refs,
             }
             if best_gate is None or selected.sort_key() < best_gate["thresholds"].sort_key():
                 best_gate = candidate
@@ -169,6 +226,23 @@ def cmd_train_export(args: argparse.Namespace) -> int:
             "source_group_count": summary["source_group_count"],
             "handwriting_source_group_count": summary["handwriting_source_group_count"],
         },
+        "public_provenance": {
+            k: public_prov.get(k)
+            for k in (
+                "title",
+                "doi",
+                "zenodo_record_id",
+                "licence_id",
+                "licence_name",
+                "access_date",
+                "archive_filename",
+                "official_md5",
+                "local_sha256",
+                "attribution",
+                "modification_notice",
+            )
+            if public_prov
+        },
         "training_manifest_sha256": train_sha,
         "challenge_manifest_sha256": challenge_sha,
         "held_out_manifest_sha256": held_sha,
@@ -181,35 +255,48 @@ def cmd_train_export(args: argparse.Namespace) -> int:
     }
 
     if best_gate is None:
-        decision_payload["decision"] = "PROTOTYPE MODEL NEEDS SUPPLEMENTATION"
+        decision_payload["decision"] = "SUPPLEMENTED MODEL STILL NOT SAFE FOR INTEGRATION"
         decision_payload["package_status"] = None
-        write_json(artifacts / "task_b_decision.json", decision_payload)
+        # Best effort slice failure summary from top candidates
+        failing_slices: list[str] = []
+        for e in config_results:
+            tops = e.get("top_threshold_candidates") or []
+            if tops:
+                sg = (tops[0] or {}).get("slice_gates") or {}
+                if sg.get("cursive_routed_printed"):
+                    failing_slices.append("cursive_printed")
+                if sg.get("signature_routed_printed"):
+                    failing_slices.append("signature_printed")
+                if sg.get("cursive_routed_non_text"):
+                    failing_slices.append("cursive_non_text")
+                if sg.get("signature_routed_non_text"):
+                    failing_slices.append("signature_non_text")
+        decision_payload["failing_slices"] = sorted(set(failing_slices))
+        write_json(artifacts / "task_b2_decision.json", decision_payload)
         print(json.dumps({"decision": decision_payload["decision"]}, indent=2))
         return 3
 
     cfg = best_gate["config"]
     thr = best_gate["thresholds"]
     oof_preds = best_gate["result"]["oof_predictions"]
+    public_refs = best_gate["public_refs"]
 
-    # Attach routed outcomes for FP/FN categories
     for p in oof_preds:
         from model_development.handwriting_classifier.thresholds import route_probabilities
 
         p["routed_outcome"] = route_probabilities(p["probabilities"], thr)
 
-    # Final fit on all eligible project labels + synthetic non-text
     print(f"=== Final fit config={cfg.name} ===")
     synth = generate_synthetic_nontext(
         artifacts / "synthetic_nontext" / f"{cfg.name}_final",
         count=cfg.synthetic_nontext_count,
         seed=cfg.random_seed,
     )
-    final_refs = to_refs(fit, synth)
+    final_refs = list(to_refs(fit, synth)) + list(public_refs)
     ckpt = artifacts / "checkpoints" / cfg.name / "final.pt"
     final = train_model(final_refs, cfg, device=args.device, checkpoint_path=ckpt)
     model = final["model"]
 
-    # Challenge routing with final model
     challenge_refs = [
         ExampleRef(
             path=e.crop_path_private,
@@ -230,7 +317,6 @@ def cmd_train_export(args: argparse.Namespace) -> int:
     onnx_path = artifacts / "export" / "model.onnx"
     export_onnx(model, onnx_path)
 
-    # Representative private sample from each class for parity (no logging of content)
     from PIL import Image
 
     samples = []
@@ -247,14 +333,13 @@ def cmd_train_export(args: argparse.Namespace) -> int:
     )
     parity = run_parity_suite(model, onnx_path, sample_images=samples, thresholds=thr_cand)
     if not parity["passed"]:
-        decision_payload["decision"] = "PROTOTYPE MODEL NEEDS SUPPLEMENTATION"
+        decision_payload["decision"] = "SUPPLEMENTED MODEL STILL NOT SAFE FOR INTEGRATION"
         decision_payload["parity"] = parity
         decision_payload["reason"] = "onnx_parity_failed"
-        write_json(artifacts / "task_b_decision.json", decision_payload)
+        write_json(artifacts / "task_b2_decision.json", decision_payload)
         print("ONNX parity failed")
         return 4
 
-    # Validation manifest = OOF evaluation index (opaque)
     oof_index = [
         {
             "fold_index": p.get("held_out_fold_index"),
@@ -276,6 +361,19 @@ def cmd_train_export(args: argparse.Namespace) -> int:
 
     prov = weights_provenance()
     package_status = ClassifierPackageStatus.PRODUCTION_CANDIDATE
+    subset_meta: dict[str, Any] = {}
+    subset_path = asap_root / "prepared" / "subset-manifest.json"
+    if subset_path.is_file():
+        subset_meta = json.loads(subset_path.read_text(encoding="utf-8"))
+    public_package_prov = {
+        **public_prov,
+        "public_sample_count": len(public_refs),
+        "subset_version": subset_meta.get("subset_version"),
+        "subset_manifest_sha256": subset_meta.get("subset_manifest_sha256"),
+        "transform_version": subset_meta.get("transform_version"),
+        "prompt_group_count": subset_meta.get("prompt_group_count"),
+        "doi": public_prov.get("doi") or "10.5281/zenodo.8088866",
+    }
     pkg = write_package(
         package_dir,
         onnx_path,
@@ -300,19 +398,19 @@ def cmd_train_export(args: argparse.Namespace) -> int:
         onnx.__version__,
         ort.__version__,
         (
-            "Phase 5 Task B prototype production_candidate. "
+            "Phase 5 Task B2 ASAP-supplemented production_candidate. "
             "Live OCR routing not integrated. "
             f"selected_config={cfg.name}."
         ),
+        public_provenance=public_package_prov,
     )
     if not pkg["verification_ok"]:
-        decision_payload["decision"] = "PROTOTYPE MODEL NEEDS SUPPLEMENTATION"
+        decision_payload["decision"] = "SUPPLEMENTED MODEL STILL NOT SAFE FOR INTEGRATION"
         decision_payload["package"] = pkg
         decision_payload["reason"] = "package_verification_failed"
-        write_json(artifacts / "task_b_decision.json", decision_payload)
+        write_json(artifacts / "task_b2_decision.json", decision_payload)
         return 5
 
-    # CPU benchmark via production service
     from backend.app.extraction.handwriting_router.service import HandwritingClassifierService
     from backend.app.settings.config import Settings
     from PIL import Image as PILImage
@@ -351,7 +449,7 @@ def cmd_train_export(args: argparse.Namespace) -> int:
     model_size = (package_dir / "model.onnx").stat().st_size
     decision_payload.update(
         {
-            "decision": "PROTOTYPE ONNX ROUTER READY FOR INTEGRATION",
+            "decision": "SUPPLEMENTED ONNX ROUTER READY FOR INTEGRATION",
             "package_status": package_status.value,
             "selected_config": cfg.name,
             "selected_config_hash": cfg.config_hash(),
@@ -359,6 +457,16 @@ def cmd_train_export(args: argparse.Namespace) -> int:
             "oof_summary": summarize_oof(oof_preds),
             "fp_fn_categories": opaque_error_categories(oof_preds),
             "uncertain_challenge_routing": challenge_counts,
+            "mixture": {
+                "project_printed": summary["printed"],
+                "project_handwritten": summary["handwritten"],
+                "project_non_text": summary["non_text"],
+                "uncertain_challenge": summary["uncertain_challenge"],
+                "public_handwriting": len(public_refs),
+                "synthetic_nontext": len(synth),
+                "project_handwriting_sample_multiplier": cfg.project_handwriting_sample_multiplier,
+                "public_asap_variant": cfg.public_asap_variant,
+            },
             "parity": parity,
             "package": pkg,
             "performance": {
@@ -375,16 +483,22 @@ def cmd_train_export(args: argparse.Namespace) -> int:
             "device": final["device"],
         }
     )
-    write_json(artifacts / "task_b_decision.json", decision_payload)
-    # Also copy a privacy-safe summary beside private root reports
-    write_json(artifacts / "task_b_public_summary.json", decision_payload)
+    write_json(artifacts / "task_b2_decision.json", decision_payload)
+    write_json(artifacts / "task_b2_public_summary.json", decision_payload)
     print(json.dumps({"decision": decision_payload["decision"], "package": pkg}, indent=2))
     return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="Phase 5 Task B classifier tooling")
+    p = argparse.ArgumentParser(description="Phase 5 Task B2 classifier tooling")
     sub = p.add_subparsers(dest="command", required=True)
+
+    a = sub.add_parser("prepare-asap", help="Download/verify Handwritten ASAP and build subset")
+    a.add_argument("--data-root", default=None)
+    a.add_argument("--verify-only", action="store_true")
+    a.add_argument("--force-download", action="store_true")
+    a.add_argument("--seed", type=int, default=42)
+    a.set_defaults(func=cmd_prepare_asap)
 
     m = sub.add_parser("build-manifest", help="Build private training manifests")
     m.add_argument("--private-root", default=None)
@@ -399,6 +513,7 @@ def build_parser() -> argparse.ArgumentParser:
     t.add_argument("--private-root", default=None)
     t.add_argument("--artifacts", default=str(DEFAULT_ARTIFACTS))
     t.add_argument("--package-dir", default=str(DEFAULT_PACKAGE))
+    t.add_argument("--asap-data-root", default=None)
     t.add_argument("--device", default=None)
     t.add_argument("--config", default=None, help="Run a single named config")
     t.add_argument("--strict-aggregates", action="store_true")

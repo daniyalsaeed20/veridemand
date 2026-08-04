@@ -75,7 +75,7 @@ def fold_support(predictions: Sequence[dict[str, Any]]) -> dict[str, int]:
 
 
 def summarize_oof(predictions: Sequence[dict[str, Any]]) -> dict[str, Any]:
-    project = [p for p in predictions if not p.get("synthetic")]
+    project = [p for p in predictions if not p.get("synthetic") and not p.get("public")]
     prf = per_class_prf(project)
     return {
         "kind": "source-group-isolated out-of-fold prototype diagnostics",
@@ -98,7 +98,7 @@ def opaque_error_categories(
     rows = routed if routed is not None else predictions
     cats: Counter[str] = Counter()
     for p in rows:
-        if p.get("synthetic"):
+        if p.get("synthetic") or p.get("public"):
             continue
         true = p["label"]
         outcome = p.get("routed_outcome")
