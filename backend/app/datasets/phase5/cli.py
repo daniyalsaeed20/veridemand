@@ -25,6 +25,15 @@ from backend.app.datasets.phase5.export import (
     verify_crops,
 )
 from backend.app.datasets.phase5.export_batch import export_all_populated_pages
+from backend.app.datasets.phase5.handwriting_seeds import (
+    build_handwriting_seed_aggregate,
+    build_handwriting_seed_queue,
+    perceptual_duplicate_warnings,
+    render_handwriting_seed_readiness_markdown,
+    resolve_exact_duplicates,
+    seed_progress,
+    verify_handwriting_seeds,
+)
 from backend.app.datasets.phase5.paths import REPO_ROOT, default_private_root
 from backend.app.datasets.phase5.pilot import (
     build_adjudication_queue,
@@ -464,6 +473,87 @@ def cmd_prototype_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_handwriting_seeds_queue(args: argparse.Namespace) -> int:
+    stats = build_handwriting_seed_queue(_root(args))
+    print(json.dumps(stats, indent=2))
+    return 0
+
+
+def cmd_handwriting_seeds_verify(args: argparse.Namespace) -> int:
+    root = _root(args)
+    problems = verify_handwriting_seeds(root)
+    print(
+        json.dumps(
+            {
+                "command": "handwriting-seeds-verify",
+                "ok": len(problems) == 0,
+                "problem_count": len(problems),
+            },
+            indent=2,
+        )
+    )
+    return 0 if not problems else 1
+
+
+def cmd_handwriting_seeds_resolve(args: argparse.Namespace) -> int:
+    root = _root(args)
+    dup = resolve_exact_duplicates(root)
+    warnings = perceptual_duplicate_warnings(root)
+    progress = seed_progress(root)
+    print(
+        json.dumps(
+            {
+                "command": "handwriting-seeds-resolve",
+                **dup,
+                "perceptual_warning_count": len(warnings),
+                **progress,
+            },
+            indent=2,
+        )
+    )
+    return 0
+
+
+def cmd_handwriting_seeds_report(args: argparse.Namespace) -> int:
+    root = _root(args)
+    report = build_handwriting_seed_aggregate(root)
+    safe_keys = (
+        "report_version",
+        "pages_offered",
+        "pages_inspected",
+        "pages_with_usable_handwriting",
+        "regions_created_or_selected",
+        "canonical_after_exact_dedupe",
+        "source_groups_represented",
+        "broad_family_counts",
+        "broad_family_suppressed_count",
+        "category_counts",
+        "excluded_no_usable",
+        "deferred",
+        "pages_completed",
+        "exact_duplicates",
+        "perceptual_warning_count",
+        "uncertain_source_pages_in_queue",
+        "coverage_worklist_pages_in_queue",
+        "target_regions",
+        "readiness",
+        "external_supplement_recommended",
+        "sufficient_for_prototype_attempt",
+    )
+    print(
+        json.dumps(
+            {"command": "handwriting-seeds-report", **{k: report.get(k) for k in safe_keys}},
+            indent=2,
+        )
+    )
+    if args.write_aggregate:
+        out = Path(args.write_aggregate)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(render_handwriting_seed_readiness_markdown(report), encoding="utf-8")
+        print(f"Wrote aggregate: {out.as_posix()}")
+    return 0
+
+
 def cmd_report(args: argparse.Namespace) -> int:
     root = _root(args)
     private_path = write_private_report(root)
@@ -634,6 +724,31 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional path for committed aggregate markdown",
     )
     p.set_defaults(func=cmd_report)
+
+    p = sub.add_parser(
+        "handwriting-seeds-queue",
+        help="Build targeted page queue for handwriting seed collection (Task A2)",
+    )
+    p.set_defaults(func=cmd_handwriting_seeds_queue)
+
+    p = sub.add_parser(
+        "handwriting-seeds-verify",
+        help="Verify handwriting seed events, crops, and geometry",
+    )
+    p.set_defaults(func=cmd_handwriting_seeds_verify)
+
+    p = sub.add_parser(
+        "handwriting-seeds-resolve",
+        help="Exact-dedupe seed records; report perceptual near-dup warnings",
+    )
+    p.set_defaults(func=cmd_handwriting_seeds_resolve)
+
+    p = sub.add_parser(
+        "handwriting-seeds-report",
+        help="Aggregate handwriting seed readiness (after human collection)",
+    )
+    p.add_argument("--write-aggregate", default=None)
+    p.set_defaults(func=cmd_handwriting_seeds_report)
 
     return parser
 

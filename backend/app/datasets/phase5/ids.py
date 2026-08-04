@@ -47,3 +47,11 @@ def new_pilot_crop_id() -> str:
 
 def new_coverage_event_id() -> str:
     return f"cov_{_token()}"
+
+
+def new_handwriting_seed_event_id() -> str:
+    return f"hwse_{_token()}"
+
+
+def new_handwriting_seed_region_id() -> str:
+    return f"hwseed_{_token()}"

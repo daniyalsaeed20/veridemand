@@ -17,6 +17,9 @@ fixtures/private/phase5/
 │   ├── crop-manifest.jsonl
 │   ├── review-events.jsonl
 │   ├── resolved-labels.jsonl
+│   ├── handwriting-seed-queue.jsonl
+│   ├── handwriting-seed-events.jsonl
+│   ├── handwriting-seed-records.jsonl
 │   ├── exclusions.jsonl
 │   └── split-manifest.jsonl
 ├── reports/           # private readiness reports

@@ -37,6 +37,64 @@ PROTOTYPE_SOFT_CAP_PER_DOCUMENT: Final = 80
 FULL_QUEUE_AUTHORISATION_NOTE: Final = (
     "full primary queue — not authorised for review until pilot approval"
 )
+HANDWRITING_SEED_SCHEMA_VERSION: Final = "phase5-handwriting-seed-v1"
+HANDWRITING_SEED_QUEUE_VERSION: Final = "phase5-handwriting-seed-queue-v1"
+HANDWRITING_SEED_EVENT_VERSION: Final = "phase5-handwriting-seed-event-v1"
+HANDWRITING_SEED_REPORT_VERSION: Final = "phase5-handwriting-seed-report-v1"
+HANDWRITING_SEED_TARGET_REGIONS: Final = 100
+# Geometry warnings (reject stays with NormalisedBoundingBox validators).
+HANDWRITING_SEED_MIN_AREA_WARN: Final = 0.0001
+HANDWRITING_SEED_MAX_AREA_WARN: Final = 0.35
+
+HandwritingSeedAction = Literal[
+    "confirm_region",
+    "select_existing_crop",
+    "no_usable_handwriting",
+    "defer",
+    "complete_page",
+]
+HANDWRITING_SEED_ACTIONS: Final[frozenset[str]] = frozenset(
+    {
+        "confirm_region",
+        "select_existing_crop",
+        "no_usable_handwriting",
+        "defer",
+        "complete_page",
+    }
+)
+HandwritingSeedCategory = Literal[
+    "digits",
+    "hand_printed",
+    "cursive",
+    "signature",
+    "correction",
+    "longer_note",
+]
+HANDWRITING_SEED_CATEGORIES: Final[frozenset[str]] = frozenset(
+    {
+        "digits",
+        "hand_printed",
+        "cursive",
+        "signature",
+        "correction",
+        "longer_note",
+    }
+)
+HandwritingSeedStatus = Literal["active", "exact_duplicate", "superseded"]
+HANDWRITING_SEED_STATUSES: Final[frozenset[str]] = frozenset(
+    {"active", "exact_duplicate", "superseded"}
+)
+HandwritingSeedSourceType = Literal["human_confirmed_handwriting_seed"]
+HANDWRITING_SEED_SOURCE_TYPE: Final = "human_confirmed_handwriting_seed"
+# Families auto-added via heuristic priority (not billing/insurance-only pages).
+HANDWRITING_SEED_HEURISTIC_FAMILIES: Final[frozenset[str]] = frozenset(
+    {
+        "police_form",
+        "medical_form",
+        "image_document",
+        "fax_record",
+    }
+)
 
 # Fixed padding: 8% of the longer side of the source region bbox (normalised).
 CROP_PADDING_RATIO: Final = 0.08
@@ -227,4 +285,7 @@ MANIFEST_FILES: Final[tuple[str, ...]] = (
     "block-coverage-audit.jsonl",
     "provenance-audit.json",
     "context-review-worklist.jsonl",
+    "handwriting-seed-queue.jsonl",
+    "handwriting-seed-events.jsonl",
+    "handwriting-seed-records.jsonl",
 )

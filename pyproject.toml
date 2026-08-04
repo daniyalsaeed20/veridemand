@@ -69,6 +69,10 @@ select = ["E", "F", "I", "UP", "B", "ASYNC", "SIM", "RUF"]
 "backend/tests/*" = ["S101"]
 # Fixture PDF generator: disposable ReportLab script, not production API code.
 "scripts/generate_veridemand_regression_pdf.py" = ["ALL"]
+# Loopback HTML UIs embed long inline JS/CSS strings.
+"scripts/phase5/handwriting_seed_server.py" = ["E501", "RUF001"]
+"scripts/phase5/labeler_server.py" = ["E501", "RUF001"]
+"scripts/phase5/coverage_server.py" = ["E501", "RUF001"]
 
 [tool.mypy]
 python_version = "3.12"

@@ -21,6 +21,13 @@ from backend.app.datasets.phase5.constants import (
     COVERAGE_QUEUE_VERSION,
     CROP_PADDING_VERSION,
     CROP_QUALITY_FLAGS,
+    HANDWRITING_SEED_ACTIONS,
+    HANDWRITING_SEED_CATEGORIES,
+    HANDWRITING_SEED_EVENT_VERSION,
+    HANDWRITING_SEED_QUEUE_VERSION,
+    HANDWRITING_SEED_SCHEMA_VERSION,
+    HANDWRITING_SEED_SOURCE_TYPE,
+    HANDWRITING_SEED_STATUSES,
     HUMAN_LABELS,
     LABEL_SCHEMA_VERSION,
     PILOT_PRIMARY_QUEUE_VERSION,
@@ -436,3 +443,177 @@ class BlockCoverageRecord(ApiModel):
     union_coverage_ratio: Annotated[float, Field(ge=0.0, le=1.0)]
     coverage_gap: bool
     requires_human_coverage_review: bool
+
+
+class HandwritingSeedQueueEntry(ApiModel):
+    """One page in the targeted handwriting-seed collection queue."""
+
+    opaque_page_reference: Annotated[str, Field(min_length=8, max_length=64)]
+    opaque_document_reference: Annotated[str, Field(min_length=8, max_length=64)]
+    source_group_id: Annotated[str, Field(min_length=8, max_length=64)]
+    queue_index: Annotated[int, Field(ge=0)]
+    priority_score: Annotated[int, Field(ge=0)] = 0
+    priority_reasons: list[str] = Field(default_factory=list)
+    crop_count: Annotated[int, Field(ge=0)] = 0
+    uncertain_crop_count: Annotated[int, Field(ge=0)] = 0
+
+
+class HandwritingSeedQueueManifest(ApiModel):
+    """Deterministic targeted page queue for handwriting seed collection."""
+
+    schema_version: Literal["phase5-dataset-schema-v1"] = SCHEMA_VERSION
+    seed_schema_version: Literal["phase5-handwriting-seed-v1"] = HANDWRITING_SEED_SCHEMA_VERSION
+    queue_version: Literal["phase5-handwriting-seed-queue-v1"] = HANDWRITING_SEED_QUEUE_VERSION
+    created_at: datetime
+    page_count: Annotated[int, Field(ge=0)]
+    content_sha256: Annotated[str, Field(min_length=64, max_length=64)]
+    uncertain_source_page_count: Annotated[int, Field(ge=0)] = 0
+    coverage_worklist_page_count: Annotated[int, Field(ge=0)] = 0
+    police_form_page_count: Annotated[int, Field(ge=0)] = 0
+    entries: list[HandwritingSeedQueueEntry] = Field(default_factory=list)
+
+
+class HandwritingSeedEvent(ApiModel):
+    """Append-only human handwriting-seed collection event (no transcription)."""
+
+    schema_version: Literal["phase5-dataset-schema-v1"] = SCHEMA_VERSION
+    seed_event_version: Literal["phase5-handwriting-seed-event-v1"] = HANDWRITING_SEED_EVENT_VERSION
+    seed_event_id: Annotated[str, Field(min_length=8, max_length=64)]
+    opaque_page_reference: Annotated[str, Field(min_length=8, max_length=64)]
+    opaque_document_reference: Annotated[str, Field(min_length=8, max_length=64)]
+    source_group_id: Annotated[str, Field(min_length=8, max_length=64)]
+    reviewer_id: Annotated[str, Field(min_length=1, max_length=64)]
+    action: Literal[
+        "confirm_region",
+        "select_existing_crop",
+        "no_usable_handwriting",
+        "defer",
+        "complete_page",
+    ]
+    page_render_sha256: Annotated[str, Field(min_length=64, max_length=64)]
+    geometry_normalized: NormalisedBoundingBox | None = None
+    parent_crop_id: Annotated[str, Field(min_length=8, max_length=64)] | None = None
+    seed_region_id: Annotated[str, Field(min_length=8, max_length=64)] | None = None
+    crop_id: Annotated[str, Field(min_length=8, max_length=64)] | None = None
+    categories: list[
+        Literal[
+            "digits",
+            "hand_printed",
+            "cursive",
+            "signature",
+            "correction",
+            "longer_note",
+        ]
+    ] = Field(default_factory=list)
+    geometry_warnings: list[str] = Field(default_factory=list)
+    created_at: datetime
+
+    @field_validator("action")
+    @classmethod
+    def _action_ok(cls, value: str) -> str:
+        if value not in HANDWRITING_SEED_ACTIONS:
+            raise ValueError(f"Unknown handwriting seed action: {value}")
+        return value
+
+    @field_validator("categories")
+    @classmethod
+    def _categories_ok(cls, value: list[str]) -> list[str]:
+        for cat in value:
+            if cat not in HANDWRITING_SEED_CATEGORIES:
+                raise ValueError(f"Unknown handwriting seed category: {cat}")
+        return value
+
+    @field_validator("page_render_sha256")
+    @classmethod
+    def _hash_ok(cls, value: str) -> str:
+        if len(value) != 64 or any(c not in "0123456789abcdef" for c in value):
+            raise ValueError("page_render_sha256 must be 64 lowercase hex characters")
+        return value
+
+    @field_validator("reviewer_id")
+    @classmethod
+    def _reviewer_ok(cls, value: str) -> str:
+        if not value.startswith("handwriting_reviewer_"):
+            raise ValueError("reviewer_id must start with handwriting_reviewer_")
+        return value
+
+    @model_validator(mode="after")
+    def _action_fields(self) -> HandwritingSeedEvent:
+        if self.action == "confirm_region":
+            if self.geometry_normalized is None:
+                raise ValueError("confirm_region requires geometry_normalized")
+            if self.seed_region_id is None or self.crop_id is None:
+                raise ValueError("confirm_region requires seed_region_id and crop_id")
+        if self.action == "select_existing_crop":
+            if self.parent_crop_id is None:
+                raise ValueError("select_existing_crop requires parent_crop_id")
+            if self.seed_region_id is None or self.crop_id is None:
+                raise ValueError("select_existing_crop requires seed_region_id and crop_id")
+        if self.action in {"no_usable_handwriting", "defer", "complete_page"}:
+            if self.geometry_normalized is not None:
+                raise ValueError(f"{self.action} must not include geometry")
+            if self.seed_region_id is not None or self.crop_id is not None:
+                raise ValueError(f"{self.action} must not create a seed region")
+        return self
+
+
+class HandwritingSeedRecord(ApiModel):
+    """Resolved human-confirmed handwriting seed (private; no transcription)."""
+
+    schema_version: Literal["phase5-dataset-schema-v1"] = SCHEMA_VERSION
+    seed_schema_version: Literal["phase5-handwriting-seed-v1"] = HANDWRITING_SEED_SCHEMA_VERSION
+    seed_region_id: Annotated[str, Field(min_length=8, max_length=64)]
+    opaque_document_id: Annotated[str, Field(min_length=8, max_length=64)]
+    opaque_page_reference: Annotated[str, Field(min_length=8, max_length=64)]
+    source_group_id: Annotated[str, Field(min_length=8, max_length=64)]
+    reviewer_id: Annotated[str, Field(min_length=1, max_length=64)]
+    geometry_normalized: NormalisedBoundingBox
+    page_render_sha256: Annotated[str, Field(min_length=64, max_length=64)]
+    crop_sha256: Annotated[str, Field(min_length=64, max_length=64)]
+    perceptual_hash: Annotated[str, Field(min_length=16, max_length=16)]
+    source_type: Literal["human_confirmed_handwriting_seed"] = HANDWRITING_SEED_SOURCE_TYPE
+    source_reference: Annotated[str, Field(min_length=1, max_length=128)]
+    crop_id: Annotated[str, Field(min_length=8, max_length=64)]
+    parent_crop_id: Annotated[str, Field(min_length=8, max_length=64)] | None = None
+    categories: list[
+        Literal[
+            "digits",
+            "hand_printed",
+            "cursive",
+            "signature",
+            "correction",
+            "longer_note",
+        ]
+    ] = Field(default_factory=list)
+    status: Literal["active", "exact_duplicate", "superseded"] = "active"
+    duplicate_of_seed_region_id: Annotated[str, Field(min_length=8, max_length=64)] | None = None
+    created_at: datetime
+
+    @field_validator("status")
+    @classmethod
+    def _status_ok(cls, value: str) -> str:
+        if value not in HANDWRITING_SEED_STATUSES:
+            raise ValueError(f"Unknown handwriting seed status: {value}")
+        return value
+
+    @field_validator("categories")
+    @classmethod
+    def _categories_ok(cls, value: list[str]) -> list[str]:
+        for cat in value:
+            if cat not in HANDWRITING_SEED_CATEGORIES:
+                raise ValueError(f"Unknown handwriting seed category: {cat}")
+        return value
+
+    @field_validator("page_render_sha256", "crop_sha256")
+    @classmethod
+    def _hash_ok(cls, value: str) -> str:
+        if len(value) != 64 or any(c not in "0123456789abcdef" for c in value):
+            raise ValueError("hash must be 64 lowercase hex characters")
+        return value
+
+    @field_validator("reviewer_id")
+    @classmethod
+    def _reviewer_ok(cls, value: str) -> str:
+        if not value.startswith("handwriting_reviewer_"):
+            raise ValueError("reviewer_id must start with handwriting_reviewer_")
+        return value
