@@ -81,11 +81,13 @@ describe("QueueDashboard", () => {
         sessionId={SESSION_ID}
         snapshot={snapshotWithDocuments()}
         processBlocked
-        processBlockedReason="Printed OCR is still starting or unavailable. Check runtime readiness."
+        processBlockedReason="Processing is disabled while printed OCR is starting."
       />,
     );
     expect(screen.getByRole("button", { name: /process all uploaded/i })).toBeDisabled();
-    expect(screen.getByText(/Printed OCR is still starting or unavailable/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Processing is disabled while printed OCR is starting/i),
+    ).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Process" })[0]).toBeDisabled();
   });
 

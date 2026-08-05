@@ -39,10 +39,14 @@ def test_combined_recognise_surface_preserved() -> None:
     assert "def load_shadow_detector(" in text
     assert "self._ocr.predict" in text
     # Combined load must not initialise detect-first modules.
-    load_block = text.split("def load(self)", 1)[1].split("def _synthetic_image", 1)[0]
+    load_marker = "def load(self"
+    assert load_marker in text
+    load_block = text.split(load_marker, 1)[1].split("def _synthetic_image", 1)[0]
     assert "create_model" not in load_block
     assert "load_detect_first_modules" not in load_block
     assert "load_shadow_detector" not in load_block
+    # Optional stage callback is readiness-only; detect-first remains offline.
+    assert "on_stage" in load_block
 
 
 def test_service_repair_callbacks_unchanged_combined_helpers() -> None:

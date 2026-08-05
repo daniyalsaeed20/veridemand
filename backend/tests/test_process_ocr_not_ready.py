@@ -55,4 +55,5 @@ def test_process_rejects_when_ocr_worker_not_ready(
     assert response.status_code == 503
     body = response.json()
     assert body["error"]["code"] == "ocr_worker_not_ready"
-    assert "Printed OCR is still starting or unavailable" in body["error"]["message"]
+    assert "starting or unavailable" not in body["error"]["message"].lower()
+    assert "ocr" in body["error"]["message"].lower()
