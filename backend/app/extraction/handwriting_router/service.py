@@ -21,7 +21,7 @@ from backend.app.contracts.ocr import (
 )
 from backend.app.extraction.handwriting_router.constants import (
     CPU_EXECUTION_PROVIDER,
-    EXPECTED_RISK_OUTPUTS,
+    EXPECTED_ROUTE_OUTPUTS,
     MODEL_ONNX_NAME,
     PROBABILITY_SUM_TOLERANCE,
 )
@@ -97,9 +97,9 @@ def _stable_sigmoid(logits: np.ndarray) -> np.ndarray:
 
 
 def _interpret_output(raw: np.ndarray, semantics: OutputSemantics) -> np.ndarray | None:
-    """Return routing scores shaped (N, 2) for dual-risk or (N, 3) for historical.
+    """Return routing scores shaped (N, 2) for route-first/dual-risk or (N, 3) historical.
 
-    Dual-risk: independent sigmoid probabilities.
+    Route-first / dual-risk: independent sigmoid probabilities.
     Historical three-class: softmax / renormalised probabilities (fixture only).
     """
 
@@ -111,7 +111,10 @@ def _interpret_output(raw: np.ndarray, semantics: OutputSemantics) -> np.ndarray
     if not np.all(np.isfinite(arr)):
         return None
 
-    if semantics is OutputSemantics.INDEPENDENT_BINARY_RISK_LOGITS:
+    if semantics in {
+        OutputSemantics.INDEPENDENT_BINARY_RISK_LOGITS,
+        OutputSemantics.ROUTE_FIRST_INDEPENDENT_LOGITS,
+    }:
         if arr.shape[1] != 2:
             return None
         return _stable_sigmoid(arr)
@@ -163,26 +166,23 @@ class HandwritingClassifierService:
         return package_directory_from_path(self._settings.handwriting_classifier_path)
 
     def thresholds(self) -> RoutingThresholds:
-        # Prefer calibrated thresholds from a verified dual-risk package when present.
-        if self._record is not None and self._record.is_dual_risk:
+        # Prefer calibrated thresholds from a verified route-first package when present.
+        if self._record is not None and self._record.is_route_first:
             rec = self._record
             if (
-                rec.handwriting_accept_threshold is not None
-                and rec.handwriting_safe_low_threshold is not None
-                and rec.non_text_accept_threshold is not None
-                and rec.non_text_safe_low_threshold is not None
+                rec.local_ocr_safe_threshold is not None
+                and rec.vision_required_threshold is not None
+                and rec.handwriting_accept_threshold is not None
             ):
                 return RoutingThresholds(
+                    local_ocr_safe_threshold=float(rec.local_ocr_safe_threshold),
+                    vision_required_threshold=float(rec.vision_required_threshold),
                     handwriting_accept_threshold=float(rec.handwriting_accept_threshold),
-                    handwriting_safe_low_threshold=float(rec.handwriting_safe_low_threshold),
-                    non_text_accept_threshold=float(rec.non_text_accept_threshold),
-                    non_text_safe_low_threshold=float(rec.non_text_safe_low_threshold),
                 )
         return RoutingThresholds(
+            local_ocr_safe_threshold=float(self._settings.local_ocr_safe_threshold),
+            vision_required_threshold=float(self._settings.vision_required_threshold),
             handwriting_accept_threshold=float(self._settings.handwriting_accept_threshold),
-            handwriting_safe_low_threshold=float(self._settings.handwriting_safe_low_threshold),
-            non_text_accept_threshold=float(self._settings.non_text_accept_threshold),
-            non_text_safe_low_threshold=float(self._settings.non_text_safe_low_threshold),
         )
 
     def verify_package(
@@ -526,7 +526,7 @@ class HandwritingClassifierService:
             inference_source=HandwritingInferenceSource.SAFETY_ABSTENTION,
             model_version=verify.model_version,
             threshold_set_version=verify.threshold_set_version,
-            class_scores={label: float("nan") for label in EXPECTED_RISK_OUTPUTS},
+            class_scores={label: float("nan") for label in EXPECTED_ROUTE_OUTPUTS},
             top_class=None,
             top_score=None,
             second_score=None,

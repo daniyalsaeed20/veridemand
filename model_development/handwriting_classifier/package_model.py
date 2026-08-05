@@ -1,4 +1,4 @@
-"""Write verified dual-risk runtime model package under models/handwriting_classifier/."""
+"""Write verified route-first runtime model package under models/handwriting_classifier/."""
 
 from __future__ import annotations
 
@@ -9,9 +9,9 @@ from pathlib import Path
 from typing import Any
 
 from backend.app.extraction.handwriting_router.constants import (
-    EXPECTED_RISK_OUTPUTS,
+    EXPECTED_ROUTE_OUTPUTS,
     PUBLIC_ROUTING_OUTCOMES,
-    SCHEMA_VERSION_V2,
+    SCHEMA_VERSION_V3,
 )
 from backend.app.extraction.handwriting_router.manifest import (
     ClassifierPackageStatus,
@@ -64,7 +64,7 @@ def write_package(
     preprocess: RuntimePreprocessSpec | None = None,
     public_provenance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Create dual-risk package files and run the production verifier."""
+    """Create route-first package files and run the production verifier."""
 
     package_dir.mkdir(parents=True, exist_ok=True)
     dest_onnx = package_dir / "model.onnx"
@@ -72,8 +72,8 @@ def write_package(
     model_digest = file_sha256(dest_onnx)
 
     labels_payload = {
-        "output_semantics": OutputSemantics.INDEPENDENT_BINARY_RISK_LOGITS.value,
-        "outputs": list(EXPECTED_RISK_OUTPUTS),
+        "output_semantics": OutputSemantics.ROUTE_FIRST_INDEPENDENT_LOGITS.value,
+        "outputs": list(EXPECTED_ROUTE_OUTPUTS),
         "public_outcomes": list(PUBLIC_ROUTING_OUTCOMES),
     }
     (package_dir / "labels.json").write_text(
@@ -98,8 +98,9 @@ def write_package(
     attribution = str(pub.get("attribution") or "")
     modification = str(pub.get("modification_notice") or "")
     model_provenance = (
-        "Phase 5 Task B3 MobileNetV3-Small dual-risk safety-first router with "
+        "Phase 5 Task B4 MobileNetV3-Small route-first vision-reservation router with "
         "Handwritten ASAP (CC BY 4.0) training supplementation; "
+        "uncertain as vision_required training positive; "
         "project source-group-isolated OOF diagnostics; "
         f"DOI={pub.get('doi', '10.5281/zenodo.8088866')}; "
         f"subset={pub.get('subset_version', 'phase5-asap-subset-v1')}; "
@@ -113,8 +114,8 @@ def write_package(
     )[:512]
 
     record = HandwritingModelRecord(
-        schema_version=SCHEMA_VERSION_V2,
-        model_family="mobilenet_v3_small_dual_risk",
+        schema_version=SCHEMA_VERSION_V3,
+        model_family="mobilenet_v3_small_route_first",
         model_version=model_version,
         release_status=release_status,
         training_code_version=training_code_version,
@@ -137,14 +138,13 @@ def write_package(
         normalisation_std=list(spec.normalisation_std),
         output_tensor_name=ONNX_OUTPUT_NAME,
         output_dtype="float32",
-        output_semantics=OutputSemantics.INDEPENDENT_BINARY_RISK_LOGITS,
-        class_order=list(EXPECTED_RISK_OUTPUTS),
+        output_semantics=OutputSemantics.ROUTE_FIRST_INDEPENDENT_LOGITS,
+        class_order=list(EXPECTED_ROUTE_OUTPUTS),
         public_outcomes=list(PUBLIC_ROUTING_OUTCOMES),
         threshold_set_version=THRESHOLD_SET_VERSION,
+        local_ocr_safe_threshold=threshold_metrics.local_ocr_safe_threshold,
+        vision_required_threshold=threshold_metrics.vision_required_threshold,
         handwriting_accept_threshold=threshold_metrics.handwriting_accept_threshold,
-        handwriting_safe_low_threshold=threshold_metrics.handwriting_safe_low_threshold,
-        non_text_accept_threshold=threshold_metrics.non_text_accept_threshold,
-        non_text_safe_low_threshold=threshold_metrics.non_text_safe_low_threshold,
         training_manifest_sha256=training_manifest_sha256,
         validation_manifest_sha256=validation_manifest_sha256,
         held_out_manifest_sha256=held_out_manifest_sha256,
@@ -169,11 +169,11 @@ def write_package(
         notes=(
             "source-group-isolated out-of-fold prototype diagnostics; "
             "final fitted model has no independent release held-out evaluation; "
-            "dual-risk safety-first decision policy"
+            "route-first vision-reservation decision policy"
         )[:1024],
         handwriting_safe_bypass_recall=threshold_metrics.handwriting_safe_bypass_recall,
         handwriting_to_paddle_leak_count=threshold_metrics.handwritten_to_printed,
-        handwriting_to_nontext_count=threshold_metrics.handwritten_to_nontext,
+        handwriting_to_nontext_count=0,
         class_support=oof_summary.get("class_support"),
     )
     (package_dir / "metrics.json").write_text(
@@ -184,18 +184,19 @@ def write_package(
     (package_dir / "README.md").write_text(
         "\n".join(
             [
-                "# handwriting_classifier (Phase 5 Task B3 dual-risk)",
+                "# handwriting_classifier (Phase 5 Task B4 route-first)",
                 "",
                 f"- model_version: `{model_version}`",
                 f"- release_status: `{release_status.value}`",
                 f"- threshold_set_version: `{THRESHOLD_SET_VERSION}`",
-                "- output_semantics: `independent_binary_risk_logits`",
-                "- outputs: `handwriting_risk`, `non_text_risk` (independent sigmoid)",
-                "- public outcomes derived by safety-first abstention policy",
+                "- output_semantics: `route_first_independent_logits`",
+                "- outputs: `vision_required`, `handwriting_present` (independent sigmoid)",
+                "- public outcomes derived by route-first decision policy",
+                "- Model never emits `non_text` (Phase 4 suppresses known non-text).",
                 "- Public training supplement: Handwritten ASAP (Zenodo 8088866, CC BY 4.0).",
                 "- Safety evaluation remains project-only LOSGO (ASAP is training-only).",
                 "- Router remains disabled by default (`HANDWRITING_ROUTER_ENABLED=false`).",
-                "- Not wired into live OCR in Task B3.",
+                "- Not wired into live OCR in Task B4.",
                 "",
                 "## Attribution",
                 "",

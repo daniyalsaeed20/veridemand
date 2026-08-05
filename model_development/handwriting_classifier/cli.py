@@ -1,4 +1,4 @@
-"""CLI entrypoints for Phase 5 Task B3 dual-risk train / evaluate / export / ASAP prepare."""
+"""CLI entrypoints for Phase 5 Task B4 route-first train / evaluate / export / ASAP prepare."""
 
 from __future__ import annotations
 
@@ -78,20 +78,42 @@ def _load_public_for_config(cfg: TrainConfig, data_root: Path | None) -> list[Ex
 
 
 def _candidate_sort_key(entry: dict[str, Any]) -> tuple[Any, ...]:
-    """Model selection order when multiple configs pass gates (Task §17)."""
+    """Model selection order when multiple configs pass gates (Task B4)."""
 
     thr = entry.get("selected_thresholds") or {}
     return (
         0 if entry.get("passes_safety_gate") else 1,
         -(thr.get("printed_retention_recall") or 0.0),
         -(thr.get("direct_handwritten_rate") or 0.0),
-        thr.get("handwriting_grey_zone_rate") or 1.0,
-        0,
-        -(thr.get("direct_nontext_rate") or 0.0),
+        thr.get("overall_uncertain_rate") or 1.0,
         {"weighted_bce": 0, "asymmetric_bce": 1, "focal": 2}.get(
             entry.get("loss_name", "focal"), 3
         ),
     )
+
+
+# Documented failed baselines (B / B2 / B3) — never rewritten; for comparison only.
+PRIOR_BASELINE_SUMMARY: dict[str, Any] = {
+    "three_class_softmax_task_b": {
+        "status": "PROTOTYPE MODEL NEEDS SUPPLEMENTATION",
+        "note": "Could not simultaneously achieve zero HW leak and printed retention >= 80%.",
+    },
+    "asap_supplemented_softmax_task_b2": {
+        "status": "SUPPLEMENTED MODEL STILL NOT SAFE FOR INTEGRATION",
+        "handwritten_to_printed": 12,
+        "note": "HW→printed leaks whenever printed retention stayed high.",
+    },
+    "dual_risk_task_b3": {
+        "status": "SAFETY-FIRST MODEL STILL NOT SAFE",
+        "focal_printed_retention": 0.19,
+        "focal_hw_to_printed": 0,
+        "weighted_hw_to_printed": 20,
+        "note": (
+            "Focal cleared leaks only via heavy abstention (~19% printed retention); "
+            "weighted/asymmetric kept coverage but still leaked."
+        ),
+    },
+}
 
 
 def cmd_prepare_asap(args: argparse.Namespace) -> int:
@@ -239,8 +261,9 @@ def cmd_train_export(args: argparse.Namespace) -> int:
         "label_aggregates": {
             "printed": summary["printed"],
             "handwritten": summary["handwritten"],
+            "uncertain": summary.get("uncertain", 0),
             "non_text": summary["non_text"],
-            "uncertain_challenge": summary["uncertain_challenge"],
+            "uncertain_challenge": summary.get("uncertain_challenge", 0),
             "source_group_count": summary["source_group_count"],
             "handwriting_source_group_count": summary["handwriting_source_group_count"],
         },
@@ -270,32 +293,40 @@ def cmd_train_export(args: argparse.Namespace) -> int:
             for e in config_results
         ],
         "threshold_set_version": THRESHOLD_SET_VERSION,
-        "architecture": "dual_risk_independent_binary_logits",
+        "architecture": "route_first_independent_logits",
+        "prior_baselines": PRIOR_BASELINE_SUMMARY,
         "three_class_baseline_status": ("prototype baseline — superseded for safety evaluation"),
+        "dual_risk_baseline_status": ("Task B3 dual-risk — failed simultaneous gates"),
+        "b4_vs_b3_distinction": (
+            "B3 trained handwriting_risk + non_text_risk; "
+            "B4 trains vision_required (must avoid Paddle) + handwriting_present. "
+            "The 54 uncertain examples are vision_required training positives "
+            "with handwriting-head loss masked."
+        ),
     }
 
     if not passing_candidates:
-        decision_payload["decision"] = "SAFETY-FIRST MODEL STILL NOT SAFE"
+        decision_payload["decision"] = "ROUTE-FIRST MODEL STILL NOT SAFE"
         decision_payload["package_status"] = None
         failing_slices: list[str] = []
         for e in config_results:
             tops = e.get("top_threshold_candidates") or []
             if tops:
-                sg = (tops[0] or {}).get("slice_gates") or {}
-                if sg.get("cursive_routed_printed"):
-                    failing_slices.append("cursive_printed")
-                if sg.get("signature_routed_printed"):
-                    failing_slices.append("signature_printed")
-                if sg.get("cursive_routed_non_text"):
-                    failing_slices.append("cursive_non_text")
-                if sg.get("signature_routed_non_text"):
-                    failing_slices.append("signature_non_text")
-                if (tops[0] or {}).get("handwritten_to_printed"):
+                top0 = tops[0] or {}
+                if top0.get("handwritten_to_printed"):
                     failing_slices.append("handwritten_to_printed")
-                if (tops[0] or {}).get("handwritten_to_nontext"):
-                    failing_slices.append("handwritten_to_nontext")
+                if top0.get("uncertain_to_printed"):
+                    failing_slices.append("uncertain_to_printed")
+                if top0.get("nontext_to_printed"):
+                    failing_slices.append("nontext_to_printed")
+                if top0.get("cursive_to_printed"):
+                    failing_slices.append("cursive_to_printed")
+                if top0.get("signature_to_printed"):
+                    failing_slices.append("signature_to_printed")
+                if (top0.get("printed_retention_recall") or 0) < 0.80:
+                    failing_slices.append("printed_retention")
         decision_payload["failing_slices"] = sorted(set(failing_slices))
-        write_json(artifacts / "task_b3_decision.json", decision_payload)
+        write_json(artifacts / "task_b4_decision.json", decision_payload)
         print(json.dumps({"decision": decision_payload["decision"]}, indent=2))
         return 3
 
@@ -310,7 +341,7 @@ def cmd_train_export(args: argparse.Namespace) -> int:
     for p in oof_preds:
         from model_development.handwriting_classifier.thresholds import route_probabilities
 
-        probs = p.get("risk_probabilities") or p["probabilities"]
+        probs = p.get("route_probabilities") or p.get("risk_probabilities") or p["probabilities"]
         p["routed_outcome"] = route_probabilities(probs, thr)
 
     print(f"=== Final fit config={cfg.name} ===")
@@ -324,6 +355,7 @@ def cmd_train_export(args: argparse.Namespace) -> int:
     final = train_model(final_refs, cfg, device=args.device, checkpoint_path=ckpt)
     model = final["model"]
 
+    # Uncertain is now in fit/OOF; challenge list is empty under B4.
     challenge_refs = [
         ExampleRef(
             path=e.crop_path_private,
@@ -333,13 +365,15 @@ def cmd_train_export(args: argparse.Namespace) -> int:
         )
         for e in challenge
     ]
-    challenge_preds = predict_logits(
-        model, challenge_refs, device=final["device"], batch_size=cfg.batch_size
+    challenge_preds = (
+        predict_logits(model, challenge_refs, device=final["device"], batch_size=cfg.batch_size)
+        if challenge_refs
+        else []
     )
     for p in challenge_preds:
         p.pop("path", None)
         p.pop("crop_id", None)
-    challenge_counts = challenge_routing_report(challenge_preds, thr)
+    challenge_counts = challenge_routing_report(challenge_preds, thr) if challenge_preds else {}
 
     onnx_path = artifacts / "export" / "model.onnx"
     export_onnx(model, onnx_path)
@@ -347,23 +381,22 @@ def cmd_train_export(args: argparse.Namespace) -> int:
     from PIL import Image
 
     samples = []
-    for lab in ("printed", "handwritten", "non_text"):
+    for lab in ("printed", "handwritten", "uncertain", "non_text"):
         ex = next((e for e in fit if e.label == lab), None)
         if ex is not None:
             samples.append(Image.open(ex.crop_path_private).convert("RGB"))
 
     thr_cand = ThresholdCandidate(
+        local_ocr_safe_threshold=thr.local_ocr_safe_threshold,
+        vision_required_threshold=thr.vision_required_threshold,
         handwriting_accept_threshold=thr.handwriting_accept_threshold,
-        handwriting_safe_low_threshold=thr.handwriting_safe_low_threshold,
-        non_text_accept_threshold=thr.non_text_accept_threshold,
-        non_text_safe_low_threshold=thr.non_text_safe_low_threshold,
     )
     parity = run_parity_suite(model, onnx_path, sample_images=samples, thresholds=thr_cand)
     if not parity["passed"]:
-        decision_payload["decision"] = "SAFETY-FIRST MODEL STILL NOT SAFE"
+        decision_payload["decision"] = "ROUTE-FIRST MODEL STILL NOT SAFE"
         decision_payload["parity"] = parity
         decision_payload["reason"] = "onnx_parity_failed"
-        write_json(artifacts / "task_b3_decision.json", decision_payload)
+        write_json(artifacts / "task_b4_decision.json", decision_payload)
         print("ONNX parity failed")
         return 4
 
@@ -371,8 +404,8 @@ def cmd_train_export(args: argparse.Namespace) -> int:
         {
             "fold_index": p.get("held_out_fold_index"),
             "label": p.get("label"),
+            "p_route": p.get("p_route"),
             "p_hw": p.get("p_hw"),
-            "p_nt": p.get("p_nt"),
             "routed_outcome": p.get("routed_outcome"),
         }
         for p in oof_preds
@@ -417,6 +450,7 @@ def cmd_train_export(args: argparse.Namespace) -> int:
         {
             "printed": summary["printed"],
             "handwritten": summary["handwritten"],
+            "uncertain": summary.get("uncertain", 0),
             "non_text": summary["non_text"],
         },
         len(synth),
@@ -427,17 +461,17 @@ def cmd_train_export(args: argparse.Namespace) -> int:
         onnx.__version__,
         ort.__version__,
         (
-            "Phase 5 Task B3 dual-risk safety-first production_candidate. "
+            "Phase 5 Task B4 route-first production_candidate. "
             "Live OCR routing not integrated. "
             f"selected_config={cfg.name}."
         ),
         public_provenance=public_package_prov,
     )
     if not pkg["verification_ok"]:
-        decision_payload["decision"] = "SAFETY-FIRST MODEL STILL NOT SAFE"
+        decision_payload["decision"] = "ROUTE-FIRST MODEL STILL NOT SAFE"
         decision_payload["package"] = pkg
         decision_payload["reason"] = "package_verification_failed"
-        write_json(artifacts / "task_b3_decision.json", decision_payload)
+        write_json(artifacts / "task_b4_decision.json", decision_payload)
         return 5
 
     from backend.app.extraction.handwriting_router.service import HandwritingClassifierService
@@ -448,10 +482,9 @@ def cmd_train_export(args: argparse.Namespace) -> int:
         handwriting_router_enabled=True,
         handwriting_classifier_required=False,
         handwriting_classifier_path=package_dir,
+        local_ocr_safe_threshold=thr.local_ocr_safe_threshold,
+        vision_required_threshold=thr.vision_required_threshold,
         handwriting_accept_threshold=thr.handwriting_accept_threshold,
-        handwriting_safe_low_threshold=thr.handwriting_safe_low_threshold,
-        non_text_accept_threshold=thr.non_text_accept_threshold,
-        non_text_safe_low_threshold=thr.non_text_safe_low_threshold,
     )
     svc = HandwritingClassifierService(settings)
     t_load0 = time.perf_counter()
@@ -478,7 +511,7 @@ def cmd_train_export(args: argparse.Namespace) -> int:
     model_size = (package_dir / "model.onnx").stat().st_size
     decision_payload.update(
         {
-            "decision": "SAFETY-FIRST ONNX ROUTER READY FOR INTEGRATION",
+            "decision": "ROUTE-FIRST ONNX ROUTER READY FOR INTEGRATION",
             "package_status": package_status.value,
             "selected_config": cfg.name,
             "selected_config_hash": cfg.config_hash(),
@@ -489,8 +522,8 @@ def cmd_train_export(args: argparse.Namespace) -> int:
             "mixture": {
                 "project_printed": summary["printed"],
                 "project_handwritten": summary["handwritten"],
+                "project_uncertain": summary.get("uncertain", 0),
                 "project_non_text": summary["non_text"],
-                "uncertain_challenge": summary["uncertain_challenge"],
                 "public_handwriting": len(public_refs),
                 "synthetic_nontext": len(synth),
                 "public_asap_variant": cfg.public_asap_variant,
@@ -512,14 +545,14 @@ def cmd_train_export(args: argparse.Namespace) -> int:
             "device": final["device"],
         }
     )
-    write_json(artifacts / "task_b3_decision.json", decision_payload)
-    write_json(artifacts / "task_b3_public_summary.json", decision_payload)
+    write_json(artifacts / "task_b4_decision.json", decision_payload)
+    write_json(artifacts / "task_b4_public_summary.json", decision_payload)
     print(json.dumps({"decision": decision_payload["decision"], "package": pkg}, indent=2))
     return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="Phase 5 Task B3 dual-risk classifier tooling")
+    p = argparse.ArgumentParser(description="Phase 5 Task B4 route-first classifier tooling")
     sub = p.add_subparsers(dest="command", required=True)
 
     a = sub.add_parser("prepare-asap", help="Download/verify Handwritten ASAP and build subset")

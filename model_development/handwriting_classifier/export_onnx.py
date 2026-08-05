@@ -1,4 +1,4 @@
-"""ONNX export and PyTorch↔ORT parity checks for dual-risk models."""
+"""ONNX export and PyTorch↔ORT parity checks for route-first models."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 
-from model_development.handwriting_classifier import RISK_ORDER
+from model_development.handwriting_classifier import ROUTE_ORDER
 from model_development.handwriting_classifier.config import (
     INPUT_SIZE,
     ONNX_INPUT_NAME,
@@ -88,8 +88,6 @@ def compare_parity(
 ) -> dict[str, Any]:
     abs_diff = np.max(np.abs(torch_out - ort_out))
     rel = np.max(np.abs(torch_out - ort_out) / np.maximum(np.abs(torch_out), 1e-8))
-    # Risk-head agreement: same sign relative to 0.5 after sigmoid is enough for routing
-    # when thresholds are provided; also check max abs on probs.
     torch_p = _sigmoid(torch_out)
     ort_p = _sigmoid(ort_out)
     prob_abs = np.max(np.abs(torch_p - ort_p))
@@ -175,6 +173,6 @@ def run_parity_suite(
         "opset": ONNX_OPSET,
         "input_name": ONNX_INPUT_NAME,
         "output_name": ONNX_OUTPUT_NAME,
-        "risk_order": list(RISK_ORDER),
-        "output_semantics": "independent_binary_risk_logits",
+        "route_order": list(ROUTE_ORDER),
+        "output_semantics": "route_first_independent_logits",
     }

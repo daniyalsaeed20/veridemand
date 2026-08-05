@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Generate a tiny deterministic dual-risk ONNX test fixture.
+"""Generate a tiny deterministic route-first ONNX test fixture.
 
 Requires the ``model-dev`` dependency group (``onnx``). Produces a test_fixture
 package under ``backend/tests/fixtures/handwriting_classifier/`` — never a
 production model.
 
-Output semantics: independent_binary_risk_logits [handwriting_risk, non_text_risk].
-Bias prefers low risks → printed under default dual-risk thresholds.
+Output semantics: route_first_independent_logits [vision_required, handwriting_present].
+Bias prefers low route risk → printed under default route-first thresholds.
 """
 
 from __future__ import annotations
@@ -21,19 +21,17 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "backend" / "tests" / "fixtures" / "handwriting_classifier"
 
 
-def _build_risk_logits_model(path: Path, *, input_name: str, output_name: str, size: int) -> None:
+def _build_route_logits_model(path: Path, *, input_name: str, output_name: str, size: int) -> None:
     import numpy as np
     import onnx
     from onnx import TensorProto, helper, numpy_helper
 
-    # y = GlobalAvgPool(x) @ W + b  → shape [N, 2]
     n_in = helper.make_tensor_value_info(input_name, TensorProto.FLOAT, ["N", 3, size, size])
     n_out = helper.make_tensor_value_info(output_name, TensorProto.FLOAT, ["N", 2])
 
     gap = helper.make_node("GlobalAveragePool", [input_name], ["gap"])
     squeeze = helper.make_node("Squeeze", ["gap", "axes"], ["pooled"])
     axes = numpy_helper.from_array(np.asarray([2, 3], dtype=np.int64), name="axes")
-    # Map 3 pooled channels → 2 risk logits; bias steers both risks low (printed-safe).
     w = numpy_helper.from_array(
         np.asarray(
             [
@@ -47,13 +45,13 @@ def _build_risk_logits_model(path: Path, *, input_name: str, output_name: str, s
     )
     b = numpy_helper.from_array(
         np.asarray([-3.0, -3.0], dtype=np.float32), name="B"
-    )  # low risks → printed
+    )  # low route → printed
     matmul = helper.make_node("MatMul", ["pooled", "W"], ["proj"])
     add = helper.make_node("Add", ["proj", "B"], [output_name])
 
     graph = helper.make_graph(
         [gap, squeeze, matmul, add],
-        "handwriting_dual_risk_fixture",
+        "handwriting_route_first_fixture",
         [n_in],
         [n_out],
         [axes, w, b],
@@ -74,22 +72,22 @@ def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     model_path = OUT / "model.onnx"
     size = 32
-    _build_risk_logits_model(model_path, input_name="input", output_name="risk_logits", size=size)
+    _build_route_logits_model(model_path, input_name="input", output_name="route_logits", size=size)
     digest = hashlib.sha256(model_path.read_bytes()).hexdigest()
 
     labels = {
-        "output_semantics": "independent_binary_risk_logits",
-        "outputs": ["handwriting_risk", "non_text_risk"],
+        "output_semantics": "route_first_independent_logits",
+        "outputs": ["vision_required", "handwriting_present"],
         "public_outcomes": ["printed", "handwritten", "uncertain", "non_text"],
     }
     (OUT / "labels.json").write_text(json.dumps(labels, indent=2) + "\n", encoding="utf-8")
 
     record = {
-        "schema_version": "phase5-handwriting-classifier-v2",
-        "model_family": "handwriting_style_cnn_dual_risk",
-        "model_version": "test-fixture-dual-risk-v1",
+        "schema_version": "phase5-handwriting-classifier-v3",
+        "model_family": "handwriting_style_cnn_route_first",
+        "model_version": "test-fixture-route-first-v1",
         "release_status": "test_fixture",
-        "training_code_version": "task-b3-fixture-generator",
+        "training_code_version": "task-b4-fixture-generator",
         "onnx_opset": 13,
         "onnx_ir_version": 8,
         "input_tensor_name": "input",
@@ -107,35 +105,34 @@ def main() -> int:
         "interpolation": "bilinear",
         "normalisation_mean": [0.5, 0.5, 0.5],
         "normalisation_std": [0.5, 0.5, 0.5],
-        "output_tensor_name": "risk_logits",
+        "output_tensor_name": "route_logits",
         "output_dtype": "float32",
-        "output_semantics": "independent_binary_risk_logits",
-        "class_order": ["handwriting_risk", "non_text_risk"],
+        "output_semantics": "route_first_independent_logits",
+        "class_order": ["vision_required", "handwriting_present"],
         "public_outcomes": ["printed", "handwritten", "uncertain", "non_text"],
-        "threshold_set_version": "test-fixture-dual-risk",
+        "threshold_set_version": "test-fixture-route-first",
+        "local_ocr_safe_threshold": 0.20,
+        "vision_required_threshold": 0.70,
         "handwriting_accept_threshold": 0.70,
-        "handwriting_safe_low_threshold": 0.20,
-        "non_text_accept_threshold": 0.70,
-        "non_text_safe_low_threshold": 0.20,
         "training_manifest_sha256": None,
         "validation_manifest_sha256": None,
         "held_out_manifest_sha256": None,
         "model_sha256": digest,
-        "pretrained_weight_provenance": "synthetic-dual-risk-fixture",
+        "pretrained_weight_provenance": "synthetic-route-first-fixture",
         "model_provenance": "scripts/generate_handwriting_classifier_fixture.py",
         "licence": "Proprietary-test-fixture",
         "created_at": datetime.now(UTC).isoformat(),
         "supported_onnxruntime_version": ">=1.19,<2",
         "expected_execution_provider": "CPUExecutionProvider",
-        "notes": "Deterministic Task B3 dual-risk unit-test fixture. Not for production.",
+        "notes": "Deterministic Task B4 route-first unit-test fixture. Not for production.",
     }
     (OUT / "model-record.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
 
     metrics = {
         "schema_version": "phase5-handwriting-metrics-v1",
         "metrics_kind": "synthetic_test",
-        "model_version": "test-fixture-dual-risk-v1",
-        "notes": "Synthetic dual-risk fixture metrics only.",
+        "model_version": "test-fixture-route-first-v1",
+        "notes": "Synthetic route-first fixture metrics only.",
         "handwriting_safe_bypass_recall": None,
         "handwriting_to_paddle_leak_count": None,
         "handwriting_to_nontext_count": None,
@@ -146,17 +143,17 @@ def main() -> int:
     (OUT / "README.md").write_text(
         "\n".join(
             [
-                "# handwriting_classifier test fixture (dual-risk)",
+                "# handwriting_classifier test fixture (route-first)",
                 "",
                 "Generated by `scripts/generate_handwriting_classifier_fixture.py`.",
                 "Status: `test_fixture` — never production_candidate.",
-                "Output: `risk_logits` [handwriting_risk, non_text_risk].",
+                "Output: `route_logits` [vision_required, handwriting_present].",
                 "",
             ]
         ),
         encoding="utf-8",
     )
-    print(f"Wrote dual-risk fixture to {OUT}")
+    print(f"Wrote route-first fixture to {OUT}")
     print(f"model_sha256={digest}")
     return 0
 

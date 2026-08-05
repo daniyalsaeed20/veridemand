@@ -1,4 +1,4 @@
-"""Deterministic Phase 5 safety-first dual-risk routing decisions."""
+"""Deterministic Phase 5 route-first vision-reservation routing decisions."""
 
 from __future__ import annotations
 
@@ -11,21 +11,17 @@ from backend.app.contracts.ocr import (
     HandwritingDecisionReason,
     HandwritingInferenceSource,
 )
-from backend.app.extraction.handwriting_router.constants import EXPECTED_RISK_OUTPUTS
+from backend.app.extraction.handwriting_router.constants import EXPECTED_ROUTE_OUTPUTS
 
 
 @dataclass(frozen=True, slots=True)
 class RoutingThresholds:
+    local_ocr_safe_threshold: float
+    vision_required_threshold: float
     handwriting_accept_threshold: float
-    handwriting_safe_low_threshold: float
-    non_text_accept_threshold: float
-    non_text_safe_low_threshold: float
 
     def is_ordered(self) -> bool:
-        return (
-            self.handwriting_safe_low_threshold < self.handwriting_accept_threshold
-            and self.non_text_safe_low_threshold < self.non_text_accept_threshold
-        )
+        return self.local_ocr_safe_threshold < self.vision_required_threshold
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,7 +37,7 @@ class RoutingDecision:
     class_scores: dict[str, float]
 
 
-def _finite_risks(scores: np.ndarray) -> bool:
+def _finite_route(scores: np.ndarray) -> bool:
     return bool(scores.shape == (2,) and np.all(np.isfinite(scores)))
 
 
@@ -49,24 +45,23 @@ def decide_routing_outcome(
     scores: np.ndarray | list[float] | tuple[float, ...],
     thresholds: RoutingThresholds,
     *,
-    labels: tuple[str, str] = EXPECTED_RISK_OUTPUTS,
+    labels: tuple[str, str] = EXPECTED_ROUTE_OUTPUTS,
 ) -> RoutingDecision:
-    """Map independent risk probabilities to a public routing outcome.
+    """Map independent route probabilities to a public routing outcome.
 
-    Precedence (safety-first):
+    Precedence (route-first):
       invalid → uncertain
-      elif p_hw >= hw_accept and p_nt < nt_accept → handwritten
-      elif p_hw <= hw_safe_low and p_nt >= nt_accept → non_text
-      elif p_hw <= hw_safe_low and p_nt <= nt_safe_low → printed
+      elif p_route <= local_ocr_safe → printed
+      elif p_route >= vision_required and p_hw >= handwriting_accept → handwritten
       else → uncertain
 
-    Printed is granted only when both risks are safely low.
-    Material handwriting risk never becomes non_text.
+    The model never emits non_text. Printed is granted only below the safe threshold.
+    The handwriting_present head never authorises local OCR by itself.
     """
 
     arr = np.asarray(scores, dtype=np.float64).reshape(-1)
     empty_scores = {label: float("nan") for label in labels}
-    if arr.shape != (2,) or not _finite_risks(arr):
+    if arr.shape != (2,) or not _finite_route(arr):
         return RoutingDecision(
             lifecycle=HandwritingClassificationLifecycle.FAILED,
             outcome=HandwritingClassificationOutcome.UNCERTAIN,
@@ -78,7 +73,7 @@ def decide_routing_outcome(
             class_margin=None,
             class_scores=empty_scores,
         )
-    # Risk probabilities must be in [0, 1] (post-sigmoid).
+    # Route probabilities must be in [0, 1] (post-sigmoid).
     if np.any(arr < -1e-9) or np.any(arr > 1.0 + 1e-9):
         return RoutingDecision(
             lifecycle=HandwritingClassificationLifecycle.FAILED,
@@ -92,13 +87,12 @@ def decide_routing_outcome(
             class_scores={labels[i]: float(arr[i]) for i in range(2)},
         )
 
-    p_hw = float(arr[0])
-    p_nt = float(arr[1])
-    score_map = {labels[0]: p_hw, labels[1]: p_nt}
+    p_route = float(arr[0])
+    p_hw = float(arr[1])
+    score_map = {labels[0]: p_route, labels[1]: p_hw}
+    local_safe = thresholds.local_ocr_safe_threshold
+    vision_req = thresholds.vision_required_threshold
     hw_accept = thresholds.handwriting_accept_threshold
-    hw_safe = thresholds.handwriting_safe_low_threshold
-    nt_accept = thresholds.non_text_accept_threshold
-    nt_safe = thresholds.non_text_safe_low_threshold
 
     def _uncertain(
         reason: HandwritingDecisionReason,
@@ -113,56 +107,42 @@ def decide_routing_outcome(
             outcome=HandwritingClassificationOutcome.UNCERTAIN,
             decision_reason=reason,
             inference_source=source,
-            top_class=labels[0] if p_hw >= p_nt else labels[1],
-            top_score=max(p_hw, p_nt),
-            second_score=min(p_hw, p_nt),
-            class_margin=abs(p_hw - p_nt),
+            top_class=labels[0] if p_route >= p_hw else labels[1],
+            top_score=max(p_route, p_hw),
+            second_score=min(p_route, p_hw),
+            class_margin=abs(p_route - p_hw),
             class_scores=score_map,
         )
 
-    # Clear handwritten: high HW risk, non-text not accepted.
-    if p_hw >= hw_accept and p_nt < nt_accept:
-        return RoutingDecision(
-            lifecycle=HandwritingClassificationLifecycle.CLASSIFIED,
-            outcome=HandwritingClassificationOutcome.HANDWRITTEN,
-            decision_reason=HandwritingDecisionReason.HANDWRITING_THRESHOLD_MET,
-            inference_source=HandwritingInferenceSource.MODEL_INFERENCE,
-            top_class=labels[0],
-            top_score=p_hw,
-            second_score=p_nt,
-            class_margin=abs(p_hw - p_nt),
-            class_scores=score_map,
-        )
-
-    # Clear non-text: HW safely low AND non-text accepted (never override HW risk).
-    if p_hw <= hw_safe and p_nt >= nt_accept:
-        return RoutingDecision(
-            lifecycle=HandwritingClassificationLifecycle.CLASSIFIED,
-            outcome=HandwritingClassificationOutcome.NON_TEXT,
-            decision_reason=HandwritingDecisionReason.NON_TEXT_THRESHOLD_MET,
-            inference_source=HandwritingInferenceSource.MODEL_INFERENCE,
-            top_class=labels[1],
-            top_score=p_nt,
-            second_score=p_hw,
-            class_margin=abs(p_hw - p_nt),
-            class_scores=score_map,
-        )
-
-    # Clear printed: both risks safely low (positively guarded).
-    if p_hw <= hw_safe and p_nt <= nt_safe:
+    # Clear printed: route risk safely low (positively guarded).
+    if p_route <= local_safe:
         return RoutingDecision(
             lifecycle=HandwritingClassificationLifecycle.CLASSIFIED,
             outcome=HandwritingClassificationOutcome.PRINTED,
             decision_reason=HandwritingDecisionReason.PRINTED_THRESHOLD_MET,
             inference_source=HandwritingInferenceSource.MODEL_INFERENCE,
             top_class="printed",
-            top_score=1.0 - max(p_hw, p_nt),
-            second_score=max(p_hw, p_nt),
-            class_margin=abs(p_hw - p_nt),
+            top_score=1.0 - p_route,
+            second_score=p_route,
+            class_margin=abs(p_route - p_hw),
             class_scores=score_map,
         )
 
-    # Grey zones, both elevated, or conflicting risks → uncertain.
-    if p_hw >= hw_accept and p_nt >= nt_accept:
-        return _uncertain(HandwritingDecisionReason.THRESHOLD_CONFLICT)
+    # Clear handwritten: vision required and handwriting evidence accepted.
+    if p_route >= vision_req and p_hw >= hw_accept:
+        return RoutingDecision(
+            lifecycle=HandwritingClassificationLifecycle.CLASSIFIED,
+            outcome=HandwritingClassificationOutcome.HANDWRITTEN,
+            decision_reason=HandwritingDecisionReason.HANDWRITING_THRESHOLD_MET,
+            inference_source=HandwritingInferenceSource.MODEL_INFERENCE,
+            top_class=labels[1],
+            top_score=p_hw,
+            second_score=p_route,
+            class_margin=abs(p_route - p_hw),
+            class_scores=score_map,
+        )
+
+    # Grey zone / route-positive but HW-low / anything else → uncertain (never printed).
+    if p_route >= vision_req:
+        return _uncertain(HandwritingDecisionReason.LOW_TOP_PROBABILITY)
     return _uncertain(HandwritingDecisionReason.LOW_TOP_PROBABILITY)

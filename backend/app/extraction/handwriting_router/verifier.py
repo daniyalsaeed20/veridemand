@@ -13,6 +13,7 @@ import numpy as np
 from backend.app.extraction.handwriting_router.constants import (
     CPU_EXECUTION_PROVIDER,
     EXPECTED_RISK_OUTPUTS,
+    EXPECTED_ROUTE_OUTPUTS,
     HISTORICAL_THREE_CLASS_LABELS,
     LABELS_JSON_NAME,
     METRICS_JSON_NAME,
@@ -21,6 +22,7 @@ from backend.app.extraction.handwriting_router.constants import (
     PUBLIC_ROUTING_OUTCOMES,
     SCHEMA_VERSION_V1,
     SCHEMA_VERSION_V2,
+    SCHEMA_VERSION_V3,
 )
 from backend.app.extraction.handwriting_router.manifest import (
     ClassifierPackageStatus,
@@ -93,32 +95,40 @@ def _fail(
 
 
 def _load_labels(path: Path) -> dict[str, Any] | list[str] | PackageVerificationResult:
-    """Accept v1 string-array labels or v2 structured dual-risk labels."""
+    """Accept v1 string-array, v2 dual-risk, or v3 route-first labels."""
 
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return _fail(VerificationFailureCode.LABELS_INVALID, "labels.json could not be parsed.")
 
-    # v2 structured
+    # Structured v2 / v3
     if isinstance(raw, dict):
         semantics = raw.get("output_semantics")
         outputs = raw.get("outputs")
         public = raw.get("public_outcomes")
-        if semantics != OutputSemantics.INDEPENDENT_BINARY_RISK_LOGITS.value:
+        if semantics == OutputSemantics.ROUTE_FIRST_INDEPENDENT_LOGITS.value:
+            if outputs != list(EXPECTED_ROUTE_OUTPUTS):
+                return _fail(
+                    VerificationFailureCode.LABELS_INVALID,
+                    "v3 labels.json outputs must be [vision_required, handwriting_present].",
+                )
+        elif semantics == OutputSemantics.INDEPENDENT_BINARY_RISK_LOGITS.value:
+            if outputs != list(EXPECTED_RISK_OUTPUTS):
+                return _fail(
+                    VerificationFailureCode.LABELS_INVALID,
+                    "v2 labels.json outputs must be [handwriting_risk, non_text_risk].",
+                )
+        else:
             return _fail(
                 VerificationFailureCode.LABELS_INVALID,
-                "v2 labels.json must declare independent_binary_risk_logits.",
-            )
-        if outputs != list(EXPECTED_RISK_OUTPUTS):
-            return _fail(
-                VerificationFailureCode.LABELS_INVALID,
-                "v2 labels.json outputs must be [handwriting_risk, non_text_risk].",
+                "structured labels.json must declare route_first_independent_logits "
+                "or independent_binary_risk_logits.",
             )
         if public != list(PUBLIC_ROUTING_OUTCOMES):
             return _fail(
                 VerificationFailureCode.LABELS_INVALID,
-                "v2 labels.json public_outcomes must match the four routing outcomes.",
+                "labels.json public_outcomes must match the four routing outcomes.",
             )
         if "uncertain" in (outputs or []):
             return _fail(
@@ -202,11 +212,11 @@ def verify_classifier_package(
         )
 
     # Cross-check labels vs record schema.
-    if record.schema_version == SCHEMA_VERSION_V2:
+    if record.schema_version in {SCHEMA_VERSION_V2, SCHEMA_VERSION_V3}:
         if not isinstance(labels_result, dict):
             return _fail(
                 VerificationFailureCode.LABELS_INVALID,
-                "v2 packages require structured labels.json.",
+                "v2/v3 packages require structured labels.json.",
                 record=record,
             )
     elif record.schema_version == SCHEMA_VERSION_V1 and not isinstance(labels_result, list):

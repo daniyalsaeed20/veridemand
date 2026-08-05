@@ -1,7 +1,7 @@
-# handwriting_classifier (Phase 5 Task B2)
+# handwriting_classifier (Phase 5 Task B4)
 
-Expected package directory. Task B2 did **not** publish a `production_candidate`
-(safety + slice gates still failing after ASAP supplementation).
+Expected package directory for a route-first ONNX router. Publish
+`production_candidate` only when Task B4 safety + retention gates pass.
 
 ```text
 models/handwriting_classifier/
@@ -11,6 +11,9 @@ models/handwriting_classifier/
 ├── model-record.json
 └── metrics.json
 ```
+
+Schema: `phase5-handwriting-classifier-v3`  
+Output: `route_logits` `[batch, 2]` = `vision_required`, `handwriting_present`
 
 Public training data (when prepared locally): Handwritten ASAP Short Answer
 Scoring (Zenodo 8088866, CC BY 4.0). Raw archives are gitignored under

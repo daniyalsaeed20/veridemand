@@ -1,4 +1,4 @@
-"""Staged transfer-learning training loop (dual-risk heads)."""
+"""Staged transfer-learning training loop (route-first heads)."""
 
 from __future__ import annotations
 
@@ -11,10 +11,10 @@ from typing import Any
 import numpy as np
 from PIL import Image
 
-from model_development.handwriting_classifier import RISK_ORDER, TRAINING_LABELS
+from model_development.handwriting_classifier import ROUTE_ORDER, TRAINING_LABELS
 from model_development.handwriting_classifier.config import (
     TrainConfig,
-    risk_target_for_label,
+    route_target_and_mask,
 )
 from model_development.handwriting_classifier.dataset import TrainingExample, class_counts
 from model_development.handwriting_classifier.losses import build_criterion, compute_pos_weights
@@ -93,6 +93,8 @@ def is_hard_project_example(ref: ExampleRef) -> bool:
     tags = _category_tags(ref.source_category)
     if ref.label == "handwritten" and (tags & HARD_EXAMPLE_TAGS):
         return True
+    if ref.label == "uncertain":
+        return True
     return ref.label == "non_text" and not ref.synthetic
 
 
@@ -109,18 +111,17 @@ class CropDataset:
         self.train = train
         self.config = config
         self.seed = seed
-        # Reject uncertain/excluded at dataset construction.
         for ref in self.refs:
             if ref.label not in TRAINING_LABELS:
                 raise ValueError(
-                    f"Label {ref.label!r} is not eligible for dual-risk training "
-                    "(uncertain/excluded are rejected)."
+                    f"Label {ref.label!r} is not eligible for route-first training "
+                    "(excluded labels are rejected)."
                 )
 
     def __len__(self) -> int:
         return len(self.refs)
 
-    def __getitem__(self, index: int) -> tuple[Any, Any]:
+    def __getitem__(self, index: int) -> tuple[Any, Any, Any]:
         import torch
 
         ref = self.refs[index]
@@ -133,9 +134,10 @@ class CropDataset:
             strength=self.config.aug_strength,
         )
         x = tensor_to_torch(arr)
-        hw, nt = risk_target_for_label(ref.label)
-        y = torch.tensor([hw, nt], dtype=torch.float32)
-        return x, y
+        vision, hw, mask = route_target_and_mask(ref.label)
+        y = torch.tensor([vision, hw], dtype=torch.float32)
+        m = torch.tensor([mask], dtype=torch.float32)
+        return x, y, m
 
 
 def _seed_everything(config: TrainConfig) -> None:
@@ -194,7 +196,6 @@ def _make_loader(
     generator.manual_seed(config.dataloader_seed)
 
     if shuffle:
-        # Always use inverse-frequency sample weights; optionally amplify hard tags.
         sample_w = _sample_weights(refs, config)
         sampler = WeightedRandomSampler(
             weights=sample_w,
@@ -218,11 +219,19 @@ def _make_loader(
     )
 
 
-def _targets_tensor(refs: Sequence[ExampleRef]) -> Any:
+def _targets_and_masks(refs: Sequence[ExampleRef]) -> tuple[Any, Any]:
     import torch
 
-    rows = [risk_target_for_label(r.label) for r in refs]
-    return torch.tensor(rows, dtype=torch.float32)
+    rows = []
+    masks = []
+    for r in refs:
+        v, h, m = route_target_and_mask(r.label)
+        rows.append((v, h))
+        masks.append(m)
+    return (
+        torch.tensor(rows, dtype=torch.float32),
+        torch.tensor(masks, dtype=torch.float32),
+    )
 
 
 def train_model(
@@ -240,7 +249,6 @@ def train_model(
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    # Reject uncertain/excluded from training refs.
     clean_refs = [r for r in train_refs if r.label in TRAINING_LABELS]
     if len(clean_refs) != len(train_refs):
         rejected = len(train_refs) - len(clean_refs)
@@ -250,14 +258,19 @@ def train_model(
     freeze_features(model)
     model.to(device)
 
-    targets = _targets_tensor(clean_refs).to(device)
-    pos_weight = compute_pos_weights(targets)
+    targets, hw_mask = _targets_and_masks(clean_refs)
+    targets = targets.to(device)
+    hw_mask = hw_mask.to(device)
+    pos_weight = compute_pos_weights(targets, hw_mask)
     criterion = build_criterion(
         config.loss,
         pos_weight=pos_weight,
         handwriting_fn_multiplier=config.handwriting_fn_multiplier,
+        vision_fn_multiplier=config.vision_fn_multiplier,
         focal_alpha=config.focal_alpha,
         focal_gamma=config.focal_gamma,
+        route_loss_weight=config.route_loss_weight,
+        handwriting_loss_weight=config.handwriting_loss_weight,
     )
 
     train_ds = CropDataset(clean_refs, train=True, config=config, seed=config.random_seed)
@@ -275,12 +288,13 @@ def train_model(
         for epoch in range(epochs):
             total_loss = 0.0
             n = 0
-            for xb, yb in loader:
+            for xb, yb, mb in loader:
                 xb = xb.to(device)
                 yb = yb.to(device)
+                mb = mb.to(device)
                 optimizer.zero_grad(set_to_none=True)
                 logits = model(xb)
-                loss = criterion(logits, yb)
+                loss = criterion(logits, yb, mb)
                 loss.backward()
                 optimizer.step()
                 total_loss += float(loss.item()) * int(yb.size(0))
@@ -301,7 +315,7 @@ def train_model(
             {
                 "model_state_dict": model.state_dict(),
                 "config": config.to_dict(),
-                "risk_order": list(RISK_ORDER),
+                "route_order": list(ROUTE_ORDER),
                 "pos_weight": pos_weight.detach().cpu().tolist(),
             },
             checkpoint_path,
@@ -323,7 +337,10 @@ def train_model(
         "hard_example_count": hard_count,
         "effective_examples_per_epoch": len(clean_refs),
         "loss": config.loss,
+        "vision_fn_multiplier": config.vision_fn_multiplier,
         "handwriting_fn_multiplier": config.handwriting_fn_multiplier,
+        "route_loss_weight": config.route_loss_weight,
+        "handwriting_loss_weight": config.handwriting_loss_weight,
     }
 
 
@@ -334,7 +351,7 @@ def predict_logits(
     device: str,
     batch_size: int = 8,
 ) -> list[dict[str, Any]]:
-    """Run deterministic eval-preprocess inference; return per-example risk records."""
+    """Run deterministic eval-preprocess inference; return per-example route records."""
 
     import torch
 
@@ -364,11 +381,15 @@ def predict_logits(
                         "public": ref.public,
                         "source_category": ref.source_category,
                         "logits": logit_row.tolist(),
-                        "risk_logits": logit_row.tolist(),
+                        "route_logits": logit_row.tolist(),
+                        "risk_logits": logit_row.tolist(),  # back-compat alias
                         "probabilities": prob_row.tolist(),
-                        "risk_probabilities": prob_row.tolist(),
-                        "p_hw": float(prob_row[0]),
-                        "p_nt": float(prob_row[1]),
+                        "route_probabilities": prob_row.tolist(),
+                        "risk_probabilities": prob_row.tolist(),  # back-compat alias
+                        "p_route": float(prob_row[0]),
+                        "p_hw": float(prob_row[1]),
+                        "p_vision_required": float(prob_row[0]),
+                        "p_handwriting_present": float(prob_row[1]),
                     }
                 )
     return out

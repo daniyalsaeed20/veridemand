@@ -9,10 +9,12 @@ from typing import Literal
 from backend.app.contracts.base import ApiModel
 from backend.app.extraction.handwriting_router.constants import (
     EXPECTED_RISK_OUTPUTS,
+    EXPECTED_ROUTE_OUTPUTS,
     HISTORICAL_THREE_CLASS_LABELS,
     PUBLIC_ROUTING_OUTCOMES,
     SCHEMA_VERSION_V1,
     SCHEMA_VERSION_V2,
+    SCHEMA_VERSION_V3,
 )
 from pydantic import Field, field_validator, model_validator
 
@@ -30,6 +32,7 @@ class OutputSemantics(StrEnum):
     LOGITS = "logits"
     PROBABILITIES = "probabilities"
     INDEPENDENT_BINARY_RISK_LOGITS = "independent_binary_risk_logits"
+    ROUTE_FIRST_INDEPENDENT_LOGITS = "route_first_independent_logits"
 
 
 class ColourMode(StrEnum):
@@ -77,10 +80,15 @@ class HandwritingModelRecord(ApiModel):
 
     Supports:
     - v1 historical three-class packages (test fixtures / baselines)
-    - v2 dual-risk production-candidate packages (Task B3)
+    - v2 dual-risk packages (Task B3 baselines / fixtures)
+    - v3 route-first production-candidate packages (Task B4)
     """
 
-    schema_version: Literal["phase5-handwriting-classifier-v1", "phase5-handwriting-classifier-v2"]
+    schema_version: Literal[
+        "phase5-handwriting-classifier-v1",
+        "phase5-handwriting-classifier-v2",
+        "phase5-handwriting-classifier-v3",
+    ]
     model_family: str = Field(min_length=1, max_length=128)
     model_version: str = Field(min_length=1, max_length=128)
     release_status: ClassifierPackageStatus
@@ -105,11 +113,15 @@ class HandwritingModelRecord(ApiModel):
     output_tensor_name: str = Field(min_length=1, max_length=128)
     output_dtype: Literal["float32"]
     output_semantics: OutputSemantics
-    # v1: three public classes; v2: two risk heads (not public outcomes).
+    # v1: three public classes; v2/v3: two heads (not public outcomes).
     class_order: list[str] = Field(min_length=2, max_length=3)
     public_outcomes: list[str] | None = Field(default=None)
     threshold_set_version: str = Field(min_length=1, max_length=128)
+    # Task B4 route-first thresholds.
+    local_ocr_safe_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+    vision_required_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
     handwriting_accept_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+    # Task B3 dual-risk thresholds (historical packages / fixtures).
     handwriting_safe_low_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
     non_text_accept_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
     non_text_safe_low_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
@@ -168,8 +180,7 @@ class HandwritingModelRecord(ApiModel):
                 raise ValueError("v1 packages require logits or probabilities semantics.")
             if self.output_tensor_name not in {"logits", "probabilities"}:
                 raise ValueError("v1 output_tensor_name must be logits or probabilities.")
-        else:
-            # v2 dual-risk
+        elif self.schema_version == SCHEMA_VERSION_V2:
             if self.class_order != list(EXPECTED_RISK_OUTPUTS):
                 raise ValueError(
                     f"v2 class_order (risk outputs) must be exactly {list(EXPECTED_RISK_OUTPUTS)}."
@@ -208,6 +219,40 @@ class HandwritingModelRecord(ApiModel):
                     and self.non_text_safe_low_threshold < self.non_text_accept_threshold
                 ):
                     raise ValueError("dual-risk thresholds must satisfy safe_low < accept.")
+        else:
+            # v3 route-first
+            if self.class_order != list(EXPECTED_ROUTE_OUTPUTS):
+                raise ValueError(f"v3 class_order must be exactly {list(EXPECTED_ROUTE_OUTPUTS)}.")
+            if self.output_semantics is not OutputSemantics.ROUTE_FIRST_INDEPENDENT_LOGITS:
+                raise ValueError(
+                    "v3 packages require output_semantics=route_first_independent_logits."
+                )
+            if self.output_tensor_name != "route_logits":
+                raise ValueError("v3 output_tensor_name must be route_logits.")
+            if self.public_outcomes != list(PUBLIC_ROUTING_OUTCOMES):
+                raise ValueError(
+                    f"v3 public_outcomes must be exactly {list(PUBLIC_ROUTING_OUTCOMES)}."
+                )
+            thr3 = (
+                self.local_ocr_safe_threshold,
+                self.vision_required_threshold,
+                self.handwriting_accept_threshold,
+            )
+            if any(v is None for v in thr3):
+                if self.release_status in {
+                    ClassifierPackageStatus.PRODUCTION_CANDIDATE,
+                    ClassifierPackageStatus.RELEASED,
+                }:
+                    raise ValueError(
+                        "v3 production packages require all three route-first thresholds."
+                    )
+            else:
+                assert self.local_ocr_safe_threshold is not None
+                assert self.vision_required_threshold is not None
+                if not (self.local_ocr_safe_threshold < self.vision_required_threshold):
+                    raise ValueError(
+                        "route-first thresholds must satisfy local_ocr_safe < vision_required."
+                    )
 
         production_like = self.release_status in {
             ClassifierPackageStatus.PRODUCTION_CANDIDATE,
@@ -227,12 +272,18 @@ class HandwritingModelRecord(ApiModel):
         return self
 
     @property
+    def is_route_first(self) -> bool:
+        return self.schema_version == SCHEMA_VERSION_V3
+
+    @property
     def is_dual_risk(self) -> bool:
         return self.schema_version == SCHEMA_VERSION_V2
 
     @property
     def expected_output_dim(self) -> int:
-        return 2 if self.is_dual_risk else 3
+        if self.schema_version in {SCHEMA_VERSION_V2, SCHEMA_VERSION_V3}:
+            return 2
+        return 3
 
 
 class HandwritingMetricsRecord(ApiModel):

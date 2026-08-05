@@ -1,14 +1,14 @@
-"""MobileNetV3-Small dual-risk writing-style classifier."""
+"""MobileNetV3-Small route-first writing-style classifier."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from model_development.handwriting_classifier import RISK_ORDER
+from model_development.handwriting_classifier import ROUTE_ORDER
 
 
 def build_model(*, pretrained: bool = True) -> Any:
-    """Return MobileNetV3-Small with a 2-logit independent risk head."""
+    """Return MobileNetV3-Small with a 2-logit independent route head."""
 
     import torch.nn as nn
     from torchvision.models import MobileNet_V3_Small_Weights, mobilenet_v3_small
@@ -16,7 +16,7 @@ def build_model(*, pretrained: bool = True) -> Any:
     weights = MobileNet_V3_Small_Weights.DEFAULT if pretrained else None
     model = mobilenet_v3_small(weights=weights)
     in_features = model.classifier[-1].in_features
-    model.classifier[-1] = nn.Linear(in_features, len(RISK_ORDER))
+    model.classifier[-1] = nn.Linear(in_features, len(ROUTE_ORDER))
     return model
 
 
@@ -74,6 +74,6 @@ def weights_provenance() -> dict[str, str]:
         "url": url,
         "categories": str(meta.get("categories", "ImageNet")),
         "licence": "BSD-3-Clause (torchvision) / ImageNet pretrained weights per Torchvision",
-        "head": "dual_risk_linear_2",
-        "output_semantics": "independent_binary_risk_logits",
+        "head": "route_first_linear_2",
+        "output_semantics": "route_first_independent_logits",
     }

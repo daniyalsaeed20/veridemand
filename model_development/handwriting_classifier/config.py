@@ -1,4 +1,4 @@
-"""Deterministic training configuration for Phase 5 Task B3 dual-risk."""
+"""Deterministic training configuration for Phase 5 Task B4 route-first."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass, field
 from hashlib import sha256
 from typing import Any, Literal
 
-from model_development.handwriting_classifier import RISK_ORDER, TRAINING_LABELS
+from model_development.handwriting_classifier import ROUTE_ORDER, TRAINING_LABELS
 
 # Back-compat export for evaluate helpers.
 CLASS_ORDER = TRAINING_LABELS
@@ -18,7 +18,7 @@ INPUT_SIZE = 224
 PADDING_VALUE = 255.0  # scanned-paper white
 ONNX_OPSET = 17
 ONNX_INPUT_NAME = "image"
-ONNX_OUTPUT_NAME = "risk_logits"
+ONNX_OUTPUT_NAME = "route_logits"
 PARITY_TOLERANCE = 1e-4
 SYNTHETIC_NONTEXT_COUNT = 400
 SYNTHETIC_SOURCE_GROUP_PREFIX = "srcgrp_synth_nt_"
@@ -30,7 +30,7 @@ PublicAsapVariant = Literal["none", "light", "medium"]
 
 @dataclass(frozen=True)
 class TrainConfig:
-    """Explicit, hashable dual-risk training configuration."""
+    """Explicit, hashable route-first training configuration."""
 
     name: str
     random_seed: int = 42
@@ -47,9 +47,15 @@ class TrainConfig:
     stage2_lr: float = 1e-4
     weight_decay: float = 1e-4
     loss: LossName = "weighted_bce"
+    # Asymmetric FN multiplier applies to the vision_required head (safety-critical).
+    vision_fn_multiplier: float = 3.0
+    # Kept for back-compat with older call sites that still pass handwriting_fn_multiplier.
     handwriting_fn_multiplier: float = 3.0
     focal_alpha: float = 0.25
     focal_gamma: float = 2.0
+    # Head-loss mix: route (vision_required) must dominate handwriting_present.
+    route_loss_weight: float = 1.0
+    handwriting_loss_weight: float = 0.5
     # A-priori hard-example emphasis on signature/cursive project seeds (not OOF-mined).
     hard_example_emphasis: bool = False
     hard_example_multiplier: float = 2.0
@@ -70,87 +76,90 @@ class TrainConfig:
         return sha256(payload.encode("utf-8")).hexdigest()
 
 
-# At most three materially different Task B3 configurations (loss variants).
+# At most three materially different Task B4 configurations (loss + head-weight).
 CANDIDATE_CONFIGS: tuple[TrainConfig, ...] = (
     TrainConfig(
-        name="dual_risk_weighted_bce",
+        name="route_first_weighted_bce",
         loss="weighted_bce",
+        route_loss_weight=1.0,
+        handwriting_loss_weight=0.5,
         public_asap_variant="medium",
         hard_example_emphasis=False,
-        notes="Config A: fold-derived pos_weight BCE on both risk heads; ASAP medium.",
+        notes=(
+            "Config A: fold-derived pos_weight BCE on both heads; "
+            "HW loss masked for uncertain; route:hw=1.0:0.5; ASAP medium."
+        ),
     ),
     TrainConfig(
-        name="dual_risk_asymmetric_bce",
+        name="route_first_asymmetric_bce",
         loss="asymmetric_bce",
+        vision_fn_multiplier=3.0,
         handwriting_fn_multiplier=3.0,
+        route_loss_weight=1.0,
+        handwriting_loss_weight=0.5,
         public_asap_variant="medium",
         hard_example_emphasis=True,
         hard_example_multiplier=2.0,
         notes=(
-            "Config B: asymmetric HW FN multiplier=3.0 + a-priori signature/cursive "
-            "emphasis (not OOF-mined); ASAP medium."
+            "Config B: asymmetric vision_required FN multiplier=3.0 + a-priori "
+            "signature/cursive emphasis; route:hw=1.0:0.5; ASAP medium."
         ),
     ),
     TrainConfig(
-        name="dual_risk_focal",
+        name="route_first_focal",
         loss="focal",
         focal_alpha=0.25,
         focal_gamma=2.0,
+        route_loss_weight=1.0,
+        handwriting_loss_weight=0.3,
         public_asap_variant="medium",
         hard_example_emphasis=False,
-        notes="Config C: binary focal loss alpha=0.25 gamma=2.0; ASAP medium.",
+        notes=(
+            "Config C: binary focal on route head + weighted BCE on HW head; "
+            "route:hw=1.0:0.3 so HW cannot dominate; ASAP medium."
+        ),
     ),
 )
 
 
 @dataclass(frozen=True)
 class ThresholdCandidate:
-    """Four dual-risk thresholds with ordering constraints enforced by the grid."""
+    """Three route-first thresholds with local_ocr_safe < vision_required."""
 
+    local_ocr_safe_threshold: float
+    vision_required_threshold: float
     handwriting_accept_threshold: float
-    handwriting_safe_low_threshold: float
-    non_text_accept_threshold: float
-    non_text_safe_low_threshold: float
 
-    def as_tuple(self) -> tuple[float, float, float, float]:
+    def as_tuple(self) -> tuple[float, float, float]:
         return (
+            self.local_ocr_safe_threshold,
+            self.vision_required_threshold,
             self.handwriting_accept_threshold,
-            self.handwriting_safe_low_threshold,
-            self.non_text_accept_threshold,
-            self.non_text_safe_low_threshold,
         )
 
     def is_ordered(self) -> bool:
-        return (
-            self.handwriting_safe_low_threshold < self.handwriting_accept_threshold
-            and self.non_text_safe_low_threshold < self.non_text_accept_threshold
-        )
+        return self.local_ocr_safe_threshold < self.vision_required_threshold
 
 
 def default_threshold_grid() -> list[ThresholdCandidate]:
-    """Bounded deterministic dual-risk threshold search grid."""
+    """Bounded deterministic route-first threshold search grid."""
 
+    local_safe = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40]
+    vision_req = [0.45, 0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85]
     hw_accept = [0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85]
-    hw_safe = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40]
-    nt_accept = [0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85]
-    nt_safe = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40]
     out: list[ThresholdCandidate] = []
-    for ha in hw_accept:
-        for hs in hw_safe:
-            if not (hs < ha):
+    for ls in local_safe:
+        for vr in vision_req:
+            if not (ls < vr):
                 continue
-            for na in nt_accept:
-                for ns in nt_safe:
-                    if not (ns < na):
-                        continue
-                    out.append(
-                        ThresholdCandidate(
-                            handwriting_accept_threshold=ha,
-                            handwriting_safe_low_threshold=hs,
-                            non_text_accept_threshold=na,
-                            non_text_safe_low_threshold=ns,
-                        )
+            for ha in hw_accept:
+                out.append(
+                    ThresholdCandidate(
+                        local_ocr_safe_threshold=ls,
+                        vision_required_threshold=vr,
+                        handwriting_accept_threshold=ha,
                     )
+                )
     return out
 
 
@@ -171,17 +180,29 @@ class RuntimePreprocessSpec:
     normalisation_std: tuple[float, float, float] = field(default_factory=lambda: IMAGENET_STD)
 
 
-def risk_target_for_label(label: str) -> tuple[float, float]:
-    """Map human class to dual-risk training targets."""
+def route_target_and_mask(label: str) -> tuple[float, float, float]:
+    """Map human class to (vision_required, handwriting_present, hw_loss_mask).
+
+    Uncertain is a vision_required positive with handwriting loss fully masked.
+    """
 
     if label == "printed":
-        return (0.0, 0.0)
-    if label == "handwritten":
-        return (1.0, 0.0)
+        return (0.0, 0.0, 1.0)
+    if label in ("handwritten",):
+        return (1.0, 1.0, 1.0)
+    if label == "uncertain":
+        return (1.0, 0.0, 0.0)  # HW target ignored via mask
     if label == "non_text":
-        return (0.0, 1.0)
-    raise ValueError(f"Label {label!r} is not a dual-risk training target")
+        return (1.0, 0.0, 1.0)
+    raise ValueError(f"Label {label!r} is not a route-first training target")
 
 
-def assert_risk_order() -> None:
-    assert RISK_ORDER == ("handwriting_risk", "non_text_risk")
+def risk_target_for_label(label: str) -> tuple[float, float]:
+    """Back-compat: return (vision_required, handwriting_present) without mask."""
+
+    v, h, _ = route_target_and_mask(label)
+    return (v, h)
+
+
+def assert_route_order() -> None:
+    assert ROUTE_ORDER == ("vision_required", "handwriting_present")

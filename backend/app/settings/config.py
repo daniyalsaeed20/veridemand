@@ -127,12 +127,11 @@ class Settings(BaseSettings):
     # Trust and routing thresholds (Phase 3+).
     native_trust_threshold: float = Field(default=0.75, ge=0.0, le=1.0)
     document_visual_authority_failure_ratio: float = Field(default=0.30, ge=0.0, le=1.0)
-    # Phase 5 dual-risk classifier thresholds (provisional defaults — calibrated
+    # Phase 5 route-first classifier thresholds (provisional defaults — calibrated
     # values are embedded in a production_candidate model-record when gates pass).
+    local_ocr_safe_threshold: float = Field(default=0.20, ge=0.0, le=1.0)
+    vision_required_threshold: float = Field(default=0.70, ge=0.0, le=1.0)
     handwriting_accept_threshold: float = Field(default=0.70, ge=0.0, le=1.0)
-    handwriting_safe_low_threshold: float = Field(default=0.20, ge=0.0, le=1.0)
-    non_text_accept_threshold: float = Field(default=0.70, ge=0.0, le=1.0)
-    non_text_safe_low_threshold: float = Field(default=0.20, ge=0.0, le=1.0)
     # Phase 5 reserves uncertain regions for a future vision provider (no LLM call).
     uncertain_reserved_for_vision: bool = True
     # Deprecated alias retained for env migration; prefer uncertain_reserved_for_vision.
@@ -408,13 +407,8 @@ class Settings(BaseSettings):
             raise ValueError(
                 "HANDWRITING_CLASSIFIER_REQUIRED=true requires HANDWRITING_ROUTER_ENABLED=true."
             )
-        if not (
-            self.handwriting_safe_low_threshold < self.handwriting_accept_threshold
-            and self.non_text_safe_low_threshold < self.non_text_accept_threshold
-        ):
-            raise ValueError(
-                "Dual-risk thresholds require safe_low < accept for handwriting and non_text."
-            )
+        if not (self.local_ocr_safe_threshold < self.vision_required_threshold):
+            raise ValueError("Route-first thresholds require local_ocr_safe < vision_required.")
         return self
 
     @model_validator(mode="after")

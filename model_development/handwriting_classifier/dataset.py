@@ -24,7 +24,7 @@ from backend.app.datasets.phase5.schemas import (
 from model_development.handwriting_classifier.config import CLASS_ORDER
 
 LabelSource = Literal["prototype_primary_review", "human_confirmed_handwriting_seed"]
-ModelLabel = Literal["printed", "handwritten", "non_text"]
+ModelLabel = Literal["printed", "handwritten", "uncertain", "non_text"]
 
 
 @dataclass(frozen=True)
@@ -60,9 +60,10 @@ def build_training_manifest(
     *,
     require_crop_files: bool = True,
 ) -> tuple[list[TrainingExample], list[TrainingExample], dict[str, Any]]:
-    """Build fit + uncertain-challenge manifests from human-reviewed private data.
+    """Build fit manifest from human-reviewed private data (Task B4).
 
-    Uncertain / excluded never enter the fit set.
+    Uncertain crops are training positives for vision_required (HW loss masked).
+    The second return value is an empty challenge list retained for CLI back-compat.
     Exact crop SHA duplicates contribute one canonical example.
     """
 
@@ -74,7 +75,6 @@ def build_training_manifest(
     seeds = read_jsonl(manifest_path(root, "handwriting-seed-records.jsonl"), HandwritingSeedRecord)
 
     fit_by_sha: dict[str, TrainingExample] = {}
-    challenge_by_sha: dict[str, TrainingExample] = {}
     rejected: Counter[str] = Counter()
 
     for row in resolved:
@@ -93,16 +93,18 @@ def build_training_manifest(
                 crop_id=crop.crop_id,
                 crop_sha256=crop.sha256,
                 source_group_id=crop.source_group_id,
-                label="printed",  # placeholder unused for challenge GT
+                label="uncertain",
                 label_source="prototype_primary_review",
                 review_status=row.status,
                 crop_path_private=str(path),
                 width=crop.width_px,
                 height=crop.height_px,
-                source_category="uncertain_challenge",
+                source_category="uncertain",
             )
-            # Store as challenge with original label encoded in source_category.
-            challenge_by_sha.setdefault(crop.sha256, ex)
+            if crop.sha256 in fit_by_sha:
+                rejected["uncertain_exact_duplicate"] += 1
+                continue
+            fit_by_sha[crop.sha256] = ex
             continue
 
         if not row.prototype_model_eligible:
@@ -176,8 +178,8 @@ def build_training_manifest(
         fit_by_sha[crop.sha256] = ex
 
     fit = sorted(fit_by_sha.values(), key=lambda e: (e.source_group_id, e.crop_id))
-    # Rebuild challenge with label marker — use source_category=uncertain_challenge
-    challenge = sorted(challenge_by_sha.values(), key=lambda e: (e.source_group_id, e.crop_id))
+    # Challenge list retained empty for CLI signature compatibility (B4 trains uncertain).
+    challenge: list[TrainingExample] = []
 
     counts = Counter(e.label for e in fit)
     groups = sorted({e.source_group_id for e in fit})
@@ -185,8 +187,9 @@ def build_training_manifest(
     summary: dict[str, Any] = {
         "printed": counts.get("printed", 0),
         "handwritten": counts.get("handwritten", 0),
+        "uncertain": counts.get("uncertain", 0),
         "non_text": counts.get("non_text", 0),
-        "uncertain_challenge": len(challenge),
+        "uncertain_challenge": 0,
         "source_group_count": len(groups),
         "handwriting_source_group_count": len(hw_groups),
         "rejected": dict(rejected),
@@ -203,15 +206,13 @@ def write_private_manifest(
 
     path.parent.mkdir(parents=True, exist_ok=True)
     rows = [e.to_dict() for e in examples]
-    # Strip absolute paths from committed-safe hash by hashing without path? No —
-    # private hash includes private paths; never leave the private tree.
     payload = _canonical_jsonl(rows)
     path.write_bytes(payload)
     return _sha256_bytes(payload)
 
 
 def write_deferred_held_out_manifest(path: Path) -> str:
-    """Document that no release held-out set is frozen for Task B."""
+    """Document that no release held-out set is frozen for Task B4."""
 
     rows = [
         {
@@ -219,7 +220,7 @@ def write_deferred_held_out_manifest(path: Path) -> str:
             "held_out_authorised": False,
             "crop_ids": [],
             "notes": (
-                "Task B prototype: release held-out is not frozen. "
+                "Task B4 prototype: release held-out is not frozen. "
                 "This placeholder satisfies package schema hashing only."
             ),
         }
@@ -231,13 +232,13 @@ def write_deferred_held_out_manifest(path: Path) -> str:
 
 
 def aggregate_is_expected(summary: dict[str, Any]) -> tuple[bool, str]:
-    """Soft check against Task B expected aggregates."""
+    """Soft check against Task B4 expected aggregates."""
 
     expected = {
         "printed": 221,
         "handwritten": 55,
+        "uncertain": 54,
         "non_text": 23,
-        "uncertain_challenge": 54,
         "source_group_count": 6,
         "handwriting_source_group_count": 3,
     }
