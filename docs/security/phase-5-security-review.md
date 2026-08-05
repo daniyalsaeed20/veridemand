@@ -66,6 +66,15 @@ regulatory compliance.
   Torch/Paddle `shm.dll` conflicts
 - Model-development Torch remains in `.venv-model-dev` / `--group model-dev` only
 
+## OCR readiness recovery hotfix (post-release)
+
+- Structured `ocr_runtime` on `/health/ready` (observational only; never starts loads)
+- Operator `POST /api/v1/runtime/ocr/retry` reuses the same worker init path; does
+  not restart the OS backend process
+- Sanitized readiness payloads: no stack traces, secrets, private paths, or OCR text
+- Test injection (`OCR_TEST_*`) defaults off and is rejected when `APP_ENV=production`
+- UI Retry OCR / Check connection; backend-unreachable is not presented as OCR retry
+
 ## Privacy
 
 - Classifier APIs and health messages must not include document text, crop

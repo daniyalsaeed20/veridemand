@@ -313,3 +313,41 @@ transition. Phase 5 does not implement that adapter.
 ```text
 PHASE 5 PASSED
 ```
+
+---
+
+## Post-release hotfix — OCR readiness recovery
+
+Branch: `phase-05-ocr-readiness-ux` (from `phase-5-handwriting-routing-v1` /
+`f085a82`). Does **not** rewrite the Phase 5 PASSED decision above. Does **not**
+start Phase 6.
+
+### Problem
+
+The Documents & queue card showed a generic warning:
+
+“Printed OCR is still starting or unavailable. Check runtime readiness.”
+
+That message conflated cold start, configuration failure, model absence, Windows
+DLL conflicts, and backend disconnects.
+
+### Delivered
+
+- Structured OCR runtime state/stages/error codes on `GET /health/ready`
+  (`ocr_runtime`)
+- Truthful startup progress (stage label, Step N of 5, elapsed time)
+- Guarded `POST /api/v1/runtime/ocr/retry` (202; shared init path; no OS process restart)
+- Distinct UI for starting / ready / retryable failure / terminal failure /
+  disabled / backend unreachable (Check connection)
+- Sanitized diagnostics; test injection defaults off
+
+### Boundaries preserved
+
+- Handwriting page reservation unchanged
+- `HANDWRITING_PAGE_VISION_FALLBACK_ENABLED` default remains `false`
+- No OCR model/threshold/routing quality changes
+- No OpenAI / vision provider / Phase 6 implementation
+
+Primary docs: [ocr-runtime-readiness.md](../architecture/ocr-runtime-readiness.md),
+[ocr-runtime-recovery.md](../operations/ocr-runtime-recovery.md),
+[ocr-readiness-retry-acceptance.md](../evaluation/ocr-readiness-retry-acceptance.md).
