@@ -264,6 +264,7 @@ PRIVATE_SUBDIRS: Final[tuple[str, ...]] = (
     "locks",
     "backups",
     "coverage",
+    "detector-first",
 )
 MANIFEST_FILES: Final[tuple[str, ...]] = (
     "document-manifest.jsonl",
@@ -288,4 +289,22 @@ MANIFEST_FILES: Final[tuple[str, ...]] = (
     "handwriting-seed-queue.jsonl",
     "handwriting-seed-events.jsonl",
     "handwriting-seed-records.jsonl",
+    "detector-first-region-manifest.jsonl",
+    "detector-first-label-transfer.jsonl",
 )
+
+# Phase 5 Task C0 — detector-first private corpus (separate from post-recognition crops).
+DETECTOR_FIRST_CORPUS_VERSION: Final = "phase5-detector-first-regions-v1"
+DETECTOR_FIRST_MATCH_VERSION: Final = "phase5-detector-first-match-v1"
+DETECTOR_FIRST_LABEL_TRANSFER_VERSION: Final = "phase5-detector-first-label-transfer-v1"
+# Strict geometry identity for label transfer (normalised bbox L∞ + IoU).
+DETECTOR_FIRST_STRICT_BBOX_L_INF: Final = 1e-4
+DETECTOR_FIRST_STRICT_IOU: Final = 0.98
+# Loose overlap rejected for label transfer; used only for coverage diagnostics.
+DETECTOR_FIRST_LOOSE_IOU: Final = 0.50
+# Legacy vs detector-first region matching (IoU on normalised bboxes).
+DETECTOR_FIRST_COMPARE_IOU: Final = 0.50
+# Handwriting-seed coverage: contain / near-exact / fragment thresholds.
+DETECTOR_FIRST_SEED_EXACT_IOU: Final = 0.90
+DETECTOR_FIRST_SEED_CONTAIN_IOU: Final = 0.50
+DETECTOR_FIRST_SEED_FRAGMENT_IOU: Final = 0.25
