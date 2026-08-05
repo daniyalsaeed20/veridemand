@@ -105,10 +105,15 @@ async def process_documents(
         worker = getattr(request.app.state, "ocr_worker_manager", None)
         ready = bool(worker is not None and getattr(worker, "ready", False))
         if not ready:
+            message = "Printed OCR is not ready."
+            if worker is not None and hasattr(worker, "runtime_status"):
+                status_obj = worker.runtime_status()
+                if getattr(status_obj, "user_message", None):
+                    message = str(status_obj.user_message)
             raise ApiException(
                 status_code=503,
                 code=ErrorCode.OCR_WORKER_NOT_READY,
-                message=("Printed OCR is still starting or unavailable. Check runtime readiness."),
+                message=message,
             )
     queued, ignored = await coordinator.enqueue_documents(session, payload.document_ids)
     return ProcessResponse(

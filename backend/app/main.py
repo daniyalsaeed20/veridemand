@@ -101,7 +101,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
                     "pid": os.getpid(),
                 },
             )
-            await ocr_worker_manager.start()
+            await ocr_worker_manager.ensure_started()
             logging.getLogger("veridemand").info(
                 "OCR worker startup finished",
                 extra={

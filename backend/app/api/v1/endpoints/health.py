@@ -98,6 +98,9 @@ async def health_ready(request: Request, response: Response) -> ReadinessRespons
     state = HealthService.overall_state(checks)
     if state is HealthState.NOT_READY:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    ocr_runtime = service.ocr_runtime_status()
+    if ocr_runtime is not None and ocr_runtime.retry_after_seconds is not None:
+        response.headers["Retry-After"] = str(ocr_runtime.retry_after_seconds)
     identity = _identity_kwargs(settings)
     return ReadinessResponse(
         status=cast(Literal["ready", "degraded", "not_ready"], state.value),
@@ -105,6 +108,7 @@ async def health_ready(request: Request, response: Response) -> ReadinessRespons
         timestamp=datetime.now(UTC),
         request_id=get_request_id(request),
         checks=checks,
+        ocr_runtime=ocr_runtime,
         version=str(identity["version"]),
         application_version=str(identity["application_version"]),
         git_commit=cast(str | None, identity["git_commit"]),

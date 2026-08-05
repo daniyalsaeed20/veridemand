@@ -14,6 +14,7 @@ from typing import Protocol
 
 from backend.app.canonical.libreoffice import LibreOfficeService
 from backend.app.contracts.health import CheckState, DependencyCheck, HealthState
+from backend.app.contracts.ocr_runtime import OcrRuntimeStatus
 from backend.app.settings.config import Settings
 from backend.app.storage import paths
 
@@ -37,6 +38,8 @@ class _Closable(Protocol):
 class _OcrWorkerReady(Protocol):
     @property
     def ready(self) -> bool: ...
+
+    def runtime_status(self) -> object: ...
 
 
 class HealthService:
@@ -578,11 +581,16 @@ class HealthService:
         worker = self._ocr_worker_manager
         ready = bool(worker is not None and worker.ready)
         if not ready:
+            message = "OCR worker is not ready."
+            if worker is not None:
+                status = worker.runtime_status()
+                if isinstance(status, OcrRuntimeStatus) and status.user_message:
+                    message = status.user_message
             return DependencyCheck(
                 name="paddle_ocr",
                 status=CheckState.FAIL,
                 required=True,
-                message="OCR worker is not ready.",
+                message=message,
             )
         check = DependencyCheck(
             name="paddle_ocr",
@@ -617,6 +625,38 @@ class HealthService:
         ]
         checks.extend(self._future_checks())
         return checks
+
+    def ocr_runtime_status(self) -> OcrRuntimeStatus | None:
+        """Return structured OCR readiness when a worker manager is attached."""
+
+        worker = self._ocr_worker_manager
+        if worker is None:
+            if not self._settings.ocr_enabled:
+                from backend.app.contracts.ocr_runtime import (
+                    OcrComponentStatus,
+                    OcrRuntimeErrorCode,
+                    OcrRuntimeState,
+                )
+                from backend.app.extraction.visual.ocr_readiness import (
+                    operator_hint_for,
+                    user_message_for,
+                )
+
+                return OcrRuntimeStatus(
+                    state=OcrRuntimeState.DISABLED,
+                    ready=False,
+                    retryable=False,
+                    error_code=OcrRuntimeErrorCode.OCR_DISABLED,
+                    user_message=user_message_for(OcrRuntimeErrorCode.OCR_DISABLED),
+                    operator_hint=operator_hint_for(OcrRuntimeErrorCode.OCR_DISABLED),
+                    detector_status=OcrComponentStatus.NOT_APPLICABLE,
+                    recognizer_status=OcrComponentStatus.NOT_APPLICABLE,
+                    model_verification_status=OcrComponentStatus.NOT_APPLICABLE,
+                )
+            return None
+        status = worker.runtime_status()
+        assert isinstance(status, OcrRuntimeStatus)
+        return status
 
     @staticmethod
     def overall_state(checks: Sequence[DependencyCheck]) -> HealthState:

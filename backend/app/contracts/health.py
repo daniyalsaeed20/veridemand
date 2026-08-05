@@ -9,6 +9,7 @@ from typing import Literal
 from pydantic import Field
 
 from backend.app.contracts.base import ApiModel
+from backend.app.contracts.ocr_runtime import OcrRuntimeStatus
 
 
 class HealthState(StrEnum):
@@ -94,3 +95,10 @@ class ReadinessResponse(ApiModel):
     timestamp: datetime = Field(description="Timezone-aware UTC time of the response.")
     request_id: str = Field(description="Correlates the response with server logs.")
     checks: list[DependencyCheck] = Field(description="Individual dependency check results.")
+    ocr_runtime: OcrRuntimeStatus | None = Field(
+        default=None,
+        description=(
+            "Structured printed-OCR runtime readiness when OCR is enabled or explicitly disabled; "
+            "null only when the runtime manager is unavailable."
+        ),
+    )

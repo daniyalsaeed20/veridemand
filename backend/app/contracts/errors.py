@@ -117,6 +117,7 @@ class ErrorCode(StrEnum):
     OCR_WORKER_START_FAILED = "ocr_worker_start_failed"
     OCR_WORKER_CRASHED = "ocr_worker_crashed"
     OCR_WORKER_RESTART_LIMIT = "ocr_worker_restart_limit"
+    OCR_RETRY_NOT_ALLOWED = "ocr_retry_not_allowed"
     OCR_MODEL_NOT_FOUND = "ocr_model_not_found"
     OCR_MODEL_LOAD_FAILED = "ocr_model_load_failed"
     OCR_RUNTIME_UNAVAILABLE = "ocr_runtime_unavailable"

@@ -916,28 +916,91 @@ def process_document(request: VisualWorkerRequest, adapter: PaddleOcrAdapter) ->
 def run_worker_loop() -> int:
     logging.basicConfig(level=logging.INFO)
     emit_message({"type": "worker.starting"})
+
+    import os
+
+    from backend.app.contracts.ocr_runtime import OcrRuntimeErrorCode, OcrRuntimeStage
+    from backend.app.extraction.visual.ocr_readiness import (
+        classify_exception,
+        operator_hint_for,
+        sanitize_technical_detail,
+        user_message_for,
+    )
+    from backend.app.settings.config import Settings
+
+    settings = Settings()
+    delay = float(settings.ocr_test_startup_delay_seconds or 0.0)
+    if delay > 0:
+        time.sleep(delay)
+
+    fail_code = (settings.ocr_test_fail_once_code or settings.ocr_test_fail_code or "").strip()
+    fail_once = bool(settings.ocr_test_fail_once_code)
+    if fail_code:
+        try:
+            injected = OcrRuntimeErrorCode(fail_code)
+        except ValueError:
+            injected = OcrRuntimeErrorCode.OCR_UNKNOWN_FAILURE
+        if fail_once:
+            # Consume one-shot injection for this worker process only.
+            os.environ.pop("OCR_TEST_FAIL_ONCE_CODE", None)
+        emit_message(
+            {
+                "type": "worker.failed",
+                "error_code": injected.value,
+                "operation": "test_inject",
+                "component": "ocr_worker",
+                "exception_type": "TestInjectedFailure",
+                "user_message": user_message_for(injected),
+                "operator_hint": operator_hint_for(injected),
+                "technical_detail": sanitize_technical_detail(f"test_inject:{injected.value}"),
+            }
+        )
+        return 1
+
+    def _on_stage(stage: OcrRuntimeStage) -> None:
+        emit_message({"type": "worker.stage", "stage": stage.value})
+
     try:
         config = _config_from_env_settings()
         adapter = PaddleOcrAdapter(config)
-        adapter.load()
+        adapter.load(on_stage=_on_stage)
     except VisualOcrError as exc:
+        readiness_code, detail = classify_exception(
+            Exception(exc.exception_type or exc.message),
+            operation=exc.operation,
+            legacy_code=exc.code,
+        )
+        # Prefer embedded readiness code from exception_type when present.
+        if exc.exception_type and ":" in exc.exception_type:
+            maybe = exc.exception_type.split(":", 1)[1]
+            with contextlib.suppress(ValueError):
+                readiness_code = OcrRuntimeErrorCode(maybe)
         emit_message(
             {
-                "type": "error",
+                "type": "worker.failed",
+                "error_code": readiness_code.value,
                 "code": exc.code.value,
                 "operation": exc.operation,
                 "component": exc.failing_component,
                 "exception_type": exc.exception_type,
+                "user_message": user_message_for(readiness_code),
+                "operator_hint": operator_hint_for(readiness_code),
+                "technical_detail": detail,
             }
         )
         return 1
     except Exception as exc:
         _bounded_stderr(traceback.format_exc()[-_STDERR_MAX_BYTES:])
+        readiness_code, detail = classify_exception(exc, operation="paddleocr_init")
         emit_message(
             {
-                "type": "error",
+                "type": "worker.failed",
+                "error_code": readiness_code.value,
                 "code": ErrorCode.OCR_MODEL_LOAD_FAILED.value,
                 "exception_type": type(exc).__name__,
+                "user_message": user_message_for(readiness_code),
+                "operator_hint": operator_hint_for(readiness_code),
+                "technical_detail": detail,
             }
         )
         return 1

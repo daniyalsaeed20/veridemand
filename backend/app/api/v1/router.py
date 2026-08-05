@@ -13,6 +13,7 @@ from backend.app.api.v1.endpoints import canonical as canonical_endpoints
 from backend.app.api.v1.endpoints import documents as document_endpoints
 from backend.app.api.v1.endpoints import jobs as job_endpoints
 from backend.app.api.v1.endpoints import native as native_endpoints
+from backend.app.api.v1.endpoints import runtime as runtime_endpoints
 from backend.app.api.v1.endpoints import sessions as session_endpoints
 from backend.app.api.v1.endpoints import visual as visual_endpoints
 
@@ -23,3 +24,4 @@ router.include_router(canonical_endpoints.router)
 router.include_router(native_endpoints.router)
 router.include_router(visual_endpoints.router)
 router.include_router(job_endpoints.router)
+router.include_router(runtime_endpoints.router)

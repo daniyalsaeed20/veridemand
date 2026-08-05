@@ -4159,6 +4159,18 @@
         "title": "NormalisedPolygon",
         "type": "object"
       },
+      "OcrComponentStatus": {
+        "description": "Coarse status for detector / recognizer / model verification.",
+        "enum": [
+          "pending",
+          "in_progress",
+          "ready",
+          "failed",
+          "not_applicable"
+        ],
+        "title": "OcrComponentStatus",
+        "type": "string"
+      },
       "OcrPassComparison": {
         "additionalProperties": false,
         "description": "Typed comparison of primary vs fallback OCR passes.",
@@ -4319,6 +4331,284 @@
         ],
         "title": "OcrRecognitionStatus",
         "type": "string"
+      },
+      "OcrRetryAcceptedResponse": {
+        "additionalProperties": false,
+        "description": "202 Accepted response for POST /api/v1/runtime/ocr/retry.",
+        "properties": {
+          "attempt_id": {
+            "description": "Initialization attempt identifier.",
+            "title": "Attempt Id",
+            "type": "string"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OcrRuntimeStage"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Current startup stage when known."
+          },
+          "state": {
+            "$ref": "#/components/schemas/OcrRuntimeState",
+            "description": "Current OCR runtime state after accepting retry."
+          },
+          "status_url": {
+            "const": "/health/ready",
+            "default": "/health/ready",
+            "description": "Observational readiness URL for status polling.",
+            "title": "Status Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "attempt_id",
+          "state"
+        ],
+        "title": "OcrRetryAcceptedResponse",
+        "type": "object"
+      },
+      "OcrRuntimeErrorCode": {
+        "description": "Stable OCR readiness / recovery error codes (snake_case).",
+        "enum": [
+          "ocr_disabled",
+          "ocr_configuration_invalid",
+          "ocr_models_missing",
+          "ocr_model_integrity_failed",
+          "ocr_dependency_import_failed",
+          "ocr_dll_load_failed",
+          "ocr_detector_load_failed",
+          "ocr_recognizer_load_failed",
+          "ocr_warmup_failed",
+          "ocr_startup_timeout",
+          "ocr_out_of_memory",
+          "ocr_initialization_already_running",
+          "ocr_unknown_failure",
+          "backend_unreachable"
+        ],
+        "title": "OcrRuntimeErrorCode",
+        "type": "string"
+      },
+      "OcrRuntimeStage": {
+        "description": "Operator-facing startup stages (progress steps 1-5).",
+        "enum": [
+          "checking_configuration",
+          "verifying_models",
+          "loading_detector",
+          "loading_recognizer",
+          "warming_up"
+        ],
+        "title": "OcrRuntimeStage",
+        "type": "string"
+      },
+      "OcrRuntimeState": {
+        "description": "Process-wide OCR runtime lifecycle state.",
+        "enum": [
+          "not_started",
+          "starting",
+          "loading_detector",
+          "loading_recognizer",
+          "warming_up",
+          "ready",
+          "failed",
+          "disabled"
+        ],
+        "title": "OcrRuntimeState",
+        "type": "string"
+      },
+      "OcrRuntimeStatus": {
+        "additionalProperties": false,
+        "description": "Structured OCR runtime readiness status for operators and the UI.",
+        "properties": {
+          "attempt_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque identifier for the current initialization attempt.",
+            "title": "Attempt Id"
+          },
+          "attempt_number": {
+            "default": 0,
+            "description": "Monotonic initialization attempt counter.",
+            "minimum": 0.0,
+            "title": "Attempt Number",
+            "type": "integer"
+          },
+          "attempt_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "UTC time when the current attempt started.",
+            "title": "Attempt Started At"
+          },
+          "detector_status": {
+            "$ref": "#/components/schemas/OcrComponentStatus",
+            "default": "pending",
+            "description": "Detector load status."
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OcrRuntimeErrorCode"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Stable failure code when state is failed or disabled."
+          },
+          "last_transition_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "UTC time of the last state/stage transition.",
+            "title": "Last Transition At"
+          },
+          "model_verification_status": {
+            "$ref": "#/components/schemas/OcrComponentStatus",
+            "default": "pending",
+            "description": "Local model verification status."
+          },
+          "operator_hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Likely corrective action for the operator.",
+            "title": "Operator Hint"
+          },
+          "ready": {
+            "description": "True when printed OCR can accept work.",
+            "title": "Ready",
+            "type": "boolean"
+          },
+          "recognizer_status": {
+            "$ref": "#/components/schemas/OcrComponentStatus",
+            "default": "pending",
+            "description": "Recognizer load status."
+          },
+          "retry_after_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Suggested client delay before the next readiness poll.",
+            "title": "Retry After Seconds"
+          },
+          "retryable": {
+            "description": "True when an operator Retry OCR action may succeed after correction.",
+            "title": "Retryable",
+            "type": "boolean"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OcrRuntimeStage"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Active or last startup stage when applicable."
+          },
+          "stage_count": {
+            "default": 5,
+            "description": "Total startup progress steps.",
+            "minimum": 1.0,
+            "title": "Stage Count",
+            "type": "integer"
+          },
+          "stage_index": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "1-based progress step when a startup stage is active.",
+            "title": "Stage Index"
+          },
+          "stage_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Human-readable label for the current stage.",
+            "title": "Stage Label"
+          },
+          "state": {
+            "$ref": "#/components/schemas/OcrRuntimeState",
+            "description": "Current OCR runtime lifecycle state."
+          },
+          "technical_detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sanitized technical summary (no secrets, paths, OCR text, or stack traces).",
+            "title": "Technical Detail"
+          },
+          "user_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Operator-readable explanation of the current state.",
+            "title": "User Message"
+          }
+        },
+        "required": [
+          "state",
+          "ready",
+          "retryable"
+        ],
+        "title": "OcrRuntimeStatus",
+        "type": "object"
       },
       "OcrSourceMode": {
         "description": "Page text authority for Phase 4 OCR results.",
@@ -7233,6 +7523,17 @@
             "description": "Git commit SHA when available in development; never a filesystem path.",
             "title": "Git Commit"
           },
+          "ocr_runtime": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OcrRuntimeStatus"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Structured printed-OCR runtime readiness when OCR is enabled or explicitly disabled; null only when the runtime manager is unavailable."
+          },
           "process_id": {
             "description": "Operating-system process id of the API worker.",
             "title": "Process Id",
@@ -9255,6 +9556,58 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/runtime/ocr/retry": {
+      "post": {
+        "description": "Start or rejoin OCR worker initialization without restarting the API process.",
+        "operationId": "retry_ocr_runtime_api_v1_runtime_ocr_retry_post",
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OcrRetryAcceptedResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "OCR retry is not allowed."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "OCR initialization already running."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorEnvelope"
+                }
+              }
+            },
+            "description": "OCR runtime is unavailable."
+          }
+        },
+        "summary": "Retry printed OCR runtime initialization",
+        "tags": [
+          "runtime"
+        ]
+      }
+    },
     "/api/v1/sessions": {
       "post": {
         "operationId": "create_session_api_v1_sessions_post",

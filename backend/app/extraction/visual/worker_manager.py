@@ -9,16 +9,35 @@ import os
 import subprocess
 import sys
 import threading
+import uuid
 from collections.abc import Awaitable, Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from backend.app.contracts.errors import ErrorCode
+from backend.app.contracts.ocr_runtime import (
+    OCR_PROGRESS_STAGES,
+    OCR_STAGE_LABELS,
+    OcrComponentStatus,
+    OcrRuntimeErrorCode,
+    OcrRuntimeStage,
+    OcrRuntimeState,
+    OcrRuntimeStatus,
+)
 from backend.app.extraction.visual.errors import VisualOcrError
 from backend.app.extraction.visual.model_paths import resolve_ocr_model_root
 from backend.app.extraction.visual.models import OcrRuntimeConfig, VisualWorkerRequest
+from backend.app.extraction.visual.ocr_readiness import (
+    classify_exception,
+    classify_worker_failure_payload,
+    is_retryable,
+    operator_hint_for,
+    sanitize_technical_detail,
+    user_message_for,
+)
 from backend.app.extraction.visual.protocol import encode_message, parse_message
 from backend.app.observability.stage_log import log_progress
 from backend.app.processing.cancellation import CancellationToken, JobCancelledError
@@ -28,6 +47,10 @@ logger = logging.getLogger("veridemand.visual.worker_manager")
 
 ProgressCallback = Callable[[dict[str, Any]], Awaitable[None] | None]
 _STDERR_MAX_BYTES = 8_192
+
+
+def _utcnow() -> datetime:
+    return datetime.now(UTC)
 
 
 def _popen_kwargs() -> dict[str, Any]:
@@ -115,6 +138,34 @@ class OcrWorkerManager:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._active: ActiveRequest | None = None
         self._last_restart_reason: str | None = None
+        self._init_running = False
+        self._attempt_id: str | None = None
+        self._attempt_number = 0
+        self._attempt_started_at: datetime | None = None
+        self._last_transition_at: datetime | None = None
+        self._runtime_state = (
+            OcrRuntimeState.DISABLED if not settings.ocr_enabled else OcrRuntimeState.NOT_STARTED
+        )
+        self._runtime_stage: OcrRuntimeStage | None = None
+        self._error_code: OcrRuntimeErrorCode | None = (
+            OcrRuntimeErrorCode.OCR_DISABLED if not settings.ocr_enabled else None
+        )
+        self._user_message: str | None = (
+            user_message_for(OcrRuntimeErrorCode.OCR_DISABLED) if not settings.ocr_enabled else None
+        )
+        self._operator_hint: str | None = None
+        if not settings.ocr_enabled:
+            self._operator_hint = operator_hint_for(OcrRuntimeErrorCode.OCR_DISABLED)
+        self._technical_detail: str | None = None
+        self._detector_status = OcrComponentStatus.NOT_APPLICABLE
+        self._recognizer_status = OcrComponentStatus.NOT_APPLICABLE
+        self._model_verification_status = OcrComponentStatus.NOT_APPLICABLE
+        self._test_fail_once_consumed = False
+        self._retry_task: asyncio.Task[None] | None = None
+        if settings.ocr_enabled:
+            self._detector_status = OcrComponentStatus.PENDING
+            self._recognizer_status = OcrComponentStatus.PENDING
+            self._model_verification_status = OcrComponentStatus.PENDING
 
     @property
     def ready(self) -> bool:
@@ -126,6 +177,10 @@ class OcrWorkerManager:
     def generation(self) -> int:
         return self._state.generation
 
+    @property
+    def initialization_running(self) -> bool:
+        return self._init_running
+
     def describe(self) -> dict[str, object]:
         return {
             "ready": self.ready,
@@ -136,6 +191,9 @@ class OcrWorkerManager:
             "stderr_reader_alive": self._state.stderr_reader_alive,
             "active_request_id": self._active.request_id if self._active else None,
             "last_restart_reason": self._last_restart_reason,
+            "attempt_id": self._attempt_id,
+            "attempt_number": self._attempt_number,
+            "runtime_state": self._runtime_state.value,
         }
 
     def last_stderr_snippet(self) -> str:
@@ -144,6 +202,200 @@ class OcrWorkerManager:
         if not self._stderr_chunks:
             return ""
         return b"".join(self._stderr_chunks).decode("utf-8", errors="replace")[-500:]
+
+    def runtime_status(self) -> OcrRuntimeStatus:
+        """Return the structured OCR readiness snapshot (observational)."""
+
+        if not self._settings.ocr_enabled:
+            return OcrRuntimeStatus(
+                state=OcrRuntimeState.DISABLED,
+                stage=None,
+                stage_index=None,
+                stage_label=None,
+                attempt_id=self._attempt_id,
+                attempt_number=self._attempt_number,
+                attempt_started_at=self._attempt_started_at,
+                last_transition_at=self._last_transition_at,
+                ready=False,
+                retryable=False,
+                error_code=OcrRuntimeErrorCode.OCR_DISABLED,
+                user_message=user_message_for(OcrRuntimeErrorCode.OCR_DISABLED),
+                operator_hint=operator_hint_for(OcrRuntimeErrorCode.OCR_DISABLED),
+                technical_detail=None,
+                retry_after_seconds=None,
+                detector_status=OcrComponentStatus.NOT_APPLICABLE,
+                recognizer_status=OcrComponentStatus.NOT_APPLICABLE,
+                model_verification_status=OcrComponentStatus.NOT_APPLICABLE,
+            )
+
+        stage = self._runtime_stage
+        stage_index = None
+        stage_label = None
+        if stage is not None:
+            try:
+                stage_index = OCR_PROGRESS_STAGES.index(stage) + 1
+            except ValueError:
+                stage_index = None
+            stage_label = OCR_STAGE_LABELS.get(stage)
+
+        ready = self.ready
+        state = self._runtime_state
+        if ready:
+            state = OcrRuntimeState.READY
+
+        retryable = False
+        if state is OcrRuntimeState.FAILED and self._error_code is not None:
+            retryable = is_retryable(self._error_code)
+        elif state is OcrRuntimeState.NOT_STARTED:
+            retryable = True
+        elif state in {
+            OcrRuntimeState.STARTING,
+            OcrRuntimeState.LOADING_DETECTOR,
+            OcrRuntimeState.LOADING_RECOGNIZER,
+            OcrRuntimeState.WARMING_UP,
+        }:
+            retryable = False
+
+        retry_after: int | None = None
+        if (state is OcrRuntimeState.FAILED and retryable) or state is OcrRuntimeState.NOT_STARTED:
+            retry_after = 5
+        elif state not in {OcrRuntimeState.READY, OcrRuntimeState.DISABLED, OcrRuntimeState.FAILED}:
+            retry_after = 1
+
+        user_message = self._user_message
+        if user_message is None:
+            if state is OcrRuntimeState.NOT_STARTED:
+                user_message = "Printed OCR has not started yet."
+            elif state is OcrRuntimeState.READY:
+                user_message = "Printed OCR is ready"
+            elif state in {
+                OcrRuntimeState.STARTING,
+                OcrRuntimeState.LOADING_DETECTOR,
+                OcrRuntimeState.LOADING_RECOGNIZER,
+                OcrRuntimeState.WARMING_UP,
+            }:
+                user_message = "Printed OCR is starting"
+
+        return OcrRuntimeStatus(
+            state=state,
+            stage=stage if state is not OcrRuntimeState.READY else None,
+            stage_index=stage_index if state is not OcrRuntimeState.READY else None,
+            stage_label=stage_label if state is not OcrRuntimeState.READY else None,
+            attempt_id=self._attempt_id,
+            attempt_number=self._attempt_number,
+            attempt_started_at=self._attempt_started_at,
+            last_transition_at=self._last_transition_at,
+            ready=ready,
+            retryable=retryable,
+            error_code=self._error_code if state is OcrRuntimeState.FAILED else None,
+            user_message=user_message,
+            operator_hint=self._operator_hint if state is OcrRuntimeState.FAILED else None,
+            technical_detail=self._technical_detail if state is OcrRuntimeState.FAILED else None,
+            retry_after_seconds=retry_after,
+            detector_status=self._detector_status,
+            recognizer_status=self._recognizer_status,
+            model_verification_status=self._model_verification_status,
+        )
+
+    def _transition(
+        self,
+        *,
+        state: OcrRuntimeState | None = None,
+        stage: OcrRuntimeStage | None = None,
+        clear_error: bool = False,
+        error_code: OcrRuntimeErrorCode | None = None,
+        user_message: str | None = None,
+        operator_hint: str | None = None,
+        technical_detail: str | None = None,
+    ) -> None:
+        now = _utcnow()
+        self._last_transition_at = now
+        if state is not None:
+            self._runtime_state = state
+        if stage is not None:
+            self._runtime_stage = stage
+            if stage is OcrRuntimeStage.VERIFYING_MODELS:
+                self._model_verification_status = OcrComponentStatus.IN_PROGRESS
+            elif stage is OcrRuntimeStage.LOADING_DETECTOR:
+                self._model_verification_status = OcrComponentStatus.READY
+                self._detector_status = OcrComponentStatus.IN_PROGRESS
+            elif stage is OcrRuntimeStage.LOADING_RECOGNIZER:
+                self._detector_status = OcrComponentStatus.READY
+                self._recognizer_status = OcrComponentStatus.IN_PROGRESS
+            elif stage is OcrRuntimeStage.WARMING_UP:
+                self._recognizer_status = OcrComponentStatus.READY
+        if clear_error:
+            self._error_code = None
+            self._user_message = user_message
+            self._operator_hint = None
+            self._technical_detail = None
+        if error_code is not None:
+            self._error_code = error_code
+            self._user_message = user_message or user_message_for(error_code)
+            self._operator_hint = operator_hint or operator_hint_for(error_code)
+            self._technical_detail = sanitize_technical_detail(technical_detail)
+        elif user_message is not None:
+            self._user_message = user_message
+
+    def _begin_attempt(self) -> None:
+        self._attempt_number += 1
+        self._attempt_id = str(uuid.uuid4())
+        self._attempt_started_at = _utcnow()
+        self._state.ready = False
+        self._detector_status = OcrComponentStatus.PENDING
+        self._recognizer_status = OcrComponentStatus.PENDING
+        self._model_verification_status = OcrComponentStatus.PENDING
+        self._transition(
+            state=OcrRuntimeState.STARTING,
+            stage=OcrRuntimeStage.CHECKING_CONFIGURATION,
+            clear_error=True,
+            user_message="Printed OCR is starting",
+        )
+
+    def _mark_ready(self) -> None:
+        self._state.ready = True
+        self._detector_status = OcrComponentStatus.READY
+        self._recognizer_status = OcrComponentStatus.READY
+        self._model_verification_status = OcrComponentStatus.READY
+        self._runtime_stage = None
+        self._transition(
+            state=OcrRuntimeState.READY,
+            clear_error=True,
+            user_message="Printed OCR is ready",
+        )
+
+    def _mark_failed(
+        self,
+        code: OcrRuntimeErrorCode,
+        *,
+        technical_detail: str | None = None,
+        user_message: str | None = None,
+        operator_hint: str | None = None,
+    ) -> None:
+        self._state.ready = False
+        if code in {
+            OcrRuntimeErrorCode.OCR_DETECTOR_LOAD_FAILED,
+            OcrRuntimeErrorCode.OCR_DLL_LOAD_FAILED,
+            OcrRuntimeErrorCode.OCR_OUT_OF_MEMORY,
+        }:
+            self._detector_status = OcrComponentStatus.FAILED
+        if code in {
+            OcrRuntimeErrorCode.OCR_RECOGNIZER_LOAD_FAILED,
+            OcrRuntimeErrorCode.OCR_WARMUP_FAILED,
+        }:
+            self._recognizer_status = OcrComponentStatus.FAILED
+        if code in {
+            OcrRuntimeErrorCode.OCR_MODELS_MISSING,
+            OcrRuntimeErrorCode.OCR_MODEL_INTEGRITY_FAILED,
+        }:
+            self._model_verification_status = OcrComponentStatus.FAILED
+        self._transition(
+            state=OcrRuntimeState.FAILED,
+            error_code=code,
+            user_message=user_message,
+            operator_hint=operator_hint,
+            technical_detail=technical_detail,
+        )
 
     def _env(self) -> dict[str, str]:
         env = os.environ.copy()
@@ -161,6 +413,19 @@ class OcrWorkerManager:
         env["FLAGS_onednn"] = "0"
         env["PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT"] = "0"
         env["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "True"
+        delay = float(self._settings.ocr_test_startup_delay_seconds or 0.0)
+        if delay > 0:
+            env["OCR_TEST_STARTUP_DELAY_SECONDS"] = str(delay)
+        fail_once = (self._settings.ocr_test_fail_once_code or "").strip()
+        fail_always = (self._settings.ocr_test_fail_code or "").strip()
+        if fail_once and not self._test_fail_once_consumed:
+            env["OCR_TEST_FAIL_ONCE_CODE"] = fail_once
+            self._test_fail_once_consumed = True
+        elif fail_always:
+            env["OCR_TEST_FAIL_CODE"] = fail_always
+        else:
+            env.pop("OCR_TEST_FAIL_ONCE_CODE", None)
+            env.pop("OCR_TEST_FAIL_CODE", None)
         return env
 
     def _spawn(self) -> subprocess.Popen[bytes]:
@@ -267,10 +532,97 @@ class OcrWorkerManager:
             ) from exc
 
     async def start(self) -> None:
+        await self.ensure_started()
+
+    async def ensure_started(self) -> OcrRuntimeStatus:
+        """Shared initialization entry used by lifespan and the retry endpoint."""
+
+        if not self._settings.ocr_enabled:
+            return self.runtime_status()
         async with self._lock:
             if self.ready:
-                return
-            await self._start_locked()
+                return self.runtime_status()
+            if self._init_running:
+                return self.runtime_status()
+            self._init_running = True
+            self._begin_attempt()
+        try:
+            async with self._lock:
+                if self.ready:
+                    return self.runtime_status()
+                await self._start_locked()
+        except VisualOcrError as exc:
+            code, detail = classify_exception(
+                Exception(exc.message),
+                operation=exc.operation,
+                legacy_code=exc.code,
+            )
+            if exc.operation == "await_ready" and "timed out" in exc.message.lower():
+                code = OcrRuntimeErrorCode.OCR_STARTUP_TIMEOUT
+            # Prefer failure already recorded from worker.failed.
+            if self._runtime_state is not OcrRuntimeState.FAILED:
+                self._mark_failed(code, technical_detail=detail or exc.exception_type)
+            raise
+        except Exception as exc:
+            code, detail = classify_exception(exc, operation="ensure_started")
+            if self._runtime_state is not OcrRuntimeState.FAILED:
+                self._mark_failed(code, technical_detail=detail)
+            raise
+        finally:
+            self._init_running = False
+        return self.runtime_status()
+
+    async def retry_initialization(self) -> OcrRuntimeStatus:
+        """Accept an operator OCR retry and continue initialization in the background.
+
+        Does not restart the backend operating-system process or FastAPI lifespan.
+        """
+
+        if not self._settings.ocr_enabled:
+            self._mark_failed(OcrRuntimeErrorCode.OCR_DISABLED)
+            return self.runtime_status()
+
+        status = self.runtime_status()
+        if self.ready:
+            return status
+        if self._init_running or status.state in {
+            OcrRuntimeState.STARTING,
+            OcrRuntimeState.LOADING_DETECTOR,
+            OcrRuntimeState.LOADING_RECOGNIZER,
+            OcrRuntimeState.WARMING_UP,
+        }:
+            return status
+        if status.state is OcrRuntimeState.FAILED and not status.retryable:
+            return status
+
+        async def _run() -> None:
+            async with self._lock:
+                if self.ready or self._init_running:
+                    return
+                self._init_running = True
+                if self._state.process is not None:
+                    await self._terminate_locked(reason="operator_ocr_retry")
+                self._begin_attempt()
+            try:
+                async with self._lock:
+                    await self._start_locked()
+            except Exception:
+                logger.exception(
+                    "OCR operator retry failed",
+                    extra={"component": "OcrWorkerManager", "operation": "retry_initialization"},
+                )
+                if self._runtime_state is not OcrRuntimeState.FAILED:
+                    self._mark_failed(
+                        OcrRuntimeErrorCode.OCR_UNKNOWN_FAILURE,
+                        technical_detail="operator_retry_failed",
+                    )
+            finally:
+                self._init_running = False
+
+        self._retry_task = asyncio.create_task(_run(), name="ocr-operator-retry")
+        # Yield so the task can set attempt metadata before the HTTP response.
+        await asyncio.sleep(0)
+        return self.runtime_status()
 
     async def _start_locked(self) -> None:
         self._state.ready = False
@@ -312,7 +664,46 @@ class OcrWorkerManager:
         deadline = loop.time() + self._settings.ocr_worker_startup_timeout_seconds
         while loop.time() < deadline:
             self._sync_reader_flags()
-            if process.poll() is not None:
+            try:
+                line = await asyncio.wait_for(queue.get(), timeout=0.5)
+            except TimeoutError:
+                line = None
+            if line is None and process.poll() is not None:
+                # Drain any final NDJSON before treating exit as opaque failure.
+                while True:
+                    try:
+                        line = queue.get_nowait()
+                    except asyncio.QueueEmpty:
+                        line = None
+                        break
+                    if line is None:
+                        break
+                    try:
+                        message = parse_message(line)
+                    except Exception:
+                        continue
+                    if message and message.get("type") in {"worker.failed", "error"}:
+                        code, detail = classify_worker_failure_payload(message)
+                        self._mark_failed(
+                            code,
+                            technical_detail=detail,
+                            user_message=str(message.get("user_message") or "") or None,
+                            operator_hint=str(message.get("operator_hint") or "") or None,
+                        )
+                        raise VisualOcrError(
+                            ErrorCode.OCR_WORKER_START_FAILED,
+                            "OCR worker reported startup failure.",
+                            operation="await_ready",
+                            failing_component="OcrWorkerManager",
+                            exception_type=str(message.get("exception_type") or code.value),
+                            worker_exit_code=process.returncode,
+                        )
+                if self._runtime_state is not OcrRuntimeState.FAILED:
+                    detail = sanitize_technical_detail(f"worker_exit:{process.returncode}")
+                    self._mark_failed(
+                        OcrRuntimeErrorCode.OCR_UNKNOWN_FAILURE,
+                        technical_detail=detail,
+                    )
                 raise VisualOcrError(
                     ErrorCode.OCR_WORKER_START_FAILED,
                     "OCR worker exited during startup.",
@@ -320,17 +711,8 @@ class OcrWorkerManager:
                     failing_component="OcrWorkerManager",
                     worker_exit_code=process.returncode,
                 )
-            try:
-                line = await asyncio.wait_for(queue.get(), timeout=1.0)
-            except TimeoutError:
-                continue
             if line is None:
-                raise VisualOcrError(
-                    ErrorCode.OCR_WORKER_START_FAILED,
-                    "OCR worker stdout closed during startup.",
-                    operation="await_ready",
-                    failing_component="OcrWorkerManager",
-                )
+                continue
             try:
                 message = parse_message(line)
             except Exception:
@@ -339,7 +721,15 @@ class OcrWorkerManager:
                     extra={"component": "OcrWorkerManager", "operation": "await_ready"},
                 )
                 continue
-            if message and message.get("type") == "worker.starting":
+            if not message:
+                continue
+            msg_type = message.get("type")
+            if msg_type == "worker.starting":
+                self._transition(
+                    state=OcrRuntimeState.STARTING,
+                    stage=OcrRuntimeStage.CHECKING_CONFIGURATION,
+                    user_message="Printed OCR is starting",
+                )
                 log_progress(
                     "ocr_worker_loading_models",
                     worker_pid=process.pid,
@@ -348,8 +738,27 @@ class OcrWorkerManager:
                     operation_status="started",
                 )
                 continue
-            if message and message.get("type") == "worker.ready":
-                self._state.ready = True
+            if msg_type == "worker.stage":
+                stage_raw = str(message.get("stage") or "")
+                try:
+                    stage = OcrRuntimeStage(stage_raw)
+                except ValueError:
+                    continue
+                state_map = {
+                    OcrRuntimeStage.CHECKING_CONFIGURATION: OcrRuntimeState.STARTING,
+                    OcrRuntimeStage.VERIFYING_MODELS: OcrRuntimeState.STARTING,
+                    OcrRuntimeStage.LOADING_DETECTOR: OcrRuntimeState.LOADING_DETECTOR,
+                    OcrRuntimeStage.LOADING_RECOGNIZER: OcrRuntimeState.LOADING_RECOGNIZER,
+                    OcrRuntimeStage.WARMING_UP: OcrRuntimeState.WARMING_UP,
+                }
+                self._transition(
+                    state=state_map.get(stage, OcrRuntimeState.STARTING),
+                    stage=stage,
+                    user_message="Printed OCR is starting",
+                )
+                continue
+            if msg_type == "worker.ready":
+                self._mark_ready()
                 self._sync_reader_flags()
                 log_progress(
                     "ocr_worker_ready",
@@ -361,14 +770,27 @@ class OcrWorkerManager:
                     reason_code="enable_mkldnn=false",
                 )
                 return
-            if message and message.get("type") == "worker.failed":
+            if msg_type in {"worker.failed", "error"}:
+                code, detail = classify_worker_failure_payload(message)
+                self._mark_failed(
+                    code,
+                    technical_detail=detail,
+                    user_message=str(message.get("user_message") or "") or None,
+                    operator_hint=str(message.get("operator_hint") or "") or None,
+                )
+                await self._terminate_locked(reason="worker_startup_failed")
                 raise VisualOcrError(
                     ErrorCode.OCR_WORKER_START_FAILED,
                     "OCR worker reported startup failure.",
                     operation="await_ready",
                     failing_component="OcrWorkerManager",
+                    exception_type=str(message.get("exception_type") or code.value),
                 )
         await self._terminate_locked(reason="worker_startup_timeout")
+        self._mark_failed(
+            OcrRuntimeErrorCode.OCR_STARTUP_TIMEOUT,
+            technical_detail="startup_timeout",
+        )
         raise VisualOcrError(
             ErrorCode.OCR_WORKER_START_FAILED,
             "OCR worker startup timed out.",
@@ -476,6 +898,7 @@ class OcrWorkerManager:
         previous_gen = self._state.generation
         await self._terminate_locked(reason=reason)
         self._state.restarts += 1
+        self._begin_attempt()
         await self._start_locked()
         log_progress(
             "ocr_worker_restart",

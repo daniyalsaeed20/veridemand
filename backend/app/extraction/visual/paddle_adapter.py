@@ -18,11 +18,13 @@ import hashlib
 import logging
 import re
 import unicodedata
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 from backend.app.contracts.errors import ErrorCode
+from backend.app.contracts.ocr_runtime import OcrRuntimeStage
 from backend.app.extraction.visual.detect_first_types import (
     DetectedTextRegion,
     DetectorRuntimeParams,
@@ -31,9 +33,12 @@ from backend.app.extraction.visual.detect_first_types import (
 )
 from backend.app.extraction.visual.errors import VisualOcrError
 from backend.app.extraction.visual.models import OcrRuntimeConfig, RawOcrLine, RawOcrWord
+from backend.app.extraction.visual.ocr_readiness import classify_exception
 from PIL import Image
 
 logger = logging.getLogger("veridemand.visual.paddle_adapter")
+
+StageCallback = Callable[[OcrRuntimeStage], None]
 
 _WORD_KEYS = (
     "rec_words",
@@ -141,10 +146,14 @@ class PaddleOcrAdapter:
     def paddlex_version(self) -> str | None:
         return self._paddlex_version
 
-    def load(self) -> None:
+    def load(self, *, on_stage: StageCallback | None = None) -> None:
         """Import, construct, and warm PaddleOCR from local model directories."""
 
         import os
+
+        def _stage(stage: OcrRuntimeStage) -> None:
+            if on_stage is not None:
+                on_stage(stage)
 
         # Windows + Linux: force plain CPU. Do not rely on Paddle defaults.
         os.environ.setdefault("FLAGS_use_mkldnn", "0")
@@ -156,6 +165,7 @@ class PaddleOcrAdapter:
             max(1, int(self._config.ocr_cpu_threads))
         )
 
+        _stage(OcrRuntimeStage.CHECKING_CONFIGURATION)
         try:
             import paddle
             import paddleocr
@@ -168,6 +178,15 @@ class PaddleOcrAdapter:
                 failing_component="paddle_adapter",
                 exception_type=type(exc).__name__,
             ) from exc
+        except OSError as exc:
+            readiness_code, _ = classify_exception(exc, operation="import_paddle")
+            raise VisualOcrError(
+                ErrorCode.OCR_RUNTIME_UNAVAILABLE,
+                "Printed OCR dependency failed to load.",
+                operation="import_paddle",
+                failing_component="paddle_adapter",
+                exception_type=f"{type(exc).__name__}:{readiness_code.value}",
+            ) from exc
 
         self._paddleocr_version = getattr(paddleocr, "__version__", None)
         self._paddlepaddle_version = getattr(paddle, "__version__", None)
@@ -177,6 +196,7 @@ class PaddleOcrAdapter:
             resolve_ocr_model_root,
         )
 
+        _stage(OcrRuntimeStage.VERIFYING_MODELS)
         model_root = resolve_ocr_model_root(self._config.ocr_model_root)
         try:
             det_dir, rec_dir = require_local_model_dirs(
@@ -215,6 +235,7 @@ class PaddleOcrAdapter:
             "text_det_unclip_ratio": self._config.ocr_text_det_unclip_ratio,
             "text_rec_score_thresh": 0.0,
         }
+        _stage(OcrRuntimeStage.LOADING_DETECTOR)
         try:
             self._ocr = PaddleOCR(engine=self._config.ocr_engine, **kwargs)
         except TypeError:
@@ -225,15 +246,35 @@ class PaddleOcrAdapter:
                 self._ocr = PaddleOCR(engine=self._config.ocr_engine, **fallback)
             except TypeError:
                 self._ocr = PaddleOCR(**fallback)
-        except Exception as exc:
+        except MemoryError as exc:
+            raise VisualOcrError(
+                ErrorCode.OCR_MODEL_LOAD_FAILED,
+                "Printed OCR ran out of memory while loading models.",
+                operation="paddleocr_init",
+                failing_component="paddle_adapter",
+                exception_type=type(exc).__name__,
+            ) from exc
+        except OSError as exc:
+            readiness_code, _ = classify_exception(exc, operation="paddleocr_init")
             raise VisualOcrError(
                 ErrorCode.OCR_MODEL_LOAD_FAILED,
                 "Failed to load PaddleOCR models.",
                 operation="paddleocr_init",
                 failing_component="paddle_adapter",
-                exception_type=type(exc).__name__,
+                exception_type=f"{type(exc).__name__}:{readiness_code.value}",
+            ) from exc
+        except Exception as exc:
+            readiness_code, _ = classify_exception(exc, operation="paddleocr_init")
+            raise VisualOcrError(
+                ErrorCode.OCR_MODEL_LOAD_FAILED,
+                "Failed to load PaddleOCR models.",
+                operation="paddleocr_init",
+                failing_component="paddle_adapter",
+                exception_type=f"{type(exc).__name__}:{readiness_code.value}",
             ) from exc
 
+        _stage(OcrRuntimeStage.LOADING_RECOGNIZER)
+        _stage(OcrRuntimeStage.WARMING_UP)
         self._schema = self._validate_schema()
         logger.info(
             "PaddleOCR loaded",

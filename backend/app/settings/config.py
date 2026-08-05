@@ -189,6 +189,10 @@ class Settings(BaseSettings):
     # Acceptance / test only: fail visual after native, before OCR inference.
     # Never enable in production.
     ocr_inject_visual_failure: bool = False
+    # Test-only OCR readiness injection (ignored / forbidden in production).
+    ocr_test_startup_delay_seconds: float = Field(default=0.0, ge=0.0, le=120.0)
+    ocr_test_fail_once_code: str | None = None
+    ocr_test_fail_code: str | None = None
     ocr_device: str = "cpu"
     ocr_engine: str = "paddle_static"
     ocr_detection_model_name: str = "PP-OCRv5_mobile_det"
@@ -501,6 +505,15 @@ class Settings(BaseSettings):
             raise ValueError(
                 "OCR_SAVE_RENDERED_PAGES cannot be true in production without "
                 "OCR_ALLOW_SAVE_RENDERED_IN_PRODUCTION."
+            )
+        if self.app_env.strip().lower() == "production" and (
+            self.ocr_test_startup_delay_seconds > 0
+            or self.ocr_test_fail_once_code
+            or self.ocr_test_fail_code
+            or self.ocr_inject_visual_failure
+        ):
+            raise ValueError(
+                "OCR test injection settings cannot be enabled when APP_ENV=production."
             )
         return self
 
