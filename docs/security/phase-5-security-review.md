@@ -1,18 +1,19 @@
-# Phase 5 security review (Tasks 2–B3)
+# Phase 5 security review (Tasks 2–B4)
 
 Engineering controls for the handwriting classifier foundation, private crop
-dataset tooling, Task B/B2 three-class baselines, and Task B3 dual-risk
-safety-first router. This document does **not** claim regulatory compliance.
+dataset tooling, Task B/B2/B3 failed baselines, and Task B4 route-first
+vision-reservation router. This document does **not** claim regulatory
+compliance.
 
 ## Local inference
 
 - ONNX Runtime CPU only (`CPUExecutionProvider` requested explicitly)
 - No Phase 5 network calls; no OpenAI client
 - No automatic model download at startup
-- Dual-risk packages use `independent_binary_risk_logits`; historical v1
-  three-class fixtures remain test-only
+- Route-first packages use `route_first_independent_logits` (schema v3);
+  historical v1 three-class and v2 dual-risk fixtures remain test/baseline only
 
-## Model development (B / B2 / B3)
+## Model development (B / B2 / B3 / B4)
 
 - Torch / Torchvision / onnxscript remain in the `model-dev` group only
 - Forbidden from `backend/app` imports via dependency-boundary check
@@ -25,28 +26,23 @@ safety-first router. This document does **not** claim regulatory compliance.
   paths, text, or montages)
 - Handwritten ASAP (Zenodo 8088866, CC BY 4.0) via explicit prepare only;
   MD5 + local SHA-256 verified; NIST SD19 / EMNIST forbidden
-- Derived ONNX package may be committed only if Task B3 safety + slice gates
-  pass; router remains disabled; no OCR integration in B3
-- No new private labels and no additional public corpus in Task B3
+- Derived ONNX package may be committed only if Task B4 safety + retention
+  gates pass; router remains disabled; no OCR integration in B4
+- No new private labels and no additional public corpus in Task B4
 
 ## Privacy
 
 - Classifier APIs and health messages must not include document text, crop
   bytes, absolute model paths, or stack traces
-- Risk scores remain internal; public evidence fields are constrained enums
+- Route scores remain internal; public evidence fields are constrained enums
   and versions only
 - Private Phase 5 crops/manifests/reviews/overlays/pilot queues live only under
   `fixtures/private/phase5/` (gitignored except `README.example.md`)
 - Dataset manifests omit OCR text / transcripts / case names
 
-## Dependency boundary
+## Non-regression
 
-- Production: `onnxruntime` 1.28.0
-- model-dev: `torch` 2.6.0, `torchvision` 0.21.0, `onnx` 1.22.0
-- No OpenCV app imports; no local HTR; no OpenAI
-
-## Residual risks
-
-- Six source groups limit release claims (prototype OOF only)
-- Domain shift between ASAP short answers and project signatures/cursive
-- Disabled router does not yet enforce the Paddle-bypass invariant in live OCR
+- Live OCR / Paddle / page routes / progress (65% cap) / fair scheduling
+  unchanged
+- `HANDWRITING_ROUTER_ENABLED=false` by default
+- No Phase 6 vision provider calls

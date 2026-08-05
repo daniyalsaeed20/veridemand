@@ -29,6 +29,14 @@ No `production_candidate` package was published (safety gate failed), so
 production ORT load / warm-inference package benchmarks were not recorded for
 B3. Unit-test dual-risk fixture continues to exercise CPU ORT session paths.
 
+## Task B4 route-first
+
+LOSGO wall clock on this host (CPU): ≈ **2593 s** (~43 min) for three configs
+× six folds (train-export exit 3, gates failed).
+
+No `production_candidate` package published. Unit-test route-first fixture
+exercises CPU ORT session reuse.
+
 ## Privacy
 
 Benchmarks and reports use aggregate timings only; no document text logs.

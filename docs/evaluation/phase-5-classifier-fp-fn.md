@@ -38,7 +38,20 @@ Focal achieves zero cursive/signature unsafe routes only under near-universal
 abstention (not a valid production candidate).
 
 Uncertain challenge routing was not final-fitted (gates failed before package
-export). Challenge crops remain unused for training.
+export).
+
+## Task B4 route-first
+
+Decision: `ROUTE-FIRST MODEL STILL NOT SAFE`
+
+| Config | HW→printed | Unc→printed | NT→printed | Printed retention | Notes |
+|--------|----------:|------------:|-----------:|------------------:|-------|
+| weighted_bce | 1 | 2 | 0 | 0.35 | HW + uncertain leaks |
+| asymmetric_bce | 0 | 1 | 0 | 0.21 | one uncertain leak |
+| focal | 0 | 0 | 0 | 0.14 | safety clear; retention fail |
+
+Failing keys: `handwritten_to_printed`, `uncertain_to_printed`,
+`signature_to_printed`, `printed_retention`.
 
 ## Privacy
 

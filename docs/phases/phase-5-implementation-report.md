@@ -1,6 +1,6 @@
 # Phase 5 implementation report
 
-**Status:** Phase 5 in progress — safety-first model remains below project routing gates.
+**Status:** Phase 5 in progress — Task B4 route-first under evaluation; B/B2/B3 remain failed baselines.
 
 See `docs/phases/phase-5-recovery-audit.md` for ChatGPT handoff and Tasks A–E.
 
@@ -121,6 +121,23 @@ Evidence-based design freeze in `docs/phases/phase-5-preflight-audit.md`.
   → **`SAFETY-FIRST MODEL STILL NOT SAFE`**
   (focal clears HW leaks only with printed retention ≈19%; weighted/asymmetric
   still leak HW→printed/non_text)
+- **No** production_candidate package; **no** OCR wiring; router remains disabled; **no** Phase 6/7
+
+### Task B4 — Route-first vision-reservation classifier
+
+- Replaced dual-risk heads with `vision_required` + `handwriting_present`
+- Uncertain (54) is a `vision_required` training positive with HW loss masked
+- Non-text remains unsafe for Paddle but the model never emits `non_text`
+- Losses (≤3): weighted BCE, asymmetric vision FN, focal on route head
+- ASAP medium (350) + synthetic non-text (300) training-only; project LOSGO gates
+- Decision policy: printed only below `local_ocr_safe`; handwritten when route
+  and HW accept; else uncertain
+- Package schema v3: `route_logits` `[batch,2]`, `route_first_independent_logits`
+- ADRs 0068–0071; B/B2/B3 retained as failed baselines
+- Decision: see `model_development/.artifacts/task_b4_decision.json`
+  → **`ROUTE-FIRST MODEL STILL NOT SAFE`**
+  (focal clears HW/uncertain→printed only with printed retention ≈14%;
+  weighted/asymmetric still leak or fail retention)
 - **No** production_candidate package; **no** OCR wiring; router remains disabled; **no** Phase 6/7
 
 ## Not done (later tasks — recovery path Tasks C–E)
