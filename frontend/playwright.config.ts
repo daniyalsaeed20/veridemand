@@ -22,8 +22,23 @@ const nodeProcess = (
   globalThis as { process?: { env?: Record<string, string | undefined>; platform?: string } }
 ).process;
 const isCI = Boolean(nodeProcess?.env?.CI);
-const pythonBin =
-  nodeProcess?.platform === "win32" ? ".venv\\Scripts\\python.exe" : ".venv/bin/python";
+const isWin = nodeProcess?.platform === "win32";
+const rootDir = path.resolve(configDir, "..");
+
+/** Prefer OCR-only venv on Windows to avoid Torch/Paddle shm.dll conflicts. */
+function resolvePythonBin(): string {
+  const candidates = isWin
+    ? [".venv-ocr\\Scripts\\python.exe", ".venv\\Scripts\\python.exe"]
+    : [".venv-ocr/bin/python", ".venv/bin/python"];
+  for (const rel of candidates) {
+    if (existsSync(path.join(rootDir, rel))) {
+      return rel;
+    }
+  }
+  return candidates[candidates.length - 1]!;
+}
+
+const pythonBin = resolvePythonBin();
 
 type PortProbe = "match" | "mismatch" | "occupied" | "free" | "unavailable";
 
