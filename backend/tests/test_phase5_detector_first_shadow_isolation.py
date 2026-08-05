@@ -27,6 +27,7 @@ def test_worker_does_not_call_detect_first_apis() -> None:
     assert "detect_text" not in text
     assert "recognise_text_crops" not in text
     assert "load_detect_first_modules" not in text
+    assert "load_shadow_detector" not in text
     assert "handwriting_router" not in text
 
 
@@ -35,11 +36,13 @@ def test_combined_recognise_surface_preserved() -> None:
     assert "def recognise(" in text
     assert "def detect_text(" in text
     assert "def recognise_text_crops(" in text
+    assert "def load_shadow_detector(" in text
     assert "self._ocr.predict" in text
     # Combined load must not initialise detect-first modules.
     load_block = text.split("def load(self)", 1)[1].split("def _synthetic_image", 1)[0]
     assert "create_model" not in load_block
     assert "load_detect_first_modules" not in load_block
+    assert "load_shadow_detector" not in load_block
 
 
 def test_service_repair_callbacks_unchanged_combined_helpers() -> None:
@@ -48,6 +51,7 @@ def test_service_repair_callbacks_unchanged_combined_helpers() -> None:
     assert "detect_and_recognise_crop" in text
     assert "detect_text" not in text
     assert "recognise_text_crops" not in text
+    assert "load_shadow_detector" not in text
 
 
 def test_health_does_not_require_detect_first() -> None:
@@ -66,4 +70,12 @@ def test_fair_scheduling_setting_defaults_unchanged() -> None:
 def test_corpus_script_not_imported_by_app_startup() -> None:
     main = (ROOT / "backend/app/main.py").read_text(encoding="utf-8")
     assert "build_detector_first_corpus" not in main
+    assert "calibrate_detector_recall" not in main
+    assert "bootstrap_server_det" not in main
     assert "detector_first" not in main
+
+
+def test_server_detector_not_default_model() -> None:
+    settings = Settings()
+    assert settings.ocr_detection_model_name == "PP-OCRv5_mobile_det"
+    assert "server" not in settings.ocr_detection_model_name
