@@ -295,6 +295,7 @@ MANIFEST_FILES: Final[tuple[str, ...]] = (
 
 # Phase 5 Task C0 — detector-first private corpus (separate from post-recognition crops).
 DETECTOR_FIRST_CORPUS_VERSION: Final = "phase5-detector-first-regions-v1"
+DETECTOR_FIRST_CORPUS_VERSION_V2: Final = "phase5-detector-first-regions-v2"
 DETECTOR_FIRST_MATCH_VERSION: Final = "phase5-detector-first-match-v1"
 DETECTOR_FIRST_LABEL_TRANSFER_VERSION: Final = "phase5-detector-first-label-transfer-v1"
 # Strict geometry identity for label transfer (normalised bbox L∞ + IoU).
@@ -308,3 +309,23 @@ DETECTOR_FIRST_COMPARE_IOU: Final = 0.50
 DETECTOR_FIRST_SEED_EXACT_IOU: Final = 0.90
 DETECTOR_FIRST_SEED_CONTAIN_IOU: Final = 0.50
 DETECTOR_FIRST_SEED_FRAGMENT_IOU: Final = 0.25
+
+# Phase 5 Task C1 — detector recall calibration (offline/shadow only).
+DETECTOR_CALIBRATION_VERSION: Final = "phase5-detector-calibration-v1"
+DETECTOR_DUAL_MERGE_VERSION: Final = "phase5-dual-detector-merge-v1"
+DETECTOR_CANDIDATE_REPORT_VERSION: Final = "phase5-detector-candidate-report-v1"
+SERVER_DETECTION_MODEL_NAME: Final = "PP-OCRv5_server_det"
+MOBILE_DETECTION_MODEL_NAME: Final = "PP-OCRv5_mobile_det"
+# Reject configs that emit near-full-page boxes (normalised area).
+DETECTOR_PATHOLOGICAL_BOX_AREA: Final = 0.85
+# Dual-detector merge: equivalent / neighbour separation.
+DETECTOR_MERGE_EQUIVALENT_IOU: Final = 0.70
+DETECTOR_MERGE_NEIGHBOUR_IOU: Final = 0.15
+# Hard cap on materially different calibration configs (no unbounded search).
+DETECTOR_CALIBRATION_MAX_CONFIGS: Final = 12
+# Default Phase 4 / C0 mobile detector knobs (must match Settings / OcrRuntimeConfig).
+DETECTOR_DEFAULT_THRESH: Final = 0.30
+DETECTOR_DEFAULT_BOX_THRESH: Final = 0.60
+DETECTOR_DEFAULT_UNCLIP_RATIO: Final = 1.50
+DETECTOR_DEFAULT_LIMIT_SIDE_LEN: Final = 1600
+DETECTOR_DEFAULT_LIMIT_TYPE: Final = "max"

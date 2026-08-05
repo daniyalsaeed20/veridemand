@@ -6,6 +6,10 @@ without the optional ``ocr`` dependency group installed.
 Phase 5 Task C0 adds optional detector-first modules via PaddleX
 ``create_model`` against the same configured local det/rec directories. Those
 modules are never loaded by the default Phase 4 combined ``load()`` path.
+
+Phase 5 Task C1 extends shadow ``detect_text`` with optional predict-time
+detector knobs and an explicit offline alternate detection model loader.
+Live ``load()`` behaviour is unchanged.
 """
 
 from __future__ import annotations
@@ -21,6 +25,7 @@ import numpy as np
 from backend.app.contracts.errors import ErrorCode
 from backend.app.extraction.visual.detect_first_types import (
     DetectedTextRegion,
+    DetectorRuntimeParams,
     RecognisedCropResult,
     RecognitionStatus,
 )
@@ -104,6 +109,7 @@ class PaddleOcrAdapter:
         self._det_dir: str | None = None
         self._rec_dir: str | None = None
         self._paddlex_version: str | None = None
+        self._shadow_detection_model_name: str | None = None
 
     @property
     def schema(self) -> PaddleSchemaInfo | None:
@@ -120,6 +126,16 @@ class PaddleOcrAdapter:
     @property
     def detect_first_loaded(self) -> bool:
         return self._det_model is not None and self._rec_model is not None
+
+    @property
+    def detector_only_loaded(self) -> bool:
+        """True when a shadow detector is loaded (recognition optional)."""
+
+        return self._det_model is not None
+
+    @property
+    def shadow_detection_model_name(self) -> str | None:
+        return self._shadow_detection_model_name
 
     @property
     def paddlex_version(self) -> str | None:
@@ -486,6 +502,7 @@ class PaddleOcrAdapter:
                 exception_type=type(exc).__name__,
             ) from exc
 
+        self._shadow_detection_model_name = self._config.ocr_detection_model_name
         logger.info(
             "PaddleX detect-first modules loaded",
             extra={
@@ -497,14 +514,134 @@ class PaddleOcrAdapter:
             },
         )
 
+    def load_shadow_detector(
+        self,
+        *,
+        detection_model_name: str,
+        load_recognizer: bool = False,
+    ) -> None:
+        """Load an explicit offline detection model (shadow/calibration only).
+
+        Never called by the live Phase 4 worker. Recognition remains optional so
+        seed-coverage grids can load a second detector without replacing the
+        configured mobile recognizer pairing used for corpus recognition checks.
+        """
+
+        import os
+
+        os.environ.setdefault("FLAGS_use_mkldnn", "0")
+        os.environ.setdefault("FLAGS_onednn", "0")
+        os.environ.setdefault("PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT", "0")
+        os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
+        os.environ["FLAGS_paddle_num_threads"] = str(  # noqa: SIM112
+            max(1, int(self._config.ocr_cpu_threads))
+        )
+
+        try:
+            import paddle
+
+            create_model = _import_paddlex_create_model()
+            import paddlex
+        except ImportError as exc:
+            raise VisualOcrError(
+                ErrorCode.OCR_RUNTIME_UNAVAILABLE,
+                "PaddleX/PaddleOCR runtime is not installed for shadow detector.",
+                operation="import_paddlex_shadow",
+                failing_component="paddle_adapter",
+                exception_type=type(exc).__name__,
+            ) from exc
+        except OSError as exc:
+            raise VisualOcrError(
+                ErrorCode.OCR_RUNTIME_UNAVAILABLE,
+                "PaddleX import failed (possible Windows OCR/Torch env conflict).",
+                operation="import_paddlex_shadow",
+                failing_component="paddle_adapter",
+                exception_type=type(exc).__name__,
+            ) from exc
+
+        self._paddlepaddle_version = getattr(paddle, "__version__", None)
+        self._paddlex_version = getattr(paddlex, "__version__", None)
+        if self._paddleocr_version is None:
+            try:
+                from importlib.metadata import version as _pkg_version
+
+                self._paddleocr_version = _pkg_version("paddleocr")
+            except Exception:
+                self._paddleocr_version = None
+
+        from backend.app.extraction.visual.model_paths import (
+            require_local_detection_dir,
+            require_local_model_dirs,
+            resolve_ocr_model_root,
+        )
+
+        model_root = resolve_ocr_model_root(self._config.ocr_model_root)
+        try:
+            if load_recognizer:
+                det_dir, rec_dir = require_local_model_dirs(
+                    model_root,
+                    detection_model_name=detection_model_name,
+                    recognition_model_name=self._config.ocr_recognition_model_name,
+                )
+            else:
+                det_dir = require_local_detection_dir(
+                    model_root, detection_model_name=detection_model_name
+                )
+                rec_dir = None
+        except FileNotFoundError as exc:
+            raise VisualOcrError(
+                ErrorCode.OCR_MODEL_NOT_FOUND,
+                "Local shadow detection model directory is missing or incomplete.",
+                operation="resolve_shadow_detector_dir",
+                failing_component="paddle_adapter",
+                exception_type=type(exc).__name__,
+            ) from exc
+
+        self._det_dir = str(det_dir)
+        try:
+            self._det_model = create_model(detection_model_name, model_dir=self._det_dir)
+            if load_recognizer and rec_dir is not None:
+                self._rec_dir = str(rec_dir)
+                self._rec_model = create_model(
+                    self._config.ocr_recognition_model_name,
+                    model_dir=self._rec_dir,
+                )
+        except Exception as exc:
+            self._det_model = None
+            if load_recognizer:
+                self._rec_model = None
+            raise VisualOcrError(
+                ErrorCode.OCR_MODEL_LOAD_FAILED,
+                "Failed to load shadow PaddleX detection model.",
+                operation="paddlex_create_model_shadow",
+                failing_component="paddle_adapter",
+                exception_type=type(exc).__name__,
+            ) from exc
+
+        self._shadow_detection_model_name = detection_model_name
+        logger.info(
+            "PaddleX shadow detector loaded",
+            extra={
+                "paddlex_version": self._paddlex_version,
+                "detection_model": detection_model_name,
+                "recognizer_loaded": bool(load_recognizer and self._rec_model is not None),
+            },
+        )
+
     def detect_text(
         self,
         image: Image.Image,
         *,
         page_index: int = 0,
         limit_side_len: int | None = None,
+        params: DetectorRuntimeParams | None = None,
     ) -> list[DetectedTextRegion]:
-        """Run text detection only. Never calls recognition. Never logs text."""
+        """Run text detection only. Never calls recognition. Never logs text.
+
+        Optional ``params`` supply predict-time thresh/box/unclip/limit knobs for
+        Task C1 calibration. When omitted, behaviour matches Task C0 (only an
+        optional ``limit_side_len`` override is applied).
+        """
 
         if self._det_model is None:
             raise VisualOcrError(
@@ -513,11 +650,17 @@ class PaddleOcrAdapter:
                 operation="detect_text",
                 failing_component="paddle_adapter",
             )
+        if params is not None:
+            params.validate()
         array = np.asarray(image.convert("RGB"))
         width_px, height_px = int(image.size[0]), int(image.size[1])
         predict_kwargs: dict[str, Any] = {}
-        if limit_side_len is not None:
-            predict_kwargs["text_det_limit_side_len"] = int(limit_side_len)
+        if params is not None:
+            predict_kwargs.update(params.to_predict_kwargs())
+            if limit_side_len is not None:
+                predict_kwargs["limit_side_len"] = int(limit_side_len)
+        elif limit_side_len is not None:
+            predict_kwargs["limit_side_len"] = int(limit_side_len)
         try:
             try:
                 raw = (
@@ -560,7 +703,7 @@ class PaddleOcrAdapter:
         candidates.sort(key=lambda row: (row[0], row[1], row[2]))
 
         regions: list[DetectedTextRegion] = []
-        detector_name = self._config.ocr_detection_model_name
+        detector_name = self._shadow_detection_model_name or self._config.ocr_detection_model_name
         detector_version = self._paddlex_version or self._paddleocr_version
         for order_index, (_y, _x, _neg, poly, score) in enumerate(candidates):
             try:

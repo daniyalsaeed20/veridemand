@@ -27,6 +27,15 @@ def resolve_ocr_model_root(configured: Path | str) -> Path:
     return path
 
 
+def require_local_detection_dir(model_root: Path, *, detection_model_name: str) -> Path:
+    """Return a local detection model dir or raise ``FileNotFoundError``."""
+
+    det_dir = model_root / detection_model_name
+    if not det_dir.is_dir() or not any(det_dir.iterdir()):
+        raise FileNotFoundError(f"detection model directory missing or empty: {det_dir.name}")
+    return det_dir
+
+
 def require_local_model_dirs(
     model_root: Path,
     *,
@@ -39,10 +48,8 @@ def require_local_model_dirs(
     tempted to download into an empty placeholder folder.
     """
 
-    det_dir = model_root / detection_model_name
+    det_dir = require_local_detection_dir(model_root, detection_model_name=detection_model_name)
     rec_dir = model_root / recognition_model_name
-    if not det_dir.is_dir() or not any(det_dir.iterdir()):
-        raise FileNotFoundError(f"detection model directory missing or empty: {det_dir.name}")
     if not rec_dir.is_dir() or not any(rec_dir.iterdir()):
         raise FileNotFoundError(f"recognition model directory missing or empty: {rec_dir.name}")
     return det_dir, rec_dir

@@ -514,3 +514,55 @@ def process_page_regions(
             path.write_bytes(data)
         out.append(record)
     return out
+
+
+def measure_regions_in_memory(
+    *,
+    page: Image.Image,
+    page_id: str,
+    document_id: str,
+    source_group_id: str,
+    page_index: int,
+    regions: list[DetectedTextRegion],
+    recognise: RecogniseFn | None,
+    low_thr: float,
+    min_thr: float,
+    page_render_sha256: str = "0" * 64,
+) -> list[DetectorFirstRegionRecord]:
+    """Build region records and optionally recognise without writing crops.
+
+    Used by Task C1 calibration corpus/sample runs so Task C0 v1 artefacts are
+    not overwritten.
+    """
+
+    from io import BytesIO
+
+    _ = page_index
+    built: list[tuple[DetectorFirstRegionRecord, Image.Image]] = []
+    for region in regions:
+        rel = f"detector-first/calib-ephemeral/{region.region_id}.png"
+        record, data = build_region_crop(
+            page=page,
+            region=region,
+            page_id=page_id,
+            document_id=document_id,
+            source_group_id=source_group_id,
+            page_render_sha256=page_render_sha256,
+            crop_relpath=rel,
+        )
+        crop_img = Image.open(BytesIO(data)).convert("RGB")
+        built.append((record, crop_img))
+
+    if recognise is None or not built:
+        return [r for r, _ in built]
+
+    payloads = [(r.region_id, img) for r, img in built]
+    results = recognise(payloads)
+    by_id = {r.region_id: r for r in results}
+    updated: list[DetectorFirstRegionRecord] = []
+    for record, _img in built:
+        rec = by_id.get(record.region_id)
+        if rec is not None:
+            record = apply_recognition_metadata(record, rec, low_thr=low_thr, min_thr=min_thr)
+        updated.append(record)
+    return updated

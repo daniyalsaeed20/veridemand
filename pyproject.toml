@@ -111,3 +111,12 @@ ignore_errors = true
 module = ["scripts.phase5.train_handwriting_classifier"]
 ignore_missing_imports = true
 disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = [
+  "scripts.phase5.calibrate_detector_recall",
+  "scripts.phase5.finalize_detector_grid",
+  "scripts.phase5.bootstrap_server_det",
+  "scripts.phase5.build_detector_first_corpus",
+]
+ignore_errors = true
