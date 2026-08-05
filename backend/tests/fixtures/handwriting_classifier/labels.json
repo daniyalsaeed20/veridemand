@@ -1,8 +1,8 @@
 {
-  "output_semantics": "independent_binary_risk_logits",
+  "output_semantics": "route_first_independent_logits",
   "outputs": [
-    "handwriting_risk",
-    "non_text_risk"
+    "vision_required",
+    "handwriting_present"
   ],
   "public_outcomes": [
     "printed",

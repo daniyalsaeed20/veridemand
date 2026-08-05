@@ -1,9 +1,9 @@
 {
-  "schema_version": "phase5-handwriting-classifier-v2",
-  "model_family": "handwriting_style_cnn_dual_risk",
-  "model_version": "test-fixture-dual-risk-v1",
+  "schema_version": "phase5-handwriting-classifier-v3",
+  "model_family": "handwriting_style_cnn_route_first",
+  "model_version": "test-fixture-route-first-v1",
   "release_status": "test_fixture",
-  "training_code_version": "task-b3-fixture-generator",
+  "training_code_version": "task-b4-fixture-generator",
   "onnx_opset": 13,
   "onnx_ir_version": 8,
   "input_tensor_name": "input",
@@ -34,12 +34,12 @@
     0.5,
     0.5
   ],
-  "output_tensor_name": "risk_logits",
+  "output_tensor_name": "route_logits",
   "output_dtype": "float32",
-  "output_semantics": "independent_binary_risk_logits",
+  "output_semantics": "route_first_independent_logits",
   "class_order": [
-    "handwriting_risk",
-    "non_text_risk"
+    "vision_required",
+    "handwriting_present"
   ],
   "public_outcomes": [
     "printed",
@@ -47,20 +47,19 @@
     "uncertain",
     "non_text"
   ],
-  "threshold_set_version": "test-fixture-dual-risk",
+  "threshold_set_version": "test-fixture-route-first",
+  "local_ocr_safe_threshold": 0.2,
+  "vision_required_threshold": 0.7,
   "handwriting_accept_threshold": 0.7,
-  "handwriting_safe_low_threshold": 0.2,
-  "non_text_accept_threshold": 0.7,
-  "non_text_safe_low_threshold": 0.2,
   "training_manifest_sha256": null,
   "validation_manifest_sha256": null,
   "held_out_manifest_sha256": null,
-  "model_sha256": "b6ff4c773a68e37fab8a0c70549b7bb0bbd1402bd4d71da6b3df98b55ae91364",
-  "pretrained_weight_provenance": "synthetic-dual-risk-fixture",
+  "model_sha256": "51ff7ee7fccd4cd3815b4f2c881d3729546150e0fef593d832b4d6ed8e578aa9",
+  "pretrained_weight_provenance": "synthetic-route-first-fixture",
   "model_provenance": "scripts/generate_handwriting_classifier_fixture.py",
   "licence": "Proprietary-test-fixture",
-  "created_at": "2026-08-04T20:13:49.286184+00:00",
+  "created_at": "2026-08-05T08:10:12.823517+00:00",
   "supported_onnxruntime_version": ">=1.19,<2",
   "expected_execution_provider": "CPUExecutionProvider",
-  "notes": "Deterministic Task B3 dual-risk unit-test fixture. Not for production."
+  "notes": "Deterministic Task B4 route-first unit-test fixture. Not for production."
 }

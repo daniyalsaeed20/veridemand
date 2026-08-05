@@ -1,8 +1,7 @@
-"""Phase 5 Task B historical tests retargeted to dual-risk (Task B3).
+"""Phase 5 Task B historical tests retargeted to route-first (Task B4).
 
-Task B three-class softmax remains a documented prototype baseline —
-superseded for safety evaluation. Active assertions cover shared tooling
-still used by Task B3 (LOSGO helpers, synth non-text, preprocess).
+Task B / B2 / B3 remain documented failed baselines — superseded for safety
+evaluation. Active assertions cover shared tooling still used by Task B4.
 """
 
 from __future__ import annotations
@@ -45,8 +44,8 @@ def _ex(crop_id: str, group: str, label: str, path: str = "/tmp/x.png") -> Train
     )
 
 
-def test_training_labels_fixed() -> None:
-    assert TRAINING_LABELS == ("printed", "handwritten", "non_text")
+def test_training_labels_include_uncertain() -> None:
+    assert TRAINING_LABELS == ("printed", "handwritten", "uncertain", "non_text")
     assert len(CANDIDATE_CONFIGS) <= 3
 
 
@@ -119,25 +118,30 @@ def test_runtime_preprocess_matches_manual_pipeline() -> None:
 
 
 def test_config_hash_stable() -> None:
-    a = TrainConfig(name="dual_risk_weighted_bce")
-    b = TrainConfig(name="dual_risk_weighted_bce")
+    a = TrainConfig(name="route_first_weighted_bce")
+    b = TrainConfig(name="route_first_weighted_bce")
     assert a.config_hash() == b.config_hash()
-    c = TrainConfig(name="dual_risk_weighted_bce", stage1_epochs=99)
+    c = TrainConfig(name="route_first_weighted_bce", stage1_epochs=99)
     assert a.config_hash() != c.config_hash()
 
 
-def test_uncertain_excluded_from_class_counts() -> None:
-    examples = [_ex("a", "g", "printed"), _ex("b", "g", "handwritten"), _ex("c", "g", "non_text")]
+def test_uncertain_included_in_class_counts() -> None:
+    examples = [
+        _ex("a", "g", "printed"),
+        _ex("b", "g", "handwritten"),
+        _ex("c", "g", "uncertain"),
+        _ex("d", "g", "non_text"),
+    ]
     counts = class_counts(examples)
     assert set(counts) == set(TRAINING_LABELS)
-    assert "uncertain" not in counts
+    assert counts["uncertain"] == 1
 
 
 @pytest.mark.skipif(
     __import__("importlib").util.find_spec("torch") is None,
     reason="torch not installed (model-dev group)",
 )
-def test_model_dual_risk_logits() -> None:
+def test_model_route_first_logits() -> None:
     torch = pytest.importorskip("torch")
     from model_development.handwriting_classifier.model import build_model, parameter_counts
 

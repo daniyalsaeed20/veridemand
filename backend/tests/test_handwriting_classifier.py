@@ -1,4 +1,4 @@
-"""Phase 5 handwriting classifier unit tests (Task B3 dual-risk foundation)."""
+"""Phase 5 handwriting classifier unit tests (Task B4 route-first foundation)."""
 
 from __future__ import annotations
 
@@ -34,10 +34,9 @@ from backend.app.settings.config import Settings
 
 FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "handwriting_classifier"
 THRESH = RoutingThresholds(
+    local_ocr_safe_threshold=0.20,
+    vision_required_threshold=0.70,
     handwriting_accept_threshold=0.70,
-    handwriting_safe_low_threshold=0.20,
-    non_text_accept_threshold=0.70,
-    non_text_safe_low_threshold=0.20,
 )
 
 
@@ -58,10 +57,9 @@ def test_settings_defaults_preserve_phase4() -> None:
     settings = Settings()
     assert settings.handwriting_router_enabled is False
     assert settings.handwriting_classifier_required is False
+    assert settings.local_ocr_safe_threshold == 0.20
+    assert settings.vision_required_threshold == 0.70
     assert settings.handwriting_accept_threshold == 0.70
-    assert settings.handwriting_safe_low_threshold == 0.20
-    assert settings.non_text_accept_threshold == 0.70
-    assert settings.non_text_safe_low_threshold == 0.20
 
 
 def test_settings_reject_required_when_disabled() -> None:
@@ -73,10 +71,10 @@ def test_settings_reject_required_when_disabled() -> None:
 
 
 def test_settings_invalid_threshold_order() -> None:
-    with pytest.raises(ValueError, match="safe_low"):
+    with pytest.raises(ValueError, match="local_ocr_safe"):
         Settings(
-            handwriting_accept_threshold=0.20,
-            handwriting_safe_low_threshold=0.70,
+            local_ocr_safe_threshold=0.70,
+            vision_required_threshold=0.20,
         )
 
 
@@ -96,24 +94,19 @@ def test_settings_invalid_threshold_range() -> None:
             HandwritingDecisionReason.PRINTED_THRESHOLD_MET,
         ),
         (
-            [0.90, 0.10],
+            [0.90, 0.85],
             HandwritingClassificationOutcome.HANDWRITTEN,
             HandwritingDecisionReason.HANDWRITING_THRESHOLD_MET,
         ),
         (
-            [0.05, 0.90],
-            HandwritingClassificationOutcome.NON_TEXT,
-            HandwritingDecisionReason.NON_TEXT_THRESHOLD_MET,
+            [0.90, 0.20],
+            HandwritingClassificationOutcome.UNCERTAIN,
+            HandwritingDecisionReason.LOW_TOP_PROBABILITY,
         ),
         (
             [0.40, 0.10],
             HandwritingClassificationOutcome.UNCERTAIN,
             HandwritingDecisionReason.LOW_TOP_PROBABILITY,
-        ),
-        (
-            [0.90, 0.90],
-            HandwritingClassificationOutcome.UNCERTAIN,
-            HandwritingDecisionReason.THRESHOLD_CONFLICT,
         ),
         (
             [0.50, 0.50],
@@ -132,13 +125,13 @@ def test_routing_matrix(
     assert decision.decision_reason is expected_reason
 
 
-def test_material_handwriting_never_non_text() -> None:
-    decision = decide_routing_outcome([0.35, 0.95], THRESH)
-    assert decision.outcome is HandwritingClassificationOutcome.UNCERTAIN
-    assert decision.outcome.value != "non_text"
+def test_model_never_emits_non_text() -> None:
+    for scores in ([0.05, 0.95], [0.90, 0.10], [0.35, 0.95], [0.95, 0.95]):
+        decision = decide_routing_outcome(scores, THRESH)
+        assert decision.outcome.value != "non_text"
 
 
-def test_printed_only_when_both_safely_low() -> None:
+def test_printed_only_below_safe_threshold() -> None:
     decision = decide_routing_outcome([0.25, 0.05], THRESH)
     assert decision.outcome is HandwritingClassificationOutcome.UNCERTAIN
     decision_ok = decide_routing_outcome([0.10, 0.10], THRESH)
@@ -159,7 +152,7 @@ def test_fixture_package_verifies_with_allow_flag() -> None:
     assert result.checksum_ok is True
     assert result.runtime_provider == "CPUExecutionProvider"
     assert result.record is not None
-    assert result.record.is_dual_risk is True
+    assert result.record.is_route_first is True
 
 
 def test_test_fixture_rejected_for_production() -> None:
@@ -188,8 +181,8 @@ def test_labels_reject_uncertain_as_output(tmp_path: Path) -> None:
     (dest / "labels.json").write_text(
         json.dumps(
             {
-                "output_semantics": "independent_binary_risk_logits",
-                "outputs": ["handwriting_risk", "uncertain"],
+                "output_semantics": "route_first_independent_logits",
+                "outputs": ["vision_required", "uncertain"],
                 "public_outcomes": ["printed", "handwritten", "uncertain", "non_text"],
             }
         ),
@@ -226,10 +219,9 @@ def test_session_reuse() -> None:
         handwriting_router_enabled=True,
         handwriting_classifier_required=False,
         handwriting_classifier_path=FIXTURE_DIR,
+        local_ocr_safe_threshold=0.20,
+        vision_required_threshold=0.70,
         handwriting_accept_threshold=0.70,
-        handwriting_safe_low_threshold=0.20,
-        non_text_accept_threshold=0.70,
-        non_text_safe_low_threshold=0.20,
         ocr_enabled=False,
     )
     service = HandwritingClassifierService(settings)

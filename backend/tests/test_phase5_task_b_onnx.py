@@ -1,7 +1,7 @@
-"""Phase 5 Task B ONNX tests — superseded by Task B3 dual-risk suite.
+"""Phase 5 Task B ONNX tests — superseded by Task B4 route-first suite.
 
 Kept as a thin redirect so historical CI discovery stays green; full coverage
-lives in ``test_phase5_task_b3_onnx.py``.
+lives in ``test_phase5_task_b4_onnx.py``.
 """
 
 from __future__ import annotations
@@ -22,5 +22,5 @@ def test_historical_three_class_onnx_superseded() -> None:
 
     model = build_model(pretrained=False)
     y = model(torch.zeros(1, 3, 224, 224))
-    assert ONNX_OUTPUT_NAME == "risk_logits"
+    assert ONNX_OUTPUT_NAME == "route_logits"
     assert tuple(y.shape) == (1, 2)
