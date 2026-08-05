@@ -1,6 +1,6 @@
 # Phase 5 implementation report
 
-**Status:** Phase 5 in progress — Task B4 route-first under evaluation; B/B2/B3 remain failed baselines.
+**Status:** Phase 5 in progress — detector-first shadow pipeline established; router model must be retrained on detector-first regions before live integration.
 
 See `docs/phases/phase-5-recovery-audit.md` for ChatGPT handoff and Tasks A–E.
 
@@ -140,9 +140,24 @@ Evidence-based design freeze in `docs/phases/phase-5-preflight-audit.md`.
   weighted/asymmetric still leak or fail retention)
 - **No** production_candidate package; **no** OCR wiring; router remains disabled; **no** Phase 6/7
 
+### Task C0 — Detector-first shadow pipeline and region corpus
+
+- Separate PaddleX create_model det/rec APIs on configured PP-OCRv5_mobile_*
+  local assets (detect_text / 
+ecognise_text_crops)
+- Live Phase 4 combined PaddleOCR.predict path unchanged; shadow default off
+  (PHASE5_DETECT_FIRST_SHADOW_ENABLED=false)
+- Offline corpus: phase5-detector-first-regions-v1 via
+  pnpm phase5:detector-corpus:build|compare|coverage
+- Every detection retained before recognition (empty/failed/low-confidence kept)
+- Strict label transfer; handwriting-seed detector coverage aggregates
+- ADRs 0072–0076; architecture/eval/ops/security docs updated
+- **No** classifier training; **no** live routing; **no** Phase 6
+
 ## Not done (later tasks — recovery path Tasks C–E)
 
-- **C** Split Paddle detection from recognition and integrate classification
+- **C** Integrate classification into detect→classify→printed-recognise (after
+  router retraining on detector-first crops)
 - **D** Prove routing invariants and corpus evaluation
 - **E** Consolidate Phase 5 evidence and tag
 - Release held-out freeze remains an explicit later decision (six-group adequacy)

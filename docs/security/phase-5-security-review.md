@@ -1,9 +1,9 @@
-# Phase 5 security review (Tasks 2–B4)
+# Phase 5 security review (Tasks 2–B4 + C0)
 
 Engineering controls for the handwriting classifier foundation, private crop
-dataset tooling, Task B/B2/B3 failed baselines, and Task B4 route-first
-vision-reservation router. This document does **not** claim regulatory
-compliance.
+dataset tooling, Task B/B2/B3 failed baselines, Task B4 route-first
+vision-reservation router, and Task C0 detector-first shadow corpus. This
+document does **not** claim regulatory compliance.
 
 ## Local inference
 
@@ -12,6 +12,8 @@ compliance.
 - No automatic model download at startup
 - Route-first packages use `route_first_independent_logits` (schema v3);
   historical v1 three-class and v2 dual-risk fixtures remain test/baseline only
+- Detector-first PaddleX modules load only via explicit offline commands;
+  `PHASE5_DETECT_FIRST_SHADOW_ENABLED=false` by default
 
 ## Model development (B / B2 / B3 / B4)
 
@@ -30,6 +32,14 @@ compliance.
   gates pass; router remains disabled; no OCR integration in B4
 - No new private labels and no additional public corpus in Task B4
 
+## Detector-first corpus (Task C0)
+
+- Private detector crops/manifests under `fixtures/private/phase5/` only
+- Recognition status retained without committing OCR text
+- No classifier prediction during corpus build
+- No second model family download; reuse configured `PP-OCRv5_mobile_*` assets
+- Strict label transfer only (exact SHA or tight geometry) — no proximity labels
+
 ## Privacy
 
 - Classifier APIs and health messages must not include document text, crop
@@ -42,7 +52,9 @@ compliance.
 
 ## Non-regression
 
-- Live OCR / Paddle / page routes / progress (65% cap) / fair scheduling
-  unchanged
+- Live OCR / Paddle combined path / page routes / progress (65% cap) / fair
+  scheduling unchanged
 - `HANDWRITING_ROUTER_ENABLED=false` by default
+- Detector-first shadow default off; worker does not call `detect_text` /
+  `recognise_text_crops`
 - No Phase 6 vision provider calls
