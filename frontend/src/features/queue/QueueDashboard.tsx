@@ -94,11 +94,6 @@ export function QueueDashboard({
               {processBlockedReason}
             </Typography>
           ) : null}
-          {processBlocked && processBlockedReason && ocrPanel ? (
-            <Typography variant="caption" color="text.secondary">
-              {processBlockedReason}
-            </Typography>
-          ) : null}
 
           <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
             <CountChip label="Uploaded" value={counts.uploaded ?? 0} />

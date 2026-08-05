@@ -147,11 +147,13 @@ test.describe("OCR readiness UX", () => {
     });
 
     await page.goto("/");
-    await expect(page.getByText("Printed OCR is starting")).toBeVisible();
+    await expect(page.getByRole("status").getByText("Printed OCR is starting")).toBeVisible();
     await expect(page.getByText(/Loading recognizer/i)).toBeVisible();
     await expect(page.getByText(/Step 4 of 5/i)).toBeVisible();
     await expect(page.getByText(/starting or unavailable/i)).toHaveCount(0);
-    await expect(page.getByText("Printed OCR is ready")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("status").getByText("Printed OCR is ready")).toBeVisible({
+      timeout: 15_000,
+    });
   });
 
   test("retryable failure then Retry OCR transitions without refresh", async ({ page }) => {
@@ -190,12 +192,14 @@ test.describe("OCR readiness UX", () => {
     });
 
     await page.goto("/");
-    await expect(page.getByText("Printed OCR could not start")).toBeVisible();
-    await expect(page.getByText(/dependency failed to load/i)).toBeVisible();
+    await expect(page.getByRole("alert").getByText("Printed OCR could not start")).toBeVisible();
+    await expect(page.getByRole("alert").getByText(/dependency failed to load/i)).toBeVisible();
     await page.getByRole("button", { name: /Retry OCR/i }).click();
     expect(retryHits).toBe(1);
-    await expect(page.getByText("Printed OCR is starting")).toBeVisible();
-    await expect(page.getByText("Printed OCR is ready")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("status").getByText("Printed OCR is starting")).toBeVisible();
+    await expect(page.getByRole("status").getByText("Printed OCR is ready")).toBeVisible({
+      timeout: 15_000,
+    });
   });
 
   test("terminal missing-model failure disables Retry OCR", async ({ page }) => {
@@ -207,7 +211,7 @@ test.describe("OCR readiness UX", () => {
       });
     });
     await page.goto("/");
-    await expect(page.getByText(/model files are missing/i)).toBeVisible();
+    await expect(page.getByRole("alert").getByText(/model files are missing/i)).toBeVisible();
     await expect(page.getByRole("button", { name: /Retry OCR/i })).toHaveCount(0);
     await expect(page.getByText(/Retry OCR is unavailable/i)).toBeVisible();
   });
@@ -241,7 +245,7 @@ test.describe("OCR readiness UX", () => {
     await page.goto("/");
     const retry = page.getByRole("button", { name: /Retry OCR/i });
     await retry.click();
-    await expect(page.getByText("Printed OCR is starting")).toBeVisible();
+    await expect(page.getByRole("status").getByText("Printed OCR is starting")).toBeVisible();
     await expect(page.getByRole("button", { name: /Retry OCR/i })).toHaveCount(0);
     expect(retryHits).toBe(1);
   });
@@ -288,7 +292,9 @@ test.describe("OCR readiness UX", () => {
     await expect(page.getByText(/valid_single_page\.pdf/i).first()).toBeVisible();
     const sessionId = await readSessionId(page);
     await page.getByRole("button", { name: /Retry OCR/i }).click();
-    await expect(page.getByText("Printed OCR is ready")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("status").getByText("Printed OCR is ready")).toBeVisible({
+      timeout: 15_000,
+    });
     expect(await readSessionId(page)).toBe(sessionId);
     await expect(page.getByText(/valid_single_page\.pdf/i).first()).toBeVisible();
   });
