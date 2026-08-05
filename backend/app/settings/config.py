@@ -302,6 +302,8 @@ class Settings(BaseSettings):
     handwriting_classifier_required: bool = False
     handwriting_classifier_path: Path = Path("./models/handwriting_classifier")
     handwriting_classifier_batch_size: int = Field(default=16, ge=1, le=256)
+    # Phase 5 Task C0 — offline/shadow detector-first path (never default-on).
+    phase5_detect_first_shadow_enabled: bool = False
 
     # Vision provider (future). The key is never exposed in repr/logs/responses.
     openai_api_key: SecretStr = SecretStr("")

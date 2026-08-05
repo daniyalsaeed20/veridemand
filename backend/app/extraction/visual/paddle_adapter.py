@@ -2,10 +2,15 @@
 
 Never logs OCR text. Imports paddleocr lazily so the API process can start
 without the optional ``ocr`` dependency group installed.
+
+Phase 5 Task C0 adds optional detector-first modules via PaddleX
+``create_model`` against the same configured local det/rec directories. Those
+modules are never loaded by the default Phase 4 combined ``load()`` path.
 """
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 import unicodedata
@@ -14,6 +19,11 @@ from typing import Any
 
 import numpy as np
 from backend.app.contracts.errors import ErrorCode
+from backend.app.extraction.visual.detect_first_types import (
+    DetectedTextRegion,
+    RecognisedCropResult,
+    RecognitionStatus,
+)
 from backend.app.extraction.visual.errors import VisualOcrError
 from backend.app.extraction.visual.models import OcrRuntimeConfig, RawOcrLine, RawOcrWord
 from PIL import Image
@@ -41,8 +51,47 @@ class PaddleSchemaInfo:
     has_rec_scores: bool
 
 
+def _import_paddlex_create_model() -> Any:
+    """Import ``paddlex.create_model``, tolerating Windows Torch+OCR conflicts.
+
+    PaddleX imports ``modelscope``, which eagerly imports ``torch``. On Windows
+    environments where both ``ocr`` and ``model-dev`` were synced into one
+    venv, that path can fail with ``shm.dll`` errors. When local model dirs are
+    used we do not need ModelScope, so stub it and retry.
+    """
+
+    import sys
+    import types
+
+    def _load() -> Any:
+        from paddlex import create_model  # type: ignore[import-untyped]
+
+        return create_model
+
+    try:
+        return _load()
+    except (OSError, ImportError, ValueError) as first_exc:
+        msg = str(first_exc).lower()
+        if "shm.dll" not in msg and "torch" not in msg and "modelscope" not in msg:
+            raise
+        # Drop partial imports so the retry is clean.
+        for name in list(sys.modules):
+            if name == "paddlex" or name.startswith("paddlex.") or name == "modelscope":
+                del sys.modules[name]
+        if "modelscope" not in sys.modules:
+            sys.modules["modelscope"] = types.ModuleType("modelscope")
+        try:
+            return _load()
+        except Exception as retry_exc:
+            raise retry_exc from first_exc
+
+
 class PaddleOcrAdapter:
-    """Owns one long-lived ``PaddleOCR`` pipeline instance."""
+    """Owns one long-lived ``PaddleOCR`` pipeline instance.
+
+    Optional detector-first PaddleX modules (``_det_model`` / ``_rec_model``)
+    are loaded only via ``load_detect_first_modules`` for offline/shadow use.
+    """
 
     def __init__(self, config: OcrRuntimeConfig) -> None:
         self._config = config
@@ -50,6 +99,11 @@ class PaddleOcrAdapter:
         self._schema: PaddleSchemaInfo | None = None
         self._paddleocr_version: str | None = None
         self._paddlepaddle_version: str | None = None
+        self._det_model: Any | None = None
+        self._rec_model: Any | None = None
+        self._det_dir: str | None = None
+        self._rec_dir: str | None = None
+        self._paddlex_version: str | None = None
 
     @property
     def schema(self) -> PaddleSchemaInfo | None:
@@ -62,6 +116,14 @@ class PaddleOcrAdapter:
     @property
     def paddlepaddle_version(self) -> str | None:
         return self._paddlepaddle_version
+
+    @property
+    def detect_first_loaded(self) -> bool:
+        return self._det_model is not None and self._rec_model is not None
+
+    @property
+    def paddlex_version(self) -> str | None:
+        return self._paddlex_version
 
     def load(self) -> None:
         """Import, construct, and warm PaddleOCR from local model directories."""
@@ -330,6 +392,306 @@ class PaddleOcrAdapter:
                 results.append(self.recognise_only(image))
         return results
 
+    def load_detect_first_modules(self) -> None:
+        """Load separate PaddleX det/rec models from the configured local dirs.
+
+        Does not construct or replace the combined ``PaddleOCR`` pipeline.
+        Reuses the same ``PP-OCRv5_mobile_*`` (or Settings-configured) assets.
+        """
+
+        import os
+
+        os.environ.setdefault("FLAGS_use_mkldnn", "0")
+        os.environ.setdefault("FLAGS_onednn", "0")
+        os.environ.setdefault("PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT", "0")
+        os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
+        os.environ["FLAGS_paddle_num_threads"] = str(  # noqa: SIM112
+            max(1, int(self._config.ocr_cpu_threads))
+        )
+
+        try:
+            import paddle
+
+            create_model = _import_paddlex_create_model()
+            import paddlex
+        except ImportError as exc:
+            raise VisualOcrError(
+                ErrorCode.OCR_RUNTIME_UNAVAILABLE,
+                "PaddleX/PaddleOCR runtime is not installed for detect-first modules.",
+                operation="import_paddlex",
+                failing_component="paddle_adapter",
+                exception_type=type(exc).__name__,
+            ) from exc
+        except OSError as exc:
+            raise VisualOcrError(
+                ErrorCode.OCR_RUNTIME_UNAVAILABLE,
+                "PaddleX import failed (possible Windows OCR/Torch env conflict).",
+                operation="import_paddlex",
+                failing_component="paddle_adapter",
+                exception_type=type(exc).__name__,
+            ) from exc
+
+        # Prefer package versions without importing paddleocr (avoids modelscope→torch
+        # on Windows OCR+Torch mixed environments).
+        self._paddlepaddle_version = getattr(paddle, "__version__", None)
+        self._paddlex_version = getattr(paddlex, "__version__", None)
+        if self._paddleocr_version is None:
+            try:
+                from importlib.metadata import version as _pkg_version
+
+                self._paddleocr_version = _pkg_version("paddleocr")
+            except Exception:
+                self._paddleocr_version = None
+
+        from backend.app.extraction.visual.model_paths import (
+            require_local_model_dirs,
+            resolve_ocr_model_root,
+        )
+
+        model_root = resolve_ocr_model_root(self._config.ocr_model_root)
+        try:
+            det_dir, rec_dir = require_local_model_dirs(
+                model_root,
+                detection_model_name=self._config.ocr_detection_model_name,
+                recognition_model_name=self._config.ocr_recognition_model_name,
+            )
+        except FileNotFoundError as exc:
+            raise VisualOcrError(
+                ErrorCode.OCR_MODEL_NOT_FOUND,
+                "Local OCR model directories are missing or incomplete.",
+                operation="resolve_model_dirs_detect_first",
+                failing_component="paddle_adapter",
+                exception_type=type(exc).__name__,
+            ) from exc
+
+        self._det_dir = str(det_dir)
+        self._rec_dir = str(rec_dir)
+        try:
+            self._det_model = create_model(
+                self._config.ocr_detection_model_name,
+                model_dir=self._det_dir,
+            )
+            self._rec_model = create_model(
+                self._config.ocr_recognition_model_name,
+                model_dir=self._rec_dir,
+            )
+        except Exception as exc:
+            self._det_model = None
+            self._rec_model = None
+            raise VisualOcrError(
+                ErrorCode.OCR_MODEL_LOAD_FAILED,
+                "Failed to load separate PaddleX detection/recognition models.",
+                operation="paddlex_create_model",
+                failing_component="paddle_adapter",
+                exception_type=type(exc).__name__,
+            ) from exc
+
+        logger.info(
+            "PaddleX detect-first modules loaded",
+            extra={
+                "paddleocr_version": self._paddleocr_version,
+                "paddlepaddle_version": self._paddlepaddle_version,
+                "paddlex_version": self._paddlex_version,
+                "detection_model": self._config.ocr_detection_model_name,
+                "recognition_model": self._config.ocr_recognition_model_name,
+            },
+        )
+
+    def detect_text(
+        self,
+        image: Image.Image,
+        *,
+        page_index: int = 0,
+        limit_side_len: int | None = None,
+    ) -> list[DetectedTextRegion]:
+        """Run text detection only. Never calls recognition. Never logs text."""
+
+        if self._det_model is None:
+            raise VisualOcrError(
+                ErrorCode.OCR_WORKER_NOT_READY,
+                "Detect-first detector module is not loaded.",
+                operation="detect_text",
+                failing_component="paddle_adapter",
+            )
+        array = np.asarray(image.convert("RGB"))
+        width_px, height_px = int(image.size[0]), int(image.size[1])
+        predict_kwargs: dict[str, Any] = {}
+        if limit_side_len is not None:
+            predict_kwargs["text_det_limit_side_len"] = int(limit_side_len)
+        try:
+            try:
+                raw = (
+                    self._det_model.predict(array, **predict_kwargs)
+                    if predict_kwargs
+                    else self._det_model.predict(array)
+                )
+            except TypeError:
+                raw = self._det_model.predict(array)
+            result = _paddlex_result_dict(raw)
+        except Exception as exc:
+            raise VisualOcrError(
+                ErrorCode.OCR_DETECTION_FAILED,
+                "PaddleX text detection failed.",
+                operation="detect_text",
+                failing_component="paddle_adapter",
+                exception_type=type(exc).__name__,
+            ) from exc
+        finally:
+            del array
+
+        if result is None:
+            return []
+
+        polys_raw = result.get("dt_polys")
+        scores_raw = result.get("dt_scores")
+        polys = _as_list([] if polys_raw is None else polys_raw)
+        scores = _as_list([] if scores_raw is None else scores_raw)
+        candidates: list[tuple[float, float, float, list[tuple[float, float]], float]] = []
+        for index, poly_raw in enumerate(polys):
+            poly = _to_polygon(poly_raw)
+            if poly is None:
+                continue
+            score = _clamp01(float(scores[index]) if index < len(scores) else 0.0)
+            ys = [p[1] for p in poly]
+            xs = [p[0] for p in poly]
+            candidates.append((min(ys), min(xs), -score, poly, score))
+
+        # Deterministic reading-order-ish sort: top→bottom, left→right, higher conf first.
+        candidates.sort(key=lambda row: (row[0], row[1], row[2]))
+
+        regions: list[DetectedTextRegion] = []
+        detector_name = self._config.ocr_detection_model_name
+        detector_version = self._paddlex_version or self._paddleocr_version
+        for order_index, (_y, _x, _neg, poly, score) in enumerate(candidates):
+            try:
+                region = _build_detected_region(
+                    poly_px=poly,
+                    score=score,
+                    page_index=page_index,
+                    order_index=order_index,
+                    width_px=width_px,
+                    height_px=height_px,
+                    detector_model_name=detector_name,
+                    detector_version=detector_version,
+                )
+            except ValueError:
+                continue
+            regions.append(region)
+        return regions
+
+    def recognise_text_crops(
+        self,
+        crops: list[tuple[str, Image.Image]],
+        *,
+        batch_size: int | None = None,
+        low_confidence_threshold: float | None = None,
+        min_recognition_score: float | None = None,
+    ) -> list[RecognisedCropResult]:
+        """Recognise supplied crops only — never redetects the page or crop.
+
+        ``crops`` is a list of ``(region_id, image)``. Returns one result per
+        input in the same order. Never logs recognised text.
+        """
+
+        if self._rec_model is None:
+            raise VisualOcrError(
+                ErrorCode.OCR_WORKER_NOT_READY,
+                "Detect-first recognizer module is not loaded.",
+                operation="recognise_text_crops",
+                failing_component="paddle_adapter",
+            )
+        low_thr = (
+            float(self._config.ocr_low_confidence_score)
+            if low_confidence_threshold is None
+            else float(low_confidence_threshold)
+        )
+        min_thr = (
+            float(self._config.ocr_min_recognition_score)
+            if min_recognition_score is None
+            else float(min_recognition_score)
+        )
+        size = max(1, int(batch_size or self._config.ocr_recognition_batch_size or 1))
+        recognizer_name = self._config.ocr_recognition_model_name
+        recognizer_version = self._paddlex_version or self._paddleocr_version
+        results: list[RecognisedCropResult] = []
+        for start in range(0, len(crops), size):
+            chunk = crops[start : start + size]
+            for region_id, image in chunk:
+                results.append(
+                    self._recognise_one_crop(
+                        region_id=region_id,
+                        image=image,
+                        low_thr=low_thr,
+                        min_thr=min_thr,
+                        recognizer_name=recognizer_name,
+                        recognizer_version=recognizer_version,
+                    )
+                )
+        return results
+
+    def _recognise_one_crop(
+        self,
+        *,
+        region_id: str,
+        image: Image.Image,
+        low_thr: float,
+        min_thr: float,
+        recognizer_name: str,
+        recognizer_version: str | None,
+    ) -> RecognisedCropResult:
+        assert self._rec_model is not None
+        array = np.asarray(image.convert("RGB"))
+        try:
+            raw = self._rec_model.predict(array)
+            result = _paddlex_result_dict(raw)
+        except Exception as exc:
+            return RecognisedCropResult(
+                region_id=region_id,
+                status="failed",
+                confidence=None,
+                recognizer_model_name=recognizer_name,
+                recognizer_version=recognizer_version,
+                text=None,
+                failure_reason=type(exc).__name__,
+            )
+        finally:
+            del array
+
+        if result is None:
+            return RecognisedCropResult(
+                region_id=region_id,
+                status="empty",
+                confidence=None,
+                recognizer_model_name=recognizer_name,
+                recognizer_version=recognizer_version,
+                text=None,
+                failure_reason="no_result",
+            )
+
+        text_raw = result.get("rec_text")
+        if text_raw is None and "rec_texts" in result:
+            texts = _as_list(result.get("rec_texts"))
+            text_raw = " ".join(str(t) for t in texts if t is not None)
+        score_raw = result.get("rec_score")
+        if score_raw is None and "rec_scores" in result:
+            scores = _as_list(result.get("rec_scores"))
+            score_raw = float(sum(float(s) for s in scores) / len(scores)) if scores else None
+
+        text = unicodedata.normalize("NFC", str(text_raw or "")).strip()
+        confidence = _clamp01(float(score_raw)) if score_raw is not None else None
+        status = _classify_recognition_status(
+            text=text, confidence=confidence, low_thr=low_thr, min_thr=min_thr
+        )
+        return RecognisedCropResult(
+            region_id=region_id,
+            status=status,
+            confidence=confidence,
+            recognizer_model_name=recognizer_name,
+            recognizer_version=recognizer_version,
+            text=text if text else None,
+            failure_reason=None if status in {"recognised", "empty", "low_confidence"} else status,
+        )
+
     def _adapt(self, raw: Any) -> list[RawOcrLine]:
         result = _first_result_dict(raw)
         if result is None:
@@ -372,6 +734,107 @@ class PaddleOcrAdapter:
                 )
             )
         return lines
+
+
+def _paddlex_result_dict(raw: Any) -> dict[str, Any] | None:
+    """Normalise PaddleX predict generators / result objects to a flat dict."""
+
+    if raw is None:
+        return None
+    if hasattr(raw, "__iter__") and not isinstance(raw, dict | list | tuple | str | bytes):
+        try:
+            items = list(raw)
+        except TypeError:
+            items = []
+        if items:
+            return _paddlex_result_dict(items)
+    sample = _first_result_dict(raw)
+    if sample is None:
+        return None
+    # PaddleX wraps payload under {"res": {...}}.
+    if "res" in sample and isinstance(sample["res"], dict):
+        return sample["res"]
+    return sample
+
+
+def _classify_recognition_status(
+    *,
+    text: str,
+    confidence: float | None,
+    low_thr: float,
+    min_thr: float,
+) -> RecognitionStatus:
+    if not text:
+        return "empty"
+    if confidence is None:
+        return "failed"
+    if confidence < min_thr:
+        return "rejected"
+    if confidence < low_thr:
+        return "low_confidence"
+    return "recognised"
+
+
+def _stable_region_id(
+    *,
+    page_index: int,
+    order_index: int,
+    polygon_norm: tuple[tuple[float, float], ...],
+) -> str:
+    digest = hashlib.sha256()
+    digest.update(f"{page_index}:{order_index}:".encode())
+    for x, y in polygon_norm:
+        digest.update(f"{x:.6f},{y:.6f};".encode())
+    return f"dfreg_{digest.hexdigest()[:16]}"
+
+
+def _build_detected_region(
+    *,
+    poly_px: list[tuple[float, float]],
+    score: float,
+    page_index: int,
+    order_index: int,
+    width_px: int,
+    height_px: int,
+    detector_model_name: str,
+    detector_version: str | None,
+) -> DetectedTextRegion:
+    if width_px <= 0 or height_px <= 0:
+        raise ValueError("invalid page dimensions")
+    if len(poly_px) < 3:
+        raise ValueError("polygon too short")
+    norm_pts: list[tuple[float, float]] = []
+    for x, y in poly_px:
+        nx = max(0.0, min(1.0, float(x) / float(width_px)))
+        ny = max(0.0, min(1.0, float(y) / float(height_px)))
+        norm_pts.append((nx, ny))
+    xs = [p[0] for p in norm_pts]
+    ys = [p[1] for p in norm_pts]
+    x0, y0 = min(xs), min(ys)
+    x1, y1 = max(xs), max(ys)
+    width = max(x1 - x0, 1e-9)
+    height = max(y1 - y0, 1e-9)
+    if x0 + width > 1.0:
+        width = 1.0 - x0
+    if y0 + height > 1.0:
+        height = 1.0 - y0
+    if width <= 0.0 or height <= 0.0:
+        raise ValueError("degenerate bbox")
+    polygon_norm = tuple(norm_pts)
+    region_id = _stable_region_id(
+        page_index=page_index, order_index=order_index, polygon_norm=polygon_norm
+    )
+    return DetectedTextRegion(
+        region_id=region_id,
+        page_index=page_index,
+        order_index=order_index,
+        polygon_px=tuple((float(x), float(y)) for x, y in poly_px),
+        polygon_norm=polygon_norm,
+        bbox_norm=(float(x0), float(y0), float(width), float(height)),
+        detection_confidence=score,
+        detector_model_name=detector_model_name,
+        detector_version=detector_version,
+    )
 
 
 def _first_result_dict(raw: Any) -> dict[str, Any] | None:
