@@ -10,7 +10,8 @@ At least one simple deterministic rule covers all **55** confirmed handwriting
 seeds and all **7** remaining Task C1 detector misses using evidence already
 present before Phase 6, without private document identity.
 
-Recommended next implementation path (not implemented here):
+Recommended next implementation path **at Task C2 audit time** (not implemented
+in C2):
 
 ```text
 hybrid page reservation + region router
@@ -19,6 +20,10 @@ hybrid page reservation + region router
 Reserve qualifying pages for Phase 6 while allowing detected printed regions to
 keep local recognition, provided a safe region classifier blocks handwritten and
 uncertain detections from Paddle.
+
+**Task C3 override:** Because region routers remain unsafe (Tasks B–B4), the
+shipped release path is Strategy 1 — **conservative** page reservation only
+(ADRs 0082–0087). Hybrid remains deferred (ADR 0087).
 
 ## Scope and method
 
@@ -234,13 +239,13 @@ image-dominant pages.
 | 3 Fine-tune PP-OCRv5 detector | High | Corrected det labels | Lower if zero-miss | Signatures may still miss | Unknown until gate | Yes |
 | 4 Page-level handwriting-presence model | High | Page labels beyond 9 positives | Depends on precision | Overfit to private families | Potential | Yes |
 
-**Recommendation (Task C2 audit):** Strategy 2 — hybrid page reservation plus the
-existing Phase 5 region-router workstream.
+**Recommendation (Task C2 audit, historical):** Strategy 2 — hybrid page
+reservation plus the existing Phase 5 region-router workstream.
 
-**Task C3 implementation note:** Because region routers remain unsafe (Tasks
-B–B4), Task C3 implements Strategy 1 — **conservative** page reservation only.
-Hybrid mode is deferred (ADR 0087) until a safe region router exists. The
-selected reservation signal remains `page_is_image_dominant`.
+**Task C3 implementation note (current release path):** Because region routers
+remain unsafe (Tasks B–B4), Task C3 implements Strategy 1 — **conservative**
+page reservation only. Hybrid mode is deferred (ADR 0087) until a safe region
+router exists. The selected reservation signal remains `page_is_image_dominant`.
 
 ## Pareto note
 

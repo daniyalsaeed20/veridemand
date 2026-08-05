@@ -4,6 +4,8 @@
 
 Accepted (Phase 5 Task B)
 
+**Failed baseline — superseded for the current release path** (later B3/B4 eras also failed; release architecture is ADRs 0082–0087). No `production_candidate` classifier shipped.
+
 **Superseded for production-candidate evaluation** by Task B3 dual-risk export
 (`risk_logits` `[batch, 2]`, `independent_binary_risk_logits`, schema v2).
 The package layout and verifier pattern remain; output contract and labels

@@ -98,13 +98,38 @@ NIST SD19 / EMNIST are not used.
 Do not sync `model-dev` (Torch) and `ocr` (Paddle) into the same environment —
 known `shm.dll` conflicts on Windows.
 
+### OCR acceptance environment (required for release gates)
+
+```powershell
+$env:UV_PROJECT_ENVIRONMENT = ".venv-ocr"
+uv sync --group ocr
+uv run --group ocr python -c "import importlib.util as u; assert u.find_spec('torch') is None; assert u.find_spec('torchvision') is None; import paddle; print('paddle_ok')"
+uv run --group ocr python scripts/verify_ocr_runtime.py
+```
+
+Contains production/core dependencies plus the OCR group (PaddleOCR /
+PaddlePaddle / PaddleX). Torch and Torchvision must be absent.
+
+### Model-development environment (offline only)
+
+```powershell
+$env:UV_PROJECT_ENVIRONMENT = ".venv-model-dev"
+uv sync --group model-dev
+```
+
+May contain Torch / Torchvision / ONNX model-development tools. Paddle import
+success is **not** required on Windows. Task D does not retrain models; use this
+environment only for model-development unit tests that are independent of OCR.
+
 Detect-first module load stubs ModelScope when a mixed-env Torch import would
-crash, because local model dirs do not need hub downloads. Prefer a dedicated
-OCR-only venv for `pnpm models:ocr:verify` and corpus commands.
+crash, because local model dirs do not need hub downloads. Prefer the dedicated
+OCR-only venv for `pnpm models:ocr:verify`, corpus commands, feature-off /
+feature-on acceptance, and Playwright E2E (`.venv-ocr` preferred when present).
 
 ## Publication rule
 
 Publish `production_candidate` only when all Task B4 project safety gates pass.
+**None published:** B4 decision remains `ROUTE-FIRST MODEL STILL NOT SAFE`.
 Router remains disabled after packaging. Do not enable live OCR routing from
 this setup doc alone. Retrain any future router on detector-first crops before
 live integration (Task C0).

@@ -4,6 +4,8 @@
 
 Accepted (Phase 5 Task B3)
 
+**Failed baseline — superseded for the current release path** by ADRs 0068–0071 (also failed) and ADRs 0082–0087. No `production_candidate` shipped (SAFETY-FIRST MODEL STILL NOT SAFE).
+
 ## Context
 
 Task B and Task B2 trained a forced three-class softmax over

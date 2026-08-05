@@ -4,6 +4,8 @@
 
 Accepted (Phase 5 Task C1)
 
+Shadow comparison only; **insufficient for zero-miss gate**; live mobile detector unchanged.
+
 ## Context
 
 PP-OCRv5 includes an official server detector that may improve handwriting

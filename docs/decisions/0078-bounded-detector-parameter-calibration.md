@@ -4,6 +4,8 @@
 
 Accepted (Phase 5 Task C1)
 
+Experimental calibration record; **did not produce a zero-miss candidate** (see ADR 0081 + detector comparison).
+
 ## Context
 
 PaddleX text detection exposes predict-time knobs (`thresh`, `box_thresh`,

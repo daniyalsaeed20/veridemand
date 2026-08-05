@@ -4,6 +4,8 @@
 
 Accepted (Phase 5 Task B2)
 
+**Failed baseline — superseded for the current release path** (later B3/B4 eras also failed; release architecture is ADRs 0082–0087). No `production_candidate` classifier shipped.
+
 ## Context
 
 Public handwriting improves training coverage but must not redefine VeriDemand

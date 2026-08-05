@@ -52,7 +52,7 @@ regulatory compliance.
 - No classifier training; no OpenAI / vision-provider calls
 - Known-seed gate failed → no corpus v2 promotion; v1 artefacts preserved
 
-## Page vision reservation (Task C3)
+## Page vision reservation (Task C3 + Task D)
 
 - Feature default off; acceptance profile enables conservative mode only
 - Hybrid mode rejected at settings validation (no silent fallback)
@@ -61,6 +61,10 @@ regulatory compliance.
 - Session-scoped artefacts cleaned with existing TTL/cancel paths
 - Acceptance and feasibility docs use aggregates only (no private IDs/text/images)
 - No OpenAI / vision-provider network call; `openai_vision` stays not_configured
+- Task D release gates use an OCR-only environment (`.venv-ocr`) with Torch
+  absent; Playwright prefers `.venv-ocr` when present to avoid Windows
+  Torch/Paddle `shm.dll` conflicts
+- Model-development Torch remains in `.venv-model-dev` / `--group model-dev` only
 
 ## Privacy
 

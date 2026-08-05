@@ -4,6 +4,9 @@
 
 Accepted (Phase 5 Task C1)
 
+**Gate failed** (`DETECTOR COVERAGE STILL INSUFFICIENT`). Do not weaken.
+Corpus limitation (55 seeds / 9 pages) remains explicit — not universal recall.
+
 ## Context
 
 Universal handwriting recall cannot be proven from 55 project seeds. Weakening

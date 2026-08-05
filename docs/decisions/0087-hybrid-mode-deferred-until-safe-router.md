@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (Phase 5 Task C3)
+Accepted (Phase 5 Task C3) — **current Phase 5 release architecture** (hybrid remains deferred / rejected until a safe region router exists).
 
 ## Context
 

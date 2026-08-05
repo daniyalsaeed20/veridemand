@@ -1,9 +1,9 @@
 # Phase 5 implementation report
 
-**Status:** Phase 5 in progress — conservative full-page vision reservation
-implemented for image-dominant pages; Phase 6 provider processing is not yet
-implemented. Region-level handwriting classification has **not** passed; Phase 5
-is **not** released.
+**Status:** Task C3 complete; Task D consolidation recorded in
+`docs/phases/phase-5-final-implementation-report.md`. Region-level handwriting
+classification has **not** passed; Phase 5 release delivers conservative
+page-level reservation only.
 
 See `docs/phases/phase-5-recovery-audit.md` for ChatGPT handoff and Tasks A–E.
 
@@ -181,14 +181,28 @@ Evidence-based design freeze in `docs/phases/phase-5-preflight-audit.md`.
 - ADRs 0077–0081; calibration architecture + candidate comparison docs
 - **No** classifier training; **no** live routing; **no** Phase 6
 
-## Not done (later tasks — recovery path Tasks C–E)
+## Release path vs deferred work
 
-- Detector coverage recovery (fine-tune handwriting-sensitive detector **or**
-  page-level vision-reservation fallback) before classifier retrain
-- **C** Integrate classification into detect→classify→printed-recognise (after
-  a passing detector candidate **and** router retraining on detector-first crops)
-- **D** Prove routing invariants and corpus evaluation
-- **E** Consolidate Phase 5 evidence and tag
-- Release held-out freeze remains an explicit later decision (six-group adequacy)
+### Delivered for the current Phase 5 release path (Task C3)
 
-Phase 5 is **not** passed.
+- Conservative image-dominant full-page vision reservation (ADRs 0082–0087)
+- Feature default off; mode `conservative` only; no vision-provider call
+- Exclusive route `vision_reserved_pending_phase_6`; lifecycle `awaiting_phase_6`
+- Private acceptance aggregates recorded (107/215 reserved; 55/55 seeds; 7/7 C1 misses)
+
+### Deferred / not shipped
+
+- Region-classifier live integrate (detect→classify→printed-recognise)
+- Hybrid page OCR retaining local printed recognition on reserved pages (ADR 0087)
+- Detector fine-tune / zero-miss unlock before any classifier retrain
+- Phase 6 vision provider and handwriting transcription
+- Release held-out freeze (six-group adequacy) remains an explicit later decision
+
+### Task D / final consolidation
+
+- Clean-environment feature-off / feature-on release gates: **PASS**
+- Final implementation report: `docs/phases/phase-5-final-implementation-report.md`
+- Release decision: **PHASE 5 PASSED** (conservative page reservation only)
+
+Phase 5 does **not** claim a production region classifier or universal
+handwriting detection.

@@ -4,6 +4,8 @@
 
 Accepted (Phase 5 Task C1)
 
+Shadow merge only; **best incomplete recall still failed zero-miss** (7 misses).
+
 ## Context
 
 Mobile and server detectors may cover complementary handwriting regions.

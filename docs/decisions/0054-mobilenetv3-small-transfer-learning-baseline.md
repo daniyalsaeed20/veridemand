@@ -4,6 +4,8 @@
 
 Accepted (Phase 5 Task B)
 
+**Failed baseline — superseded for the current release path** (later B3/B4 eras also failed; release architecture is ADRs 0082–0087). No `production_candidate` classifier shipped.
+
 **Superseded for production-candidate evaluation** by Task B3
 (`mobilenet_v3_small_dual_risk_v1`, ADR 0063). The MobileNetV3-Small backbone,
 ImageNet transfer schedule, and letterbox preprocess remain; the three-class

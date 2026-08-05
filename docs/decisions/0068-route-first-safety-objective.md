@@ -4,6 +4,8 @@
 
 Accepted (Phase 5 Task B4)
 
+**Failed baseline — rejected for the current release path** (region router unshipped). Release architecture is ADRs 0082–0087. No `production_candidate` shipped (ROUTE-FIRST MODEL STILL NOT SAFE).
+
 ## Context
 
 Task B / B2 three-class softmax and Task B3 dual-risk

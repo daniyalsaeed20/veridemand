@@ -15,6 +15,19 @@ HANDWRITING_PAGE_VISION_FALLBACK_MODE=conservative
 Unsupported modes (for example `hybrid`) fail settings validation. Do not
 silently fall back.
 
+## Operator environments
+
+Run feature-off regression and feature-on acceptance in the **OCR-only**
+environment (no Torch). See `docs/operations/phase-5-model-setup.md`
+§ Windows environments.
+
+```powershell
+$env:UV_PROJECT_ENVIRONMENT = ".venv-ocr"
+uv sync --group ocr
+```
+
+Do not mix `model-dev` into this environment on Windows.
+
 ## Readiness
 
 Enabling conservative page reservation does **not** require:
@@ -29,7 +42,7 @@ while still unable to perform Phase 6 transcription.
 ## Acceptance
 
 ```text
-uv run python scripts/phase5/page_vision_reservation_acceptance.py
+uv run --group ocr python scripts/phase5/page_vision_reservation_acceptance.py
 ```
 
 Requires private corpus artefacts under `fixtures/private/phase5/` and the

@@ -1,8 +1,9 @@
 # Phase 5 handwriting router (architecture)
 
-**Status:** Phase 5 in progress — conservative full-page vision reservation
-implemented for image-dominant pages; region classifier remains disabled; Phase 6
-provider processing is not yet implemented.
+**Status:** Task C3 delivered — conservative full-page vision reservation is the
+current Phase 5 release architecture (feature default off). Region classifier
+remains disabled / unshipped; Phase 6 provider processing is not implemented.
+Task D consolidates evidence and issues the release decision.
 
 ## Scope
 
@@ -14,8 +15,9 @@ Local ONNX image classifier for writing-style routing:
 - Coordinates remain detector-owned (`[0,1]`, top-left)
 - No local HTR, OpenAI, OpenCV, or geometry invention
 
-Task B / B2 three-class softmax and Task B3 dual-risk remain
-**failed baselines — superseded for safety evaluation**.
+Task B / B2 three-class softmax, Task B3 dual-risk, and Task B4 route-first
+remain **failed baselines — superseded / rejected for the current release path**.
+No `production_candidate` classifier was shipped.
 
 ### Page-level reservation layer (Task C3)
 
@@ -40,10 +42,17 @@ uncertain   → no Paddle; preserve detector ID/geometry; reserved_for_vision / 
 non_text    → no Paddle; suppress from text recognition (Phase 4)
 ```
 
-Critical invariant (later Tasks C–D): no handwritten or uncertain region may
-ever be passed to Paddle recognition.
+Critical invariant: no handwritten or uncertain content may enter Paddle
+recognition. Task C3 enforces this at **page** scope for image-dominant pages
+via `vision_reserved_pending_phase_6`. The **region**-router form of this
+invariant remains deferred until a safe classifier exists.
 
-## Task B4 training tooling
+## Task B4 training tooling (experimental — unshipped)
+
+Route-first classifier tooling remains available for offline experimentation.
+It is **not** wired into the live OCR path and produced no `production_candidate`
+package (`ROUTE-FIRST MODEL STILL NOT SAFE`). Release runtime is page
+reservation (ADRs 0082–0087), not this router.
 
 | Piece | Path |
 |-------|------|

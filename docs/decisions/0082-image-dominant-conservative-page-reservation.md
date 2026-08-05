@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (Phase 5 Task C3)
+Accepted (Phase 5 Task C3) — **current Phase 5 release architecture** (feature default off).
 
 ## Context
 

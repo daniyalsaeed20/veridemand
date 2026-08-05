@@ -4,6 +4,8 @@
 
 Accepted (Phase 5 Task C1)
 
+**Gate not met — insufficient for zero-miss / classifier-retrain unlock.** Release path uses ADRs 0082–0087 (page reservation), not a handwriting-capable detector candidate.
+
 ## Context
 
 The Phase 5 writing-style classifier can only act on regions supplied by the
