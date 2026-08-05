@@ -1,16 +1,7 @@
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import {
-  Alert,
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Chip,
-  Divider,
-  Stack,
-  Typography,
-} from "@mui/material";
+import { Box, Button, Card, CardContent, Chip, Divider, Stack, Typography } from "@mui/material";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 
 import { processDocuments } from "../session/sessionApi";
 import { sessionKeys } from "../session/sessionKeys";
@@ -25,6 +16,8 @@ interface QueueDashboardProps {
   /** When true, Process actions are disabled (OCR worker / readiness gate). */
   readonly processBlocked?: boolean;
   readonly processBlockedReason?: string;
+  /** Structured OCR readiness panel (replaces the generic warning). */
+  readonly ocrPanel?: ReactNode;
 }
 
 export function QueueDashboard({
@@ -33,6 +26,7 @@ export function QueueDashboard({
   disabled = false,
   processBlocked = false,
   processBlockedReason,
+  ocrPanel,
 }: QueueDashboardProps) {
   const queryClient = useQueryClient();
   const { counts, queue, documents } = snapshot;
@@ -94,11 +88,16 @@ export function QueueDashboard({
             fairSchedulingEnabled={fairSchedulingEnabled}
           />
 
-          {processBlocked ? (
-            <Alert severity="warning" role="status">
-              {processBlockedReason ??
-                "Printed OCR is still starting or unavailable. Check runtime readiness."}
-            </Alert>
+          {ocrPanel}
+          {processBlocked && processBlockedReason && !ocrPanel ? (
+            <Typography variant="body2" color="text.secondary" role="status">
+              {processBlockedReason}
+            </Typography>
+          ) : null}
+          {processBlocked && processBlockedReason && ocrPanel ? (
+            <Typography variant="caption" color="text.secondary">
+              {processBlockedReason}
+            </Typography>
           ) : null}
 
           <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>

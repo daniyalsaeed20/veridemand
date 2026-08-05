@@ -646,6 +646,19 @@ export const zGeometry = z.object({
 });
 
 /**
+ * OcrComponentStatus
+ *
+ * Coarse status for detector / recognizer / model verification.
+ */
+export const zOcrComponentStatus = z.enum([
+    'pending',
+    'in_progress',
+    'ready',
+    'failed',
+    'not_applicable'
+]);
+
+/**
  * OcrPassKind
  *
  * Which detector-side OCR pass produced a result.
@@ -684,6 +697,96 @@ export const zOcrRecognitionStatus = z.enum([
     'low_confidence',
     'empty'
 ]);
+
+/**
+ * OcrRuntimeErrorCode
+ *
+ * Stable OCR readiness / recovery error codes (snake_case).
+ */
+export const zOcrRuntimeErrorCode = z.enum([
+    'ocr_disabled',
+    'ocr_configuration_invalid',
+    'ocr_models_missing',
+    'ocr_model_integrity_failed',
+    'ocr_dependency_import_failed',
+    'ocr_dll_load_failed',
+    'ocr_detector_load_failed',
+    'ocr_recognizer_load_failed',
+    'ocr_warmup_failed',
+    'ocr_startup_timeout',
+    'ocr_out_of_memory',
+    'ocr_initialization_already_running',
+    'ocr_unknown_failure',
+    'backend_unreachable'
+]);
+
+/**
+ * OcrRuntimeStage
+ *
+ * Operator-facing startup stages (progress steps 1-5).
+ */
+export const zOcrRuntimeStage = z.enum([
+    'checking_configuration',
+    'verifying_models',
+    'loading_detector',
+    'loading_recognizer',
+    'warming_up'
+]);
+
+/**
+ * OcrRuntimeState
+ *
+ * Process-wide OCR runtime lifecycle state.
+ */
+export const zOcrRuntimeState = z.enum([
+    'not_started',
+    'starting',
+    'loading_detector',
+    'loading_recognizer',
+    'warming_up',
+    'ready',
+    'failed',
+    'disabled'
+]);
+
+/**
+ * OcrRetryAcceptedResponse
+ *
+ * 202 Accepted response for POST /api/v1/runtime/ocr/retry.
+ */
+export const zOcrRetryAcceptedResponse = z.object({
+    attempt_id: z.string(),
+    stage: zOcrRuntimeStage.nullish(),
+    state: zOcrRuntimeState,
+    status_url: z.literal('/health/ready').optional().default('/health/ready')
+});
+
+/**
+ * OcrRuntimeStatus
+ *
+ * Structured OCR runtime readiness status for operators and the UI.
+ */
+export const zOcrRuntimeStatus = z.object({
+    attempt_id: z.string().nullish(),
+    attempt_number: z.int().gte(0).optional().default(0),
+    attempt_started_at: z.iso.datetime().nullish(),
+    detector_status: zOcrComponentStatus.optional().default('pending'),
+    error_code: zOcrRuntimeErrorCode.nullish(),
+    last_transition_at: z.iso.datetime().nullish(),
+    model_verification_status: zOcrComponentStatus.optional().default('pending'),
+    operator_hint: z.string().nullish(),
+    ready: z.boolean(),
+    recognizer_status: zOcrComponentStatus.optional().default('pending'),
+    retry_after_seconds: z.int().gte(0).nullish(),
+    retryable: z.boolean(),
+    stage: zOcrRuntimeStage.nullish(),
+    stage_count: z.int().gte(1).optional().default(5),
+    stage_index: z.int().gte(1).lte(5).nullish(),
+    stage_label: z.string().nullish(),
+    state: zOcrRuntimeState,
+    technical_detail: z.string().nullish(),
+    user_message: z.string().nullish()
+});
 
 /**
  * OcrSourceMode
@@ -1469,6 +1572,7 @@ export const zReadinessResponse = z.object({
     checks: z.array(zDependencyCheck),
     configuration_profile: z.string(),
     git_commit: z.string().nullish(),
+    ocr_runtime: zOcrRuntimeStatus.nullish(),
     process_id: z.int(),
     request_id: z.string(),
     service: z.literal('veridemand-api').optional().default('veridemand-api'),
@@ -2157,6 +2261,11 @@ export const zVisualPageResult = z.object({
     word_count: z.int().gte(0).optional().default(0),
     words: z.array(zPrintedOcrWord).optional()
 });
+
+/**
+ * Successful Response
+ */
+export const zRetryOcrRuntimeApiV1RuntimeOcrRetryPostResponse = zOcrRetryAcceptedResponse;
 
 /**
  * Successful Response

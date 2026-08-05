@@ -2384,6 +2384,13 @@ export type NormalisedPolygon = {
 };
 
 /**
+ * OcrComponentStatus
+ *
+ * Coarse status for detector / recognizer / model verification.
+ */
+export type OcrComponentStatus = 'pending' | 'in_progress' | 'ready' | 'failed' | 'not_applicable';
+
+/**
  * OcrPassComparison
  *
  * Typed comparison of primary vs fallback OCR passes.
@@ -2461,6 +2468,165 @@ export type OcrRecognitionMethod = 'paddleocr_printed' | 'embedded_ocr_verified'
  * Public recognition status for an OCR line or word.
  */
 export type OcrRecognitionStatus = 'accepted' | 'low_confidence' | 'empty';
+
+/**
+ * OcrRetryAcceptedResponse
+ *
+ * 202 Accepted response for POST /api/v1/runtime/ocr/retry.
+ */
+export type OcrRetryAcceptedResponse = {
+    /**
+     * Attempt Id
+     *
+     * Initialization attempt identifier.
+     */
+    attempt_id: string;
+    /**
+     * Current startup stage when known.
+     */
+    stage?: OcrRuntimeStage | null;
+    /**
+     * Current OCR runtime state after accepting retry.
+     */
+    state: OcrRuntimeState;
+    /**
+     * Status Url
+     *
+     * Observational readiness URL for status polling.
+     */
+    status_url?: '/health/ready';
+};
+
+/**
+ * OcrRuntimeErrorCode
+ *
+ * Stable OCR readiness / recovery error codes (snake_case).
+ */
+export type OcrRuntimeErrorCode = 'ocr_disabled' | 'ocr_configuration_invalid' | 'ocr_models_missing' | 'ocr_model_integrity_failed' | 'ocr_dependency_import_failed' | 'ocr_dll_load_failed' | 'ocr_detector_load_failed' | 'ocr_recognizer_load_failed' | 'ocr_warmup_failed' | 'ocr_startup_timeout' | 'ocr_out_of_memory' | 'ocr_initialization_already_running' | 'ocr_unknown_failure' | 'backend_unreachable';
+
+/**
+ * OcrRuntimeStage
+ *
+ * Operator-facing startup stages (progress steps 1-5).
+ */
+export type OcrRuntimeStage = 'checking_configuration' | 'verifying_models' | 'loading_detector' | 'loading_recognizer' | 'warming_up';
+
+/**
+ * OcrRuntimeState
+ *
+ * Process-wide OCR runtime lifecycle state.
+ */
+export type OcrRuntimeState = 'not_started' | 'starting' | 'loading_detector' | 'loading_recognizer' | 'warming_up' | 'ready' | 'failed' | 'disabled';
+
+/**
+ * OcrRuntimeStatus
+ *
+ * Structured OCR runtime readiness status for operators and the UI.
+ */
+export type OcrRuntimeStatus = {
+    /**
+     * Attempt Id
+     *
+     * Opaque identifier for the current initialization attempt.
+     */
+    attempt_id?: string | null;
+    /**
+     * Attempt Number
+     *
+     * Monotonic initialization attempt counter.
+     */
+    attempt_number?: number;
+    /**
+     * Attempt Started At
+     *
+     * UTC time when the current attempt started.
+     */
+    attempt_started_at?: string | null;
+    /**
+     * Detector load status.
+     */
+    detector_status?: OcrComponentStatus;
+    /**
+     * Stable failure code when state is failed or disabled.
+     */
+    error_code?: OcrRuntimeErrorCode | null;
+    /**
+     * Last Transition At
+     *
+     * UTC time of the last state/stage transition.
+     */
+    last_transition_at?: string | null;
+    /**
+     * Local model verification status.
+     */
+    model_verification_status?: OcrComponentStatus;
+    /**
+     * Operator Hint
+     *
+     * Likely corrective action for the operator.
+     */
+    operator_hint?: string | null;
+    /**
+     * Ready
+     *
+     * True when printed OCR can accept work.
+     */
+    ready: boolean;
+    /**
+     * Recognizer load status.
+     */
+    recognizer_status?: OcrComponentStatus;
+    /**
+     * Retry After Seconds
+     *
+     * Suggested client delay before the next readiness poll.
+     */
+    retry_after_seconds?: number | null;
+    /**
+     * Retryable
+     *
+     * True when an operator Retry OCR action may succeed after correction.
+     */
+    retryable: boolean;
+    /**
+     * Active or last startup stage when applicable.
+     */
+    stage?: OcrRuntimeStage | null;
+    /**
+     * Stage Count
+     *
+     * Total startup progress steps.
+     */
+    stage_count?: number;
+    /**
+     * Stage Index
+     *
+     * 1-based progress step when a startup stage is active.
+     */
+    stage_index?: number | null;
+    /**
+     * Stage Label
+     *
+     * Human-readable label for the current stage.
+     */
+    stage_label?: string | null;
+    /**
+     * Current OCR runtime lifecycle state.
+     */
+    state: OcrRuntimeState;
+    /**
+     * Technical Detail
+     *
+     * Sanitized technical summary (no secrets, paths, OCR text, or stack traces).
+     */
+    technical_detail?: string | null;
+    /**
+     * User Message
+     *
+     * Operator-readable explanation of the current state.
+     */
+    user_message?: string | null;
+};
 
 /**
  * OcrSourceMode
@@ -3866,6 +4032,10 @@ export type ReadinessResponse = {
      */
     git_commit?: string | null;
     /**
+     * Structured printed-OCR runtime readiness when OCR is enabled or explicitly disabled; null only when the runtime manager is unavailable.
+     */
+    ocr_runtime?: OcrRuntimeStatus | null;
+    /**
      * Process Id
      *
      * Operating-system process id of the API worker.
@@ -4901,6 +5071,39 @@ export type WordGeometrySource = 'paddle_word_box' | 'derived_from_line_polygon'
  * Origin of the word recognition score.
  */
 export type WordScoreSource = 'paddle_recognition' | 'inherited_from_line' | 'embedded_verification';
+
+export type RetryOcrRuntimeApiV1RuntimeOcrRetryPostData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/runtime/ocr/retry';
+};
+
+export type RetryOcrRuntimeApiV1RuntimeOcrRetryPostErrors = {
+    /**
+     * OCR retry is not allowed.
+     */
+    400: ApiErrorEnvelope;
+    /**
+     * OCR initialization already running.
+     */
+    409: ApiErrorEnvelope;
+    /**
+     * OCR runtime is unavailable.
+     */
+    503: ApiErrorEnvelope;
+};
+
+export type RetryOcrRuntimeApiV1RuntimeOcrRetryPostError = RetryOcrRuntimeApiV1RuntimeOcrRetryPostErrors[keyof RetryOcrRuntimeApiV1RuntimeOcrRetryPostErrors];
+
+export type RetryOcrRuntimeApiV1RuntimeOcrRetryPostResponses = {
+    /**
+     * Successful Response
+     */
+    202: OcrRetryAcceptedResponse;
+};
+
+export type RetryOcrRuntimeApiV1RuntimeOcrRetryPostResponse = RetryOcrRuntimeApiV1RuntimeOcrRetryPostResponses[keyof RetryOcrRuntimeApiV1RuntimeOcrRetryPostResponses];
 
 export type CreateSessionApiV1SessionsPostData = {
     body?: never;
