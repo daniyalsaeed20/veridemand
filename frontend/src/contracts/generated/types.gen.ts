@@ -420,7 +420,7 @@ export type DocumentSourcePolicy = 'native_authority' | 'embedded_ocr_authority'
  *
  * Lifecycle state of an accepted document during Phase 4.
  */
-export type DocumentStatus = 'uploaded' | 'queued' | 'canonicalising' | 'ready_for_extraction' | 'inspecting_native' | 'extracting_native' | 'native_trust_complete' | 'visual_pending' | 'visual_processing' | 'visual_processing_complete' | 'visual_processing_partial' | 'visual_processing_failed' | 'cancelled' | 'failed';
+export type DocumentStatus = 'uploaded' | 'queued' | 'canonicalising' | 'ready_for_extraction' | 'inspecting_native' | 'extracting_native' | 'native_trust_complete' | 'visual_pending' | 'visual_processing' | 'visual_processing_complete' | 'visual_processing_partial' | 'visual_processing_failed' | 'awaiting_phase_6' | 'cancelled' | 'failed';
 
 /**
  * DocumentStatusCounts
@@ -428,6 +428,10 @@ export type DocumentStatus = 'uploaded' | 'queued' | 'canonicalising' | 'ready_f
  * Counts of documents grouped by lifecycle status.
  */
 export type DocumentStatusCounts = {
+    /**
+     * Awaiting Phase 6
+     */
+    awaiting_phase_6?: number;
     /**
      * Cancelled
      */
@@ -1263,6 +1267,10 @@ export type FinalRouteHistogram = {
      */
     pending_pages?: number;
     /**
+     * Vision Reserved Pending Phase 6 Pages
+     */
+    vision_reserved_pending_phase_6_pages?: number;
+    /**
      * Visual No Text Pages
      */
     visual_no_text_pages?: number;
@@ -1547,6 +1555,13 @@ export type LivenessResponse = {
      */
     worker_generation?: number;
 };
+
+/**
+ * LocalRecognitionPolicy
+ *
+ * Whether local Paddle recognition may run on this page.
+ */
+export type LocalRecognitionPolicy = 'allowed' | 'prohibited';
 
 /**
  * NativeCharacter
@@ -2548,7 +2563,49 @@ export type PageProcessingProfile = 'ordinary_document' | 'dense_form' | 'table_
  *
  * Canonical terminal page-result state (Phase 4 reconciled authority).
  */
-export type PageResultState = 'digital_native' | 'embedded_ocr_verified' | 'embedded_ocr_targeted_repair' | 'full_visual_ocr' | 'visual_no_text' | 'page_failed' | 'pending' | 'cancelled';
+export type PageResultState = 'digital_native' | 'embedded_ocr_verified' | 'embedded_ocr_targeted_repair' | 'full_visual_ocr' | 'visual_no_text' | 'vision_reserved_pending_phase_6' | 'page_failed' | 'pending' | 'cancelled';
+
+/**
+ * PageVisionReservationEvidence
+ *
+ * Privacy-safe page reservation evidence (no provider payload or text).
+ */
+export type PageVisionReservationEvidence = {
+    full_page_bbox_normalized?: NormalisedBoundingBox | null;
+    local_recognition_policy?: LocalRecognitionPolicy;
+    /**
+     * Page Render Available
+     */
+    page_render_available?: boolean;
+    reason?: PageVisionReservationReason | null;
+    /**
+     * Required
+     */
+    required?: boolean;
+    scope?: PageVisionReservationScope | null;
+    status?: PageVisionReservationStatus;
+};
+
+/**
+ * PageVisionReservationReason
+ *
+ * Why a page was reserved for Phase 6 (not a handwriting proof claim).
+ */
+export type PageVisionReservationReason = 'image_dominant';
+
+/**
+ * PageVisionReservationScope
+ *
+ * Geometry scope retained for Phase 6.
+ */
+export type PageVisionReservationScope = 'full_page';
+
+/**
+ * PageVisionReservationStatus
+ *
+ * Whether a page requires deferred Phase 6 vision processing.
+ */
+export type PageVisionReservationStatus = 'not_required' | 'reserved_pending_phase_6';
 
 /**
  * PdfPointBox
@@ -3668,7 +3725,7 @@ export type ProgressEvent = {
  * Extraction-stage types are reserved for later phases and are never emitted in
  * Phase 1.
  */
-export type ProgressEventType = 'session.created' | 'session.snapshot' | 'session.expiring' | 'session.deleted' | 'document.uploaded' | 'document.rejected' | 'document.queued' | 'document.started' | 'document.stage_changed' | 'document.canonicalisation_started' | 'document.canonicalisation_progress' | 'document.canonicalisation_completed' | 'document.canonicalisation_failed' | 'document.canonicalisation_cancelled' | 'document.canonical_ready' | 'document.ready_for_extraction' | 'document.native_inspection_started' | 'document.native_page_started' | 'document.native_page_accepted' | 'document.native_page_rejected' | 'document.native_page_absent' | 'document.native_page_error' | 'document.native_document_escalated' | 'document.native_extraction_completed' | 'document.native_extraction_failed' | 'document.visual_processing_started' | 'document.visual_pages_selected' | 'document.native_visibility_started' | 'document.native_visibility_supported' | 'document.native_visibility_rejected' | 'document.visual_page_started' | 'document.visual_page_rendered' | 'document.visual_page_ocr_started' | 'document.visual_page_ocr_completed' | 'document.visual_page_no_text' | 'document.visual_page_failed' | 'document.visual_grouping_completed' | 'document.visual_processing_completed' | 'document.visual_processing_partial' | 'document.visual_processing_failed' | 'document.page_route_started' | 'document.page_route_completed' | 'document.embedded_ocr_visual_check_started' | 'document.embedded_ocr_visual_check_completed' | 'document.embedded_ocr_recognition_check_started' | 'document.embedded_ocr_recognition_check_completed' | 'document.embedded_ocr_verified' | 'document.embedded_ocr_targeted_repair_started' | 'document.embedded_ocr_targeted_repair_completed' | 'document.full_ocr_primary_started' | 'document.full_ocr_primary_completed' | 'document.full_ocr_quality_evaluation_started' | 'document.full_ocr_quality_evaluation_completed' | 'document.full_ocr_fallback_started' | 'document.full_ocr_fallback_completed' | 'document.full_ocr_result_selection_started' | 'document.full_ocr_result_selection_completed' | 'document.visual_no_text_completed' | 'document.removed' | 'document.warning' | 'document.failed' | 'document.cancelled' | 'job.queued' | 'job.started' | 'job.completed' | 'job.failed' | 'job.cancelled' | 'stream.resync_required' | 'heartbeat' | 'scheduler.document_admitted' | 'scheduler.document_ready' | 'scheduler.turn_started' | 'scheduler.quantum_completed' | 'scheduler.document_yielded' | 'scheduler.document_checkpointed' | 'scheduler.priority_changed' | 'scheduler.document_resumed' | 'scheduler.document_terminal' | 'document.page_started' | 'document.page_completed' | 'document.completed';
+export type ProgressEventType = 'session.created' | 'session.snapshot' | 'session.expiring' | 'session.deleted' | 'document.uploaded' | 'document.rejected' | 'document.queued' | 'document.started' | 'document.stage_changed' | 'document.canonicalisation_started' | 'document.canonicalisation_progress' | 'document.canonicalisation_completed' | 'document.canonicalisation_failed' | 'document.canonicalisation_cancelled' | 'document.canonical_ready' | 'document.ready_for_extraction' | 'document.native_inspection_started' | 'document.native_page_started' | 'document.native_page_accepted' | 'document.native_page_rejected' | 'document.native_page_absent' | 'document.native_page_error' | 'document.native_document_escalated' | 'document.native_extraction_completed' | 'document.native_extraction_failed' | 'document.visual_processing_started' | 'document.visual_pages_selected' | 'document.native_visibility_started' | 'document.native_visibility_supported' | 'document.native_visibility_rejected' | 'document.visual_page_started' | 'document.visual_page_rendered' | 'document.visual_page_ocr_started' | 'document.visual_page_ocr_completed' | 'document.visual_page_no_text' | 'document.visual_page_failed' | 'document.visual_grouping_completed' | 'document.visual_processing_completed' | 'document.visual_processing_partial' | 'document.visual_processing_failed' | 'document.awaiting_phase_6' | 'document.page_route_started' | 'document.page_route_completed' | 'document.embedded_ocr_visual_check_started' | 'document.embedded_ocr_visual_check_completed' | 'document.embedded_ocr_recognition_check_started' | 'document.embedded_ocr_recognition_check_completed' | 'document.embedded_ocr_verified' | 'document.embedded_ocr_targeted_repair_started' | 'document.embedded_ocr_targeted_repair_completed' | 'document.full_ocr_primary_started' | 'document.full_ocr_primary_completed' | 'document.full_ocr_quality_evaluation_started' | 'document.full_ocr_quality_evaluation_completed' | 'document.full_ocr_fallback_started' | 'document.full_ocr_fallback_completed' | 'document.full_ocr_result_selection_started' | 'document.full_ocr_result_selection_completed' | 'document.visual_no_text_completed' | 'document.removed' | 'document.warning' | 'document.failed' | 'document.cancelled' | 'job.queued' | 'job.started' | 'job.completed' | 'job.failed' | 'job.cancelled' | 'stream.resync_required' | 'heartbeat' | 'scheduler.document_admitted' | 'scheduler.document_ready' | 'scheduler.turn_started' | 'scheduler.quantum_completed' | 'scheduler.document_yielded' | 'scheduler.document_checkpointed' | 'scheduler.priority_changed' | 'scheduler.document_resumed' | 'scheduler.document_terminal' | 'document.page_started' | 'document.page_completed' | 'document.completed';
 
 /**
  * ProvisionalItemClass
@@ -4511,6 +4568,10 @@ export type VisualPageResult = {
      */
     page_route?: string | null;
     /**
+     * Phase 5 Task C3 page-level vision reservation evidence. When reserved, local recognition is prohibited and final authority is deferred to Phase 6 (no provider call in Phase 5).
+     */
+    page_vision_reservation?: PageVisionReservationEvidence | null;
+    /**
      * Peak Rss Mb
      */
     peak_rss_mb?: number | null;
@@ -4665,7 +4726,7 @@ export type VisualPageResult = {
  *
  * Lifecycle of visual/OCR processing for one page.
  */
-export type VisualPageStatus = 'pending' | 'rendering' | 'detecting' | 'recognising' | 'grouping' | 'completed' | 'completed_no_text' | 'failed' | 'cancelled' | 'skipped_native_retained' | 'skipped_embedded_ocr_verified' | 'targeted_repair_completed';
+export type VisualPageStatus = 'pending' | 'rendering' | 'detecting' | 'recognising' | 'grouping' | 'completed' | 'completed_no_text' | 'failed' | 'cancelled' | 'skipped_native_retained' | 'skipped_embedded_ocr_verified' | 'targeted_repair_completed' | 'reserved_pending_phase_6';
 
 /**
  * VisualPageSummary
@@ -4719,7 +4780,7 @@ export type VisualPageSummary = {
  *
  * Document-level visual processing lifecycle.
  */
-export type VisualProcessingStatus = 'visual_pending' | 'visual_processing' | 'visual_processing_complete' | 'visual_processing_partial' | 'visual_processing_failed' | 'cancelled' | 'not_required';
+export type VisualProcessingStatus = 'visual_pending' | 'visual_processing' | 'visual_processing_complete' | 'visual_processing_partial' | 'visual_processing_failed' | 'awaiting_phase_6' | 'cancelled' | 'not_required';
 
 /**
  * VisualProgress

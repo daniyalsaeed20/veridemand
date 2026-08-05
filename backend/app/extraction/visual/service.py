@@ -43,6 +43,10 @@ from backend.app.extraction.routing.materialise_embedded import (
 )
 from backend.app.extraction.routing.metrics import log_document_routing_summary
 from backend.app.extraction.routing.native_words import native_words_for_routing
+from backend.app.extraction.routing.page_vision_reservation import (
+    build_reserved_page_result,
+    should_reserve_page_for_vision,
+)
 from backend.app.extraction.routing.repair_pipeline import (
     cleanup_all_repair_staging,
     run_targeted_repair_pipeline,
@@ -95,6 +99,10 @@ _PHASE4_MIXED_MESSAGE = (
     "Page-level source reconciliation complete. Handwriting and final document structure "
     "have not been evaluated."
 )
+_AWAITING_PHASE_6_MESSAGE = (
+    "Awaiting vision extraction. Local Phase 5 reservation is complete; "
+    "final extraction is not complete."
+)
 
 
 def build_final_route_histogram(
@@ -108,6 +116,7 @@ def build_final_route_histogram(
         PageResultState.EMBEDDED_OCR_TARGETED_REPAIR: 0,
         PageResultState.FULL_VISUAL_OCR: 0,
         PageResultState.VISUAL_NO_TEXT: 0,
+        PageResultState.VISION_RESERVED_PENDING_PHASE_6: 0,
         PageResultState.PAGE_FAILED: 0,
         PageResultState.CANCELLED: 0,
         PageResultState.PENDING: 0,
@@ -137,6 +146,9 @@ def build_final_route_histogram(
         embedded_ocr_targeted_repair_pages=counts[PageResultState.EMBEDDED_OCR_TARGETED_REPAIR],
         full_visual_ocr_pages=counts[PageResultState.FULL_VISUAL_OCR],
         visual_no_text_pages=counts[PageResultState.VISUAL_NO_TEXT],
+        vision_reserved_pending_phase_6_pages=counts[
+            PageResultState.VISION_RESERVED_PENDING_PHASE_6
+        ],
         page_failed_pages=counts[PageResultState.PAGE_FAILED],
         page_cancelled_pages=counts[PageResultState.CANCELLED],
         pending_pages=counts[PageResultState.PENDING],
@@ -207,6 +219,7 @@ class HeavySelectionResult:
     embedded_verified: set[int] = field(default_factory=set)
     targeted_repair_pages: set[int] = field(default_factory=set)
     visual_no_text_pages: set[int] = field(default_factory=set)
+    vision_reserved_pages: set[int] = field(default_factory=set)
     downgraded: set[int] = field(default_factory=set)
     visibility_by_page: dict[int, NativeVisibilityResult] = field(default_factory=dict)
     page_by_number: dict[int, CanonicalPageMetadata] = field(default_factory=dict)
@@ -452,6 +465,7 @@ class VisualOcrService:
         embedded_verified: set[int] = set()
         targeted_repair_pages: set[int] = set()
         visual_no_text_pages: set[int] = set()
+        vision_reserved_pages: set[int] = set()
         visibility_by_page: dict[int, NativeVisibilityResult] = {}
         published: dict[int, VisualPageResult] = {}
         router = PageRouter(self._settings)
@@ -484,6 +498,45 @@ class VisualOcrService:
         for page_number, native_page in sorted(native_pages.items()):
             if cancel_token is not None:
                 cancel_token.raise_if_cancelled()
+
+            # Phase 5 Task C3: conservative page-vision reservation short-circuit.
+            # Dominance is already stable on NativePageResult; skip probe/router/Paddle.
+            if should_reserve_page_for_vision(native_page, self._settings):
+                # Canonical PDF is session-owned and required for this job;
+                # Phase 6 re-renders from it. Avoid pathlib in this async body.
+                page_render_available = page_number in page_by_number
+                reserved = build_reserved_page_result(
+                    native_page,
+                    page_render_available=page_render_available,
+                )
+                vision_reserved_pages.add(page_number)
+                published[page_number] = reserved
+                publish_page_atomic(reserved, results)
+                await _progress(
+                    {
+                        "type": "page_route_started",
+                        "page_number": page_number,
+                    }
+                )
+                await _progress(
+                    {
+                        "type": "page_route_completed",
+                        "page_number": page_number,
+                        "route": PageRoute.VISION_RESERVED_PENDING_PHASE_6.value,
+                        "reason_codes": list(reserved.route_reason_codes),
+                    }
+                )
+                await _progress(
+                    {
+                        "type": "operation_skipped",
+                        "page_number": page_number,
+                        "operation": "full_visual_ocr",
+                        "operation_status": "skipped",
+                        "reason_code": "page_vision_reservation_image_dominant",
+                    }
+                )
+                continue
+
             probe_enabled = self._settings.native_visibility_probe_enabled
             vis: NativeVisibilityResult | None = None
             probe_image: Image.Image | None = None
@@ -891,6 +944,7 @@ class VisualOcrService:
                 "targeted_repair_pages_selected": len(targeted_repair_pages),
                 "full_ocr_pages_selected": len(selected),
                 "visual_no_text_pages": len(visual_no_text_pages),
+                "vision_reserved_pages": len(vision_reserved_pages),
             }
         )
         return HeavySelectionResult(
@@ -906,6 +960,7 @@ class VisualOcrService:
             embedded_verified=embedded_verified,
             targeted_repair_pages=targeted_repair_pages,
             visual_no_text_pages=visual_no_text_pages,
+            vision_reserved_pages=vision_reserved_pages,
             downgraded=downgraded,
             visibility_by_page=visibility_by_page,
             page_by_number=page_by_number,
@@ -1189,20 +1244,25 @@ class VisualOcrService:
             elif page.status is VisualPageStatus.TARGETED_REPAIR_COMPLETED:
                 completed += 1
 
+        exclusive_histogram = build_final_route_histogram(published)
         only_native_retained = (
             not selected
             and not visual_no_text_pages
             and not embedded_verified
             and not targeted_repair_pages
+            and exclusive_histogram.vision_reserved_pending_phase_6_pages == 0
             and all(
                 p.status is VisualPageStatus.SKIPPED_NATIVE_RETAINED
                 or p.status is VisualPageStatus.PENDING
                 for p in published.values()
             )
         )
+        reserved_count = exclusive_histogram.vision_reserved_pending_phase_6_pages
         if only_native_retained:
             status = VisualProcessingStatus.NOT_REQUIRED
-        elif not selected and (visual_no_text_pages or embedded_verified):
+        elif reserved_count > 0 and failed == 0 and cancelled == 0:
+            status = VisualProcessingStatus.AWAITING_PHASE_6
+        elif not selected and (visual_no_text_pages or embedded_verified) and reserved_count == 0:
             status = VisualProcessingStatus.VISUAL_PROCESSING_COMPLETE
         elif failed and (completed + no_text + len(embedded_verified)) > 0:
             status = VisualProcessingStatus.VISUAL_PROCESSING_PARTIAL
@@ -1213,7 +1273,6 @@ class VisualOcrService:
         else:
             status = VisualProcessingStatus.VISUAL_PROCESSING_COMPLETE
 
-        exclusive_histogram = build_final_route_histogram(published)
         policy = reconcile_document_policy(page_modes)
         log_document_routing_summary(
             document_id=document_id,
@@ -1271,6 +1330,8 @@ class VisualOcrService:
             user_message = _PHASE4_MIXED_MESSAGE
         else:
             user_message = _PHASE4_FULL_OCR_MESSAGE
+        if status is VisualProcessingStatus.AWAITING_PHASE_6:
+            user_message = _AWAITING_PHASE_6_MESSAGE
 
         page_total = len(canonical_pages)
         exclusive_completed = exclusive_histogram.exclusive_terminal_total()

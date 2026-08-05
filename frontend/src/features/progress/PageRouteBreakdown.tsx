@@ -32,6 +32,7 @@ function exclusiveSum(hist: NonNullable<ProgressSnapshotInput["final_route_histo
     (hist.embedded_ocr_targeted_repair_pages ?? 0) +
     (hist.full_visual_ocr_pages ?? 0) +
     (hist.visual_no_text_pages ?? 0) +
+    (hist.vision_reserved_pending_phase_6_pages ?? 0) +
     (hist.page_failed_pages ?? 0) +
     (hist.page_cancelled_pages ?? 0) +
     (hist.pending_pages ?? 0)
@@ -56,6 +57,10 @@ export function PageRouteBreakdown({ snapshot }: PageRouteBreakdownProps) {
         <ValueOrSkeleton value={hist?.embedded_ocr_targeted_repair_pages} label="Targeted repair" />
         <ValueOrSkeleton value={hist?.full_visual_ocr_pages} label="Full visual OCR" />
         <ValueOrSkeleton value={hist?.visual_no_text_pages} label="Visual no text" />
+        <ValueOrSkeleton
+          value={hist?.vision_reserved_pending_phase_6_pages}
+          label="Reserved for vision processing"
+        />
         <ValueOrSkeleton value={hist?.page_failed_pages} label="Page failed" />
         <Typography variant="body2" color="text.secondary">
           Exclusive sum:{" "}

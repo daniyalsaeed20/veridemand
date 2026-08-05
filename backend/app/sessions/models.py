@@ -461,6 +461,8 @@ class RuntimeSession:
                     counts.visual_processing_partial += 1
                 case DocumentStatus.VISUAL_PROCESSING_FAILED:
                     counts.visual_processing_failed += 1
+                case DocumentStatus.AWAITING_PHASE_6:
+                    counts.awaiting_phase_6 += 1
                 case DocumentStatus.CANCELLED:
                     counts.cancelled += 1
                 case DocumentStatus.FAILED:

@@ -234,11 +234,13 @@ image-dominant pages.
 | 3 Fine-tune PP-OCRv5 detector | High | Corrected det labels | Lower if zero-miss | Signatures may still miss | Unknown until gate | Yes |
 | 4 Page-level handwriting-presence model | High | Page labels beyond 9 positives | Depends on precision | Overfit to private families | Potential | Yes |
 
-**Recommendation:** Strategy 2 — hybrid page reservation plus the existing Phase 5
-region-router workstream. Page-level fallback is feasible now; detector
-fine-tuning remains optional later to shrink Phase 6 volume, but is not required
-to satisfy the “no handwriting completed by Paddle alone” invariant once page
-reservation and region routing are both in place.
+**Recommendation (Task C2 audit):** Strategy 2 — hybrid page reservation plus the
+existing Phase 5 region-router workstream.
+
+**Task C3 implementation note:** Because region routers remain unsafe (Tasks
+B–B4), Task C3 implements Strategy 1 — **conservative** page reservation only.
+Hybrid mode is deferred (ADR 0087) until a safe region router exists. The
+selected reservation signal remains `page_is_image_dominant`.
 
 ## Pareto note
 

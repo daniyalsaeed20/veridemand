@@ -660,6 +660,7 @@
           "visual_processing_complete",
           "visual_processing_partial",
           "visual_processing_failed",
+          "awaiting_phase_6",
           "cancelled",
           "failed"
         ],
@@ -670,6 +671,12 @@
         "additionalProperties": false,
         "description": "Counts of documents grouped by lifecycle status.",
         "properties": {
+          "awaiting_phase_6": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Awaiting Phase 6",
+            "type": "integer"
+          },
           "cancelled": {
             "default": 0,
             "minimum": 0.0,
@@ -2448,6 +2455,12 @@
             "title": "Pending Pages",
             "type": "integer"
           },
+          "vision_reserved_pending_phase_6_pages": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Vision Reserved Pending Phase 6 Pages",
+            "type": "integer"
+          },
           "visual_no_text_pages": {
             "default": 0,
             "minimum": 0.0,
@@ -2887,6 +2900,15 @@
         ],
         "title": "LivenessResponse",
         "type": "object"
+      },
+      "LocalRecognitionPolicy": {
+        "description": "Whether local Paddle recognition may run on this page.",
+        "enum": [
+          "allowed",
+          "prohibited"
+        ],
+        "title": "LocalRecognitionPolicy",
+        "type": "string"
       },
       "NativeCharacter": {
         "additionalProperties": false,
@@ -4428,11 +4450,93 @@
           "embedded_ocr_targeted_repair",
           "full_visual_ocr",
           "visual_no_text",
+          "vision_reserved_pending_phase_6",
           "page_failed",
           "pending",
           "cancelled"
         ],
         "title": "PageResultState",
+        "type": "string"
+      },
+      "PageVisionReservationEvidence": {
+        "additionalProperties": false,
+        "description": "Privacy-safe page reservation evidence (no provider payload or text).",
+        "properties": {
+          "full_page_bbox_normalized": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NormalisedBoundingBox"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "local_recognition_policy": {
+            "$ref": "#/components/schemas/LocalRecognitionPolicy",
+            "default": "allowed"
+          },
+          "page_render_available": {
+            "default": false,
+            "title": "Page Render Available",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageVisionReservationReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "required": {
+            "default": false,
+            "title": "Required",
+            "type": "boolean"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageVisionReservationScope"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/PageVisionReservationStatus",
+            "default": "not_required"
+          }
+        },
+        "title": "PageVisionReservationEvidence",
+        "type": "object"
+      },
+      "PageVisionReservationReason": {
+        "description": "Why a page was reserved for Phase 6 (not a handwriting proof claim).",
+        "enum": [
+          "image_dominant"
+        ],
+        "title": "PageVisionReservationReason",
+        "type": "string"
+      },
+      "PageVisionReservationScope": {
+        "description": "Geometry scope retained for Phase 6.",
+        "enum": [
+          "full_page"
+        ],
+        "title": "PageVisionReservationScope",
+        "type": "string"
+      },
+      "PageVisionReservationStatus": {
+        "description": "Whether a page requires deferred Phase 6 vision processing.",
+        "enum": [
+          "not_required",
+          "reserved_pending_phase_6"
+        ],
+        "title": "PageVisionReservationStatus",
         "type": "string"
       },
       "PdfPointBox": {
@@ -6889,6 +6993,7 @@
           "document.visual_processing_completed",
           "document.visual_processing_partial",
           "document.visual_processing_failed",
+          "document.awaiting_phase_6",
           "document.page_route_started",
           "document.page_route_completed",
           "document.embedded_ocr_visual_check_started",
@@ -8365,6 +8470,17 @@
             "description": "Phase 4.5 page route when hybrid routing is enabled.",
             "title": "Page Route"
           },
+          "page_vision_reservation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageVisionReservationEvidence"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 5 Task C3 page-level vision reservation evidence. When reserved, local recognition is prohibited and final authority is deferred to Phase 6 (no provider call in Phase 5)."
+          },
           "peak_rss_mb": {
             "anyOf": [
               {
@@ -8812,7 +8928,8 @@
           "cancelled",
           "skipped_native_retained",
           "skipped_embedded_ocr_verified",
-          "targeted_repair_completed"
+          "targeted_repair_completed",
+          "reserved_pending_phase_6"
         ],
         "title": "VisualPageStatus",
         "type": "string"
@@ -8921,6 +9038,7 @@
           "visual_processing_complete",
           "visual_processing_partial",
           "visual_processing_failed",
+          "awaiting_phase_6",
           "cancelled",
           "not_required"
         ],

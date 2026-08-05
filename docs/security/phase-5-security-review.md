@@ -1,10 +1,11 @@
-# Phase 5 security review (Tasks 2–B4 + C0 + C1)
+# Phase 5 security review (Tasks 2–B4 + C0 + C1 + C2 + C3)
 
 Engineering controls for the handwriting classifier foundation, private crop
 dataset tooling, Task B/B2/B3 failed baselines, Task B4 route-first
-vision-reservation router, Task C0 detector-first shadow corpus, and Task C1
-detector recall calibration. This document does **not** claim regulatory
-compliance.
+vision-reservation router, Task C0 detector-first shadow corpus, Task C1
+detector recall calibration, Task C2 page-fallback feasibility audit, and
+Task C3 conservative page vision reservation. This document does **not** claim
+regulatory compliance.
 
 ## Local inference
 
@@ -51,6 +52,16 @@ compliance.
 - No classifier training; no OpenAI / vision-provider calls
 - Known-seed gate failed → no corpus v2 promotion; v1 artefacts preserved
 
+## Page vision reservation (Task C3)
+
+- Feature default off; acceptance profile enables conservative mode only
+- Hybrid mode rejected at settings validation (no silent fallback)
+- Reserved pages skip all local Paddle / classifier / provider calls
+- Full-page geometry only; no contact sheets; no provider payloads
+- Session-scoped artefacts cleaned with existing TTL/cancel paths
+- Acceptance and feasibility docs use aggregates only (no private IDs/text/images)
+- No OpenAI / vision-provider network call; `openai_vision` stays not_configured
+
 ## Privacy
 
 - Classifier APIs and health messages must not include document text, crop
@@ -64,8 +75,10 @@ compliance.
 ## Non-regression
 
 - Live OCR / Paddle combined path / page routes / progress (65% cap) / fair
-  scheduling unchanged
+  scheduling unchanged when page-vision fallback is disabled
 - `HANDWRITING_ROUTER_ENABLED=false` by default
+- `HANDWRITING_PAGE_VISION_FALLBACK_ENABLED=false` by default
 - Detector-first shadow default off; worker does not call `detect_text` /
   `recognise_text_crops` / `load_shadow_detector`
 - No Phase 6 vision provider calls
+- No hybrid page OCR; no classifier enablement from Task C3

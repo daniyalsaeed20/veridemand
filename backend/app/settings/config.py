@@ -304,6 +304,9 @@ class Settings(BaseSettings):
     handwriting_classifier_batch_size: int = Field(default=16, ge=1, le=256)
     # Phase 5 Task C0 — offline/shadow detector-first path (never default-on).
     phase5_detect_first_shadow_enabled: bool = False
+    # Phase 5 Task C3 — conservative page-level vision reservation (default off).
+    handwriting_page_vision_fallback_enabled: bool = False
+    handwriting_page_vision_fallback_mode: str = "conservative"
 
     # Vision provider (future). The key is never exposed in repr/logs/responses.
     openai_api_key: SecretStr = SecretStr("")
@@ -411,6 +414,18 @@ class Settings(BaseSettings):
             )
         if not (self.local_ocr_safe_threshold < self.vision_required_threshold):
             raise ValueError("Route-first thresholds require local_ocr_safe < vision_required.")
+        return self
+
+    @model_validator(mode="after")
+    def _validate_page_vision_fallback_settings(self) -> Settings:
+        mode = str(self.handwriting_page_vision_fallback_mode or "").strip().lower()
+        object.__setattr__(self, "handwriting_page_vision_fallback_mode", mode)
+        if mode != "conservative":
+            raise ValueError(
+                "HANDWRITING_PAGE_VISION_FALLBACK_MODE must be 'conservative' "
+                f"in Phase 5 Task C3. Unsupported mode: {mode!r}. "
+                "Hybrid mode is deferred until a safe region router exists."
+            )
         return self
 
     @model_validator(mode="after")

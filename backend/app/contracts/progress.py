@@ -68,6 +68,7 @@ class ProgressEventType(StrEnum):
     DOCUMENT_VISUAL_PROCESSING_COMPLETED = "document.visual_processing_completed"
     DOCUMENT_VISUAL_PROCESSING_PARTIAL = "document.visual_processing_partial"
     DOCUMENT_VISUAL_PROCESSING_FAILED = "document.visual_processing_failed"
+    DOCUMENT_AWAITING_PHASE_6 = "document.awaiting_phase_6"
 
     # Phase 4.5 hybrid routing / throughput progress.
     DOCUMENT_PAGE_ROUTE_STARTED = "document.page_route_started"

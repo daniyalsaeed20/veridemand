@@ -20,6 +20,7 @@ export function applyMonotonicProgress(
     document.status === "visual_processing_complete" ||
     document.status === "visual_processing_partial" ||
     document.status === "visual_processing_failed" ||
+    document.status === "awaiting_phase_6" ||
     document.status === "failed" ||
     document.status === "cancelled";
 

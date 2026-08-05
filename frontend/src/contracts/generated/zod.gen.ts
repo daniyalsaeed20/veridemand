@@ -166,6 +166,7 @@ export const zDocumentStatus = z.enum([
     'visual_processing_complete',
     'visual_processing_partial',
     'visual_processing_failed',
+    'awaiting_phase_6',
     'cancelled',
     'failed'
 ]);
@@ -176,6 +177,7 @@ export const zDocumentStatus = z.enum([
  * Counts of documents grouped by lifecycle status.
  */
 export const zDocumentStatusCounts = z.object({
+    awaiting_phase_6: z.int().gte(0).optional().default(0),
     cancelled: z.int().gte(0).optional().default(0),
     canonicalising: z.int().gte(0).optional().default(0),
     extracting_native: z.int().gte(0).optional().default(0),
@@ -268,6 +270,7 @@ export const zFinalRouteHistogram = z.object({
     page_cancelled_pages: z.int().gte(0).optional().default(0),
     page_failed_pages: z.int().gte(0).optional().default(0),
     pending_pages: z.int().gte(0).optional().default(0),
+    vision_reserved_pending_phase_6_pages: z.int().gte(0).optional().default(0),
     visual_no_text_pages: z.int().gte(0).optional().default(0)
 });
 
@@ -419,6 +422,13 @@ export const zLivenessResponse = z.object({
     version: z.string(),
     worker_generation: z.int().gte(1).optional().default(1)
 });
+
+/**
+ * LocalRecognitionPolicy
+ *
+ * Whether local Paddle recognition may run on this page.
+ */
+export const zLocalRecognitionPolicy = z.enum(['allowed', 'prohibited']);
 
 /**
  * NativePageDecision
@@ -900,10 +910,47 @@ export const zPageResultState = z.enum([
     'embedded_ocr_targeted_repair',
     'full_visual_ocr',
     'visual_no_text',
+    'vision_reserved_pending_phase_6',
     'page_failed',
     'pending',
     'cancelled'
 ]);
+
+/**
+ * PageVisionReservationReason
+ *
+ * Why a page was reserved for Phase 6 (not a handwriting proof claim).
+ */
+export const zPageVisionReservationReason = z.enum(['image_dominant']);
+
+/**
+ * PageVisionReservationScope
+ *
+ * Geometry scope retained for Phase 6.
+ */
+export const zPageVisionReservationScope = z.enum(['full_page']);
+
+/**
+ * PageVisionReservationStatus
+ *
+ * Whether a page requires deferred Phase 6 vision processing.
+ */
+export const zPageVisionReservationStatus = z.enum(['not_required', 'reserved_pending_phase_6']);
+
+/**
+ * PageVisionReservationEvidence
+ *
+ * Privacy-safe page reservation evidence (no provider payload or text).
+ */
+export const zPageVisionReservationEvidence = z.object({
+    full_page_bbox_normalized: zNormalisedBoundingBox.nullish(),
+    local_recognition_policy: zLocalRecognitionPolicy.optional().default('allowed'),
+    page_render_available: z.boolean().optional().default(false),
+    reason: zPageVisionReservationReason.nullish(),
+    required: z.boolean().optional().default(false),
+    scope: zPageVisionReservationScope.nullish(),
+    status: zPageVisionReservationStatus.optional().default('not_required')
+});
 
 /**
  * PdfPointBox
@@ -1147,6 +1194,7 @@ export const zProgressEventType = z.enum([
     'document.visual_processing_completed',
     'document.visual_processing_partial',
     'document.visual_processing_failed',
+    'document.awaiting_phase_6',
     'document.page_route_started',
     'document.page_route_completed',
     'document.embedded_ocr_visual_check_started',
@@ -1830,7 +1878,8 @@ export const zVisualPageStatus = z.enum([
     'cancelled',
     'skipped_native_retained',
     'skipped_embedded_ocr_verified',
-    'targeted_repair_completed'
+    'targeted_repair_completed',
+    'reserved_pending_phase_6'
 ]);
 
 /**
@@ -1864,6 +1913,7 @@ export const zVisualProcessingStatus = z.enum([
     'visual_processing_complete',
     'visual_processing_partial',
     'visual_processing_failed',
+    'awaiting_phase_6',
     'cancelled',
     'not_required'
 ]);
@@ -2061,6 +2111,7 @@ export const zVisualPageResult = z.object({
     page_restored_after_escalation: z.boolean().optional().default(false),
     page_result_state: zPageResultState.nullish(),
     page_route: z.string().nullish(),
+    page_vision_reservation: zPageVisionReservationEvidence.nullish(),
     peak_rss_mb: z.number().gte(0).nullish(),
     phase3_page_decision: z.string().nullish(),
     preprocess_duration_seconds: z.number().gte(0).nullish(),

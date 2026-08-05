@@ -6,6 +6,7 @@ export const PAGE_RESULT_SOURCE_LABELS = {
   embedded_ocr_targeted_repair: "Verified embedded OCR with visual repair",
   full_visual_ocr: "Printed visual OCR",
   visual_no_text: "No meaningful text detected",
+  vision_reserved_pending_phase_6: "Reserved for vision processing",
   page_failed: "Page processing failed",
   pending: "Processing",
   cancelled: "Cancelled",

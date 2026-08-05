@@ -20,6 +20,7 @@ class PageRoute(StrEnum):
     EMBEDDED_OCR_TARGETED_REPAIR = "embedded_ocr_targeted_repair"
     FULL_VISUAL_OCR = "full_visual_ocr"
     VISUAL_NO_TEXT = "visual_no_text"
+    VISION_RESERVED_PENDING_PHASE_6 = "vision_reserved_pending_phase_6"
     PAGE_FAILED = "page_failed"
     PAGE_CANCELLED = "page_cancelled"
 
@@ -126,6 +127,7 @@ class FinalRouteHistogram(ApiModel):
     embedded_ocr_targeted_repair_pages: int = Field(default=0, ge=0)
     full_visual_ocr_pages: int = Field(default=0, ge=0)
     visual_no_text_pages: int = Field(default=0, ge=0)
+    vision_reserved_pending_phase_6_pages: int = Field(default=0, ge=0)
     page_failed_pages: int = Field(default=0, ge=0)
     page_cancelled_pages: int = Field(default=0, ge=0)
     pending_pages: int = Field(default=0, ge=0)
@@ -138,6 +140,7 @@ class FinalRouteHistogram(ApiModel):
             + self.embedded_ocr_targeted_repair_pages
             + self.full_visual_ocr_pages
             + self.visual_no_text_pages
+            + self.vision_reserved_pending_phase_6_pages
             + self.page_failed_pages
             + self.page_cancelled_pages
         )

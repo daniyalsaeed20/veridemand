@@ -42,6 +42,7 @@ const STATUS_LABEL: Record<DocumentStatus, string> = {
   visual_processing_complete: "Printed OCR complete",
   visual_processing_partial: "Printed OCR partial",
   visual_processing_failed: "Printed OCR failed",
+  awaiting_phase_6: "Awaiting vision extraction",
   cancelled: "Cancelled",
   failed: "Failed",
 };
@@ -59,6 +60,7 @@ const STATUS_TONE: Record<DocumentStatus, StatusTone> = {
   visual_processing_complete: "positive",
   visual_processing_partial: "caution",
   visual_processing_failed: "critical",
+  awaiting_phase_6: "caution",
   cancelled: "neutral",
   failed: "critical",
 };
@@ -147,6 +149,7 @@ export function DocumentCard({
     document.status === "visual_processing_complete" ||
     document.status === "visual_processing_partial" ||
     document.status === "visual_processing_failed" ||
+    document.status === "awaiting_phase_6" ||
     document.status === "cancelled" ||
     document.status === "failed";
   const isTerminalStatus =
@@ -155,6 +158,7 @@ export function DocumentCard({
     document.status === "visual_processing_complete" ||
     document.status === "visual_processing_partial" ||
     document.status === "visual_processing_failed" ||
+    document.status === "awaiting_phase_6" ||
     document.status === "ready_for_extraction" ||
     document.status === "native_trust_complete";
   const showPriorityControls = document.fair_scheduling_enabled === true && !isTerminalStatus;
@@ -242,6 +246,16 @@ export function DocumentCard({
             <Typography variant="caption" color="text.secondary">
               Printed visual OCR complete. Handwriting and final document structure have not been
               evaluated.
+            </Typography>
+            <PageRouteBreakdown snapshot={document} />
+          </Stack>
+        ) : null}
+
+        {document.status === "awaiting_phase_6" ? (
+          <Stack spacing={0.5}>
+            <Typography variant="caption" color="text.secondary">
+              Awaiting vision extraction. Local reservation is complete; final extraction is not
+              complete.
             </Typography>
             <PageRouteBreakdown snapshot={document} />
           </Stack>

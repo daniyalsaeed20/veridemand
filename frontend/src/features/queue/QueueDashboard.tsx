@@ -106,6 +106,7 @@ export function QueueDashboard({
             <CountChip label="Queued" value={counts.queued ?? 0} />
             <CountChip label="Canonicalising" value={counts.canonicalising ?? 0} />
             <CountChip label="Ready" value={counts.ready_for_extraction ?? 0} />
+            <CountChip label="Awaiting vision" value={counts.awaiting_phase_6 ?? 0} />
             <CountChip label="Cancelled" value={counts.cancelled ?? 0} />
             <CountChip label="Failed" value={counts.failed ?? 0} />
           </Stack>

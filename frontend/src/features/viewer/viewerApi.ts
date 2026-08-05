@@ -179,6 +179,7 @@ export const zDocumentStatus = z.enum([
   "visual_processing_complete",
   "visual_processing_partial",
   "visual_processing_failed",
+  "awaiting_phase_6",
   "cancelled",
   "failed",
 ]);
@@ -347,6 +348,7 @@ export const zDocumentStatusCounts = z.object({
   visual_processing_complete: z.int().gte(0).default(0),
   visual_processing_partial: z.int().gte(0).default(0),
   visual_processing_failed: z.int().gte(0).default(0),
+  awaiting_phase_6: z.int().gte(0).default(0),
   cancelled: z.int().gte(0).default(0),
   failed: z.int().gte(0).default(0),
 });
@@ -399,6 +401,7 @@ export const zProgressEventType = z.enum([
   "document.visual_processing_completed",
   "document.visual_processing_partial",
   "document.visual_processing_failed",
+  "document.awaiting_phase_6",
   "document.page_route_started",
   "document.page_route_completed",
   "document.embedded_ocr_visual_check_started",

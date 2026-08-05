@@ -1,7 +1,8 @@
 # Phase 5 handwriting router (architecture)
 
-**Status:** Phase 5 in progress — Task B4 route-first model under evaluation.
-Router remains disabled; not wired into live OCR.
+**Status:** Phase 5 in progress — conservative full-page vision reservation
+implemented for image-dominant pages; region classifier remains disabled; Phase 6
+provider processing is not yet implemented.
 
 ## Scope
 
@@ -15,6 +16,20 @@ Local ONNX image classifier for writing-style routing:
 
 Task B / B2 three-class softmax and Task B3 dual-risk remain
 **failed baselines — superseded for safety evaluation**.
+
+### Page-level reservation layer (Task C3)
+
+Before region routing, the optional conservative fallback may reserve entire
+image-dominant pages:
+
+```text
+page_is_image_dominant + fallback enabled
+  → vision_reserved_pending_phase_6 (no local Paddle)
+  → document awaiting_phase_6
+```
+
+See `docs/architecture/phase-5-page-vision-reservation.md` and ADRs 0082–0087.
+Hybrid page OCR is deferred until a safe region router exists.
 
 ### Routing doctrine
 

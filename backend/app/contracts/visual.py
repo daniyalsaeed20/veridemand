@@ -29,6 +29,7 @@ from backend.app.contracts.ocr import (
     PrintedOcrWord,
     ProvisionalItemCounts,
 )
+from backend.app.contracts.page_vision_reservation import PageVisionReservationEvidence
 from backend.app.contracts.routing import FinalRouteHistogram
 
 
@@ -47,6 +48,7 @@ class VisualPageStatus(StrEnum):
     SKIPPED_NATIVE_RETAINED = "skipped_native_retained"
     SKIPPED_EMBEDDED_OCR_VERIFIED = "skipped_embedded_ocr_verified"
     TARGETED_REPAIR_COMPLETED = "targeted_repair_completed"
+    RESERVED_PENDING_PHASE_6 = "reserved_pending_phase_6"
 
 
 class VisualProcessingStatus(StrEnum):
@@ -57,6 +59,7 @@ class VisualProcessingStatus(StrEnum):
     VISUAL_PROCESSING_COMPLETE = "visual_processing_complete"
     VISUAL_PROCESSING_PARTIAL = "visual_processing_partial"
     VISUAL_PROCESSING_FAILED = "visual_processing_failed"
+    AWAITING_PHASE_6 = "awaiting_phase_6"
     CANCELLED = "cancelled"
     NOT_REQUIRED = "not_required"
 
@@ -89,6 +92,7 @@ class PageResultState(StrEnum):
     EMBEDDED_OCR_TARGETED_REPAIR = "embedded_ocr_targeted_repair"
     FULL_VISUAL_OCR = "full_visual_ocr"
     VISUAL_NO_TEXT = "visual_no_text"
+    VISION_RESERVED_PENDING_PHASE_6 = "vision_reserved_pending_phase_6"
     PAGE_FAILED = "page_failed"
     PENDING = "pending"
     CANCELLED = "cancelled"
@@ -122,6 +126,7 @@ PAGE_RESULT_SOURCE_LABELS: dict[PageResultState, str] = {
     PageResultState.EMBEDDED_OCR_TARGETED_REPAIR: "Verified embedded OCR with visual repair",
     PageResultState.FULL_VISUAL_OCR: "Printed visual OCR",
     PageResultState.VISUAL_NO_TEXT: "No meaningful text detected",
+    PageResultState.VISION_RESERVED_PENDING_PHASE_6: "Reserved for vision processing",
     PageResultState.PAGE_FAILED: "Page processing failed",
     PageResultState.PENDING: "Processing",
     PageResultState.CANCELLED: "Cancelled",
@@ -296,6 +301,14 @@ class VisualPageResult(ApiModel):
             "Phase 4 stamp sites leave this unset."
         ),
     )
+    page_vision_reservation: PageVisionReservationEvidence | None = Field(
+        default=None,
+        description=(
+            "Phase 5 Task C3 page-level vision reservation evidence. "
+            "When reserved, local recognition is prohibited and final authority "
+            "is deferred to Phase 6 (no provider call in Phase 5)."
+        ),
+    )
     warnings: list[VisualWarning] = Field(default_factory=list)
     quarantined_glyph_count: int = Field(default=0, ge=0)
     quarantined_region_count: int = Field(default=0, ge=0)
@@ -395,6 +408,39 @@ class VisualPageResult(ApiModel):
                 raise ValueError("page_failed requires a typed error_code.")
             if self.source_mode is SourceMode.EMBEDDED_OCR_AUTHORITY:
                 raise ValueError("page_failed must not claim embedded_ocr_authority.")
+
+        if state is PageResultState.VISION_RESERVED_PENDING_PHASE_6:
+            reservation = self.page_vision_reservation
+            if reservation is None or not reservation.required:
+                raise ValueError(
+                    "vision_reserved_pending_phase_6 requires page_vision_reservation.required."
+                )
+            if self.source_mode in {
+                SourceMode.NATIVE_AUTHORITY,
+                SourceMode.EMBEDDED_OCR_AUTHORITY,
+            }:
+                raise ValueError(
+                    "vision_reserved_pending_phase_6 must not claim native or "
+                    "embedded_ocr final authority."
+                )
+            if self.visual_result_available:
+                raise ValueError(
+                    "vision_reserved_pending_phase_6 must not claim visual_result_available."
+                )
+            if self.word_count > 0 or self.line_count > 0 or self.words or self.lines:
+                raise ValueError(
+                    "vision_reserved_pending_phase_6 must not publish final extracted text."
+                )
+            if self.status is VisualPageStatus.COMPLETED:
+                raise ValueError("vision_reserved_pending_phase_6 must not use status=completed.")
+            expected = source_label_for_page_result_state(
+                PageResultState.VISION_RESERVED_PENDING_PHASE_6
+            )
+            if self.source_label != expected:
+                raise ValueError(
+                    f"vision_reserved_pending_phase_6 source_label must be {expected!r}, "
+                    f"got {self.source_label!r}."
+                )
 
         if (
             self.source_mode is SourceMode.EMBEDDED_OCR_AUTHORITY

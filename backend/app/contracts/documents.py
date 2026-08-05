@@ -63,6 +63,7 @@ class DocumentStatus(StrEnum):
     VISUAL_PROCESSING_COMPLETE = "visual_processing_complete"
     VISUAL_PROCESSING_PARTIAL = "visual_processing_partial"
     VISUAL_PROCESSING_FAILED = "visual_processing_failed"
+    AWAITING_PHASE_6 = "awaiting_phase_6"
     CANCELLED = "cancelled"
     FAILED = "failed"
 
@@ -323,6 +324,7 @@ class DocumentStatusCounts(ApiModel):
     visual_processing_complete: int = Field(default=0, ge=0)
     visual_processing_partial: int = Field(default=0, ge=0)
     visual_processing_failed: int = Field(default=0, ge=0)
+    awaiting_phase_6: int = Field(default=0, ge=0)
     cancelled: int = Field(default=0, ge=0)
     failed: int = Field(default=0, ge=0)
 

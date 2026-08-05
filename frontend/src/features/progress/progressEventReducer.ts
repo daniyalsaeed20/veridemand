@@ -51,6 +51,7 @@ const DOCUMENT_TERMINAL_EVENTS = new Set([
   "document.visual_processing_completed",
   "document.visual_processing_partial",
   "document.visual_processing_failed",
+  "document.awaiting_phase_6",
   "document.native_extraction_completed",
 ]);
 

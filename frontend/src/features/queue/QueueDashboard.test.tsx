@@ -21,6 +21,7 @@ function snapshotWithDocuments() {
       visual_processing_complete: 0,
       visual_processing_partial: 0,
       visual_processing_failed: 0,
+      awaiting_phase_6: 0,
       cancelled: 0,
       failed: 0,
     },

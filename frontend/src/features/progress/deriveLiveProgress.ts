@@ -49,6 +49,7 @@ export interface ProgressSnapshotInput {
     readonly embedded_ocr_targeted_repair_pages?: number;
     readonly full_visual_ocr_pages?: number;
     readonly visual_no_text_pages?: number;
+    readonly vision_reserved_pending_phase_6_pages?: number;
     readonly page_failed_pages?: number;
     readonly page_cancelled_pages?: number;
     readonly pending_pages?: number;

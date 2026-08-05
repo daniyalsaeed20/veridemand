@@ -356,6 +356,7 @@ class ProcessingCoordinator:
                 DocumentStatus.VISUAL_PROCESSING_COMPLETE,
                 DocumentStatus.VISUAL_PROCESSING_PARTIAL,
                 DocumentStatus.VISUAL_PROCESSING_FAILED,
+                DocumentStatus.AWAITING_PHASE_6,
                 DocumentStatus.FAILED,
             ):
                 raise ApiException(
@@ -2559,6 +2560,9 @@ class ProcessingCoordinator:
                     document.current_operation = document.failure_stage
                 document.attempt_number = snapshot.attempt_number
                 document.max_attempts = snapshot.max_attempts
+            elif summary.visual_processing_status is VisualProcessingStatus.AWAITING_PHASE_6:
+                document.status = DocumentStatus.AWAITING_PHASE_6
+                complete_event = ProgressEventType.DOCUMENT_AWAITING_PHASE_6
             else:
                 document.status = DocumentStatus.VISUAL_PROCESSING_COMPLETE
                 complete_event = ProgressEventType.DOCUMENT_VISUAL_PROCESSING_COMPLETED
@@ -2571,7 +2575,14 @@ class ProcessingCoordinator:
             document.visual_processing_required = summary.pages_selected > 0
             if summary.document_source_policy is not None:
                 document.document_source_policy = summary.document_source_policy
-            document.user_status_message = summary.user_status_message or _PHASE4_COMPLETE_MESSAGE
+            if summary.visual_processing_status is VisualProcessingStatus.AWAITING_PHASE_6:
+                document.user_status_message = (
+                    summary.user_status_message or "Awaiting vision extraction"
+                )
+            else:
+                document.user_status_message = (
+                    summary.user_status_message or _PHASE4_COMPLETE_MESSAGE
+                )
             document.pages_completed = summary.pages_completed
             document.pages_total = summary.pages_selected or summary.page_count
             document.major_phase = MajorPhase.VISUAL_OCR.value

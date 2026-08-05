@@ -1,12 +1,25 @@
 # Phase 5 implementation report
 
-**Status:** Phase 5 in progress — detector-first shadow established; Task C1
-known-seed detector gate **failed** (coverage still insufficient); classifier
-retraining blocked until a handwriting-capable detector candidate is ready.
+**Status:** Phase 5 in progress — conservative full-page vision reservation
+implemented for image-dominant pages; Phase 6 provider processing is not yet
+implemented. Region-level handwriting classification has **not** passed; Phase 5
+is **not** released.
 
 See `docs/phases/phase-5-recovery-audit.md` for ChatGPT handoff and Tasks A–E.
 
 ## Completed
+
+### Task C3 — Conservative page vision reservation
+
+- Contracts: `PageVisionReservationEvidence`, exclusive route
+  `vision_reserved_pending_phase_6`, document lifecycle `awaiting_phase_6`
+- Settings: `HANDWRITING_PAGE_VISION_FALLBACK_ENABLED=false` (default);
+  mode `conservative` only (hybrid rejected)
+- Runtime short-circuit reuses `page_is_image_dominant` before Paddle/router
+- Progress capped at 65%; reserved docs are awaiting Phase 6, not extraction success
+- Private acceptance: 107/215 reserved; 55/55 seeds; 7/7 C1 misses; 0 Paddle on reserved
+- ADRs 0082–0087; architecture/ops/evaluation docs
+- **No** OpenAI / vision-provider call; **no** hybrid mode; **no** classifier enablement
 
 ### Task 1 — Preflight audit
 

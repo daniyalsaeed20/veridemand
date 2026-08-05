@@ -113,12 +113,14 @@ export function CanonicalViewer({ sessionId, documents }: CanonicalViewerProps) 
     selectedDocument?.status === "native_trust_complete" ||
     selectedDocument?.status === "visual_processing_complete" ||
     selectedDocument?.status === "visual_processing_partial" ||
-    selectedDocument?.status === "visual_processing_failed";
+    selectedDocument?.status === "visual_processing_failed" ||
+    selectedDocument?.status === "awaiting_phase_6";
   const visualReady =
     selectedDocument?.visual_processing_performed === true ||
     selectedDocument?.status === "visual_processing_complete" ||
     selectedDocument?.status === "visual_processing_partial" ||
-    selectedDocument?.status === "visual_processing_failed";
+    selectedDocument?.status === "visual_processing_failed" ||
+    selectedDocument?.status === "awaiting_phase_6";
 
   // Optional panels — failures must not affect PDF canvas gating.
   const nativeSummaryQuery = useQuery({
