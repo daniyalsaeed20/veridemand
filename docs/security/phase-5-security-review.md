@@ -1,9 +1,10 @@
-# Phase 5 security review (Tasks 2–B4 + C0)
+# Phase 5 security review (Tasks 2–B4 + C0 + C1)
 
 Engineering controls for the handwriting classifier foundation, private crop
 dataset tooling, Task B/B2/B3 failed baselines, Task B4 route-first
-vision-reservation router, and Task C0 detector-first shadow corpus. This
-document does **not** claim regulatory compliance.
+vision-reservation router, Task C0 detector-first shadow corpus, and Task C1
+detector recall calibration. This document does **not** claim regulatory
+compliance.
 
 ## Local inference
 
@@ -40,6 +41,16 @@ document does **not** claim regulatory compliance.
 - No second model family download; reuse configured `PP-OCRv5_mobile_*` assets
 - Strict label transfer only (exact SHA or tight geometry) — no proximity labels
 
+## Detector calibration (Task C1)
+
+- `PP-OCRv5_server_det` bootstrapped only via explicit
+  `pnpm models:ocr:bootstrap:server-det`; assets stay gitignored
+- Live `OCR_DETECTION_MODEL_NAME` remains mobile; worker never loads server det
+- Dual-detector merge is offline calibration only
+- Calibration reports use aggregates only (no page/seed IDs, OCR text, or crops)
+- No classifier training; no OpenAI / vision-provider calls
+- Known-seed gate failed → no corpus v2 promotion; v1 artefacts preserved
+
 ## Privacy
 
 - Classifier APIs and health messages must not include document text, crop
@@ -56,5 +67,5 @@ document does **not** claim regulatory compliance.
   scheduling unchanged
 - `HANDWRITING_ROUTER_ENABLED=false` by default
 - Detector-first shadow default off; worker does not call `detect_text` /
-  `recognise_text_crops`
+  `recognise_text_crops` / `load_shadow_detector`
 - No Phase 6 vision provider calls

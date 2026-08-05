@@ -31,6 +31,26 @@ Do not sync `model-dev` for these commands — use the OCR group only.
 Private corpus version: `phase5-detector-first-regions-v1` under
 `fixtures/private/phase5/detector-first/` (gitignored).
 
+## Detector recall calibration (Task C1)
+
+Shadow-only. Does **not** replace the live mobile detector.
+
+```text
+pnpm models:ocr:bootstrap:server-det
+pnpm phase5:detector-calib:baseline
+pnpm phase5:detector-calib:grid
+pnpm phase5:detector-calib:select
+```
+
+- Server assets: `.models/paddleocr/PP-OCRv5_server_det/` (gitignored)
+- Live `OCR_DETECTION_MODEL_NAME` remains `PP-OCRv5_mobile_det`
+- Dual merge algorithm: `phase5-dual-detector-merge-v1` (offline only)
+- Architecture: `docs/architecture/phase-5-detector-calibration.md`
+- Evidence: `docs/evaluation/phase-5-detector-candidate-comparison.md`
+
+Known-seed gate result: **DETECTOR COVERAGE STILL INSUFFICIENT** — do not
+retrain the classifier until a candidate passes.
+
 ## Package layout (Task B4 route-first)
 
 ```text

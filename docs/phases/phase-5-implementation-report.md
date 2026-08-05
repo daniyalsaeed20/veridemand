@@ -1,6 +1,8 @@
 # Phase 5 implementation report
 
-**Status:** Phase 5 in progress — detector-first shadow pipeline established; router model must be retrained on detector-first regions before live integration.
+**Status:** Phase 5 in progress — detector-first shadow established; Task C1
+known-seed detector gate **failed** (coverage still insufficient); classifier
+retraining blocked until a handwriting-capable detector candidate is ready.
 
 See `docs/phases/phase-5-recovery-audit.md` for ChatGPT handoff and Tasks A–E.
 
@@ -143,8 +145,7 @@ Evidence-based design freeze in `docs/phases/phase-5-preflight-audit.md`.
 ### Task C0 — Detector-first shadow pipeline and region corpus
 
 - Separate PaddleX create_model det/rec APIs on configured PP-OCRv5_mobile_*
-  local assets (detect_text / 
-ecognise_text_crops)
+  local assets (detect_text / recognise_text_crops)
 - Live Phase 4 combined PaddleOCR.predict path unchanged; shadow default off
   (PHASE5_DETECT_FIRST_SHADOW_ENABLED=false)
 - Offline corpus: phase5-detector-first-regions-v1 via
@@ -154,10 +155,25 @@ ecognise_text_crops)
 - ADRs 0072–0076; architecture/eval/ops/security docs updated
 - **No** classifier training; **no** live routing; **no** Phase 6
 
+### Task C1 — Handwriting detector recall calibration
+
+- Bounded ≤12-config mobile / server / dual-merge calibration (shadow only)
+- Explicit `PP-OCRv5_server_det` bootstrap; live mobile detector unchanged
+- Merge algorithm `phase5-dual-detector-merge-v1`; predict kwargs wired for
+  PaddleX TextDet (`thresh` / `box_thresh` / `unclip_ratio` / `limit_side_len`)
+- C0 baseline reproduced (55 / 36 / 19 / 0.655)
+- Best incomplete recall **0.873** (7 misses); signature slice remains blocking
+- Decision: **DETECTOR COVERAGE STILL INSUFFICIENT** — no classifier retrain;
+  no corpus v2 promotion; no live path change
+- ADRs 0077–0081; calibration architecture + candidate comparison docs
+- **No** classifier training; **no** live routing; **no** Phase 6
+
 ## Not done (later tasks — recovery path Tasks C–E)
 
+- Detector coverage recovery (fine-tune handwriting-sensitive detector **or**
+  page-level vision-reservation fallback) before classifier retrain
 - **C** Integrate classification into detect→classify→printed-recognise (after
-  router retraining on detector-first crops)
+  a passing detector candidate **and** router retraining on detector-first crops)
 - **D** Prove routing invariants and corpus evaluation
 - **E** Consolidate Phase 5 evidence and tag
 - Release held-out freeze remains an explicit later decision (six-group adequacy)

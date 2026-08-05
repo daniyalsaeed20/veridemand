@@ -82,3 +82,10 @@ labelling is required before router retraining.
 
 Committed evaluation docs use aggregates only. Private manifests omit OCR text.
 No montages, no OpenAI, no Phase 6 provider calls.
+
+## Task C1 note
+
+Task C1 calibrated detectors offline but did **not** promote
+`phase5-detector-first-regions-v2` because the known-seed zero-miss gate failed
+(`DETECTOR COVERAGE STILL INSUFFICIENT`). This v1 corpus remains the preserved
+Task C0 baseline. See `docs/evaluation/phase-5-detector-candidate-comparison.md`.

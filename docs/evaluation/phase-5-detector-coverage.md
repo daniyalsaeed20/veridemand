@@ -44,8 +44,28 @@ pnpm phase5:detector-corpus:coverage
 
 ## Limits (do not hide)
 
-- **19 / 55** handwriting seeds have **no** matching detector region.
-- Cursive and signature recalls are incomplete; those misses cannot be
-  routed by a Phase 5 classifier until detection coverage improves.
+- **19 / 55** handwriting seeds have **no** matching detector region on the
+  Task C0 intrinsic mobile baseline.
+- Cursive and signature recalls are incomplete on that baseline; those misses
+  cannot be routed by a Phase 5 classifier until detection coverage improves.
 - Task C0 does **not** add a second handwriting-specific detector.
 - Committed reports contain aggregates only — no private page/seed IDs.
+
+## Task C1 calibration (known-seed gate)
+
+Offline calibration of mobile / server / merged detectors did **not** reach
+zero known-seed misses. Best incomplete candidate recall **0.873** (7 misses),
+dominated by residual **signature** misses. See
+`docs/evaluation/phase-5-detector-candidate-comparison.md`.
+
+```text
+DETECTOR COVERAGE STILL INSUFFICIENT
+```
+
+Commands:
+
+```text
+pnpm phase5:detector-calib:baseline
+pnpm phase5:detector-calib:grid
+pnpm phase5:detector-calib:select
+```
