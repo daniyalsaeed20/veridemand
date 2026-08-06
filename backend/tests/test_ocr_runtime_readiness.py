@@ -377,8 +377,8 @@ def test_retry_endpoint_and_session_preserved(
 
 
 def test_dll_env_conflict_is_restart_required_not_retryable() -> None:
-    from backend.app.extraction.visual.ocr_environment import OcrEnvironmentDiagnostics
     from backend.app.contracts.ocr_runtime import OcrPythonEnvironmentKind
+    from backend.app.extraction.visual.ocr_environment import OcrEnvironmentDiagnostics
     from backend.app.extraction.visual.ocr_readiness import restart_required_for
 
     mixed = OcrEnvironmentDiagnostics(
