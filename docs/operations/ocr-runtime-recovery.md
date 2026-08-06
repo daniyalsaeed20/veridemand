@@ -11,7 +11,22 @@
 | Printed OCR could not start without Retry | Terminal configuration/model issue |
 | Printed OCR is disabled | `OCR_ENABLED=false` |
 | Runtime readiness unavailable | Backend live; readiness probe failed |
-| Backend connection unavailable | Frontend cannot reach `/health/live` |
+| Backend connection unavailable | Frontend cannot reach `/health/live` after consecutive genuine transport failures |
+
+## False unavailable during sustained OCR (corrected)
+
+Root cause: React Query cancel/`AbortError` from SSE reconnect invalidation was
+remapped to `liveness_timeout`, which latched **Backend connection unavailable**
+while `/health/live` still returned 200 and OCR continued.
+
+Correction:
+
+- Timer aborts → `liveness_timeout` / `readiness_timeout`
+- External/RQ cancels → raw `AbortError` (no error latch)
+- Persistent outage requires **2** consecutive genuine transport failures
+- Successful live clears the streak immediately
+
+Progress `invalid_lifecycle_transition` warnings never change connection state.
 
 ## Restart required (mixed environment)
 

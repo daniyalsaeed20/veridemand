@@ -26,6 +26,17 @@ $env:UV_PROJECT_ENVIRONMENT = ".venv-ocr"
 uv sync --group ocr
 ```
 
+### Launch commands
+
+| Command | OCR env | Phase 5 conservative reservation |
+|---------|---------|----------------------------------|
+| `pnpm dev` / `pnpm dev:ocr` | `.venv-ocr` | **Off** (release default) |
+| `pnpm dev:phase5` | `.venv-ocr` | **On** (`ENABLED=true`, `MODE=conservative`) |
+
+Do not use `pnpm dev:ocr` when validating Phase 5 routing — the Backend health
+card shows `page_vision_off` vs `page_vision_on` so the active profile is
+obvious. Hybrid mode is never enabled by these launchers.
+
 Do not mix `model-dev` into this environment on Windows.
 
 ## Readiness

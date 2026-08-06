@@ -32,11 +32,19 @@ Mixed-environment `ocr_dll_load_failed` is **restart_required** (not Retry OCR).
 | Signal | Meaning |
 |--------|---------|
 | Session active / Offline / Reconnecting | SSE event stream only |
-| Backend connection unavailable | `/health/live` transport failure only |
+| Backend connection unavailable | Persistent `/health/live` transport failure (streak ≥ 2); not RQ cancel; not readiness 503 |
 | Runtime readiness unavailable | Live OK; readiness HTTP/body failure (not timeout) |
 | Printed OCR is starting | OCR stages **or** readiness client timeout while live |
 | OCR failed (+ Retry OCR when retryable) | Structured `ocr_runtime` failed |
 | Process enabled | Live OK, ready 200, `ocr_runtime.ready` |
+
+## Sustained-processing connection correction
+
+| Item | Detail |
+|------|--------|
+| Failed request | In-flight `/health/live` aborted by query invalidation remapped to `liveness_timeout` |
+| Backend truly unreachable? | No — live still 200; OCR continued |
+| Fix | Cancel ≠ timeout; consecutive-failure streak; independent Session/OCR/readiness |
 
 ## Controlled tests A–F
 

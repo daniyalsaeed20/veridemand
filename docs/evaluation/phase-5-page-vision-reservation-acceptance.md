@@ -38,6 +38,18 @@ Non-reserved source-family histogram (aggregates):
 
 - Feature default remains **off**
 - Acceptance profile: enabled + `conservative`
+- Launchers: `pnpm dev:ocr` → `page_vision_off`; `pnpm dev:phase5` → `page_vision_on`
+- Backend health card shows Phase 5 page-vision ON/OFF from `configuration_profile`
+
+### Police collision report (opaque label `private_police_scan`)
+
+| Profile | Pages | Reserved | Full visual OCR | Lifecycle | Progress max |
+|---------|------:|--------:|----------------:|-----------|-------------:|
+| Feature-off (`page_vision_off`) | 2 | 0 | 2 | `visual_processing_complete` | 65% |
+| Feature-on (`pnpm dev:phase5`) | 2 | 2 | 0 | `awaiting_phase_6` | 65% |
+
+Feature-on: `operation_skipped` for reserved pages; `full_ocr_pages=0`;
+`final_result_available=false`; no vision-provider calls.
 - Insertion point: visual heavy-selection loop before probe/router/Paddle
 - Exclusive route: `vision_reserved_pending_phase_6`
 - Document lifecycle when reserved pages exist: `awaiting_phase_6`

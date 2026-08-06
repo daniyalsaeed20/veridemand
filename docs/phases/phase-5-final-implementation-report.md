@@ -400,3 +400,41 @@ same `sys.executable` and cannot switch to `.venv-ocr`.
 
 After-fix (`.venv-ocr`): live 200, ready 200, `ocr_runtime.state=ready`, Session active.
 E2E (`.venv-ocr`): 28 passed, 5 skipped. Page reservation acceptance: 215/107; 9/9; 55/55.
+
+---
+
+## Post-release hotfix — sustained connection + Phase 5 manual runtime
+
+Follow-on on `phase-05-ocr-readiness-ux`. Does **not** rewrite Phase 5 PASSED
+or prior hotfix sections. Does **not** start Phase 6.
+
+### Connection root cause
+
+During sustained OCR, React Query cancelled in-flight `/health/live` polls
+(SSE reconnect invalidation). `AbortError` was remapped to `liveness_timeout`,
+latching **Backend connection unavailable** while live still returned 200.
+
+Correction: cancel ≠ timeout; require two consecutive genuine transport failures;
+clear streak on success. Session SSE / readiness / OCR remain independent.
+
+### Lifecycle root cause
+
+Frontend progress reducer treated any `document.*` + terminal `operation_status`
+as document-terminal, so `full_ocr_*_completed` blocked the next `*_started`
+(and next-page starts) with `invalid_lifecycle_transition`.
+
+Correction: document terminal only from true document lifecycle events; operation
+terminal scoped to `operation_id`; clear terminal on `visual_processing_started`
+after native completion.
+
+### Phase 5 launcher
+
+- `pnpm dev` / `pnpm dev:ocr` → OCR-ready, reservation **off** (`page_vision_off`)
+- `pnpm dev:phase5` → OCR-ready, conservative reservation **on** (`page_vision_on`)
+
+### Police report aggregates (opaque label only)
+
+| Profile | Pages | Reserved | Full OCR | Lifecycle |
+|---------|------:|--------:|---------:|-----------|
+| Off | 2 | 0 | 2 | complete |
+| On | 2 | 2 | 0 | `awaiting_phase_6` |

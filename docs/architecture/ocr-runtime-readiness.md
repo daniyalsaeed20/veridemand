@@ -77,3 +77,23 @@ occupies it.
 When readiness reports `restart_required=true` / recovery action
 `restart_backend_in_ocr_environment`, stop the backend and relaunch with
 `pnpm dev:ocr`. Do not press Retry OCR.
+
+## Phase 5 development profile
+
+| Command | Reservation |
+|---------|-------------|
+| `pnpm dev` / `pnpm dev:ocr` | Off (`page_vision_off`) |
+| `pnpm dev:phase5` | Conservative on (`page_vision_on`) |
+
+`configuration_profile` on `/health/live` includes `page_vision_on` or
+`page_vision_off`. The Backend health card surfaces the same so operators do not
+mistake feature-off OCR for a Phase 5 routing test.
+
+## Connection independence
+
+Backend unavailable is driven only by genuine `/health/live` transport failures.
+Readiness 503, OCR busy/starting/failed, progress reducer warnings, and a single
+superseded/cancelled liveness poll must not latch “Backend connection unavailable”.
+Cancelled React Query polls rethrow `AbortError` (not `liveness_timeout`). Two
+consecutive genuine transport failures are required before showing outage; any
+successful live response clears the streak immediately.
