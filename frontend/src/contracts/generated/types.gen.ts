@@ -2447,6 +2447,13 @@ export type OcrPassComparison = {
 export type OcrPassKind = 'primary' | 'fallback';
 
 /**
+ * OcrPythonEnvironmentKind
+ *
+ * Sanitized kind of the Python environment running the OCR backend.
+ */
+export type OcrPythonEnvironmentKind = 'ocr' | 'model_dev' | 'mixed' | 'default' | 'system' | 'unknown';
+
+/**
  * OcrQualityStatus
  *
  * Derived OCR quality status for a single pass or selected result.
@@ -2468,6 +2475,13 @@ export type OcrRecognitionMethod = 'paddleocr_printed' | 'embedded_ocr_verified'
  * Public recognition status for an OCR line or word.
  */
 export type OcrRecognitionStatus = 'accepted' | 'low_confidence' | 'empty';
+
+/**
+ * OcrRecoveryAction
+ *
+ * Operator recovery action for the current OCR failure.
+ */
+export type OcrRecoveryAction = 'none' | 'retry_ocr_runtime' | 'restart_backend_in_ocr_environment';
 
 /**
  * OcrRetryAcceptedResponse
@@ -2567,6 +2581,22 @@ export type OcrRuntimeStatus = {
      */
     operator_hint?: string | null;
     /**
+     * Paddle Present
+     *
+     * True when the paddle package is discoverable without importing it.
+     */
+    paddle_present?: boolean | null;
+    /**
+     * Sanitized Python environment kind for the OCR backend process.
+     */
+    python_environment_kind?: OcrPythonEnvironmentKind;
+    /**
+     * Python Executable Environment
+     *
+     * Sanitized environment directory name only (never a full user path).
+     */
+    python_executable_environment?: string | null;
+    /**
      * Ready
      *
      * True when printed OCR can accept work.
@@ -2576,6 +2606,16 @@ export type OcrRuntimeStatus = {
      * Recognizer load status.
      */
     recognizer_status?: OcrComponentStatus;
+    /**
+     * Structured recovery action for operators and the UI.
+     */
+    recovery_action?: OcrRecoveryAction;
+    /**
+     * Restart Required
+     *
+     * True when the API process must be restarted in the OCR-only environment.
+     */
+    restart_required?: boolean;
     /**
      * Retry After Seconds
      *
@@ -2620,6 +2660,18 @@ export type OcrRuntimeStatus = {
      * Sanitized technical summary (no secrets, paths, OCR text, or stack traces).
      */
     technical_detail?: string | null;
+    /**
+     * Torch Present
+     *
+     * True when the torch package is discoverable without importing it.
+     */
+    torch_present?: boolean | null;
+    /**
+     * Torchvision Present
+     *
+     * True when the torchvision package is discoverable without importing it.
+     */
+    torchvision_present?: boolean | null;
     /**
      * User Message
      *

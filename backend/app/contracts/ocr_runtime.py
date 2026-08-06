@@ -63,6 +63,25 @@ class OcrRuntimeErrorCode(StrEnum):
     BACKEND_UNREACHABLE = "backend_unreachable"
 
 
+class OcrPythonEnvironmentKind(StrEnum):
+    """Sanitized kind of the Python environment running the OCR backend."""
+
+    OCR = "ocr"
+    MODEL_DEV = "model_dev"
+    MIXED = "mixed"
+    DEFAULT = "default"
+    SYSTEM = "system"
+    UNKNOWN = "unknown"
+
+
+class OcrRecoveryAction(StrEnum):
+    """Operator recovery action for the current OCR failure."""
+
+    NONE = "none"
+    RETRY_OCR_RUNTIME = "retry_ocr_runtime"
+    RESTART_BACKEND_IN_OCR_ENVIRONMENT = "restart_backend_in_ocr_environment"
+
+
 OCR_PROGRESS_STAGES: tuple[OcrRuntimeStage, ...] = (
     OcrRuntimeStage.CHECKING_CONFIGURATION,
     OcrRuntimeStage.VERIFYING_MODELS,
@@ -113,6 +132,14 @@ class OcrRuntimeStatus(ApiModel):
     retryable: bool = Field(
         description="True when an operator Retry OCR action may succeed after correction."
     )
+    restart_required: bool = Field(
+        default=False,
+        description="True when the API process must be restarted in the OCR-only environment.",
+    )
+    recovery_action: OcrRecoveryAction = Field(
+        default=OcrRecoveryAction.NONE,
+        description="Structured recovery action for operators and the UI.",
+    )
     error_code: OcrRuntimeErrorCode | None = Field(
         default=None, description="Stable failure code when state is failed or disabled."
     )
@@ -139,6 +166,26 @@ class OcrRuntimeStatus(ApiModel):
     )
     model_verification_status: OcrComponentStatus = Field(
         default=OcrComponentStatus.PENDING, description="Local model verification status."
+    )
+    python_environment_kind: OcrPythonEnvironmentKind = Field(
+        default=OcrPythonEnvironmentKind.UNKNOWN,
+        description="Sanitized Python environment kind for the OCR backend process.",
+    )
+    python_executable_environment: str | None = Field(
+        default=None,
+        description="Sanitized environment directory name only (never a full user path).",
+    )
+    torch_present: bool | None = Field(
+        default=None,
+        description="True when the torch package is discoverable without importing it.",
+    )
+    torchvision_present: bool | None = Field(
+        default=None,
+        description="True when the torchvision package is discoverable without importing it.",
+    )
+    paddle_present: bool | None = Field(
+        default=None,
+        description="True when the paddle package is discoverable without importing it.",
     )
 
 

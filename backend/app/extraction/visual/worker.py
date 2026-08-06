@@ -920,6 +920,7 @@ def run_worker_loop() -> int:
     import os
 
     from backend.app.contracts.ocr_runtime import OcrRuntimeErrorCode, OcrRuntimeStage
+    from backend.app.extraction.visual.ocr_environment import probe_ocr_environment
     from backend.app.extraction.visual.ocr_readiness import (
         classify_exception,
         operator_hint_for,
@@ -929,6 +930,27 @@ def run_worker_loop() -> int:
     from backend.app.settings.config import Settings
 
     settings = Settings()
+    env = probe_ocr_environment()
+    if env.environment_conflict:
+        code = OcrRuntimeErrorCode.OCR_DLL_LOAD_FAILED
+        emit_message(
+            {
+                "type": "worker.failed",
+                "error_code": code.value,
+                "operation": "check_environment",
+                "component": "ocr_worker",
+                "exception_type": "EnvironmentConflict",
+                "user_message": user_message_for(code, restart_required=True),
+                "operator_hint": operator_hint_for(code, restart_required=True),
+                "technical_detail": sanitize_technical_detail(
+                    f"environment_conflict kind={env.kind.value} "
+                    f"torch={env.torch_present} torchvision={env.torchvision_present} "
+                    f"paddle={env.paddle_present}"
+                ),
+            }
+        )
+        return 1
+
     delay = float(settings.ocr_test_startup_delay_seconds or 0.0)
     if delay > 0:
         time.sleep(delay)

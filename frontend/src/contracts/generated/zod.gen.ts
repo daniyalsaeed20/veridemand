@@ -666,6 +666,20 @@ export const zOcrComponentStatus = z.enum([
 export const zOcrPassKind = z.enum(['primary', 'fallback']);
 
 /**
+ * OcrPythonEnvironmentKind
+ *
+ * Sanitized kind of the Python environment running the OCR backend.
+ */
+export const zOcrPythonEnvironmentKind = z.enum([
+    'ocr',
+    'model_dev',
+    'mixed',
+    'default',
+    'system',
+    'unknown'
+]);
+
+/**
  * OcrQualityStatus
  *
  * Derived OCR quality status for a single pass or selected result.
@@ -696,6 +710,17 @@ export const zOcrRecognitionStatus = z.enum([
     'accepted',
     'low_confidence',
     'empty'
+]);
+
+/**
+ * OcrRecoveryAction
+ *
+ * Operator recovery action for the current OCR failure.
+ */
+export const zOcrRecoveryAction = z.enum([
+    'none',
+    'retry_ocr_runtime',
+    'restart_backend_in_ocr_environment'
 ]);
 
 /**
@@ -775,8 +800,13 @@ export const zOcrRuntimeStatus = z.object({
     last_transition_at: z.iso.datetime().nullish(),
     model_verification_status: zOcrComponentStatus.optional().default('pending'),
     operator_hint: z.string().nullish(),
+    paddle_present: z.boolean().nullish(),
+    python_environment_kind: zOcrPythonEnvironmentKind.optional().default('unknown'),
+    python_executable_environment: z.string().nullish(),
     ready: z.boolean(),
     recognizer_status: zOcrComponentStatus.optional().default('pending'),
+    recovery_action: zOcrRecoveryAction.optional().default('none'),
+    restart_required: z.boolean().optional().default(false),
     retry_after_seconds: z.int().gte(0).nullish(),
     retryable: z.boolean(),
     stage: zOcrRuntimeStage.nullish(),
@@ -785,6 +815,8 @@ export const zOcrRuntimeStatus = z.object({
     stage_label: z.string().nullish(),
     state: zOcrRuntimeState,
     technical_detail: z.string().nullish(),
+    torch_present: z.boolean().nullish(),
+    torchvision_present: z.boolean().nullish(),
     user_message: z.string().nullish()
 });
 

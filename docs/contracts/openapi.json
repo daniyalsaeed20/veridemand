@@ -4301,6 +4301,19 @@
         "title": "OcrPassKind",
         "type": "string"
       },
+      "OcrPythonEnvironmentKind": {
+        "description": "Sanitized kind of the Python environment running the OCR backend.",
+        "enum": [
+          "ocr",
+          "model_dev",
+          "mixed",
+          "default",
+          "system",
+          "unknown"
+        ],
+        "title": "OcrPythonEnvironmentKind",
+        "type": "string"
+      },
       "OcrQualityStatus": {
         "description": "Derived OCR quality status for a single pass or selected result.\n\nDerived from PrintedOcrQualityEvidence — never from mean confidence alone.",
         "enum": [
@@ -4330,6 +4343,16 @@
           "empty"
         ],
         "title": "OcrRecognitionStatus",
+        "type": "string"
+      },
+      "OcrRecoveryAction": {
+        "description": "Operator recovery action for the current OCR failure.",
+        "enum": [
+          "none",
+          "retry_ocr_runtime",
+          "restart_backend_in_ocr_environment"
+        ],
+        "title": "OcrRecoveryAction",
         "type": "string"
       },
       "OcrRetryAcceptedResponse": {
@@ -4501,6 +4524,35 @@
             "description": "Likely corrective action for the operator.",
             "title": "Operator Hint"
           },
+          "paddle_present": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "True when the paddle package is discoverable without importing it.",
+            "title": "Paddle Present"
+          },
+          "python_environment_kind": {
+            "$ref": "#/components/schemas/OcrPythonEnvironmentKind",
+            "default": "unknown",
+            "description": "Sanitized Python environment kind for the OCR backend process."
+          },
+          "python_executable_environment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sanitized environment directory name only (never a full user path).",
+            "title": "Python Executable Environment"
+          },
           "ready": {
             "description": "True when printed OCR can accept work.",
             "title": "Ready",
@@ -4510,6 +4562,17 @@
             "$ref": "#/components/schemas/OcrComponentStatus",
             "default": "pending",
             "description": "Recognizer load status."
+          },
+          "recovery_action": {
+            "$ref": "#/components/schemas/OcrRecoveryAction",
+            "default": "none",
+            "description": "Structured recovery action for operators and the UI."
+          },
+          "restart_required": {
+            "default": false,
+            "description": "True when the API process must be restarted in the OCR-only environment.",
+            "title": "Restart Required",
+            "type": "boolean"
           },
           "retry_after_seconds": {
             "anyOf": [
@@ -4588,6 +4651,30 @@
             ],
             "description": "Sanitized technical summary (no secrets, paths, OCR text, or stack traces).",
             "title": "Technical Detail"
+          },
+          "torch_present": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "True when the torch package is discoverable without importing it.",
+            "title": "Torch Present"
+          },
+          "torchvision_present": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "True when the torchvision package is discoverable without importing it.",
+            "title": "Torchvision Present"
           },
           "user_message": {
             "anyOf": [

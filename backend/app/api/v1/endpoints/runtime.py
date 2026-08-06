@@ -69,10 +69,10 @@ async def retry_ocr_runtime(request: Request) -> OcrRetryAcceptedResponse:
             stage=before.stage,
         )
 
-    if (
+    if before.restart_required or (
         before.state is OcrRuntimeState.FAILED
         and before.error_code is not None
-        and not is_retryable(before.error_code)
+        and not is_retryable(before.error_code, restart_required=before.restart_required)
     ):
         raise ApiException(
             status_code=400,
@@ -80,9 +80,12 @@ async def retry_ocr_runtime(request: Request) -> OcrRetryAcceptedResponse:
             message=before.user_message or "Printed OCR retry is not allowed.",
             details={
                 "retryable": False,
-                "error_code": before.error_code.value,
+                "restart_required": before.restart_required,
+                "recovery_action": before.recovery_action.value,
+                "error_code": before.error_code.value if before.error_code else None,
                 "operator_hint": before.operator_hint,
                 "technical_detail": before.technical_detail,
+                "attempt_number": before.attempt_number,
             },
         )
 

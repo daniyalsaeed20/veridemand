@@ -22,6 +22,7 @@ from backend.app.contracts.ocr_runtime import (
     OCR_PROGRESS_STAGES,
     OCR_STAGE_LABELS,
     OcrComponentStatus,
+    OcrRecoveryAction,
     OcrRuntimeErrorCode,
     OcrRuntimeStage,
     OcrRuntimeState,
@@ -30,11 +31,14 @@ from backend.app.contracts.ocr_runtime import (
 from backend.app.extraction.visual.errors import VisualOcrError
 from backend.app.extraction.visual.model_paths import resolve_ocr_model_root
 from backend.app.extraction.visual.models import OcrRuntimeConfig, VisualWorkerRequest
+from backend.app.extraction.visual.ocr_environment import probe_ocr_environment
 from backend.app.extraction.visual.ocr_readiness import (
     classify_exception,
     classify_worker_failure_payload,
     is_retryable,
     operator_hint_for,
+    recovery_action_for,
+    restart_required_for,
     sanitize_technical_detail,
     user_message_for,
 )
@@ -157,6 +161,9 @@ class OcrWorkerManager:
         if not settings.ocr_enabled:
             self._operator_hint = operator_hint_for(OcrRuntimeErrorCode.OCR_DISABLED)
         self._technical_detail: str | None = None
+        self._restart_required = False
+        self._recovery_action = OcrRecoveryAction.NONE
+        self._env_diagnostics = probe_ocr_environment(self._python)
         self._detector_status = OcrComponentStatus.NOT_APPLICABLE
         self._recognizer_status = OcrComponentStatus.NOT_APPLICABLE
         self._model_verification_status = OcrComponentStatus.NOT_APPLICABLE
@@ -218,6 +225,8 @@ class OcrWorkerManager:
                 last_transition_at=self._last_transition_at,
                 ready=False,
                 retryable=False,
+                restart_required=False,
+                recovery_action=OcrRecoveryAction.NONE,
                 error_code=OcrRuntimeErrorCode.OCR_DISABLED,
                 user_message=user_message_for(OcrRuntimeErrorCode.OCR_DISABLED),
                 operator_hint=operator_hint_for(OcrRuntimeErrorCode.OCR_DISABLED),
@@ -226,6 +235,11 @@ class OcrWorkerManager:
                 detector_status=OcrComponentStatus.NOT_APPLICABLE,
                 recognizer_status=OcrComponentStatus.NOT_APPLICABLE,
                 model_verification_status=OcrComponentStatus.NOT_APPLICABLE,
+                python_environment_kind=self._env_diagnostics.kind,
+                python_executable_environment=self._env_diagnostics.executable_environment,
+                torch_present=self._env_diagnostics.torch_present,
+                torchvision_present=self._env_diagnostics.torchvision_present,
+                paddle_present=self._env_diagnostics.paddle_present,
             )
 
         stage = self._runtime_stage
@@ -243,11 +257,16 @@ class OcrWorkerManager:
         if ready:
             state = OcrRuntimeState.READY
 
+        restart_required = False
         retryable = False
+        recovery = OcrRecoveryAction.NONE
         if state is OcrRuntimeState.FAILED and self._error_code is not None:
-            retryable = is_retryable(self._error_code)
+            restart_required = self._restart_required
+            retryable = is_retryable(self._error_code, restart_required=restart_required)
+            recovery = self._recovery_action
         elif state is OcrRuntimeState.NOT_STARTED:
             retryable = True
+            recovery = OcrRecoveryAction.RETRY_OCR_RUNTIME
         elif state in {
             OcrRuntimeState.STARTING,
             OcrRuntimeState.LOADING_DETECTOR,
@@ -287,6 +306,8 @@ class OcrWorkerManager:
             last_transition_at=self._last_transition_at,
             ready=ready,
             retryable=retryable,
+            restart_required=restart_required if state is OcrRuntimeState.FAILED else False,
+            recovery_action=recovery if state is OcrRuntimeState.FAILED else OcrRecoveryAction.NONE,
             error_code=self._error_code if state is OcrRuntimeState.FAILED else None,
             user_message=user_message,
             operator_hint=self._operator_hint if state is OcrRuntimeState.FAILED else None,
@@ -295,6 +316,11 @@ class OcrWorkerManager:
             detector_status=self._detector_status,
             recognizer_status=self._recognizer_status,
             model_verification_status=self._model_verification_status,
+            python_environment_kind=self._env_diagnostics.kind,
+            python_executable_environment=self._env_diagnostics.executable_environment,
+            torch_present=self._env_diagnostics.torch_present,
+            torchvision_present=self._env_diagnostics.torchvision_present,
+            paddle_present=self._env_diagnostics.paddle_present,
         )
 
     def _transition(
@@ -329,10 +355,16 @@ class OcrWorkerManager:
             self._user_message = user_message
             self._operator_hint = None
             self._technical_detail = None
+            self._restart_required = False
+            self._recovery_action = OcrRecoveryAction.NONE
         if error_code is not None:
             self._error_code = error_code
-            self._user_message = user_message or user_message_for(error_code)
-            self._operator_hint = operator_hint or operator_hint_for(error_code)
+            self._user_message = user_message or user_message_for(
+                error_code, restart_required=self._restart_required
+            )
+            self._operator_hint = operator_hint or operator_hint_for(
+                error_code, restart_required=self._restart_required
+            )
             self._technical_detail = sanitize_technical_detail(technical_detail)
         elif user_message is not None:
             self._user_message = user_message
@@ -371,8 +403,25 @@ class OcrWorkerManager:
         technical_detail: str | None = None,
         user_message: str | None = None,
         operator_hint: str | None = None,
+        restart_required: bool | None = None,
     ) -> None:
         self._state.ready = False
+        self._env_diagnostics = probe_ocr_environment(self._python)
+        detail = sanitize_technical_detail(technical_detail)
+        requires_restart = (
+            restart_required
+            if restart_required is not None
+            else restart_required_for(
+                code,
+                technical_detail=detail,
+                diagnostics=self._env_diagnostics,
+            )
+        )
+        self._restart_required = requires_restart
+        retryable = is_retryable(code, restart_required=requires_restart)
+        self._recovery_action = recovery_action_for(
+            code, restart_required=requires_restart, retryable=retryable
+        )
         if code in {
             OcrRuntimeErrorCode.OCR_DETECTOR_LOAD_FAILED,
             OcrRuntimeErrorCode.OCR_DLL_LOAD_FAILED,
@@ -392,9 +441,10 @@ class OcrWorkerManager:
         self._transition(
             state=OcrRuntimeState.FAILED,
             error_code=code,
-            user_message=user_message,
-            operator_hint=operator_hint,
-            technical_detail=technical_detail,
+            user_message=user_message or user_message_for(code, restart_required=requires_restart),
+            operator_hint=operator_hint
+            or operator_hint_for(code, restart_required=requires_restart),
+            technical_detail=detail,
         )
 
     def _env(self) -> dict[str, str]:
@@ -539,6 +589,20 @@ class OcrWorkerManager:
 
         if not self._settings.ocr_enabled:
             return self.runtime_status()
+        self._env_diagnostics = probe_ocr_environment(self._python)
+        if self._env_diagnostics.environment_conflict:
+            # Mixed Torch/Paddle or non-.venv-ocr cannot be repaired in-process.
+            if (
+                self._runtime_state is not OcrRuntimeState.FAILED
+                or not self._restart_required
+                or self._error_code is not OcrRuntimeErrorCode.OCR_DLL_LOAD_FAILED
+            ):
+                self._mark_failed(
+                    OcrRuntimeErrorCode.OCR_DLL_LOAD_FAILED,
+                    technical_detail="environment_conflict: incompatible native libraries",
+                    restart_required=True,
+                )
+            return self.runtime_status()
         async with self._lock:
             if self.ready:
                 return self.runtime_status()
@@ -592,7 +656,9 @@ class OcrWorkerManager:
             OcrRuntimeState.WARMING_UP,
         }:
             return status
-        if status.state is OcrRuntimeState.FAILED and not status.retryable:
+        if status.state is OcrRuntimeState.FAILED and (
+            not status.retryable or status.restart_required
+        ):
             return status
 
         async def _run() -> None:

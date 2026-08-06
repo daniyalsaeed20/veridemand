@@ -6,10 +6,19 @@ import re
 from typing import Any
 
 from backend.app.contracts.errors import ErrorCode
-from backend.app.contracts.ocr_runtime import OcrRuntimeErrorCode
+from backend.app.contracts.ocr_runtime import OcrRecoveryAction, OcrRuntimeErrorCode
+from backend.app.extraction.visual.ocr_environment import (
+    OcrEnvironmentDiagnostics,
+    dll_failure_requires_restart,
+    probe_ocr_environment,
+)
 
 _PATH_RE = re.compile(r"(?:[A-Za-z]:\\|/)[^\s'\"]+")
 _SECRET_RE = re.compile(r"(?i)(api[_-]?key|token|password|secret)\s*[:=]\s*\S+")
+
+_RESTART_OCR_HINT = (
+    "Stop this backend and restart VeriDemand using the OCR-only environment (pnpm dev:ocr)."
+)
 
 
 def sanitize_technical_detail(raw: str | None, *, max_len: int = 240) -> str | None:
@@ -25,10 +34,13 @@ def sanitize_technical_detail(raw: str | None, *, max_len: int = 240) -> str | N
     return text or None
 
 
-def is_retryable(code: OcrRuntimeErrorCode) -> bool:
-    """Return whether an operator Retry OCR action is allowed for this code."""
+def is_retryable(code: OcrRuntimeErrorCode, *, restart_required: bool = False) -> bool:
+    """Return whether an in-process Retry OCR action is allowed."""
 
+    if restart_required:
+        return False
     return code in {
+        # Transient DLL load inside a clean .venv-ocr only (restart_required=False).
         OcrRuntimeErrorCode.OCR_DLL_LOAD_FAILED,
         OcrRuntimeErrorCode.OCR_DETECTOR_LOAD_FAILED,
         OcrRuntimeErrorCode.OCR_RECOGNIZER_LOAD_FAILED,
@@ -40,7 +52,49 @@ def is_retryable(code: OcrRuntimeErrorCode) -> bool:
     }
 
 
-def user_message_for(code: OcrRuntimeErrorCode) -> str:
+def restart_required_for(
+    code: OcrRuntimeErrorCode,
+    *,
+    technical_detail: str | None = None,
+    diagnostics: OcrEnvironmentDiagnostics | None = None,
+) -> bool:
+    """Decide whether the current failure requires an OS-process restart."""
+
+    env = diagnostics or probe_ocr_environment()
+    if code is OcrRuntimeErrorCode.OCR_DLL_LOAD_FAILED:
+        return dll_failure_requires_restart(env, technical_detail=technical_detail)
+    if code is OcrRuntimeErrorCode.OCR_DEPENDENCY_IMPORT_FAILED and env.environment_conflict:
+        return True
+    return bool(
+        env.environment_conflict
+        and code
+        in {
+            OcrRuntimeErrorCode.OCR_DETECTOR_LOAD_FAILED,
+            OcrRuntimeErrorCode.OCR_RECOGNIZER_LOAD_FAILED,
+            OcrRuntimeErrorCode.OCR_UNKNOWN_FAILURE,
+        }
+    )
+
+
+def recovery_action_for(
+    code: OcrRuntimeErrorCode,
+    *,
+    restart_required: bool,
+    retryable: bool,
+) -> OcrRecoveryAction:
+    if restart_required:
+        return OcrRecoveryAction.RESTART_BACKEND_IN_OCR_ENVIRONMENT
+    if retryable and code is not OcrRuntimeErrorCode.OCR_DISABLED:
+        return OcrRecoveryAction.RETRY_OCR_RUNTIME
+    return OcrRecoveryAction.NONE
+
+
+def user_message_for(code: OcrRuntimeErrorCode, *, restart_required: bool = False) -> str:
+    if restart_required and code in {
+        OcrRuntimeErrorCode.OCR_DLL_LOAD_FAILED,
+        OcrRuntimeErrorCode.OCR_DEPENDENCY_IMPORT_FAILED,
+    }:
+        return "Printed OCR cannot load in the current backend environment."
     messages: dict[OcrRuntimeErrorCode, str] = {
         OcrRuntimeErrorCode.OCR_DISABLED: "Printed OCR is disabled.",
         OcrRuntimeErrorCode.OCR_CONFIGURATION_INVALID: ("Printed OCR configuration is invalid."),
@@ -68,7 +122,9 @@ def user_message_for(code: OcrRuntimeErrorCode) -> str:
     return messages[code]
 
 
-def operator_hint_for(code: OcrRuntimeErrorCode) -> str:
+def operator_hint_for(code: OcrRuntimeErrorCode, *, restart_required: bool = False) -> str:
+    if restart_required:
+        return _RESTART_OCR_HINT
     hints: dict[OcrRuntimeErrorCode, str] = {
         OcrRuntimeErrorCode.OCR_DISABLED: (
             "Enable OCR in settings (OCR_ENABLED=true) if printed OCR is required."
@@ -87,8 +143,8 @@ def operator_hint_for(code: OcrRuntimeErrorCode) -> str:
             "Install the OCR dependency group in the OCR-only environment (.venv-ocr), then retry."
         ),
         OcrRuntimeErrorCode.OCR_DLL_LOAD_FAILED: (
-            "The current environment may contain conflicting Torch and Paddle libraries. "
-            "Start VeriDemand using the OCR-only .venv-ocr environment, then retry OCR."
+            "Retry OCR. If the native library error persists in the OCR-only environment, "
+            "check server logs."
         ),
         OcrRuntimeErrorCode.OCR_DETECTOR_LOAD_FAILED: (
             "Confirm detector model files are present and retry OCR. "
