@@ -273,6 +273,64 @@ def test_health_live_during_ocr_failure(readiness_client: TestClient) -> None:
     assert "starting or unavailable" not in str(body).lower()
 
 
+def test_paddle_check_prefers_worker_and_never_500_on_import_oserror(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """API-process paddle import must not turn /health/ready into HTTP 500."""
+    from backend.app.contracts.health import CheckState
+    from backend.app.contracts.ocr_runtime import OcrComponentStatus, OcrRuntimeStatus
+    from backend.app.health.service import HealthService
+
+    settings = Settings(temp_root=tmp_path / "temp", ocr_enabled=True)
+    service = HealthService(settings)
+
+    class _Worker:
+        ready = False
+
+        def runtime_status(self) -> OcrRuntimeStatus:
+            return OcrRuntimeStatus(
+                state=OcrRuntimeState.FAILED,
+                ready=False,
+                retryable=True,
+                error_code=OcrRuntimeErrorCode.OCR_DLL_LOAD_FAILED,
+                user_message="Printed OCR dependency failed to load.",
+                operator_hint="Use .venv-ocr.",
+                technical_detail="OSError: shm.dll",
+                detector_status=OcrComponentStatus.FAILED,
+                recognizer_status=OcrComponentStatus.FAILED,
+                model_verification_status=OcrComponentStatus.PENDING,
+            )
+
+    service.attach_runtime(
+        coordinator=type("C", (), {"running": True})(),
+        cleanup_worker=type("W", (), {"running": True})(),
+        job_queue=type("Q", (), {"closed": False})(),
+        ocr_worker_manager=_Worker(),
+    )
+
+    check = service._check_paddle_ocr()
+    assert check.status is CheckState.FAIL
+    assert check.message is not None
+    assert "Printed OCR dependency failed to load" in check.message
+
+    # Without worker, OSError on import is FAIL not an unhandled exception.
+    service2 = HealthService(settings)
+    import builtins
+
+    real_import = builtins.__import__
+
+    def _fake_import(name: str, *args: object, **kwargs: object) -> object:
+        if name in {"paddle", "paddleocr"} or name.startswith("paddle"):
+            raise OSError(127, "Error loading shm.dll")
+        return real_import(name, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(builtins, "__import__", _fake_import)
+    check2 = service2._check_paddle_ocr()
+    assert check2.status is CheckState.FAIL
+    assert check2.message is not None
+    assert "OCR-only" in check2.message or "venv-ocr" in check2.message
+
+
 def test_retry_endpoint_and_session_preserved(
     readiness_client: TestClient, uploads_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

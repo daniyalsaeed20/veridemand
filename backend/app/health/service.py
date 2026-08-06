@@ -500,9 +500,34 @@ class HealthService:
                 required=False,
                 message="OCR is disabled.",
             )
-        if self._cached_paddle is not None:
-            # Still refresh worker-alive portion.
-            pass
+
+        # Prefer the supervised worker status. Importing paddleocr in the API
+        # process on Windows can raise OSError (Torch shm.dll) and must not
+        # turn /health/ready into an unhandled 500.
+        worker = self._ocr_worker_manager
+        if worker is not None:
+            status = worker.runtime_status()
+            if isinstance(status, OcrRuntimeStatus):
+                if status.ready and worker.ready:
+                    check = DependencyCheck(
+                        name="paddle_ocr",
+                        status=CheckState.PASS,
+                        required=True,
+                        message="PaddleOCR models and worker are ready.",
+                    )
+                    self._cached_paddle = check
+                    return check
+                message = status.user_message or "OCR worker is not ready."
+                return DependencyCheck(
+                    name="paddle_ocr",
+                    status=CheckState.FAIL,
+                    required=True,
+                    message=message,
+                )
+
+        if self._cached_paddle is not None and self._cached_paddle.status is CheckState.PASS:
+            return self._cached_paddle
+
         try:
             import paddle  # noqa: F401
             import paddleocr  # noqa: F401
@@ -512,6 +537,15 @@ class HealthService:
                 status=CheckState.FAIL,
                 required=True,
                 message="PaddleOCR runtime is not installed.",
+            )
+        except OSError:
+            return DependencyCheck(
+                name="paddle_ocr",
+                status=CheckState.FAIL,
+                required=True,
+                message=(
+                    "Printed OCR dependency failed to load. Use the OCR-only .venv-ocr environment."
+                ),
             )
 
         model_root = self._settings.ocr_model_root
@@ -578,28 +612,12 @@ class HealthService:
                 message="OCR model-record.json could not be validated.",
             )
 
-        worker = self._ocr_worker_manager
-        ready = bool(worker is not None and worker.ready)
-        if not ready:
-            message = "OCR worker is not ready."
-            if worker is not None:
-                status = worker.runtime_status()
-                if isinstance(status, OcrRuntimeStatus) and status.user_message:
-                    message = status.user_message
-            return DependencyCheck(
-                name="paddle_ocr",
-                status=CheckState.FAIL,
-                required=True,
-                message=message,
-            )
-        check = DependencyCheck(
+        return DependencyCheck(
             name="paddle_ocr",
-            status=CheckState.PASS,
+            status=CheckState.FAIL,
             required=True,
-            message="PaddleOCR models and worker are ready.",
+            message="OCR worker manager is not attached.",
         )
-        self._cached_paddle = check
-        return check
 
     def readiness_checks(self) -> list[DependencyCheck]:
         """Run all readiness checks and return them in a stable order."""
