@@ -52,21 +52,24 @@ def test_disabled_status_is_not_starting() -> None:
 
 
 @pytest.mark.parametrize(
-    ("code", "expected"),
+    ("code", "restart_required", "expected"),
     [
-        (OcrRuntimeErrorCode.OCR_DLL_LOAD_FAILED, True),
-        (OcrRuntimeErrorCode.OCR_WARMUP_FAILED, True),
-        (OcrRuntimeErrorCode.OCR_STARTUP_TIMEOUT, True),
-        (OcrRuntimeErrorCode.OCR_OUT_OF_MEMORY, True),
-        (OcrRuntimeErrorCode.OCR_DISABLED, False),
-        (OcrRuntimeErrorCode.OCR_MODELS_MISSING, False),
-        (OcrRuntimeErrorCode.OCR_MODEL_INTEGRITY_FAILED, False),
-        (OcrRuntimeErrorCode.OCR_DEPENDENCY_IMPORT_FAILED, False),
-        (OcrRuntimeErrorCode.OCR_CONFIGURATION_INVALID, False),
+        (OcrRuntimeErrorCode.OCR_DLL_LOAD_FAILED, False, True),
+        (OcrRuntimeErrorCode.OCR_DLL_LOAD_FAILED, True, False),
+        (OcrRuntimeErrorCode.OCR_WARMUP_FAILED, False, True),
+        (OcrRuntimeErrorCode.OCR_STARTUP_TIMEOUT, False, True),
+        (OcrRuntimeErrorCode.OCR_OUT_OF_MEMORY, False, True),
+        (OcrRuntimeErrorCode.OCR_DISABLED, False, False),
+        (OcrRuntimeErrorCode.OCR_MODELS_MISSING, False, False),
+        (OcrRuntimeErrorCode.OCR_MODEL_INTEGRITY_FAILED, False, False),
+        (OcrRuntimeErrorCode.OCR_DEPENDENCY_IMPORT_FAILED, False, False),
+        (OcrRuntimeErrorCode.OCR_CONFIGURATION_INVALID, False, False),
     ],
 )
-def test_retryable_classification(code: OcrRuntimeErrorCode, expected: bool) -> None:
-    assert is_retryable(code) is expected
+def test_retryable_classification(
+    code: OcrRuntimeErrorCode, restart_required: bool, expected: bool
+) -> None:
+    assert is_retryable(code, restart_required=restart_required) is expected
 
 
 def test_windows_dll_mapping() -> None:
@@ -74,9 +77,9 @@ def test_windows_dll_mapping() -> None:
     assert code is OcrRuntimeErrorCode.OCR_DLL_LOAD_FAILED
     assert detail is not None
     assert "shm.dll" in detail.lower() or "oserror" in detail.lower()
-    hint = operator_hint_for(code)
-    assert ".venv-ocr" in hint
-    assert "Torch" in hint or "torch" in hint.lower()
+    hint = operator_hint_for(code, restart_required=True)
+    assert "pnpm dev:ocr" in hint
+    assert "restart" in hint.lower() or "Stop" in hint
 
 
 def test_import_oom_timeout_warmup_mappings() -> None:
@@ -371,6 +374,69 @@ def test_retry_endpoint_and_session_preserved(
     snap = readiness_client.get(f"{_API}/sessions/{session_id}")
     assert snap.status_code == 200
     assert len(snap.json()["documents"]) == 1
+
+
+def test_dll_env_conflict_is_restart_required_not_retryable() -> None:
+    from backend.app.extraction.visual.ocr_environment import OcrEnvironmentDiagnostics
+    from backend.app.contracts.ocr_runtime import OcrPythonEnvironmentKind
+    from backend.app.extraction.visual.ocr_readiness import restart_required_for
+
+    mixed = OcrEnvironmentDiagnostics(
+        kind=OcrPythonEnvironmentKind.MIXED,
+        executable_environment=".venv",
+        torch_present=True,
+        torchvision_present=False,
+        paddle_present=True,
+        environment_conflict=True,
+    )
+    assert (
+        restart_required_for(
+            OcrRuntimeErrorCode.OCR_DLL_LOAD_FAILED,
+            technical_detail="OSError: shm.dll",
+            diagnostics=mixed,
+        )
+        is True
+    )
+    assert is_retryable(OcrRuntimeErrorCode.OCR_DLL_LOAD_FAILED, restart_required=True) is False
+
+    clean = OcrEnvironmentDiagnostics(
+        kind=OcrPythonEnvironmentKind.OCR,
+        executable_environment=".venv-ocr",
+        torch_present=False,
+        torchvision_present=False,
+        paddle_present=True,
+        environment_conflict=False,
+    )
+    assert (
+        restart_required_for(
+            OcrRuntimeErrorCode.OCR_DLL_LOAD_FAILED,
+            technical_detail="OSError: transient dll load failed",
+            diagnostics=clean,
+        )
+        is False
+    )
+
+
+def test_retry_rejected_when_restart_required(readiness_client: TestClient) -> None:
+    manager = cast(Any, readiness_client.app).state.ocr_worker_manager
+    assert isinstance(manager, OcrWorkerManager)
+    manager._mark_failed(
+        OcrRuntimeErrorCode.OCR_DLL_LOAD_FAILED,
+        technical_detail="OSError: shm.dll from torch",
+        restart_required=True,
+    )
+    status = manager.runtime_status()
+    assert status.retryable is False
+    assert status.restart_required is True
+    assert status.recovery_action.value == "restart_backend_in_ocr_environment"
+    attempt = status.attempt_number
+
+    retry = readiness_client.post(f"{_API}/runtime/ocr/retry")
+    assert retry.status_code == 400
+    body = retry.json()
+    assert body["error"]["code"] == "ocr_retry_not_allowed"
+    assert body["error"]["details"]["restart_required"] is True
+    assert manager.runtime_status().attempt_number == attempt
 
 
 def test_retry_rejected_when_not_retryable(readiness_client: TestClient) -> None:
