@@ -230,7 +230,7 @@ test.describe("OCR readiness UX", () => {
 
     await page.goto("/");
     await expect(page.getByRole("alert").getByText("Printed OCR could not start")).toBeVisible();
-    await expect(page.getByRole("alert").getByText(/dependency failed to load/i)).toBeVisible();
+    await expect(page.getByRole("alert").getByText(/warm-up failed/i)).toBeVisible();
     await page.getByRole("button", { name: /Retry OCR/i }).click();
     expect(retryHits).toBe(1);
     await expect(page.getByRole("status").getByText("Printed OCR is starting")).toBeVisible();
