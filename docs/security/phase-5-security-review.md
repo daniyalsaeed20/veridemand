@@ -62,8 +62,8 @@ regulatory compliance.
 - Acceptance and feasibility docs use aggregates only (no private IDs/text/images)
 - No OpenAI / vision-provider network call; `openai_vision` stays not_configured
 - Task D release gates use an OCR-only environment (`.venv-ocr`) with Torch
-  absent; Playwright prefers `.venv-ocr` when present to avoid Windows
-  Torch/Paddle `shm.dll` conflicts
+  absent; Playwright prefers `.venv-ocr` when present (required on Windows) to
+  avoid Torch/Paddle `shm.dll` conflicts
 - Model-development Torch remains in `.venv-model-dev` / `--group model-dev` only
 
 ## OCR readiness recovery hotfix (post-release)
@@ -74,6 +74,15 @@ regulatory compliance.
 - Sanitized readiness payloads: no stack traces, secrets, private paths, or OCR text
 - Test injection (`OCR_TEST_*`) defaults off and is rejected when `APP_ENV=production`
 - UI Retry OCR / Check connection; backend-unreachable is not presented as OCR retry
+
+## Backend connection recovery hotfix (post-release)
+
+- Frontend unreachable state is driven only by `/health/live` transport failure
+- SSE status chip is **Session active** (session stream), not backend liveness
+- Readiness probe failures (including timeout) are not labeled backend outage
+- Health paddle check uses worker status first; API-process Paddle `OSError` →
+  structured FAIL / 503, never unhandled 500
+- `pnpm dev:ocr` forces `.venv-ocr` and refuses Torch
 
 ## Privacy
 

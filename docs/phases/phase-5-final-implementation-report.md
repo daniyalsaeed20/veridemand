@@ -351,3 +351,29 @@ DLL conflicts, and backend disconnects.
 Primary docs: [ocr-runtime-readiness.md](../architecture/ocr-runtime-readiness.md),
 [ocr-runtime-recovery.md](../operations/ocr-runtime-recovery.md),
 [ocr-readiness-retry-acceptance.md](../evaluation/ocr-readiness-retry-acceptance.md).
+---
+
+## Post-release hotfix — backend connection + OCR launch recovery
+
+Follow-on on `phase-05-ocr-readiness-ux` after the OCR readiness UX hotfix. Does
+**not** rewrite Phase 5 PASSED or the readiness-recovery section above. Does
+**not** start Phase 6 or change OCR models/thresholds.
+
+### Problem
+
+Operators saw green **Live** beside red **Backend connection unavailable**, while
+printed OCR failed to start. Live was SSE session connectivity; unreachable was
+any readiness query error (including HTTP 500 from in-process Paddle import and
+client timeouts). Local `pnpm dev` did not force `.venv-ocr`, so Windows mixed
+Torch+Paddle environments hit `shm.dll` failures.
+
+### Delivered
+
+- Liveness-driven unreachable only; readiness timeout → starting/checking
+- SSE chip renamed **Session active**
+- `/health/ready` prefers OCR worker status; never 500 on Paddle `OSError`
+- `pnpm dev:ocr` / `pnpm dev:backend:ocr` force `.venv-ocr` with loud validation
+- Playwright on Windows requires `.venv-ocr`
+
+Acceptance:
+[backend-connection-recovery-acceptance.md](../evaluation/backend-connection-recovery-acceptance.md).

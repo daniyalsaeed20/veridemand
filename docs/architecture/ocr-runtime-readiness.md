@@ -52,7 +52,22 @@ models, integrity failure, missing Python dependency.
 
 ## Windows OCR-only environment
 
-Conflicting Torch + Paddle installs produce DLL load failures. Use:
+Conflicting Torch + Paddle installs produce DLL load failures. Prefer:
+
+```powershell
+pnpm dev:ocr
+```
+
+Or backend only:
+
+```powershell
+pnpm dev:backend:ocr
+```
+
+These set `UV_PROJECT_ENVIRONMENT=.venv-ocr`, sync `--group ocr`, refuse Torch,
+and print the Python executable and build identity before uvicorn starts.
+
+Manual equivalent:
 
 ```powershell
 $env:UV_PROJECT_ENVIRONMENT = ".venv-ocr"
@@ -60,3 +75,6 @@ uv sync --group ocr
 ```
 
 Then Retry OCR from the UI (or restart the API process in that environment).
+
+Plain `pnpm dev` / `pnpm dev:backend` do **not** force `.venv-ocr` and are unsuitable
+for Windows printed-OCR work when the default `.venv` also contains Torch.

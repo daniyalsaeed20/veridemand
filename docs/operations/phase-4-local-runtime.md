@@ -26,7 +26,7 @@ include:
 
 | Setting | Default | Notes |
 |---------|---------|-------|
-| API | `127.0.0.1:8000` | `pnpm dev:backend` |
+| API | `127.0.0.1:8000` | `pnpm dev:backend` (non-OCR) or `pnpm dev:backend:ocr` |
 | Frontend | Vite (typically `5173`) | CORS allowlist is `FRONTEND_ORIGIN` |
 | `OCR_DETECTION_MODEL_NAME` | `PP-OCRv5_mobile_det` | ADR 0023 |
 | `OCR_RECOGNITION_MODEL_NAME` | `PP-OCRv5_mobile_rec` | ADR 0023 |
@@ -163,8 +163,10 @@ remain **false / 0** outside controlled acceptance.
 
 | Script | Purpose |
 |--------|---------|
-| `pnpm dev` | Backend + frontend concurrently |
-| `pnpm dev:backend` | Uvicorn on `127.0.0.1:8000` |
+| `pnpm dev` | Backend + frontend concurrently (does not force `.venv-ocr`) |
+| `pnpm dev:ocr` | OCR-only backend (`.venv-ocr`) + frontend |
+| `pnpm dev:backend` | Uvicorn on `127.0.0.1:8000` (default uv env) |
+| `pnpm dev:backend:ocr` | Uvicorn from `.venv-ocr` with Torch refusal |
 | `pnpm dev:frontend` | Vite frontend |
 | `pnpm models:ocr:bootstrap` | Download/bootstrap OCR models |
 | `pnpm models:ocr:verify` | Verify OCR runtime + model record |
