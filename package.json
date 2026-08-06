@@ -14,6 +14,8 @@
     "dev:backend": "uv run uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000",
     "dev:backend:ocr": "node scripts/run_ocr_backend.mjs",
     "dev:ocr": "concurrently -n backend,frontend -c blue,green \"pnpm dev:backend:ocr\" \"pnpm dev:frontend\"",
+    "dev:backend:phase5": "node scripts/run_phase5_backend.mjs",
+    "dev:phase5": "concurrently -n backend,frontend -c blue,green \"pnpm dev:backend:phase5\" \"pnpm dev:frontend\"",
     "dev:frontend": "pnpm -C frontend dev",
     "contracts:generate": "uv run python scripts/generate_contracts.py && pnpm -C frontend generate:contracts",
     "contracts:check": "uv run python scripts/check_contracts.py",

@@ -52,9 +52,11 @@ def configuration_profile(settings: object) -> str:
     )
     ocr_enabled = bool(getattr(settings, "ocr_enabled", True))
     fast_pass = bool(getattr(settings, "ocr_fast_pass_enabled", True))
+    page_vision = bool(getattr(settings, "handwriting_page_vision_fallback_enabled", False))
     parts = [str(env_name), "ocr_on" if ocr_enabled else "ocr_off"]
     if ocr_enabled:
         parts.append("fast_pass" if fast_pass else "single_pass")
+    parts.append("page_vision_on" if page_vision else "page_vision_off")
     return "+".join(parts)
 
 
