@@ -6,22 +6,36 @@
 |----|---------|
 | Session active / Offline / Reconnecting | SSE session stream only (not backend liveness) |
 | Printed OCR is starting + progress | Initialization in progress (or readiness still checking) |
-| Printed OCR could not start + Retry OCR | Retryable failure |
+| Printed OCR could not start + Retry OCR | Retryable failure (in-process) |
+| Printed OCR cannot start in this backend process | Mixed/wrong Python env; restart required |
 | Printed OCR could not start without Retry | Terminal configuration/model issue |
 | Printed OCR is disabled | `OCR_ENABLED=false` |
 | Runtime readiness unavailable | Backend live; readiness probe failed |
 | Backend connection unavailable | Frontend cannot reach `/health/live` |
 
+## Restart required (mixed environment)
+
+When `restart_required=true` (typically `ocr_dll_load_failed` with Torch/Paddle
+conflict or a non-`.venv-ocr` backend):
+
+1. Do **not** press Retry OCR (the endpoint rejects it and does not bump attempts).  
+2. Copy `pnpm dev:ocr` from the panel.  
+3. Stop the current backend process.  
+4. Start with `pnpm dev:ocr` (on Windows, `pnpm dev` routes here too).
+
+In-process retry cannot switch the Python environment.
+
 ## Retry OCR
 
 1. Open Documents & queue.  
 2. Confirm the failure reason and suggested action.  
-3. Press **Retry OCR** (enabled only when `retryable=true`).  
+3. Press **Retry OCR** (enabled only when `retryable=true` and not restart-required).  
 4. Watch the progress panel; do not refresh the browser.  
 5. Uploaded documents remain in the session.
 
 `POST /api/v1/runtime/ocr/retry` returns **202** and continues initialization in
 the background. It does **not** restart the operating-system backend process.
+Restart-required failures return **400** `ocr_retry_not_allowed`.
 
 ## Check connection
 

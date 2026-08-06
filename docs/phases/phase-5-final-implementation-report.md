@@ -377,3 +377,25 @@ Torch+Paddle environments hit `shm.dll` failures.
 
 Acceptance:
 [backend-connection-recovery-acceptance.md](../evaluation/backend-connection-recovery-acceptance.md).
+
+---
+
+## Post-release hotfix — OCR environment restart-required
+
+Follow-on on `phase-05-ocr-readiness-ux`. Does **not** rewrite Phase 5 PASSED
+or prior hotfix sections. Does **not** start Phase 6.
+
+### Manual defect (before)
+
+At `b4f8bed`, mixed-env OCR failure showed `ocr_dll_load_failed` with
+`retryable=true` and an enabled Retry OCR button. In-process retry reuses the
+same `sys.executable` and cannot switch to `.venv-ocr`.
+
+### Delivered
+
+- `restart_required` / `recovery_action` / sanitized env diagnostics on `ocr_runtime`
+- Mixed Torch/Paddle (or non-OCR venv) DLL failures are non-retryable; retry endpoint returns 400
+- UI: restart guidance + Copy `pnpm dev:ocr` (no Retry OCR)
+- Windows `pnpm dev` routes to OCR-only launcher; hardened preflight + port/build guard
+
+After-fix (`.venv-ocr`): live 200, ready 200, `ocr_runtime.state=ready`, Session active.

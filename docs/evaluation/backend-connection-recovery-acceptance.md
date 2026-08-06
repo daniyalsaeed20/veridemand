@@ -18,11 +18,14 @@ pnpm dev:ocr
 pnpm dev:backend:ocr
 ```
 
-These force `UV_PROJECT_ENVIRONMENT=.venv-ocr`, sync the OCR group, refuse Torch,
-print `sys.executable` / git identity / URLs, then start uvicorn + frontend.
+These force `UV_PROJECT_ENVIRONMENT=.venv-ocr`, sync the OCR group, refuse Torch
+and Torchvision, run `paddle.utils.run_check()`, verify models, print sanitized
+identity/URLs, and refuse obsolete listeners on port 8000.
 
-Non-OCR local work may still use `pnpm dev` / `pnpm dev:backend`. Model-dev Torch
-stays in `.venv-model-dev`.
+On Windows, bare `pnpm dev` routes to `pnpm dev:ocr`. Frontend-only remains
+`pnpm dev:frontend`. Model-dev Torch stays in `.venv-model-dev`.
+
+Mixed-environment `ocr_dll_load_failed` is **restart_required** (not Retry OCR).
 
 ## UI classification rules
 

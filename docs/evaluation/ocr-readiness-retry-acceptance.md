@@ -15,6 +15,8 @@ Does not change OCR accuracy, handwriting reservation, or Phase 6.
 
 ## Acceptance checklist
 
+- [ ] Restart-required DLL/env failure shows `pnpm dev:ocr` and hides Retry OCR
+- [ ] `POST /runtime/ocr/retry` rejects restart-required without bumping attempt_number
 - [ ] Starting state shows stage label, Step N of 5, elapsed time, indeterminate progress
 - [ ] Retry hidden while starting
 - [ ] Retryable failure shows `user_message` + `operator_hint` + Retry OCR

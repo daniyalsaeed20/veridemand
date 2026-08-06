@@ -52,11 +52,16 @@ models, integrity failure, missing Python dependency.
 
 ## Windows OCR-only environment
 
-Conflicting Torch + Paddle installs produce DLL load failures. Prefer:
+Conflicting Torch + Paddle installs produce DLL load failures that **cannot** be
+fixed with in-process Retry OCR. Prefer:
 
 ```powershell
 pnpm dev:ocr
 ```
+
+On Windows, bare `pnpm dev` routes to the same OCR-only launcher. Frontend-only
+work stays `pnpm dev:frontend`. Non-Windows full-app defaults remain
+`pnpm run dev:legacy` (via `pnpm dev`).
 
 Or backend only:
 
@@ -64,17 +69,11 @@ Or backend only:
 pnpm dev:backend:ocr
 ```
 
-These set `UV_PROJECT_ENVIRONMENT=.venv-ocr`, sync `--group ocr`, refuse Torch,
-and print the Python executable and build identity before uvicorn starts.
+These set `UV_PROJECT_ENVIRONMENT=.venv-ocr`, refuse Torch/Torchvision, run
+`paddle.utils.run_check()`, verify local OCR models, print sanitized launch
+identity, and refuse to bind port 8000 when an obsolete VeriDemand process
+occupies it.
 
-Manual equivalent:
-
-```powershell
-$env:UV_PROJECT_ENVIRONMENT = ".venv-ocr"
-uv sync --group ocr
-```
-
-Then Retry OCR from the UI (or restart the API process in that environment).
-
-Plain `pnpm dev` / `pnpm dev:backend` do **not** force `.venv-ocr` and are unsuitable
-for Windows printed-OCR work when the default `.venv` also contains Torch.
+When readiness reports `restart_required=true` / recovery action
+`restart_backend_in_ocr_environment`, stop the backend and relaunch with
+`pnpm dev:ocr`. Do not press Retry OCR.
