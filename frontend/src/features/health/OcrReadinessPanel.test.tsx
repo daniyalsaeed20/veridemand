@@ -103,14 +103,15 @@ describe("OcrReadinessPanel", () => {
 
     const ocr = makeOcr({
       state: "failed",
-      stage: "loading_detector",
+      stage: "warming_up",
       ready: false,
       retryable: true,
-      error_code: "ocr_dll_load_failed",
-      user_message: "Printed OCR dependency failed to load.",
-      operator_hint:
-        "The current environment may contain conflicting Torch and Paddle libraries. Start VeriDemand using the OCR-only .venv-ocr environment, then retry OCR.",
-      technical_detail: "OSError: shm.dll",
+      restart_required: false,
+      recovery_action: "retry_ocr_runtime",
+      error_code: "ocr_warmup_failed",
+      user_message: "Printed OCR warm-up failed.",
+      operator_hint: "Retry OCR. If warm-up keeps failing, verify the OCR-only environment.",
+      technical_detail: "warmup_failed",
     });
 
     renderWithProviders(
@@ -122,17 +123,58 @@ describe("OcrReadinessPanel", () => {
     );
 
     expect(screen.getByText("Printed OCR could not start")).toBeInTheDocument();
-    expect(screen.getByText(/dependency failed to load/i)).toBeInTheDocument();
+    expect(screen.getByText(/warm-up failed/i)).toBeInTheDocument();
     expect(screen.getByText(/Suggested action:/i)).toBeInTheDocument();
     const retry = screen.getByRole("button", { name: /Retry OCR/i });
     expect(retry).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: /Show technical details/i }));
-    expect(screen.getByText(/ocr_dll_load_failed/i)).toBeInTheDocument();
+    expect(screen.getByText(/ocr_warmup_failed/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Copy diagnostics/i }));
     await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalled());
     fireEvent.click(retry);
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(JSON.stringify(fetchMock.mock.calls)).toContain("/api/v1/runtime/ocr/retry");
+  });
+
+  it("shows restart guidance for mixed-environment DLL failures without Retry OCR", async () => {
+    vi.stubGlobal("navigator", {
+      clipboard: { writeText: vi.fn(async () => undefined) },
+    } as unknown as Navigator);
+
+    const ocr = makeOcr({
+      state: "failed",
+      stage: "checking_configuration",
+      ready: false,
+      retryable: false,
+      restart_required: true,
+      recovery_action: "restart_backend_in_ocr_environment",
+      error_code: "ocr_dll_load_failed",
+      user_message: "Printed OCR cannot load in the current backend environment.",
+      operator_hint:
+        "Stop this backend and restart VeriDemand using the OCR-only environment (pnpm dev:ocr).",
+      technical_detail: "OSError: shm.dll",
+      python_environment_kind: "mixed",
+      python_executable_environment: ".venv",
+      torch_present: true,
+      paddle_present: true,
+    });
+
+    renderWithProviders(
+      <OcrReadinessPanel
+        readiness={makeReadiness(ocr)}
+        readinessError={false}
+        onCheckConnection={() => undefined}
+      />,
+    );
+
+    expect(
+      screen.getByText("Printed OCR cannot start in this backend process"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/incompatible native libraries/i)).toBeInTheDocument();
+    expect(screen.getByText("pnpm dev:ocr")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Retry OCR/i })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Copy restart command/i }));
+    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith("pnpm dev:ocr"));
   });
 
   it("hides Retry for non-retryable failures and shows exact cause", () => {

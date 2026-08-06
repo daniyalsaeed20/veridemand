@@ -114,6 +114,7 @@ export function SessionWorkspace() {
     panelMode === "starting" ||
     panelMode === "failed_retryable" ||
     panelMode === "failed_terminal" ||
+    panelMode === "failed_restart_required" ||
     (ocr != null && !ocr.ready && ocr.state !== "ready" && ocr.state !== "disabled");
   const processBlocked =
     livenessUnreachable ||
@@ -131,6 +132,9 @@ export function SessionWorkspace() {
       "Processing is disabled because runtime readiness could not be evaluated.";
   } else if (panelMode === "starting") {
     processBlockedReason = "Processing is disabled while printed OCR is starting.";
+  } else if (panelMode === "failed_restart_required") {
+    processBlockedReason =
+      "Processing is disabled until VeriDemand is restarted with pnpm dev:ocr.";
   } else if (panelMode === "failed_retryable" || panelMode === "failed_terminal") {
     processBlockedReason =
       ocr?.user_message ?? "Processing is disabled because printed OCR is not ready.";

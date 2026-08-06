@@ -7,6 +7,7 @@ export type OcrReadinessPanelMode =
   | "ready_flash"
   | "failed_retryable"
   | "failed_terminal"
+  | "failed_restart_required"
   | "disabled"
   | "backend_unreachable"
   | "readiness_unavailable";
@@ -69,6 +70,12 @@ export function deriveOcrPanelMode(
     return "ready_flash";
   }
   if (ocr.state === "failed") {
+    if (
+      ocr.restart_required === true ||
+      ocr.recovery_action === "restart_backend_in_ocr_environment"
+    ) {
+      return "failed_restart_required";
+    }
     return ocr.retryable ? "failed_retryable" : "failed_terminal";
   }
   if (isOcrStarting(ocr as OcrRuntimeStatus)) {

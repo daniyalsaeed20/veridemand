@@ -56,6 +56,13 @@ function buildDiagnostics(
     `attempt_started_at: ${ocr?.attempt_started_at ?? "n/a"}`,
     `last_transition_at: ${ocr?.last_transition_at ?? "n/a"}`,
     `retryable: ${ocr?.retryable ?? "n/a"}`,
+    `restart_required: ${ocr?.restart_required ?? "n/a"}`,
+    `recovery_action: ${ocr?.recovery_action ?? "n/a"}`,
+    `python_environment_kind: ${ocr?.python_environment_kind ?? "n/a"}`,
+    `python_executable_environment: ${ocr?.python_executable_environment ?? "n/a"}`,
+    `torch_present: ${ocr?.torch_present ?? "n/a"}`,
+    `torchvision_present: ${ocr?.torchvision_present ?? "n/a"}`,
+    `paddle_present: ${ocr?.paddle_present ?? "n/a"}`,
     `model_verification_status: ${ocr?.model_verification_status ?? "n/a"}`,
     `detector_status: ${ocr?.detector_status ?? "n/a"}`,
     `recognizer_status: ${ocr?.recognizer_status ?? "n/a"}`,
@@ -210,6 +217,60 @@ export function OcrReadinessPanel({
         <AlertTitle>Runtime readiness unavailable</AlertTitle>
         The backend is reachable, but readiness could not be evaluated. Printed OCR status is
         unknown until readiness succeeds.
+      </Alert>
+    );
+  }
+
+  if (mode === "failed_restart_required") {
+    const restartCommand = "pnpm dev:ocr";
+    return (
+      <Alert severity="error" role="alert">
+        <AlertTitle>Printed OCR cannot start in this backend process</AlertTitle>
+        <Stack spacing={1.5}>
+          <Typography variant="body2">
+            The backend was launched from an environment containing incompatible native libraries.
+          </Typography>
+          <Typography variant="body2">
+            Required action: Restart VeriDemand using the OCR-only environment.
+          </Typography>
+          <Typography variant="body2" component="code" sx={{ fontFamily: "monospace" }}>
+            {restartCommand}
+          </Typography>
+          <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
+            <Button
+              size="small"
+              variant="contained"
+              color="inherit"
+              startIcon={<ContentCopyIcon />}
+              onClick={() => {
+                void navigator.clipboard.writeText(restartCommand).then(() => {
+                  setCopied(true);
+                  window.setTimeout(() => setCopied(false), 1500);
+                });
+              }}
+            >
+              {copied ? "Copied" : "Copy restart command"}
+            </Button>
+            <Button size="small" color="inherit" onClick={() => setShowDetails((v) => !v)}>
+              {showDetails ? "Hide technical details" : "Show technical details"}
+            </Button>
+          </Stack>
+          <Collapse in={showDetails}>
+            <Box
+              component="pre"
+              sx={{
+                m: 0,
+                p: 1,
+                bgcolor: "action.hover",
+                borderRadius: 1,
+                fontSize: 12,
+                overflow: "auto",
+              }}
+            >
+              {diagnostics}
+            </Box>
+          </Collapse>
+        </Stack>
       </Alert>
     );
   }

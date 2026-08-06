@@ -2,7 +2,13 @@ import { expect, test } from "@playwright/test";
 
 import { chooseFiles, fixture, readSessionId } from "./utils";
 
-type OcrState = "starting" | "ready" | "failed_retryable" | "failed_terminal" | "disabled";
+type OcrState =
+  | "starting"
+  | "ready"
+  | "failed_retryable"
+  | "failed_terminal"
+  | "failed_restart_required"
+  | "disabled";
 
 function ocrBody(state: OcrState, attempt = 1) {
   const base = {
@@ -15,6 +21,13 @@ function ocrBody(state: OcrState, attempt = 1) {
     recognizer_status: "pending",
     model_verification_status: "pending",
     retry_after_seconds: 1,
+    restart_required: false,
+    recovery_action: "none",
+    python_environment_kind: "ocr",
+    python_executable_environment: ".venv-ocr",
+    torch_present: false,
+    torchvision_present: false,
+    paddle_present: true,
   };
   if (state === "starting") {
     return {
@@ -54,17 +67,41 @@ function ocrBody(state: OcrState, attempt = 1) {
     return {
       ...base,
       state: "failed",
-      stage: "loading_detector",
-      stage_index: 3,
-      stage_label: "Loading detector",
+      stage: "warming_up",
+      stage_index: 5,
+      stage_label: "Warming OCR runtime",
       ready: false,
       retryable: true,
+      restart_required: false,
+      recovery_action: "retry_ocr_runtime",
+      error_code: "ocr_warmup_failed",
+      user_message: "Printed OCR warm-up failed.",
+      operator_hint: "Retry OCR. If warm-up keeps failing, verify the OCR-only environment.",
+      technical_detail: "warmup_failed",
+      recognizer_status: "failed",
+    };
+  }
+  if (state === "failed_restart_required") {
+    return {
+      ...base,
+      state: "failed",
+      stage: "checking_configuration",
+      stage_index: 1,
+      stage_label: "Checking OCR configuration",
+      ready: false,
+      retryable: false,
+      restart_required: true,
+      recovery_action: "restart_backend_in_ocr_environment",
       error_code: "ocr_dll_load_failed",
-      user_message: "Printed OCR dependency failed to load.",
+      user_message: "Printed OCR cannot load in the current backend environment.",
       operator_hint:
-        "The current environment may contain conflicting Torch and Paddle libraries. Start VeriDemand using the OCR-only .venv-ocr environment, then retry OCR.",
+        "Stop this backend and restart VeriDemand using the OCR-only environment (pnpm dev:ocr).",
       technical_detail: "OSError: shm.dll",
       detector_status: "failed",
+      python_environment_kind: "mixed",
+      python_executable_environment: ".venv",
+      torch_present: true,
+      paddle_present: true,
     };
   }
   if (state === "failed_terminal") {
@@ -214,6 +251,23 @@ test.describe("OCR readiness UX", () => {
     await expect(page.getByRole("alert").getByText(/model files are missing/i)).toBeVisible();
     await expect(page.getByRole("button", { name: /Retry OCR/i })).toHaveCount(0);
     await expect(page.getByText(/Retry OCR is unavailable/i)).toBeVisible();
+  });
+
+  test("mixed-environment DLL failure shows restart command without Retry OCR", async ({
+    page,
+  }) => {
+    await page.route("**/health/ready", async (route) => {
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify(readinessEnvelope(ocrBody("failed_restart_required"), "not_ready")),
+      });
+    });
+    await page.goto("/");
+    await expect(page.getByText("Printed OCR cannot start in this backend process")).toBeVisible();
+    await expect(page.getByText("pnpm dev:ocr")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Copy restart command/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Retry OCR/i })).toHaveCount(0);
   });
 
   test("duplicate Retry OCR clicks do not spam retries while starting", async ({ page }) => {
