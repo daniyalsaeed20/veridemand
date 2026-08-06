@@ -399,3 +399,4 @@ same `sys.executable` and cannot switch to `.venv-ocr`.
 - Windows `pnpm dev` routes to OCR-only launcher; hardened preflight + port/build guard
 
 After-fix (`.venv-ocr`): live 200, ready 200, `ocr_runtime.state=ready`, Session active.
+E2E (`.venv-ocr`): 28 passed, 5 skipped. Page reservation acceptance: 215/107; 9/9; 55/55.
