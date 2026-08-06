@@ -47,4 +47,27 @@ test.describe("Correction 4 progress semantics", () => {
     await waitForProcessingComplete(page, 180_000);
     await expect(page.getByTestId("session-id")).toBeVisible();
   });
+
+  test("multi-page OCR keeps live connection and accepts progress lifecycle", async ({ page }) => {
+    const lifecycleWarnings: string[] = [];
+    page.on("console", (msg) => {
+      if (msg.type() === "warning" && /invalid_lifecycle_transition/i.test(msg.text())) {
+        lifecycleWarnings.push(msg.text());
+      }
+    });
+
+    await page.goto("/");
+    await expect(page.getByText(/Session active|Live/i).first()).toBeVisible({ timeout: 60_000 });
+    await chooseFiles(page, [fixture("ocr/sparse-embedded-form-2page.pdf")]);
+    await expect(page.getByText(/1 file accepted/i)).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("button", { name: /process all uploaded/i }).click();
+
+    await expect(page.getByText(/Backend connection unavailable/i)).toHaveCount(0);
+    await waitForProcessingComplete(page, 300_000);
+    await expect(page.getByText(/Backend connection unavailable/i)).toHaveCount(0);
+    expect(
+      lifecycleWarnings,
+      `unexpected lifecycle warnings: ${lifecycleWarnings.join(" | ")}`,
+    ).toEqual([]);
+  });
 });
