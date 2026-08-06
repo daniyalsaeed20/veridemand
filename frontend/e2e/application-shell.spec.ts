@@ -23,10 +23,10 @@ test.describe("VeriDemand application shell", () => {
     await expect(page.getByRole("heading", { name: "Upload documents" })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Documents & queue/ })).toBeVisible();
 
-    // A session id must be present and the SSE stream must report Live.
+    // A session id must be present and the SSE stream must report Session active.
     const sessionId = await readSessionId(page);
     expect(sessionId).toMatch(/^ses_[0-9a-f]{32}$/);
-    await expect(page.getByText("Live", { exact: true })).toBeVisible();
+    await expect(page.getByText("Session active", { exact: true })).toBeVisible();
 
     // The runtime workspace must never persist state in the browser.
     const storageCounts = await page.evaluate(() => ({

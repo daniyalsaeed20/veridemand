@@ -251,11 +251,44 @@ test.describe("OCR readiness UX", () => {
   });
 
   test("backend unreachable shows Check connection, not Retry OCR", async ({ page }) => {
+    await page.route("**/health/live", async (route) => {
+      await route.abort("connectionfailed");
+    });
     await page.route("**/health/ready", async (route) => {
       await route.abort("connectionfailed");
     });
     await page.goto("/");
     await expect(page.getByText("Backend connection unavailable")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Check connection/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Retry OCR/i })).toHaveCount(0);
+  });
+
+  test("readiness probe failure while live is not labeled backend outage", async ({ page }) => {
+    await page.route("**/health/live", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "ok",
+          service: "veridemand-api",
+          app_name: "VeriDemand",
+          version: "0.1.0",
+          application_version: "0.1.0",
+          git_commit: "abc",
+          process_id: 1,
+          worker_generation: 1,
+          configuration_profile: "test",
+          timestamp: "2026-07-21T14:53:54.484945Z",
+          request_id: "req-live",
+        }),
+      });
+    });
+    await page.route("**/health/ready", async (route) => {
+      await route.abort("connectionfailed");
+    });
+    await page.goto("/");
+    await expect(page.getByText("Runtime readiness unavailable")).toBeVisible();
+    await expect(page.getByText("Backend connection unavailable")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Check connection/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /Retry OCR/i })).toHaveCount(0);
   });

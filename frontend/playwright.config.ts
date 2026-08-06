@@ -25,17 +25,29 @@ const isCI = Boolean(nodeProcess?.env?.CI);
 const isWin = nodeProcess?.platform === "win32";
 const rootDir = path.resolve(configDir, "..");
 
-/** Prefer OCR-only venv on Windows to avoid Torch/Paddle shm.dll conflicts. */
+/**
+ * Prefer OCR-only Python. On Windows never fall back to a mixed `.venv`
+ * (Torch/Paddle shm.dll conflicts). Linux CI may use the default `.venv`.
+ */
 function resolvePythonBin(): string {
-  const candidates = isWin
-    ? [".venv-ocr\\Scripts\\python.exe", ".venv\\Scripts\\python.exe"]
-    : [".venv-ocr/bin/python", ".venv/bin/python"];
-  for (const rel of candidates) {
-    if (existsSync(path.join(rootDir, rel))) {
-      return rel;
-    }
+  const ocrRel = isWin ? ".venv-ocr\\Scripts\\python.exe" : ".venv-ocr/bin/python";
+  if (existsSync(path.join(rootDir, ocrRel))) {
+    return ocrRel;
   }
-  return candidates[candidates.length - 1]!;
+  if (isWin) {
+    throw new Error(
+      `Playwright on Windows requires the OCR-only environment at ${ocrRel}. ` +
+        `Create it with:\n  $env:UV_PROJECT_ENVIRONMENT='.venv-ocr'\n  uv sync --group ocr`,
+    );
+  }
+  const fallback = ".venv/bin/python";
+  if (existsSync(path.join(rootDir, fallback))) {
+    return fallback;
+  }
+  throw new Error(
+    `Playwright requires ${ocrRel} or ${fallback}. Create the OCR env with:\n` +
+      `  UV_PROJECT_ENVIRONMENT=.venv-ocr uv sync --group ocr`,
+  );
 }
 
 const pythonBin = resolvePythonBin();
