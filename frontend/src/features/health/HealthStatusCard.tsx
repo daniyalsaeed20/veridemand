@@ -121,6 +121,22 @@ export function HealthStatusCard() {
             {environment.apiBaseUrl}
           </Typography>
         </StatusRow>
+        <StatusRow label="Configuration profile">
+          <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
+            {liveness.data?.configuration_profile ?? readiness.data?.configuration_profile ?? "-"}
+          </Typography>
+        </StatusRow>
+        <StatusRow label="Phase 5 page-vision">
+          <Typography variant="body2">
+            {(
+              liveness.data?.configuration_profile ??
+              readiness.data?.configuration_profile ??
+              ""
+            ).includes("page_vision_on")
+              ? "Conservative reservation ON (pnpm dev:phase5)"
+              : "Off (pnpm dev:ocr / release default)"}
+          </Typography>
+        </StatusRow>
         <StatusRow label="Last successful check">
           <Typography variant="body2">{lastChecked}</Typography>
         </StatusRow>

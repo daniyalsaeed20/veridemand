@@ -50,16 +50,107 @@ describe("healthApi transport classification", () => {
   });
 
   it("tags readiness timeout distinctly from network_error", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(
+          (_url: string, init?: RequestInit) =>
+            new Promise((_resolve, reject) => {
+              const signal = init?.signal;
+              if (signal) {
+                signal.addEventListener(
+                  "abort",
+                  () => reject(new DOMException("Aborted", "AbortError")),
+                  { once: true },
+                );
+              }
+            }),
+        ),
+      );
+      const assertion = expect(fetchReadiness()).rejects.toMatchObject({
+        code: "readiness_timeout",
+      });
+      await vi.advanceTimersByTimeAsync(46_000);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("rethrows React Query cancel AbortError without latching readiness_timeout", async () => {
+    const controller = new AbortController();
     vi.stubGlobal(
       "fetch",
       vi.fn(
-        () =>
+        (_url: string, init?: RequestInit) =>
           new Promise((_resolve, reject) => {
-            queueMicrotask(() => reject(new DOMException("Aborted", "AbortError")));
+            const signal = init?.signal;
+            if (signal) {
+              signal.addEventListener(
+                "abort",
+                () => reject(new DOMException("Aborted", "AbortError")),
+                { once: true },
+              );
+            }
           }),
       ),
     );
-    await expect(fetchReadiness()).rejects.toMatchObject({ code: "readiness_timeout" });
+    const pending = fetchReadiness(controller.signal);
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("tags liveness timer abort as liveness_timeout", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(
+          (_url: string, init?: RequestInit) =>
+            new Promise((_resolve, reject) => {
+              const signal = init?.signal;
+              if (signal) {
+                signal.addEventListener(
+                  "abort",
+                  () => reject(new DOMException("Aborted", "AbortError")),
+                  { once: true },
+                );
+              }
+            }),
+        ),
+      );
+      const assertion = expect(fetchLiveness()).rejects.toMatchObject({
+        code: "liveness_timeout",
+      });
+      await vi.advanceTimersByTimeAsync(9_000);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("rethrows liveness cancel AbortError without latching liveness_timeout", async () => {
+    const controller = new AbortController();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (_url: string, init?: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            const signal = init?.signal;
+            if (signal) {
+              signal.addEventListener(
+                "abort",
+                () => reject(new DOMException("Aborted", "AbortError")),
+                { once: true },
+              );
+            }
+          }),
+      ),
+    );
+    const pending = fetchLiveness(controller.signal);
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
   });
 
   it("tags liveness network failure", async () => {

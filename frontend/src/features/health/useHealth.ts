@@ -84,3 +84,28 @@ export function isLivenessTransportFailure(error: unknown): boolean {
     code === "network_error" || code === "liveness_timeout" || code === "invalid_liveness_response"
   );
 }
+
+/** Consecutive genuine transport failures required before showing backend unavailable. */
+export const LIVENESS_OUTAGE_STREAK_THRESHOLD = 2;
+
+/** Advance or clear the liveness failure streak after a query settle. */
+export function nextLivenessFailureStreak(
+  previous: number,
+  outcome: { readonly success: boolean; readonly transportFailure: boolean },
+): number {
+  if (outcome.success) {
+    return 0;
+  }
+  if (outcome.transportFailure) {
+    return previous + 1;
+  }
+  return previous;
+}
+
+export function isPersistentLivenessOutage(
+  streak: number,
+  isError: boolean,
+  error: unknown,
+): boolean {
+  return isError && isLivenessTransportFailure(error) && streak >= LIVENESS_OUTAGE_STREAK_THRESHOLD;
+}

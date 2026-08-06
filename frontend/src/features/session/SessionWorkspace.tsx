@@ -1,7 +1,7 @@
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import { Alert, AlertTitle, Box, Button, CircularProgress, Stack, Typography } from "@mui/material";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { ApiError } from "../../api/http";
 import { OcrReadinessPanel } from "../health/OcrReadinessPanel";
@@ -9,6 +9,8 @@ import { deriveOcrPanelMode } from "../health/ocrReadinessMode";
 import {
   healthQueryKeys,
   isLivenessTransportFailure,
+  isPersistentLivenessOutage,
+  nextLivenessFailureStreak,
   useLiveness,
   useReadiness,
 } from "../health/useHealth";
@@ -25,6 +27,7 @@ export function SessionWorkspace() {
   const liveness = useLiveness({ pollWhileUnreachable: true });
   const readiness = useReadiness({ pollWhileNotReady: true });
   const queryClient = useQueryClient();
+  const [livenessFailStreak, setLivenessFailStreak] = useState(0);
 
   useEffect(() => {
     if (!events.reconnecting) {
@@ -34,6 +37,21 @@ export function SessionWorkspace() {
     void queryClient.invalidateQueries({ queryKey: healthQueryKeys.liveness });
     void queryClient.invalidateQueries({ queryKey: healthQueryKeys.readiness });
   }, [events.reconnecting, queryClient]);
+
+  useEffect(() => {
+    if (liveness.isSuccess) {
+      setLivenessFailStreak(0);
+      return;
+    }
+    if (liveness.isError) {
+      setLivenessFailStreak((prev) =>
+        nextLivenessFailureStreak(prev, {
+          success: false,
+          transportFailure: isLivenessTransportFailure(liveness.error),
+        }),
+      );
+    }
+  }, [liveness.isSuccess, liveness.isError, liveness.errorUpdatedAt, liveness.error]);
 
   if (session.error && !session.snapshot) {
     const message =
@@ -96,7 +114,11 @@ export function SessionWorkspace() {
   const snapshot = session.snapshot;
   const interactionsDisabled =
     session.isResetting || snapshot.status === "expired" || snapshot.status === "deleted";
-  const livenessUnreachable = liveness.isError && isLivenessTransportFailure(liveness.error);
+  const livenessUnreachable = isPersistentLivenessOutage(
+    livenessFailStreak,
+    liveness.isError,
+    liveness.error,
+  );
   const readinessErrorCode =
     readiness.error && typeof readiness.error === "object" && "code" in readiness.error
       ? String((readiness.error as { code?: string }).code ?? "")

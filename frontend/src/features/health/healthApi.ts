@@ -14,6 +14,16 @@ function isAbortError(cause: unknown): boolean {
   );
 }
 
+/** Thrown only when our client-side timer aborts the request (not React Query cancel). */
+export class HealthProbeTimeoutError extends Error {
+  readonly timedOut = true as const;
+
+  constructor(message = "Health probe timed out") {
+    super(message);
+    this.name = "HealthProbeTimeoutError";
+  }
+}
+
 async function fetchJsonWithTimeout(
   path: string,
   timeoutMs: number,
@@ -21,12 +31,19 @@ async function fetchJsonWithTimeout(
 ): Promise<{ response: Response; body: unknown }> {
   const url = `${environment.apiBaseUrl}${path}`;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  const onExternalAbort = () => {
+    controller.abort();
+  };
   if (signal) {
     if (signal.aborted) {
       controller.abort();
     } else {
-      signal.addEventListener("abort", () => controller.abort(), { once: true });
+      signal.addEventListener("abort", onExternalAbort, { once: true });
     }
   }
 
@@ -43,8 +60,20 @@ async function fetchJsonWithTimeout(
       body = undefined;
     }
     return { response, body };
+  } catch (cause) {
+    if (isAbortError(cause)) {
+      if (timedOut) {
+        throw new HealthProbeTimeoutError();
+      }
+      // React Query supersede/cancel or other external abort — do not latch as timeout.
+      throw cause;
+    }
+    throw cause;
   } finally {
     clearTimeout(timeout);
+    if (signal) {
+      signal.removeEventListener("abort", onExternalAbort);
+    }
   }
 }
 
@@ -75,12 +104,15 @@ export async function fetchLiveness(signal?: AbortSignal): Promise<LivenessRespo
     if (cause instanceof ApiError) {
       throw cause;
     }
-    if (isAbortError(cause)) {
+    if (cause instanceof HealthProbeTimeoutError) {
       throw new ApiError(
         "Backend liveness check timed out.",
         { code: "liveness_timeout" },
         { cause },
       );
+    }
+    if (isAbortError(cause)) {
+      throw cause;
     }
     throw new ApiError("The backend could not be reached.", { code: "network_error" }, { cause });
   }
@@ -118,8 +150,11 @@ export async function fetchReadiness(signal?: AbortSignal): Promise<ReadinessRes
     if (cause instanceof ApiError) {
       throw cause;
     }
-    if (isAbortError(cause)) {
+    if (cause instanceof HealthProbeTimeoutError) {
       throw new ApiError("Readiness check timed out.", { code: "readiness_timeout" }, { cause });
+    }
+    if (isAbortError(cause)) {
+      throw cause;
     }
     throw new ApiError("The backend could not be reached.", { code: "network_error" }, { cause });
   }
