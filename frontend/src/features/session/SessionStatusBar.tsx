@@ -110,7 +110,7 @@ export function SessionStatusBar({
             />
             <Chip
               icon={connected ? <WifiIcon /> : <WifiOffIcon />}
-              label={connected ? "Live" : reconnecting ? "Reconnecting..." : "Offline"}
+              label={connected ? "Session active" : reconnecting ? "Reconnecting..." : "Offline"}
               color={connected ? "success" : reconnecting ? "warning" : "default"}
               size="small"
               variant="outlined"

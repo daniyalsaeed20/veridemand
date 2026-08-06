@@ -21,7 +21,11 @@ import { healthQueryKeys, isOcrStarting } from "./useHealth";
 
 interface OcrReadinessPanelProps {
   readonly readiness: ReadinessResponse | undefined;
-  readonly readinessError: boolean;
+  readonly livenessUnreachable?: boolean;
+  readonly readinessQueryFailed?: boolean;
+  readonly readinessErrorCode?: string | null;
+  /** @deprecated Use livenessUnreachable / readinessQueryFailed. */
+  readonly readinessError?: boolean;
   readonly onCheckConnection: () => void;
 }
 
@@ -64,12 +68,20 @@ function buildDiagnostics(
 
 export function OcrReadinessPanel({
   readiness,
-  readinessError,
+  livenessUnreachable = false,
+  readinessQueryFailed = false,
+  readinessErrorCode = null,
+  readinessError = false,
   onCheckConnection,
 }: OcrReadinessPanelProps) {
   const queryClient = useQueryClient();
   const ocr = readiness?.ocr_runtime ?? null;
-  const mode = deriveOcrPanelMode(readiness, readinessError);
+  const mode = deriveOcrPanelMode({
+    readiness,
+    livenessUnreachable: livenessUnreachable || readinessError,
+    readinessQueryFailed: readinessQueryFailed && !livenessUnreachable && !readinessError,
+    readinessErrorCode,
+  });
   const [showDetails, setShowDetails] = useState(false);
   const [copied, setCopied] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -175,6 +187,29 @@ export function OcrReadinessPanel({
       >
         <AlertTitle>Backend connection unavailable</AlertTitle>
         The web interface cannot reach the VeriDemand backend.
+      </Alert>
+    );
+  }
+
+  if (mode === "readiness_unavailable") {
+    return (
+      <Alert
+        severity="warning"
+        role="status"
+        action={
+          <Button
+            color="inherit"
+            size="small"
+            startIcon={<WifiFindIcon />}
+            onClick={onCheckConnection}
+          >
+            Check connection
+          </Button>
+        }
+      >
+        <AlertTitle>Runtime readiness unavailable</AlertTitle>
+        The backend is reachable, but readiness could not be evaluated. Printed OCR status is
+        unknown until readiness succeeds.
       </Alert>
     );
   }

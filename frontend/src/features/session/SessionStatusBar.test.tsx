@@ -21,7 +21,7 @@ function renderBar(props: Partial<Parameters<typeof SessionStatusBar>[0]> = {}) 
 describe("SessionStatusBar", () => {
   it("shows the live connection indicator when connected", () => {
     renderBar({ connected: true });
-    expect(screen.getByText("Live")).toBeInTheDocument();
+    expect(screen.getByText("Session active")).toBeInTheDocument();
   });
 
   it("shows a reconnecting indicator when the stream drops", () => {

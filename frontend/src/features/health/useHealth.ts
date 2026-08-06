@@ -33,10 +33,23 @@ function readinessPollIntervalMs(data: ReadinessResponse | undefined): number | 
   return false;
 }
 
-export function useLiveness() {
+export function useLiveness(options?: { pollWhileUnreachable?: boolean }) {
+  const pollWhileUnreachable = options?.pollWhileUnreachable ?? false;
   return useQuery({
     queryKey: healthQueryKeys.liveness,
     queryFn: ({ signal }) => fetchLiveness(signal),
+    refetchInterval: (query) => {
+      if (!pollWhileUnreachable) {
+        return false;
+      }
+      // Keep observing after success so a later backend outage is detected
+      // (SSE Offline alone is not /health/live).
+      if (query.state.status === "error") {
+        return 3000;
+      }
+      return 5000;
+    },
+    retry: false,
   });
 }
 
@@ -49,11 +62,25 @@ export function useReadiness(options?: { pollWhileNotReady?: boolean }) {
       if (!pollWhileNotReady) {
         return false;
       }
+      if (query.state.status === "error") {
+        return 5000;
+      }
       return readinessPollIntervalMs(query.state.data);
     },
+    retry: false,
   });
 }
 
 export function isOcrStarting(ocr: OcrRuntimeStatus | null | undefined): boolean {
   return ocr != null && STARTING_STATES.has(ocr.state) && !ocr.ready;
+}
+
+export function isLivenessTransportFailure(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+  const code = "code" in error ? String((error as { code?: string }).code ?? "") : "";
+  return (
+    code === "network_error" || code === "liveness_timeout" || code === "invalid_liveness_response"
+  );
 }

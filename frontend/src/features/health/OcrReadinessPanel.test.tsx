@@ -160,12 +160,25 @@ describe("OcrReadinessPanel", () => {
   it("shows Check connection when backend is unreachable", () => {
     const onCheck = vi.fn();
     renderWithProviders(
-      <OcrReadinessPanel readiness={undefined} readinessError onCheckConnection={onCheck} />,
+      <OcrReadinessPanel readiness={undefined} livenessUnreachable onCheckConnection={onCheck} />,
     );
     expect(screen.getByText("Backend connection unavailable")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Retry OCR/i })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Check connection/i }));
     expect(onCheck).toHaveBeenCalled();
+  });
+
+  it("shows readiness unavailable when live but ready probe fails", () => {
+    renderWithProviders(
+      <OcrReadinessPanel
+        readiness={undefined}
+        readinessQueryFailed
+        readinessErrorCode="http_error"
+        onCheckConnection={() => undefined}
+      />,
+    );
+    expect(screen.getByText("Runtime readiness unavailable")).toBeInTheDocument();
+    expect(screen.queryByText("Backend connection unavailable")).toBeNull();
   });
 
   it("shows disabled as a warning, not starting", () => {
@@ -191,15 +204,36 @@ describe("OcrReadinessPanel", () => {
   });
 
   it("deriveOcrPanelMode covers ready and failed modes", () => {
-    expect(deriveOcrPanelMode(undefined, true)).toBe("backend_unreachable");
-    expect(deriveOcrPanelMode(makeReadiness(makeOcr({ state: "ready", ready: true })), false)).toBe(
-      "ready_flash",
+    expect(deriveOcrPanelMode({ readiness: undefined, livenessUnreachable: true })).toBe(
+      "backend_unreachable",
     );
     expect(
-      deriveOcrPanelMode(
-        makeReadiness(makeOcr({ state: "failed", ready: false, retryable: true })),
-        false,
-      ),
+      deriveOcrPanelMode({
+        readiness: undefined,
+        livenessUnreachable: false,
+        readinessQueryFailed: true,
+        readinessErrorCode: "http_error",
+      }),
+    ).toBe("readiness_unavailable");
+    expect(
+      deriveOcrPanelMode({
+        readiness: undefined,
+        livenessUnreachable: false,
+        readinessQueryFailed: true,
+        readinessErrorCode: "readiness_timeout",
+      }),
+    ).toBe("starting");
+    expect(
+      deriveOcrPanelMode({
+        readiness: makeReadiness(makeOcr({ state: "ready", ready: true })),
+        livenessUnreachable: false,
+      }),
+    ).toBe("ready_flash");
+    expect(
+      deriveOcrPanelMode({
+        readiness: makeReadiness(makeOcr({ state: "failed", ready: false, retryable: true })),
+        livenessUnreachable: false,
+      }),
     ).toBe("failed_retryable");
   });
 });
