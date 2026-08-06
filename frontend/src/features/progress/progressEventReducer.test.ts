@@ -69,6 +69,141 @@ describe("progressEventReducer", () => {
     expect(regress.accepted).toBe(false);
     expect(regress.reason).toBe("invalid_lifecycle_transition");
   });
+
+  it("accepts full_ocr primary completed then quality evaluation started", () => {
+    let state = initialProgressReducerState;
+    const steps = [
+      {
+        event_sequence: 1,
+        progress_version: 1,
+        document_id: "doc_1",
+        event: "document.full_ocr_primary_started",
+        operation_id: "op_primary",
+        operation_status: "started",
+        attempt_number: 1,
+        document_page_number: 1,
+        overall_percent: 40,
+      },
+      {
+        event_sequence: 2,
+        progress_version: 2,
+        document_id: "doc_1",
+        event: "document.full_ocr_primary_completed",
+        operation_id: "op_primary",
+        operation_status: "completed",
+        attempt_number: 1,
+        document_page_number: 1,
+        overall_percent: 45,
+      },
+      {
+        event_sequence: 3,
+        progress_version: 3,
+        document_id: "doc_1",
+        event: "document.full_ocr_quality_evaluation_started",
+        operation_id: "op_quality",
+        operation_status: "started",
+        attempt_number: 1,
+        document_page_number: 1,
+        overall_percent: 48,
+      },
+      {
+        event_sequence: 4,
+        progress_version: 4,
+        document_id: "doc_1",
+        event: "document.full_ocr_result_selection_started",
+        operation_id: "op_select",
+        operation_status: "started",
+        attempt_number: 1,
+        document_page_number: 1,
+        overall_percent: 52,
+      },
+    ] as const;
+    for (const step of steps) {
+      const result = reduceProgressEvent(state, step);
+      expect(result.accepted).toBe(true);
+      state = result.state;
+    }
+    expect(state.byDocument.doc_1?.terminal).toBe(false);
+  });
+
+  it("accepts page N completed then page N+1 visual_page_started", () => {
+    const page1Done = reduceProgressEvent(initialProgressReducerState, {
+      event_sequence: 1,
+      progress_version: 1,
+      document_id: "doc_1",
+      event: "document.visual_page_ocr_completed",
+      operation_id: "op_page_1",
+      operation_status: "completed",
+      attempt_number: 1,
+      document_page_number: 1,
+      overall_percent: 40,
+    });
+    expect(page1Done.accepted).toBe(true);
+    const page2Start = reduceProgressEvent(page1Done.state, {
+      event_sequence: 2,
+      progress_version: 2,
+      document_id: "doc_1",
+      event: "document.visual_page_started",
+      operation_id: "op_page_2",
+      operation_status: "started",
+      attempt_number: 1,
+      document_page_number: 2,
+      overall_percent: 42,
+    });
+    expect(page2Start.accepted).toBe(true);
+    expect(page2Start.state.byDocument.doc_1?.terminal).toBe(false);
+  });
+
+  it("clears native terminal on visual_processing_started", () => {
+    const nativeDone = reduceProgressEvent(initialProgressReducerState, {
+      event_sequence: 1,
+      progress_version: 1,
+      document_id: "doc_1",
+      event: "document.native_extraction_completed",
+      operation_id: "op_native",
+      operation_status: "completed",
+      attempt_number: 1,
+      overall_percent: 32,
+    });
+    expect(nativeDone.state.byDocument.doc_1?.terminal).toBe(true);
+    const visualStart = reduceProgressEvent(nativeDone.state, {
+      event_sequence: 2,
+      progress_version: 2,
+      document_id: "doc_1",
+      event: "document.visual_processing_started",
+      operation_id: "op_visual",
+      operation_status: "started",
+      attempt_number: 1,
+      overall_percent: 35,
+    });
+    expect(visualStart.accepted).toBe(true);
+    expect(visualStart.state.byDocument.doc_1?.terminal).toBe(false);
+  });
+
+  it("rejects same operation_id terminal to active regression", () => {
+    const done = reduceProgressEvent(initialProgressReducerState, {
+      event_sequence: 1,
+      progress_version: 1,
+      document_id: "doc_1",
+      event: "document.full_ocr_primary_completed",
+      operation_id: "op_same",
+      operation_status: "completed",
+      attempt_number: 1,
+      overall_percent: 40,
+    });
+    const regress = reduceProgressEvent(done.state, {
+      event_sequence: 2,
+      progress_version: 2,
+      document_id: "doc_1",
+      event: "document.full_ocr_primary_started",
+      operation_id: "op_same",
+      operation_status: "started",
+      attempt_number: 1,
+      overall_percent: 40,
+    });
+    expect(regress.accepted).toBe(false);
+    expect(regress.reason).toBe("invalid_lifecycle_transition");
+  });
 });
 
 describe("live progress clocks", () => {

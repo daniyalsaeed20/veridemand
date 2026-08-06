@@ -128,9 +128,9 @@ export function reduceProgressEvent(
     return { state, accepted: false, reason: "stale_event_rejected" };
   }
 
-  if (prev.terminal && event.operation_status && !TERMINAL_STATUSES.has(event.operation_status)) {
+  if (prev.terminal && event.event !== "document.visual_processing_started") {
     if (DOCUMENT_TERMINAL_EVENTS.has(event.event ?? "") === false) {
-      // Reject terminal → active regression for the same document.
+      // Reject document-terminal → active regression (same attempt).
       const activeAgain =
         event.operation_status === "started" ||
         event.operation_status === "queued" ||
@@ -139,6 +139,26 @@ export function reduceProgressEvent(
         warnDev("invalid_lifecycle_transition", event);
         return { state, accepted: false, reason: "invalid_lifecycle_transition" };
       }
+    }
+  }
+
+  // Same operation_id must not leave a terminal status back to active without a new attempt.
+  if (
+    prev.operationId != null &&
+    event.operation_id != null &&
+    prev.operationId === event.operation_id &&
+    prev.operationStatus != null &&
+    TERMINAL_STATUSES.has(prev.operationStatus) &&
+    event.operation_status != null &&
+    !TERMINAL_STATUSES.has(event.operation_status)
+  ) {
+    const activeAgain =
+      event.operation_status === "started" ||
+      event.operation_status === "queued" ||
+      event.operation_status === "running";
+    if (activeAgain && (event.attempt_number ?? 1) <= prev.attemptNumber) {
+      warnDev("invalid_lifecycle_transition", event);
+      return { state, accepted: false, reason: "invalid_lifecycle_transition" };
     }
   }
 
@@ -192,12 +212,13 @@ export function reduceProgressEvent(
     prev.overallPercent,
     Math.min(65, event.overall_percent ?? prev.overallPercent),
   );
-  const docTerminal =
-    prev.terminal ||
-    DOCUMENT_TERMINAL_EVENTS.has(event.event ?? "") ||
-    (event.operation_status != null &&
-      TERMINAL_STATUSES.has(event.operation_status) &&
-      (event.event?.startsWith("document.") ?? false));
+  // Document terminal is reserved for true document lifecycle events — not per-operation
+  // completed statuses on document.* progress events (full_ocr_*, visual_page_*, …).
+  let docTerminal = prev.terminal || DOCUMENT_TERMINAL_EVENTS.has(event.event ?? "");
+  if (event.event === "document.visual_processing_started") {
+    // Native extraction may emit native_extraction_completed before visual starts.
+    docTerminal = false;
+  }
 
   const nextDoc: DocumentProgressState = {
     lastEventSequence: Math.max(prev.lastEventSequence, sequence),
