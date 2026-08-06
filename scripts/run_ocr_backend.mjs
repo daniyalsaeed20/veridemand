@@ -2,8 +2,9 @@
 /**
  * Launch the VeriDemand API from the OCR-only environment (.venv-ocr).
  * Fails loudly if the environment is missing, contains Torch, or cannot import Paddle.
+ * Refuses to start when port 8000 is occupied by a non-matching process (never kills).
  */
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,6 +17,7 @@ const venvPython = path.join(
   isWin ? "Scripts" : "bin",
   isWin ? "python.exe" : "python",
 );
+const backendUrl = "http://127.0.0.1:8000";
 
 if (!existsSync(venvPython)) {
   console.error(
@@ -45,7 +47,59 @@ function run(command, args, opts = {}) {
   });
 }
 
+function assertPortReusableOrFree() {
+  const code = `
+from scripts.lib.api_process_guard import commits_match, port_in_use, probe_live, repo_head
+base = ${JSON.stringify(backendUrl)}
+live = probe_live(base)
+head = repo_head()
+if live.reachable:
+    if commits_match(live.git_commit, head):
+        print("reuse")
+    else:
+        print(f"mismatch pid={live.process_id} live={live.git_commit} head={head}")
+elif port_in_use("127.0.0.1", 8000):
+    print("occupied")
+else:
+    print("free")
+`;
+  const result = spawnSync(venvPython, ["-c", code], {
+    cwd: root,
+    encoding: "utf8",
+    env,
+    windowsHide: true,
+  });
+  const out = (result.stdout || "").trim().toLowerCase();
+  if (result.status !== 0) {
+    console.error("ERROR: could not probe port 8000 for OCR backend launch.");
+    if (result.stderr) console.error(result.stderr.trim().slice(0, 400));
+    process.exit(2);
+  }
+  if (out === "free") {
+    return { reuse: false };
+  }
+  if (out === "reuse") {
+    console.log(`Port 8000 already serves a matching VeriDemand build; reusing ${backendUrl}`);
+    return { reuse: true };
+  }
+  console.error(
+    `ERROR: port 8000 is occupied by a process that is not this repository HEAD.\n` +
+      `  probe=${out}\n` +
+      `  Stop the obsolete VeriDemand backend (or free the port) before pnpm dev:ocr.\n` +
+      `  Unrelated processes are never killed.`,
+  );
+  process.exit(2);
+}
+
 async function main() {
+  const port = assertPortReusableOrFree();
+  if (port.reuse) {
+    // Keep process alive so concurrently does not exit the frontend partner.
+    console.log("OCR backend already running with matching build identity; holding process.");
+    await new Promise(() => {});
+    return;
+  }
+
   console.log("Syncing OCR-only environment (.venv-ocr)...");
   await run("uv", ["sync", "--group", "ocr"]);
   console.log("Validating OCR backend environment...");

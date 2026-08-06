@@ -9,7 +9,8 @@
     "node": ">=24.18.0 <25"
   },
   "scripts": {
-    "dev": "concurrently -n backend,frontend -c blue,green \"pnpm dev:backend\" \"pnpm dev:frontend\"",
+    "dev": "node scripts/run_dev.mjs",
+    "dev:legacy": "concurrently -n backend,frontend -c blue,green \"pnpm dev:backend\" \"pnpm dev:frontend\"",
     "dev:backend": "uv run uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000",
     "dev:backend:ocr": "node scripts/run_ocr_backend.mjs",
     "dev:ocr": "concurrently -n backend,frontend -c blue,green \"pnpm dev:backend:ocr\" \"pnpm dev:frontend\"",

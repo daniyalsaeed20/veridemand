@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import contextlib
+import importlib.util
 import os
 import subprocess
 import sys
@@ -12,15 +13,31 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def _run_probe(source: str) -> int:
-    """Run a tiny probe in this interpreter without static imports in this file."""
+def _package_present(name: str) -> bool:
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ModuleNotFoundError, ValueError):
+        return False
+
+
+def _run_probe(source: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, "-c", source],
         cwd=ROOT,
         check=False,
         capture_output=True,
         text=True,
-    ).returncode
+    )
+
+
+def _models_ok() -> bool:
+    model_root = ROOT / ".models" / "paddleocr"
+    record = model_root / "model-record.json"
+    det = model_root / "PP-OCRv5_mobile_det"
+    rec = model_root / "PP-OCRv5_mobile_rec"
+    if not record.is_file() or not det.is_dir() or not rec.is_dir():
+        return False
+    return any(det.iterdir()) and any(rec.iterdir())
 
 
 def main() -> int:
@@ -35,19 +52,39 @@ def main() -> int:
     python = Path(sys.executable).resolve()
     if ".venv-ocr" not in str(python).replace("\\", "/"):
         print(
-            f"ERROR: sys.executable is not inside .venv-ocr: {python}",
+            "ERROR: sys.executable is not inside .venv-ocr "
+            "(sanitized env name check failed for executable).",
             file=sys.stderr,
         )
         return 2
 
-    # Probes use subprocess so this script stays outside the Phase-4 OCR /
-    # Torch import allowlists while still validating the OCR-only environment.
-    if _run_probe("import torch") == 0:
+    # find_spec only — never import Torch merely to probe presence.
+    if _package_present("torch"):
         print("ERROR: Torch is present in .venv-ocr; refuse to start OCR backend.", file=sys.stderr)
         return 2
+    if _package_present("torchvision"):
+        print(
+            "ERROR: Torchvision is present in .venv-ocr; refuse to start OCR backend.",
+            file=sys.stderr,
+        )
+        return 2
 
-    if _run_probe("import paddle; import paddleocr") != 0:
-        print("ERROR: Paddle/PaddleOCR import failed in .venv-ocr.", file=sys.stderr)
+    paddle_probe = _run_probe(
+        "import paddle; import paddleocr; paddle.utils.run_check(); print('ok')"
+    )
+    if paddle_probe.returncode != 0:
+        print("ERROR: Paddle/PaddleOCR import or paddle.utils.run_check() failed.", file=sys.stderr)
+        err = (paddle_probe.stderr or paddle_probe.stdout or "").strip().splitlines()
+        if err:
+            print(f"  detail: {err[-1][:200]}", file=sys.stderr)
+        return 2
+
+    if not _models_ok():
+        print(
+            "ERROR: OCR model assets missing or incomplete under .models/paddleocr. "
+            "Run: pnpm models:ocr:bootstrap && pnpm models:ocr:verify",
+            file=sys.stderr,
+        )
         return 2
 
     commit = "unknown"
@@ -63,13 +100,16 @@ def main() -> int:
         )
 
     print("VeriDemand OCR backend launch")
-    print(f"  python: {python}")
+    print("  python_environment: .venv-ocr")
     print(f"  UV_PROJECT_ENVIRONMENT: {env_name}")
     print(f"  git_commit: {commit}")
     print("  backend_url: http://127.0.0.1:8000")
     print("  frontend_url: http://localhost:5173")
     print("  torch: absent")
+    print("  torchvision: absent")
     print("  paddle: present")
+    print("  paddle_run_check: ok")
+    print("  ocr_models: present")
     return 0
 
 
